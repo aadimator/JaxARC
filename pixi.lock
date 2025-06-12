@@ -2929,8 +2929,8 @@ packages:
   requires_python: '>=3.10'
 - pypi: .
   name: jaxarc
-  version: 0.1.dev4+g3988e4c.d20250612
-  sha256: 489fb13500eece21abba88e44f4c6b04207ac258c9cc6442e6ebe6bbdba729b7
+  version: 0.1.dev6+g6ff4b4b.d20250612
+  sha256: 0e5d0a9bf1d5e8c63ec93b9f3709a72e71dac7fe310a579e58fb65a3b7a01edc
   requires_python: '>=3.9'
   editable: true
 - pypi: https://files.pythonhosted.org/packages/ab/b1/c9d2a7ba9ebeabb7ac37082f4c466364f475dc7550a79358c0f0aa89fdf2/jaxlib-0.4.38-cp312-cp312-macosx_11_0_arm64.whl

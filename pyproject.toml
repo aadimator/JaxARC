@@ -157,8 +157,14 @@ JaxARC = { path = ".", editable = true }
 jax = {extras = ["cuda12"]}
 jaxmarl = { version = ">=0.1.0,<0.2", extras = ["algs"] }
 
+[tool.pixi.activation.env]
+JAX_PLATFORMS = "cuda"
+
 [tool.pixi.target.osx.pypi-dependencies]
 jax = {extras = ["cpu"]}
+
+[tool.pixi.target.osx.activation.env]
+JAX_PLATFORMS = "cpu"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
