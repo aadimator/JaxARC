@@ -30,7 +30,6 @@ def get_path(path_type: str, create: bool = False) -> Path:
         Path object for the requested path type
     """
     cfg = get_config()
-    print(cfg)
     path_str = cfg.paths[path_type]
     path: Path = here(path_str)
 
