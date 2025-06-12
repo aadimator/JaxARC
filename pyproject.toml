@@ -191,7 +191,7 @@ pre-commit = ">=4.2.0,<5"
 pylint = ">=3.3.7,<4"
 
 [tool.pixi.feature.dev.tasks]
-lint = "pre-commit run -- --all-files"
+lint = "pre-commit run --all-files"
 pylint = "pylint jaxarc"
 
 [tool.pixi.feature.docs.tasks]

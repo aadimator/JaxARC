@@ -1,3 +1,7 @@
+defaults:
+  - _self_
+  - environment: arc_agi_1
+
 paths:
   data_raw: "data/raw"
   data_processed: "data/processed"

@@ -1,0 +1,33 @@
+# ARC-AGI-2 Environment Configuration (2025 Dataset)
+# This configuration works with ARC-AGI-2 data downloaded from Kaggle
+
+# Dataset Information
+dataset_name: "ARC-AGI-2"
+dataset_year: 2025
+description: "ARC-AGI-2 dataset (2025) for abstract reasoning tasks"
+
+# Data Paths (adjust these to your local dataset location)
+data_root: "data/raw/arc-prize-2025"
+training:
+  challenges: "${environment.data_root}/arc-agi_training_challenges.json"
+  solutions: "${environment.data_root}/arc-agi_training_solutions.json"
+evaluation:
+  challenges: "${environment.data_root}/arc-agi_evaluation_challenges.json"
+  solutions: "${environment.data_root}/arc-agi_evaluation_solutions.json"
+testing:
+  challenges: "${environment.data_root}/arc-agi_test_challenges.json"
+sample_submission: "${environment.data_root}/sample_submission.json"
+
+# Parser Configuration
+parser:
+  _target_: jaxarc.parsers.ArcAgiParser
+  description: "General ARC-AGI parser supporting both ARC-AGI-1 and ARC-AGI-2"
+
+# Grid Configuration
+max_grid_size: 30  # ARC grids are up to 30x30
+
+# Environment Configuration (placeholder for future MARL environment)
+environment:
+  max_steps_per_episode: 200
+  num_agents: 4
+  collaboration_enabled: true

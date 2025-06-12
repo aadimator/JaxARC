@@ -1,0 +1,3 @@
+[codespell]
+skip = *.lock, *.bib
+ignore-words-list = astroid
