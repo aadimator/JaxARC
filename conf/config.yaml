@@ -1,0 +1,5 @@
+paths:
+  data_raw: "data/raw"
+  data_processed: "data/processed"
+  data_interim: "data/interim"
+  data_external: "data/external"

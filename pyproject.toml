@@ -166,14 +166,16 @@ dev = { features = ["dev"], solve-group = "default" }
 docs = { features = ["docs"], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
 
-[tool.pixi.tasks]
-
 [tool.pixi.dependencies]
 tqdm = ">=4.67.1,<5"
 typer = ">=0.16.0,<0.17"
 pyprojroot = ">=0.3.0,<0.4"
 loguru = ">=0.7.3,<0.8"
 python = "3.12.*"
+hydra-core = ">=1.3.2,<2"
+rich = ">=14.0.0,<15"
+drawsvg = ">=2.4.0,<3"
+kaggle = ">=1.6.17,<2"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.4.0,<9"
