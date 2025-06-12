@@ -13,7 +13,6 @@ Usage:
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import hydra
@@ -33,77 +32,62 @@ def load_and_parse_sample_task(cfg: DictConfig) -> None:
     dataset_type = cfg.environment.get("default_split", "training")  # Example: default to training
 
     if dataset_type not in cfg.environment:
-        logger.error("Dataset type '%s' not found in configuration.", dataset_type)
+        logger.error(f"Dataset type '{dataset_type}' not found in configuration.")
         return
 
     current_config = cfg.environment[dataset_type]
     base_dataset_name = cfg.environment.dataset_name
 
     logger.info(
-        "Dataset: %s_%s (%s)",
-        base_dataset_name,
-        dataset_type,
-        cfg.environment.dataset_year,
+        f"Dataset: {base_dataset_name}_{dataset_type} ({cfg.environment.dataset_year})"
     )
-    logger.info("Description: %s", cfg.environment.description)
-    logger.info("Data root: %s", cfg.environment.data_root)
+    logger.info(f"Description: {cfg.environment.description}")
+    logger.info(f"Data root: {cfg.environment.data_root}")
 
     challenges_path = Path(current_config.challenges)
     solutions_path = Path(current_config.solutions) if "solutions" in current_config else None
 
     if challenges_path.exists():
-        logger.info("Loading %s tasks from: %s", dataset_type, challenges_path)
+        logger.info(f"Loading {dataset_type} tasks from: {challenges_path}")
         if solutions_path:
-            logger.info("Using solutions from: %s", solutions_path)
+            logger.info(f"Using solutions from: {solutions_path}")
         else:
-            logger.info("No solutions file specified for %s.", dataset_type)
+            logger.info(f"No solutions file specified for {dataset_type}.")
 
         try:
             tasks = parser.parse_all_tasks_from_file(challenges_path, solutions_path)
-            logger.info("Found %d tasks in the %s file", len(tasks), dataset_type)
+            logger.info(f"Found {len(tasks)} tasks in the {dataset_type} file")
 
             if tasks:
                 # Show details of the first task
                 first_task_id = next(iter(tasks.keys()))
                 first_task = tasks[first_task_id]
 
-                logger.info("Sample task: %s", first_task_id)
-                logger.info("  Training pairs: %d", len(first_task.train_pairs))
-                logger.info("  Test pairs: %d", len(first_task.test_pairs))
+                logger.info(f"Sample task: {first_task_id}")
+                logger.info(f"  Training pairs: {len(first_task.train_pairs)}")
+                logger.info(f"  Test pairs: {len(first_task.test_pairs)}")
 
                 if first_task.train_pairs:
                     first_train = first_task.train_pairs[0]
-                    logger.info(
-                        "  First training input shape: %s",
-                        first_train.input.array.shape,
-                    )
+                    logger.info(f"  First training input shape: {first_train.input.array.shape}")
                     if first_train.output:
-                        logger.info(
-                            "  First training output shape: %s",
-                            first_train.output.array.shape,
-                        )
+                        logger.info(f"  First training output shape: {first_train.output.array.shape}")
                     else:
                         logger.info("  First training output: Not available")
 
                 if first_task.test_pairs:
                     first_test = first_task.test_pairs[0]
-                    logger.info(
-                        "  First test input shape: %s", first_test.input.array.shape
-                    )
+                    logger.info(f"  First test input shape: {first_test.input.array.shape}")
                     if first_test.output:
-                        logger.info(
-                            "  First test output shape: %s", first_test.output.array.shape
-                        )
+                        logger.info(f"  First test output shape: {first_test.output.array.shape}")
                     else:
                         logger.info("  First test output: Not available (or not loaded)")
 
         except (ValueError, KeyError, FileNotFoundError) as e:
-            logger.error("Error parsing tasks: %s", e)
+            logger.error(f"Error parsing tasks: {e}")
 
     else:
-        logger.warning(
-            "Training challenges file not found at %s", challenges_path
-        )
+        logger.warning(f"Training challenges file not found at {challenges_path}")
         logger.info(
             "Make sure to download the dataset and adjust the paths in the config files."
         )
@@ -112,10 +96,6 @@ def load_and_parse_sample_task(cfg: DictConfig) -> None:
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(cfg: DictConfig) -> None:
     """Main function demonstrating parser usage."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
 
     logger.info("ARC-AGI Parser Demonstration")
     logger.info("=" * 40)
