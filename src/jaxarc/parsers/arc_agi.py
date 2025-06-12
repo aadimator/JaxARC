@@ -116,7 +116,7 @@ class ArcAgiParser:
             msg = f"Invalid JSON in file {file_path}: {e}"
             raise ValueError(msg) from e
         except Exception as e:
-            logger.error("Error parsing task %s from %s: %s", task_id, file_path, e)
+            logger.error(f"Error parsing task {task_id} from {file_path}: {e}")
             raise
 
     def parse_all_tasks_from_file(
@@ -146,27 +146,20 @@ class ArcAgiParser:
                 tasks[task_id] = self.parse_task_json(task_json_content, task_id)
             except Exception as e:
                 logger.error(
-                    "Skipping task %s from %s due to parsing error: %s",
-                    task_id,
-                    challenges_file,
-                    e,
+                    f"Skipping task {task_id} from {challenges_file} due to parsing error: {e}"
                 )
                 continue
 
         if solutions_file_path:
             solutions_file = Path(solutions_file_path)
             if solutions_file.exists():
-                logger.info("Loading solutions from: %s", solutions_file)
+                logger.info(f"Loading solutions from: {solutions_file}")
                 try:
                     solutions_data = json.loads(
                         solutions_file.read_text(encoding="utf-8")
                     )
                 except json.JSONDecodeError as e:
-                    logger.error(
-                        "Invalid JSON in solutions file %s: %s. Solutions will not be loaded.",
-                        solutions_file,
-                        e,
-                    )
+                    logger.error(f"Invalid JSON in solutions file {solutions_file}: {e}. Solutions will not be loaded.")
                     solutions_data = {}
 
                 for task_id, task_obj in tasks.items():
@@ -175,18 +168,14 @@ class ArcAgiParser:
 
                         if not isinstance(solution_outputs_json, list):
                             logger.warning(
-                                "Task %s: Solutions data is not a list. Skipping solutions for this task.",
-                                task_id,
+                                f"Task {task_id}: Solutions data is not a list. Skipping solutions for this task."
                             )
                             continue  # Skip to the next task_id if solutions format is wrong
 
                         if len(solution_outputs_json) != len(task_obj.test_pairs):
                             logger.warning(
-                                "Task %s: Mismatch between number of test inputs (%d) and solution outputs (%d). "
-                                "Some test outputs may not be loaded or may be incorrect if lists are misaligned.",
-                                task_id,
-                                len(task_obj.test_pairs),
-                                len(solution_outputs_json),
+                                f"Task {task_id}: Mismatch between number of test inputs ({len(task_obj.test_pairs)}) and solution outputs ({len(solution_outputs_json)}). "
+                                "Some test outputs may not be loaded or may be incorrect if lists are misaligned."
                             )
 
                         updated_test_pairs: list[TaskPair] = []
@@ -202,41 +191,28 @@ class ArcAgiParser:
                                         )
                                     else:
                                         logger.warning(
-                                            "Task %s, test pair %d: Expected solution output to be a grid (list of lists), got %s. Output will be None.",
-                                            task_id,
-                                            i,
-                                            type(output_grid_json),
+                                            f"Task {task_id}, test pair {i}: Expected solution output to be a grid (list of lists), got {type(output_grid_json)}. Output will be None."
                                         )
                                 except IndexError:
                                     # This case is covered by the length check above, but good for safety
                                     logger.warning(
-                                        "Task %s, test pair %d: No corresponding solution output found. Output will be None.",
-                                        task_id,
-                                        i,
+                                        f"Task {task_id}, test pair {i}: No corresponding solution output found. Output will be None."
                                     )
                                 except (
                                     ValueError
                                 ) as e_parse:  # Catch errors from _parse_grid_json
                                     logger.warning(
-                                        "Task %s, test pair %d: Error parsing solution grid: %s. Output will be None.",
-                                        task_id,
-                                        i,
-                                        e_parse,
+                                        f"Task {task_id}, test pair {i}: Error parsing solution grid: {e_parse}. Output will be None."
                                     )
                                 except (
                                     Exception
                                 ) as e_sol:  # Catch any other unexpected errors
                                     logger.error(
-                                        "Task %s, test pair %d: Unexpected error processing solution: %s. Output will be None.",
-                                        task_id,
-                                        i,
-                                        e_sol,
+                                        f"Task {task_id}, test pair {i}: Unexpected error processing solution: {e_sol}. Output will be None."
                                     )
                             else:  # Not enough solutions provided for the number of test inputs
                                 logger.warning(
-                                    "Task %s, test pair %d: Missing solution output. Output will be None.",
-                                    task_id,
-                                    i,
+                                    f"Task {task_id}, test pair {i}: Missing solution output. Output will be None."
                                 )
 
                             updated_test_pairs.append(
@@ -248,13 +224,11 @@ class ArcAgiParser:
                         task_obj.test_pairs = updated_test_pairs
                     else:
                         logger.warning(
-                            "Task %s: No solutions found in solutions file. Test outputs will be None.",
-                            task_id,
+                            f"Task {task_id}: No solutions found in solutions file. Test outputs will be None."
                         )
             else:
                 logger.warning(
-                    "Solutions file specified but not found: %s. Test outputs will be None.",
-                    solutions_file,
+                    f"Solutions file specified but not found: {solutions_file}. Test outputs will be None."
                 )
 
         return tasks
