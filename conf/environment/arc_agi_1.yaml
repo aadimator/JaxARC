@@ -6,6 +6,8 @@ dataset_name: "ARC-AGI-1"
 dataset_year: 2024
 description: "ARC-AGI-1 dataset (2024) for abstract reasoning tasks"
 
+default_split: "training"  # Default split to use
+
 # Data Paths (adjust these to your local dataset location)
 data_root: "data/raw/arc-prize-2024"
 training:
