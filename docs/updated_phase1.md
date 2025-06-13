@@ -1,24 +1,40 @@
-
 # Architecting a JaxMARL ARC: Core Structures and Implementation Strategy
 
 ## 1. Introduction
 
-This document outlines the architectural design for MARL environment for ARC-AGI dataset, leveraging the JAX library for high-performance numerical computation and the JaxMARL framework for multi-agent interactions.
+This document outlines the architectural design for MARL environment for ARC-AGI
+dataset, leveraging the JAX library for high-performance numerical computation
+and the JaxMARL framework for multi-agent interactions.
 
-This design has been updated to incorporate a sophisticated **selection and manipulation mechanism**. Agents can now define a selection mask—highlighting arbitrary groups of pixels—and then apply powerful manipulation actions to that selection. This design has been updated to incorporate a sophisticated **"Commit-and-Resolve"** cycle. Agents work on private scratchpads, explicitly commit their proposed changes backed by reasoned hypotheses, and the environment intelligently resolves conflicts based on the collective consensus (votes and confidence) of the group. This provides a powerful and structured framework for emergent collaboration.
+This design has been updated to incorporate a sophisticated **selection and
+manipulation mechanism**. Agents can now define a selection mask—highlighting
+arbitrary groups of pixels—and then apply powerful manipulation actions to that
+selection. This design has been updated to incorporate a sophisticated
+**"Commit-and-Resolve"** cycle. Agents work on private scratchpads, explicitly
+commit their proposed changes backed by reasoned hypotheses, and the environment
+intelligently resolves conflicts based on the collective consensus (votes and
+confidence) of the group. This provides a powerful and structured framework for
+emergent collaboration.
 
-Here is a step-by-step explanation of the overall flow, showing how an agent's private work, a shared hypothesis, and a final committed change all connect.
+Here is a step-by-step explanation of the overall flow, showing how an agent's
+private work, a shared hypothesis, and a final committed change all connect.
 
-Think of the process as a structured debate among agents, where they have to justify their actions before they can modify the final answer.
+Think of the process as a structured debate among agents, where they have to
+justify their actions before they can modify the final answer.
 
 ### The Core Idea: Justify Before You Change
 
-The old model was like multiple people trying to draw on the same canvas at once—chaotic. The new model is like a team of architects working on a blueprint:
+The old model was like multiple people trying to draw on the same canvas at
+once—chaotic. The new model is like a team of architects working on a blueprint:
 
 1. Each architect works on their own copy of the plan (**Private Scratchpad**).
-2. When an architect has an idea (e.g., "move this wall"), they formally propose it and explain why (**Make Hypothesis**).
-3. The other architects review the proposal and vote on it (**Vote on Hypothesis**).
-4. Only the changes backed by proposals that have strong team support (high votes) are actually merged into the master blueprint (**Commit-and-Resolve**).
+2. When an architect has an idea (e.g., "move this wall"), they formally propose
+   it and explain why (**Make Hypothesis**).
+3. The other architects review the proposal and vote on it (**Vote on
+   Hypothesis**).
+4. Only the changes backed by proposals that have strong team support (high
+   votes) are actually merged into the master blueprint
+   (**Commit-and-Resolve**).
 
 ---
 
@@ -28,57 +44,100 @@ Let's imagine two agents, Agent A and Agent B, working on a task.
 
 #### **Phase 1: Private Ideation (Happening on the Scratchpad)**
 
-1. **Observation:** Agent A looks at the `committed_output_grid` (the current official solution) and the task's training examples. It notices a pattern where blue objects seem to move down by one square.
-2. **Private Work:** Agent A decides to test this idea. It performs a sequence of actions that **only affect its own private workspace**:
-	- **`ACTION_SELECT_OBJECT_BY_COLOR`**: Agent A selects a blue object on its `agent_scratchpad_grids[A]`. This updates `agent_selection_masks[A]`.
-	- **`ACTION_MOVE_SELECTION`**: Agent A moves the selected pixels down by one square on its `agent_scratchpad_grids[A]`.
+1. **Observation:** Agent A looks at the `committed_output_grid` (the current
+   official solution) and the task's training examples. It notices a pattern
+   where blue objects seem to move down by one square.
+2. **Private Work:** Agent A decides to test this idea. It performs a sequence
+   of actions that **only affect its own private workspace**:
+   - **`ACTION_SELECT_OBJECT_BY_COLOR`**: Agent A selects a blue object on its
+     `agent_scratchpad_grids[A]`. This updates `agent_selection_masks[A]`.
+   - **`ACTION_MOVE_SELECTION`**: Agent A moves the selected pixels down by one
+     square on its `agent_scratchpad_grids[A]`.
 
-At this point, Agent A's scratchpad now contains a _draft_ of what it thinks the solution should be. The shared `committed_output_grid` is still untouched. Agent B is completely unaware of Agent A's draft.
+At this point, Agent A's scratchpad now contains a _draft_ of what it thinks the
+solution should be. The shared `committed_output_grid` is still untouched. Agent
+B is completely unaware of Agent A's draft.
 
 #### **Phase 2: Proposing and Justifying (Making the Hypothesis)**
 
-3. **Making it Official:** Agent A is confident in its change. To get it into the final solution, it needs to convince the others. It takes the **`ACTION_MAKE_PROPOSAL`** action.
-4. **The Hypothesis:** This action creates a new entry on the shared hypothesis blackboard. For example:
-	- `Hypothesis #5:`
-		- `agent_id`: A
-		- `proposal_type`: "MOVE_RULE"
-		- `proposal_data`: `[color=blue, dy=1, dx=0]`
-		- `confidence`: 0.9
-		- `vote_count`: 1 (the proposer's own vote)
-		- `active_mask`: True
+3. **Making it Official:** Agent A is confident in its change. To get it into
+   the final solution, it needs to convince the others. It takes the
+   **`ACTION_MAKE_PROPOSAL`** action.
+4. **The Hypothesis:** This action creates a new entry on the shared hypothesis
+   blackboard. For example:
+   - `Hypothesis #5:`
+     - `agent_id`: A
+     - `proposal_type`: "MOVE_RULE"
+     - `proposal_data`: `[color=blue, dy=1, dx=0]`
+     - `confidence`: 0.9
+     - `vote_count`: 1 (the proposer's own vote)
+     - `active_mask`: True
 
-Now, this explicit, structured idea—"I propose a rule to move blue things down by one"—is visible to everyone.
+Now, this explicit, structured idea—"I propose a rule to move blue things down
+by one"—is visible to everyone.
 
 #### **Phase 3: Collaboration and Consensus (Voting)**
 
-5. **Peer Review:** In the next step, Agent B sees `Hypothesis #5` in its observation. It can now evaluate this rule. It might check if this rule applies to the training examples or if it makes sense with its own ideas.
-6. **Agreement:** Agent B agrees with the rule. It takes the **`ACTION_VOTE_HYPOTHESIS`** action with `params = [5, 1]` (targeting hypothesis #5 with a +1 vote).
-7. **Consensus Builds:** The `vote_count` for `Hypothesis #5` is now **2**. It has strong support.
+5. **Peer Review:** In the next step, Agent B sees `Hypothesis #5` in its
+   observation. It can now evaluate this rule. It might check if this rule
+   applies to the training examples or if it makes sense with its own ideas.
+6. **Agreement:** Agent B agrees with the rule. It takes the
+   **`ACTION_VOTE_HYPOTHESIS`** action with `params = [5, 1]` (targeting
+   hypothesis #5 with a +1 vote).
+7. **Consensus Builds:** The `vote_count` for `Hypothesis #5` is now **2**. It
+   has strong support.
 
 #### **Phase 4: The "Commit-and-Resolve" Step**
 
-8. **Committing the Change:** Agent A (or Agent B, if it also applied the rule to its scratchpad) decides it's time to merge the change into the master solution. It takes the **`ACTION_COMMIT_CHANGES`** action. The most important parameter is the justification: `params = [5]` (I am committing the changes on my scratchpad, and I am justifying it with `Hypothesis #5`).
-9. **Intelligent Conflict Resolution:** The environment's `_resolve_commits` function now runs.
-	- It sees Agent A made a commit backed by `Hypothesis #5`, which has a vote count of 2. It calculates a "strength" for this commit (e.g., `strength = vote_count + confidence = 2 + 0.9 = 2.9`).
-	- Let's say another agent, Agent C, simultaneously tried to commit a change to the same pixels, but its change was backed by a different hypothesis with only 1 vote. Its strength would be lower.
-	- For every pixel on the grid, the environment asks: "Of all the agents who want to change this pixel, which one has the commit backed by the strongest hypothesis?"
-	- Agent A's commit wins because its backing hypothesis has higher vote count. The changes from Agent A's `scratchpad_grid` are copied to the shared `committed_output_grid`. Agent C's conflicting changes are ignored.
+8. **Committing the Change:** Agent A (or Agent B, if it also applied the rule
+   to its scratchpad) decides it's time to merge the change into the master
+   solution. It takes the **`ACTION_COMMIT_CHANGES`** action. The most important
+   parameter is the justification: `params = [5]` (I am committing the changes
+   on my scratchpad, and I am justifying it with `Hypothesis #5`).
+9. **Intelligent Conflict Resolution:** The environment's `_resolve_commits`
+   function now runs.
+   - It sees Agent A made a commit backed by `Hypothesis #5`, which has a vote
+     count of 2. It calculates a "strength" for this commit (e.g.,
+     `strength = vote_count + confidence = 2 + 0.9 = 2.9`).
+   - Let's say another agent, Agent C, simultaneously tried to commit a change
+     to the same pixels, but its change was backed by a different hypothesis
+     with only 1 vote. Its strength would be lower.
+   - For every pixel on the grid, the environment asks: "Of all the agents who
+     want to change this pixel, which one has the commit backed by the strongest
+     hypothesis?"
+   - Agent A's commit wins because its backing hypothesis has higher vote count.
+     The changes from Agent A's `scratchpad_grid` are copied to the shared
+     `committed_output_grid`. Agent C's conflicting changes are ignored.
 
 ### Summary of the Flow
 
 This cycle allows for a clear and powerful workflow:
 
-**Private Work (`scratchpad`) -> Public Justification (`hypothesis`) -> Team Consensus (`votes`) -> Intelligent Merge (`commit/resolve`)**
+**Private Work (`scratchpad`) -> Public Justification (`hypothesis`) -> Team
+Consensus (`votes`) -> Intelligent Merge (`commit/resolve`)**
 
-Hypotheses are the critical link. They are no longer just abstract ideas; they are the **explicit justification** for any change to the shared solution and the **primary mechanism for resolving conflicts**. The agent with the most popular, well-supported idea wins the right to modify the final grid.
+Hypotheses are the critical link. They are no longer just abstract ideas; they
+are the **explicit justification** for any change to the shared solution and the
+**primary mechanism for resolving conflicts**. The agent with the most popular,
+well-supported idea wins the right to modify the final grid.
 
 ## 2. Core Data Structures for JaxARC: JAX Pytrees (`src/jax_arc/types.py`)
 
-The foundation of a JAX-based environment lies in its data structures. For JaxARC, these are defined as `chex.dataclass` Pytrees, ensuring seamless integration with JAX's function transformations (e.g., `jax.jit`, `jax.vmap`) and facilitating type safety. These Pytrees will reside in `src/jax_arc/types.py`.
+The foundation of a JAX-based environment lies in its data structures. For
+JaxARC, these are defined as `chex.dataclass` Pytrees, ensuring seamless
+integration with JAX's function transformations (e.g., `jax.jit`, `jax.vmap`)
+and facilitating type safety. These Pytrees will reside in
+`src/jax_arc/types.py`.
 
 ### 2.1. Preamble: Pre-allocation Constants and `chex.dataclass`
 
-JAX achieves high performance, particularly through its JIT compiler, by operating on arrays with static, predetermined shapes. To accommodate the variable dimensions inherent in ARC tasks (e.g., grid sizes, number of training examples), a strategy of pre-allocation and padding is employed. This involves defining maximum dimensions for various data elements. These constants are crucial for ensuring that all JAX arrays within the Pytrees maintain static shapes, a prerequisite for efficient XLA compilation
+JAX achieves high performance, particularly through its JIT compiler, by
+operating on arrays with static, predetermined shapes. To accommodate the
+variable dimensions inherent in ARC tasks (e.g., grid sizes, number of training
+examples), a strategy of pre-allocation and padding is employed. This involves
+defining maximum dimensions for various data elements. These constants are
+crucial for ensuring that all JAX arrays within the Pytrees maintain static
+shapes, a prerequisite for efficient XLA compilation
 
 The following constants, configurable via Hydra, establish these maximums:
 
@@ -96,16 +155,28 @@ MAX_ACTION_PARAMS = 10 # Max number of parameters for a single action
 MAX_PROPOSAL_DATA_DIM = 10
 ```
 
-- `MAX_GRID_H`, `MAX_GRID_W`: Define the maximum height and width (e.g., 30x30) to which all ARC grids will be padded
-- `MAX_TRAIN_PAIRS`: Specifies the maximum number of training examples an ARC task can have; tasks with fewer examples will have their example arrays padded up to this limit
-- `MAX_TEST_PAIRS`: Specifies the maximum number of test examples an ARC task can have. Tasks with fewer test pairs will be padded.
-- `MAX_HYPOTHESES`: The maximum number of concurrent hypotheses agents can propose and store in the environment state
-- `MAX_ACTION_PARAMS`: The maximum dimension for the data payload associated with a single agent action, ensuring a static shape for the action parameters array.
-- `MAX_PROPOSAL_DATA_DIM`: The maximum dimension for the data payload associated with a single hypothesis, ensuring static sizing for hypothesis data arrays.
+- `MAX_GRID_H`, `MAX_GRID_W`: Define the maximum height and width (e.g., 30x30)
+  to which all ARC grids will be padded
+- `MAX_TRAIN_PAIRS`: Specifies the maximum number of training examples an ARC
+  task can have; tasks with fewer examples will have their example arrays padded
+  up to this limit
+- `MAX_TEST_PAIRS`: Specifies the maximum number of test examples an ARC task
+  can have. Tasks with fewer test pairs will be padded.
+- `MAX_HYPOTHESES`: The maximum number of concurrent hypotheses agents can
+  propose and store in the environment state
+- `MAX_ACTION_PARAMS`: The maximum dimension for the data payload associated
+  with a single agent action, ensuring a static shape for the action parameters
+  array.
+- `MAX_PROPOSAL_DATA_DIM`: The maximum dimension for the data payload associated
+  with a single hypothesis, ensuring static sizing for hypothesis data arrays.
 
 ### 2.2. `ParsedTaskData` Pytree
 
-The `ParsedTaskData` Pytree serves as a standardized, JAX-compatible container for a single, fully preprocessed ARC task. It acts as the data contract between the ARC data parser and the environment's `reset` method, ensuring that the environment receives data in a consistent format irrespective of the raw dataset's original structure.
+The `ParsedTaskData` Pytree serves as a standardized, JAX-compatible container
+for a single, fully preprocessed ARC task. It acts as the data contract between
+the ARC data parser and the environment's `reset` method, ensuring that the
+environment receives data in a consistent format irrespective of the raw
+dataset's original structure.
 
 ```python
 @chex.dataclass
@@ -127,35 +198,48 @@ class ParsedTaskData:
 
 Key fields include:
 
-- `input_grids_examples`, `output_grids_examples`: These store the JAX arrays for the input and output grids of the training pairs. They are padded along the first dimension up to `MAX_TRAIN_PAIRS` and along the spatial dimensions up to `(MAX_GRID_H, MAX_GRID_W)`.
-	
-- `input_masks_examples`, `output_masks_examples`: Boolean masks corresponding to the training pair grids, indicating valid data cells versus padded cells.
-	
-- `num_train_pairs`: An integer storing the actual number of training pairs for the task, crucial for correctly processing the examples despite the padding in the arrays.
-	
-- `test_input_grids`, `true_test_output_grids`: The JAX arrays for the single test input grid and its corresponding ground truth output grid, both padded to `(MAX_TEST_PAIRS, MAX_GRID_H, MAX_GRID_W)`.
-	
-- `test_input_masks`, `true_test_output_masks`: Boolean masks for the test input and output grids.
+- `input_grids_examples`, `output_grids_examples`: These store the JAX arrays
+  for the input and output grids of the training pairs. They are padded along
+  the first dimension up to `MAX_TRAIN_PAIRS` and along the spatial dimensions
+  up to `(MAX_GRID_H, MAX_GRID_W)`.
+
+- `input_masks_examples`, `output_masks_examples`: Boolean masks corresponding
+  to the training pair grids, indicating valid data cells versus padded cells.
+
+- `num_train_pairs`: An integer storing the actual number of training pairs for
+  the task, crucial for correctly processing the examples despite the padding in
+  the arrays.
+
+- `test_input_grids`, `true_test_output_grids`: The JAX arrays for the single
+  test input grid and its corresponding ground truth output grid, both padded to
+  `(MAX_TEST_PAIRS, MAX_GRID_H, MAX_GRID_W)`.
+
+- `test_input_masks`, `true_test_output_masks`: Boolean masks for the test input
+  and output grids.
 
 The structure of `ParsedTaskData` is detailed in Table 1.
 
 Table 1: ParsedTaskData Pytree Field Descriptions
 
-|Field Name|JAX Data Type (Example Shape for ARC)|Description/Purpose|
-|---|---|---|
-|`input_grids_examples`|`jnp.ndarray` (`MAX_TRAIN_PAIRS`, `MAX_GRID_H`, `MAX_GRID_W`)|Padded input grids from all training pairs of the current ARC task. Used for rule inference.|
-|`input_masks_examples`|`jnp.ndarray` (`MAX_TRAIN_PAIRS`, `MAX_GRID_H`, `MAX_GRID_W`)|Boolean masks for `input_grids_examples`, indicating valid data areas.|
-|`output_grids_examples`|`jnp.ndarray` (`MAX_TRAIN_PAIRS`, `MAX_GRID_H`, `MAX_GRID_W`)|Padded output grids from all training pairs. Used for rule inference.|
-|`output_masks_examples`|`jnp.ndarray` (`MAX_TRAIN_PAIRS`, `MAX_GRID_H`, `MAX_GRID_W`)|Boolean masks for `output_grids_examples`.|
-|`num_train_pairs`|`int`|Actual number of training pairs for this task.|
-|`current_test_input_grid`|`jnp.ndarray` (`MAX_GRID_H`, `MAX_GRID_W`)|The specific padded input grid for the single test case agents are currently solving.|
-|`current_test_input_mask`|`jnp.ndarray` (`MAX_GRID_H`, `MAX_GRID_W`)|Boolean mask for `current_test_input_grid`.|
-|`true_test_output_grid`|`jnp.ndarray` (`MAX_GRID_H`, `MAX_GRID_W`)|Ground truth solution (padded) for `current_test_input_grid`. Hidden from agents during solving; used for evaluation/reward.|
-|`true_test_output_mask`|`jnp.ndarray` (`MAX_GRID_H`, `MAX_GRID_W`)|Boolean mask indicating the valid area of `true_test_output_grid`.|
+| Field Name                | JAX Data Type (Example Shape for ARC)                         | Description/Purpose                                                                                                          |
+| ------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `input_grids_examples`    | `jnp.ndarray` (`MAX_TRAIN_PAIRS`, `MAX_GRID_H`, `MAX_GRID_W`) | Padded input grids from all training pairs of the current ARC task. Used for rule inference.                                 |
+| `input_masks_examples`    | `jnp.ndarray` (`MAX_TRAIN_PAIRS`, `MAX_GRID_H`, `MAX_GRID_W`) | Boolean masks for `input_grids_examples`, indicating valid data areas.                                                       |
+| `output_grids_examples`   | `jnp.ndarray` (`MAX_TRAIN_PAIRS`, `MAX_GRID_H`, `MAX_GRID_W`) | Padded output grids from all training pairs. Used for rule inference.                                                        |
+| `output_masks_examples`   | `jnp.ndarray` (`MAX_TRAIN_PAIRS`, `MAX_GRID_H`, `MAX_GRID_W`) | Boolean masks for `output_grids_examples`.                                                                                   |
+| `num_train_pairs`         | `int`                                                         | Actual number of training pairs for this task.                                                                               |
+| `current_test_input_grid` | `jnp.ndarray` (`MAX_GRID_H`, `MAX_GRID_W`)                    | The specific padded input grid for the single test case agents are currently solving.                                        |
+| `current_test_input_mask` | `jnp.ndarray` (`MAX_GRID_H`, `MAX_GRID_W`)                    | Boolean mask for `current_test_input_grid`.                                                                                  |
+| `true_test_output_grid`   | `jnp.ndarray` (`MAX_GRID_H`, `MAX_GRID_W`)                    | Ground truth solution (padded) for `current_test_input_grid`. Hidden from agents during solving; used for evaluation/reward. |
+| `true_test_output_mask`   | `jnp.ndarray` (`MAX_GRID_H`, `MAX_GRID_W`)                    | Boolean mask indicating the valid area of `true_test_output_grid`.                                                           |
 
 ### 2.3. `Hypothesis` Pytree
 
-The `Hypothesis` Pytree represents a single, structured proposal made by an agent concerning an aspect of the ARC puzzle's solution, such as output grid dimensions or color palettes. This structure is fundamental for the collaborative reasoning mechanism envisioned, where agents share and debate ideas.
+The `Hypothesis` Pytree represents a single, structured proposal made by an
+agent concerning an aspect of the ARC puzzle's solution, such as output grid
+dimensions or color palettes. This structure is fundamental for the
+collaborative reasoning mechanism envisioned, where agents share and debate
+ideas.
 
 Python
 
@@ -172,26 +256,38 @@ class Hypothesis:
 Key fields include:
 
 - `agent_id`: An integer identifying the agent that originated this hypothesis.
-- `proposal_type`: An integer (intended to be an enumeration) indicating the nature of the proposal (e.g., output grid dimensions, color palette, a specific transformation rule). This allows for diverse agent specializations.
-- `proposal_data`: A JAX array containing the actual data of the proposal. Its shape and content vary depending on `proposal_type` and it is padded to `MAX_PROPOSAL_DATA_DIM` to ensure a static shape for JAX compatibility. For instance, a grid dimension proposal might be a `(2,)` array `[height, width]`.
-- `confidence`: A float (e.g., between 0.0 and 1.0) indicating the proposing agent's confidence in this hypothesis.
-- `vote_count`: An integer tracking the support this hypothesis has received from other agents.
+- `proposal_type`: An integer (intended to be an enumeration) indicating the
+  nature of the proposal (e.g., output grid dimensions, color palette, a
+  specific transformation rule). This allows for diverse agent specializations.
+- `proposal_data`: A JAX array containing the actual data of the proposal. Its
+  shape and content vary depending on `proposal_type` and it is padded to
+  `MAX_PROPOSAL_DATA_DIM` to ensure a static shape for JAX compatibility. For
+  instance, a grid dimension proposal might be a `(2,)` array `[height, width]`.
+- `confidence`: A float (e.g., between 0.0 and 1.0) indicating the proposing
+  agent's confidence in this hypothesis.
+- `vote_count`: An integer tracking the support this hypothesis has received
+  from other agents.
 
 The structure of `Hypothesis` is detailed in Table 2.
 
 **Table 2: Hypothesis Pytree Field Descriptions**
 
-|Field Name|Data Type|Description/Purpose|
-|---|---|---|
-|`agent_id`|`int`|Identifier of the agent that originated the hypothesis.|
-|`proposal_type`|`int`|Enum-like integer specifying the nature of the proposal (e.g., `0` for grid size, `1` for color palette).|
-|`proposal_data`|`jnp.ndarray` (shape: `(MAX_PROPOSAL_DATA_DIM,)`)|Padded JAX array holding the content of the proposal (e.g., `[height, width]`). Padding ensures static shape for JAX.|
-|`confidence`|`float`|The proposing agent's confidence in the hypothesis (e.g., 0.0 to 1.0).|
-|`vote_count`|`int`|Number of votes (or cumulative support) this hypothesis has received from other agents.|
+| Field Name      | Data Type                                         | Description/Purpose                                                                                                   |
+| --------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `agent_id`      | `int`                                             | Identifier of the agent that originated the hypothesis.                                                               |
+| `proposal_type` | `int`                                             | Enum-like integer specifying the nature of the proposal (e.g., `0` for grid size, `1` for color palette).             |
+| `proposal_data` | `jnp.ndarray` (shape: `(MAX_PROPOSAL_DATA_DIM,)`) | Padded JAX array holding the content of the proposal (e.g., `[height, width]`). Padding ensures static shape for JAX. |
+| `confidence`    | `float`                                           | The proposing agent's confidence in the hypothesis (e.g., 0.0 to 1.0).                                                |
+| `vote_count`    | `int`                                             | Number of votes (or cumulative support) this hypothesis has received from other agents.                               |
 
 ### 2.4. `State` Pytree
 
-The `State` Pytree is arguably the most critical data structure, encapsulating the complete state of the MARL environment at any given timestep. Its design must be JAX-compatible, meaning all JAX array attributes must have static shapes for efficient JIT compilation. It comprehensively holds ARC task data, facilitates collaborative reasoning mechanisms (like shared hypotheses and a workspace), and tracks environment metadata.
+The `State` Pytree is arguably the most critical data structure, encapsulating
+the complete state of the MARL environment at any given timestep. Its design
+must be JAX-compatible, meaning all JAX array attributes must have static shapes
+for efficient JIT compilation. It comprehensively holds ARC task data,
+facilitates collaborative reasoning mechanisms (like shared hypotheses and a
+workspace), and tracks environment metadata.
 
 Python
 
@@ -200,7 +296,7 @@ Python
 class State:
     # Static ARC Task Data, nested for clarity and organization.
     task: ParsedTaskData
-    
+
     # Per-agent private workspaces
     agent_scratchpad_grids: jnp.ndarray  # Shape: (num_agents, MAX_GRID_H, MAX_GRID_W)
     agent_selection_masks: jnp.ndarray   # Shape: (num_agents, MAX_GRID_H, MAX_GRID_W)
@@ -208,7 +304,7 @@ class State:
     # The final, shared grid after resolving commits from the previous step.
     committed_output_grid: jnp.ndarray   # Shape: (MAX_GRID_H, MAX_GRID_W)
     committed_output_mask: jnp.ndarray   # Shape: (MAX_GRID_H, MAX_GRID_W)
-    
+
     # Hypothesis storage (fixed-size arrays with active mask)
     agent_hypotheses_ids: jnp.ndarray           # (MAX_HYPOTHESES,)
     agent_hypotheses_types: jnp.ndarray         # (MAX_HYPOTHESES,)
@@ -216,7 +312,7 @@ class State:
     agent_hypotheses_confidence: jnp.ndarray    # (MAX_HYPOTHESES,)
     agent_hypotheses_votes: jnp.ndarray         # (MAX_HYPOTHESES,)
     agent_hypotheses_active_mask: jnp.ndarray   # (MAX_HYPOTHESES,) boolean
-    
+
     # Metadata
     current_test_case_idx: int # New: Index of the active test case
     step_count: int
@@ -226,11 +322,21 @@ class State:
 
 Key fields include:
 
-- **ARC Task Data:** All fields from `ParsedTaskData` are directly included to represent the current ARC puzzle.
-- `working_output_grid`, `working_output_mask`: These represent the shared grid that agents collaboratively construct or modify. They are initialized based on the task and consensus.
-- `agent_hypotheses_*` arrays: A set of fixed-size JAX arrays for storing active agent proposals. The `agent_hypotheses_active_mask` (a boolean array) is crucial: it indicates which slots in these arrays are currently occupied by an active hypothesis. This pattern allows for a potentially variable number of active hypotheses while maintaining static array shapes for all `agent_hypotheses_*` fields, a key requirement for JAX's JIT compilation.
-- `step_count`, `terminal`: Standard RL environment metadata tracking the current step and episode termination status.
-- `key`: A JAX PRNGKey for managing any stochasticity within the environment's state transitions, ensuring reproducibility.
+- **ARC Task Data:** All fields from `ParsedTaskData` are directly included to
+  represent the current ARC puzzle.
+- `working_output_grid`, `working_output_mask`: These represent the shared grid
+  that agents collaboratively construct or modify. They are initialized based on
+  the task and consensus.
+- `agent_hypotheses_*` arrays: A set of fixed-size JAX arrays for storing active
+  agent proposals. The `agent_hypotheses_active_mask` (a boolean array) is
+  crucial: it indicates which slots in these arrays are currently occupied by an
+  active hypothesis. This pattern allows for a potentially variable number of
+  active hypotheses while maintaining static array shapes for all
+  `agent_hypotheses_*` fields, a key requirement for JAX's JIT compilation.
+- `step_count`, `terminal`: Standard RL environment metadata tracking the
+  current step and episode termination status.
+- `key`: A JAX PRNGKey for managing any stochasticity within the environment's
+  state transitions, ensuring reproducibility.
 
 Table 3: State Pytree Field Descriptions
 
@@ -252,9 +358,13 @@ Table 3: State Pytree Field Descriptions
 
 ### 2.5. `Action` Pytree
 
-To address the need for concrete grid manipulation capabilities inspired by environments like ARCLE [2], the `Action` Pytree is redesigned. It now supports a richer set of operations, from low-level pixel editing to high-level proposals, while maintaining a static structure for JAX compatibility.
+To address the need for concrete grid manipulation capabilities inspired by
+environments like ARCLE [2], the `Action` Pytree is redesigned. It now supports
+a richer set of operations, from low-level pixel editing to high-level
+proposals, while maintaining a static structure for JAX compatibility.
 
-**Note**: Later on, we'll have to restructure it a bit, as we also need to figure out a way
+**Note**: Later on, we'll have to restructure it a bit, as we also need to
+figure out a way
 
 ```python
 # Conceptual action type constants
@@ -282,7 +392,9 @@ class Action:
     params: jnp.ndarray       # Shape (MAX_ACTION_PARAMS,), dtype=int32. A parameter vector.
 ```
 
-The `params` vector is a versatile, fixed-size array whose interpretation depends on the `action_type`. This design allows for diverse, parameterized actions within a static Pytree structure suitable for JAX.
+The `params` vector is a versatile, fixed-size array whose interpretation
+depends on the `action_type`. This design allows for diverse, parameterized
+actions within a static Pytree structure suitable for JAX.
 
 **Table 1: `Action.params` Interpretation by `action_type`**
 
@@ -302,25 +414,64 @@ The `params` vector is a versatile, fixed-size array whose interpretation depend
 | 8                              | `VOTE_HYPOTHESIS`        | `[0]: hyp_idx`, `[1]: vote`                | `agent_hypotheses_votes`        | Casts a vote on an existing hypothesis.                                                                                           |
 | 9                              | `SUBMIT_SOLUTION`        | (none)                                     | (Triggers terminal check)       | Signals that the agent believes the current `committed_output_grid` is the final solution for the current test case.              |
 
-_Note: More complex actions from ARCLE, like `FloodFill` or `CopyPaste`, can be added to this structure by defining new action types and parameter mappings. Their implementation within `_process_actions` would require more complex JAX logic, potentially involving `jax.lax.scan`._
+_Note: More complex actions from ARCLE, like `FloodFill` or `CopyPaste`, can be
+added to this structure by defining new action types and parameter mappings.
+Their implementation within `_process_actions` would require more complex JAX
+logic, potentially involving `jax.lax.scan`._
 
 ### 2.6. Elaboration on Pytree Design Principles
 
-The design of these core Pytrees (`ParsedTaskData`, `Hypothesis`, `State`, `Action`) is fundamentally shaped by the operational requirements of JAX and the collaborative nature of the ARC problem-solving task.
+The design of these core Pytrees (`ParsedTaskData`, `Hypothesis`, `State`,
+`Action`) is fundamentally shaped by the operational requirements of JAX and the
+collaborative nature of the ARC problem-solving task.
 
-A primary driver is the JAX JIT compiler's preference for static array shapes. ARC tasks inherently involve variable grid sizes, a varying number of training examples, and a dynamic number of agent-generated hypotheses. To reconcile this with JAX's need for static shapes to achieve optimal performance, strategies like padding and active masks are employed ubiquitously. For instance, all grids are padded to `(MAX_GRID_H, MAX_GRID_W)`, training example arrays are padded to `MAX_TRAIN_PAIRS`, and hypothesis data arrays are padded to `MAX_PROPOSAL_DATA_DIM`. The `agent_hypotheses_active_mask` in the `State` Pytree allows the system to manage a variable number of active hypotheses within fixed-size arrays. This prioritization of static shapes is a deliberate trade-off, favoring computational performance and JAX compatibility over the dynamic flexibility common in non-JAX environments
+A primary driver is the JAX JIT compiler's preference for static array shapes.
+ARC tasks inherently involve variable grid sizes, a varying number of training
+examples, and a dynamic number of agent-generated hypotheses. To reconcile this
+with JAX's need for static shapes to achieve optimal performance, strategies
+like padding and active masks are employed ubiquitously. For instance, all grids
+are padded to `(MAX_GRID_H, MAX_GRID_W)`, training example arrays are padded to
+`MAX_TRAIN_PAIRS`, and hypothesis data arrays are padded to
+`MAX_PROPOSAL_DATA_DIM`. The `agent_hypotheses_active_mask` in the `State`
+Pytree allows the system to manage a variable number of active hypotheses within
+fixed-size arrays. This prioritization of static shapes is a deliberate
+trade-off, favoring computational performance and JAX compatibility over the
+dynamic flexibility common in non-JAX environments
 
-The data flow from raw task files to the environment's active state is also structured for clarity and modularity. The `ArcAgiParser` (or any concrete parser) is responsible for transforming raw JSON data into the standardized `ParsedTaskData` Pytree. This Pytree then serves as a clean input to the environment's `reset` function, which uses it to initialize the task-specific portions of the main `State` Pytree. This separation of concerns—parsing and initial preprocessing versus environment state management and dynamics—enhances maintainability and testability.
+The data flow from raw task files to the environment's active state is also
+structured for clarity and modularity. The `ArcAgiParser` (or any concrete
+parser) is responsible for transforming raw JSON data into the standardized
+`ParsedTaskData` Pytree. This Pytree then serves as a clean input to the
+environment's `reset` function, which uses it to initialize the task-specific
+portions of the main `State` Pytree. This separation of concerns—parsing and
+initial preprocessing versus environment state management and dynamics—enhances
+maintainability and testability.
 
-Furthermore, the `Hypothesis` Pytree and the `agent_hypotheses_*` fields within the `State` Pytree are not merely data containers; they are the fundamental primitives that enable the planned collaborative reasoning among agents. The structured nature of `Hypothesis` (including `proposal_type`, `proposal_data`, `confidence`, and `vote_count`) provides a rich medium for agents to formulate, share, and collectively evaluate diverse ideas about the ARC puzzle's solution. This design directly supports the envisioned multi-faceted proposal and consensus mechanisms.
+Furthermore, the `Hypothesis` Pytree and the `agent_hypotheses_*` fields within
+the `State` Pytree are not merely data containers; they are the fundamental
+primitives that enable the planned collaborative reasoning among agents. The
+structured nature of `Hypothesis` (including `proposal_type`, `proposal_data`,
+`confidence`, and `vote_count`) provides a rich medium for agents to formulate,
+share, and collectively evaluate diverse ideas about the ARC puzzle's solution.
+This design directly supports the envisioned multi-faceted proposal and
+consensus mechanisms.
 
 ## 3. Abstract Base Classes for Modularity (`src/jax_arc/base/`)
 
-To foster modularity and facilitate the support of diverse ARC-like datasets (e.g., ARC-AGI-1, ConceptARC) within the JaxARC project, abstract base classes (ABCs) are employed. These are defined in the `src/jax_arc/base/` directory. ABCs establish core API contracts for both ARC MARL environments and their associated data parsers.
+To foster modularity and facilitate the support of diverse ARC-like datasets
+(e.g., ARC-AGI-1, ConceptARC) within the JaxARC project, abstract base classes
+(ABCs) are employed. These are defined in the `src/jax_arc/base/` directory.
+ABCs establish core API contracts for both ARC MARL environments and their
+associated data parsers.
 
 ### 3.1. `ArcDataParserBase` (`base_parser.py`)
 
-The `ArcDataParserBase` class defines the standard interface for all data parsers within the JaxARC project. Concrete parsers, such as the user's existing `ArcAgiParser`, will inherit from this base class. Its primary role is to abstract the process of loading raw task data (typically from JSON files) and transforming it into JAX-compatible Pytrees (`ParsedTaskData`) that the environment can consume
+The `ArcDataParserBase` class defines the standard interface for all data
+parsers within the JaxARC project. Concrete parsers, such as the user's existing
+`ArcAgiParser`, will inherit from this base class. Its primary role is to
+abstract the process of loading raw task data (typically from JSON files) and
+transforming it into JAX-compatible Pytrees (`ParsedTaskData`) that the
+environment can consume
 
 Python
 
@@ -354,7 +505,7 @@ class ArcParserBase(ABC):
         if not self.dataset_path.exists() or not self.dataset_path.is_dir():
             msg = f"Dataset path not found or not a directory: {self.dataset_path}"
             raise FileNotFoundError(msg)
-        
+
         # Each concrete parser must populate this list with its task identifiers
         # (e.g., task IDs from a JSON file or paths to individual task files).
         self.task_identifiers: List[str] = self._discover_tasks()
@@ -392,7 +543,7 @@ class ArcParserBase(ABC):
             A fully populated ArcTask object.
         """
         pass
-    
+
     def get_random_task(self, key: chex.PRNGKey) -> ArcTask:
         """
         Selects a random task from the dataset and returns it.
@@ -408,9 +559,9 @@ class ArcParserBase(ABC):
         if not self.task_identifiers:
             msg = "Cannot get a random task because no task identifiers were loaded."
             raise RuntimeError(msg)
-            
+
         task_id = jax.random.choice(self.task_identifiers)
-        
+
         logger.info(f"Loading random task: {task_id}")
         return self.load_and_parse_task(task_id)
 
@@ -428,7 +579,7 @@ class ArcParserBase(ABC):
         if not self.task_identifiers:
             logger.warning("No task identifiers found, returning an empty dictionary.")
             return {}
-        
+
         logger.info(f"Loading all {len(self.task_identifiers)} tasks…")
         all_tasks = {
             task_identifier: self.load_and_parse_task(task_identifier)
@@ -513,22 +664,35 @@ class ArcDataParserBase(ABC):
 
 **Analysis of Abstract Methods:**
 
-- `__init__(self, cfg: DictConfig, max_grid_size_h: int, max_grid_size_w: int)`: The constructor takes a Hydra `DictConfig` object (for parser-specific settings like `dataset_path`) and the maximum grid dimensions required for padding operations.
-	
-- `load_task_file(self, task_file_path: str) -> any`: This abstract method defines the contract for loading the raw content of a single task file.
-	
-- `preprocess_task_data(self, raw_task_data: any, key: chex.PRNGKey) -> ParsedTaskData`: This is the core transformation method. It takes the raw data loaded by `load_task_file` and converts it into a `ParsedTaskData` Pytree. This involves converting list-based grids to JAX arrays, padding them to `max_grid_size_h/w`, and creating corresponding boolean masks. The `key` is provided for any stochastic preprocessing steps, though typically this stage is deterministic.
-	
-- `get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData`: This method orchestrates the selection of a random task (using the provided `key`), loads its raw data via `load_task_file`, and then preprocesses it using `preprocess_task_data`, returning the final `ParsedTaskData` Pytree.
+- `__init__(self, cfg: DictConfig, max_grid_size_h: int, max_grid_size_w: int)`:
+  The constructor takes a Hydra `DictConfig` object (for parser-specific
+  settings like `dataset_path`) and the maximum grid dimensions required for
+  padding operations.
+
+- `load_task_file(self, task_file_path: str) -> any`: This abstract method
+  defines the contract for loading the raw content of a single task file.
+
+- `preprocess_task_data(self, raw_task_data: any, key: chex.PRNGKey) -> ParsedTaskData`:
+  This is the core transformation method. It takes the raw data loaded by
+  `load_task_file` and converts it into a `ParsedTaskData` Pytree. This involves
+  converting list-based grids to JAX arrays, padding them to
+  `max_grid_size_h/w`, and creating corresponding boolean masks. The `key` is
+  provided for any stochastic preprocessing steps, though typically this stage
+  is deterministic.
+
+- `get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData`: This method
+  orchestrates the selection of a random task (using the provided `key`), loads
+  its raw data via `load_task_file`, and then preprocesses it using
+  `preprocess_task_data`, returning the final `ParsedTaskData` Pytree.
 
 Table 5: ArcDataParserBase Abstract Methods Summary
 
-|Abstract Method|Parameters|Return Type (Conceptual)|Purpose|
-|---|---|---|---|
-|`__init__`|`cfg: DictConfig`, `max_grid_size_h: int`, `max_grid_size_w: int`|`None`|Initialize parser with its specific Hydra configuration and maximum grid dimensions. Load dataset metadata (e.g., list of task files from `cfg.dataset_path`).|
-|`load_task_file`|`task_file_path: str`|Raw dataset-specific object (e.g., `dict`)|Load the content of a single task file (e.g., JSON data) from the specified path.|
-|`preprocess_task_data`|`raw_task_data: any`, `key: chex.PRNGKey`|`ParsedTaskData` (JAX Pytree)|Convert raw data to JAX arrays, pad grids to `max_grid_size_h/w`, create boolean masks, and structure into a `ParsedTaskData` Pytree suitable for the environment. `key` for stochastic preprocessing.|
-|`get_random_task`|`key: chex.PRNGKey`|`ParsedTaskData` (JAX Pytree)|Select a random task from the dataset using `key`, load it using `load_task_file`, and preprocess it using `preprocess_task_data`. This is the primary interface for the environment's `reset` method.|
+| Abstract Method        | Parameters                                                        | Return Type (Conceptual)                   | Purpose                                                                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `__init__`             | `cfg: DictConfig`, `max_grid_size_h: int`, `max_grid_size_w: int` | `None`                                     | Initialize parser with its specific Hydra configuration and maximum grid dimensions. Load dataset metadata (e.g., list of task files from `cfg.dataset_path`).                                         |
+| `load_task_file`       | `task_file_path: str`                                             | Raw dataset-specific object (e.g., `dict`) | Load the content of a single task file (e.g., JSON data) from the specified path.                                                                                                                      |
+| `preprocess_task_data` | `raw_task_data: any`, `key: chex.PRNGKey`                         | `ParsedTaskData` (JAX Pytree)              | Convert raw data to JAX arrays, pad grids to `max_grid_size_h/w`, create boolean masks, and structure into a `ParsedTaskData` Pytree suitable for the environment. `key` for stochastic preprocessing. |
+| `get_random_task`      | `key: chex.PRNGKey`                                               | `ParsedTaskData` (JAX Pytree)              | Select a random task from the dataset using `key`, load it using `load_task_file`, and preprocess it using `preprocess_task_data`. This is the primary interface for the environment's `reset` method. |
 
 #### Concrete Implementation Examples
 
@@ -545,7 +709,7 @@ class ArcAgiParser(ArcParserBase):
         super().__init__(dataset_path)
         self.challenges_file = self.dataset_path / challenges_filename
         self.solutions_file = self.dataset_path / solutions_filename if solutions_filename else None
-        
+
         # Load all data into memory upfront
         self.challenges_data = self._load_json_file(self.challenges_file)
         self.solutions_data = self._load_json_file(self.solutions_file) if self.solutions_file else {}
@@ -574,7 +738,7 @@ class ArcAgiParser(ArcParserBase):
         if task_id not in self.challenges_data:
             msg = f"Task ID '{task_id}' not found in {self.challenges_file}"
             raise KeyError(msg)
-        
+
         task_json_content = self.challenges_data[task_id]
 
         # --- Parse training pairs (they are self-contained) ---
@@ -586,7 +750,7 @@ class ArcAgiParser(ArcParserBase):
         # --- Parse test pairs (input from challenges, output from solutions) ---
         test_inputs_json = task_json_content.get("test", [])
         solution_outputs_json = self.solutions_data.get(task_id, [])
-        
+
         if self.solutions_data and task_id not in self.solutions_data:
              logger.warning(f"Task {task_id}: No solutions found in solutions file.")
 
@@ -605,9 +769,9 @@ class ArcAgiParser(ArcParserBase):
                     output_grid = self._parse_grid_json(solution_outputs_json[i])
                 except ValueError as e:
                     logger.warning(f"Task {task_id}, test pair {i}: Error parsing solution grid: {e}. Output will be None.")
-            
+
             test_pairs.append(TaskPair(input=input_grid, output=output_grid))
-            
+
         return ArcTask(task_id=task_id, train_pairs=train_pairs, test_pairs=test_pairs)
 
 # ----------------------------------------------------------------------------
@@ -616,14 +780,14 @@ class ArcAgiParser(ArcParserBase):
 class IndividualFileParser(ArcParserBase):
     """
     Parses an ARC-like dataset where each task is in its own separate JSON file.
-    
+
     Assumes a directory structure like:
     /dataset_path/
         /tasks/
             task1.json
             task2.json
             …
-    
+
     Each JSON file is expected to contain 'train' and 'test' keys, with
     test pairs including both 'input' and 'output'.
     """
@@ -651,7 +815,7 @@ class IndividualFileParser(ArcParserBase):
         except json.JSONDecodeError as e:
             msg = f"Invalid JSON in file {task_file}: {e}"
             raise ValueError(msg) from e
-        
+
         task_id = task_file.stem  # Use the filename without extension as the ID
 
         train_pairs = [
@@ -670,7 +834,11 @@ class IndividualFileParser(ArcParserBase):
 
 ### 3.2. `ArcMarlEnvBase` (`base_env.py`)
 
-The `ArcMarlEnvBase` class defines the fundamental interface for all ARC-like MARL environments developed within the JaxARC project. Crucially, it inherits from `jaxmarl.environments.multi_agent_env.MultiAgentEnv`, ensuring seamless integration with the broader JaxMARL ecosystem, and from `abc.ABC` to define abstract methods
+The `ArcMarlEnvBase` class defines the fundamental interface for all ARC-like
+MARL environments developed within the JaxARC project. Crucially, it inherits
+from `jaxmarl.environments.multi_agent_env.MultiAgentEnv`, ensuring seamless
+integration with the broader JaxMARL ecosystem, and from `abc.ABC` to define
+abstract methods
 
 Python
 
@@ -691,7 +859,7 @@ class ArcMarlEnvBase(MultiAgentEnv, ABC):
         self.env_name = cfg.get("env_name", "JaxARCBaseEnv")
         self.num_agents = cfg.num_agents
         self.agents = [f"agent_{i}" for i in range(self.num_agents)]
-        
+
         # Grid and Pytree pre-allocation parameters from config
         self.max_grid_size_h = cfg.max_grid_size # Assuming square, or use cfg.max_grid_h
         self.max_grid_size_w = cfg.max_grid_size # Assuming square, or use cfg.max_grid_w
@@ -749,37 +917,72 @@ class ArcMarlEnvBase(MultiAgentEnv, ABC):
 
 **Analysis of `ArcMarlEnvBase`:**
 
-- `__init__(self, cfg: DictConfig)`: Initializes common environment parameters from the Hydra configuration object. This includes agent count, maximum grid dimensions, configurations for rewards and consensus mechanisms, and parameters for pre-allocating Pytree field sizes (e.g., `max_hypotheses`, `max_proposal_data_dim`, `workspace_size`).
-	
-- `default_params` (property): This is required by the JaxMARL `MultiAgentEnv` class. It can provide default environment parameters, such as `max_steps_per_episode`, which are typically also configurable via Hydra.
-	
-- Abstract Methods: `reset`, `step`, `get_obs`, `observation_space`, and `action_space` are declared as abstract. This mandates their implementation by any concrete ARC environment subclass, ensuring a consistent API that aligns with JaxMARL's expectations.
+- `__init__(self, cfg: DictConfig)`: Initializes common environment parameters
+  from the Hydra configuration object. This includes agent count, maximum grid
+  dimensions, configurations for rewards and consensus mechanisms, and
+  parameters for pre-allocating Pytree field sizes (e.g., `max_hypotheses`,
+  `max_proposal_data_dim`, `workspace_size`).
+
+- `default_params` (property): This is required by the JaxMARL `MultiAgentEnv`
+  class. It can provide default environment parameters, such as
+  `max_steps_per_episode`, which are typically also configurable via Hydra.
+
+- Abstract Methods: `reset`, `step`, `get_obs`, `observation_space`, and
+  `action_space` are declared as abstract. This mandates their implementation by
+  any concrete ARC environment subclass, ensuring a consistent API that aligns
+  with JaxMARL's expectations.
 
 Table 6 summarizes the key elements of `ArcMarlEnvBase`.
 
 **Table 6: ArcMarlEnvBase Abstract Methods and Key Properties Summary**
 
-|Element|Type|Description/Purpose|
-|---|---|---|
-|`__init__`|Method|Initializes common parameters from Hydra config (agent count, grid sizes, reward/consensus configs, Pytree pre-allocation sizes).|
-|`default_params`|Property|JaxMARL required property, typically provides `max_steps_per_episode`.|
-|`reset`|Abstract Method (`key: chex.PRNGKey`) -> `tuple`|Resets the environment to an initial state with a new ARC task, returning initial observations and state.|
-|`step`|Abstract Method (`key: chex.PRNGKey`, `state: State`, `actions: dict`) -> `tuple`|Runs one timestep, returning new observations, state, rewards, dones, and info.|
-|`get_obs`|Abstract Method (`state: State`) -> `dict`|Returns the observation dictionary for all agents based on the current state.|
-|`observation_space`|Abstract Method (`agent: str`) -> `spaces.Space`|Defines the observation space for a given agent using `jaxmarl.environments.spaces`.|
-|`action_space`|Abstract Method (`agent: str`) -> `spaces.Space`|Defines the action space for a given agent using `jaxmarl.environments.spaces`.|
+| Element             | Type                                                                              | Description/Purpose                                                                                                               |
+| ------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `__init__`          | Method                                                                            | Initializes common parameters from Hydra config (agent count, grid sizes, reward/consensus configs, Pytree pre-allocation sizes). |
+| `default_params`    | Property                                                                          | JaxMARL required property, typically provides `max_steps_per_episode`.                                                            |
+| `reset`             | Abstract Method (`key: chex.PRNGKey`) -> `tuple`                                  | Resets the environment to an initial state with a new ARC task, returning initial observations and state.                         |
+| `step`              | Abstract Method (`key: chex.PRNGKey`, `state: State`, `actions: dict`) -> `tuple` | Runs one timestep, returning new observations, state, rewards, dones, and info.                                                   |
+| `get_obs`           | Abstract Method (`state: State`) -> `dict`                                        | Returns the observation dictionary for all agents based on the current state.                                                     |
+| `observation_space` | Abstract Method (`agent: str`) -> `spaces.Space`                                  | Defines the observation space for a given agent using `jaxmarl.environments.spaces`.                                              |
+| `action_space`      | Abstract Method (`agent: str`) -> `spaces.Space`                                  | Defines the action space for a given agent using `jaxmarl.environments.spaces`.                                                   |
 
 ### 3.3. Elaboration on Base Class Design Principles
 
-The adoption of these abstract base classes is central to achieving a modular and extensible JaxARC system. `ArcMarlEnvBase`'s inheritance from `jaxmarl.environments.multi_agent_env.MultiAgentEnv` is fundamental, as it ensures that any concrete JaxARC environment will seamlessly integrate with the broader JaxMARL ecosystem, including its algorithms, wrappers, and utility functions. The abstract methods defined in `ArcMarlEnvBase` directly mirror the API expected by JaxMARL components.
+The adoption of these abstract base classes is central to achieving a modular
+and extensible JaxARC system. `ArcMarlEnvBase`'s inheritance from
+`jaxmarl.environments.multi_agent_env.MultiAgentEnv` is fundamental, as it
+ensures that any concrete JaxARC environment will seamlessly integrate with the
+broader JaxMARL ecosystem, including its algorithms, wrappers, and utility
+functions. The abstract methods defined in `ArcMarlEnvBase` directly mirror the
+API expected by JaxMARL components.
 
-A key design pattern evident in both base classes is configuration-driven initialization. Both `ArcDataParserBase` and `ArcMarlEnvBase` constructors accept a Hydra `DictConfig` object. This allows critical parameters—such as the number of agents, maximum grid sizes, paths to datasets, reward structures, consensus rules, and even the dimensions for Pytree pre-allocation (like `max_hypotheses`)—to be defined in external YAML configuration files rather than being hardcoded. This approach significantly enhances the flexibility of the system, making it well-suited for research and experimentation where parameters are frequently tuned
+A key design pattern evident in both base classes is configuration-driven
+initialization. Both `ArcDataParserBase` and `ArcMarlEnvBase` constructors
+accept a Hydra `DictConfig` object. This allows critical parameters—such as the
+number of agents, maximum grid sizes, paths to datasets, reward structures,
+consensus rules, and even the dimensions for Pytree pre-allocation (like
+`max_hypotheses`)—to be defined in external YAML configuration files rather than
+being hardcoded. This approach significantly enhances the flexibility of the
+system, making it well-suited for research and experimentation where parameters
+are frequently tuned
 
-Furthermore, the `ArcDataParserBase` establishes a clean separation between the concerns of data loading and preprocessing, and the environment's core simulation dynamics defined in `ArcMarlEnvBase`. A concrete environment (like `ArcEnv`) will utilize a concrete parser (like `ArcAgiParser`), but its primary logic for methods such as `step` and `reset` will depend on the _interface_ defined by `ArcDataParserBase` (i.e., the `ParsedTaskData` Pytree it returns), not on the specific implementation details of how a particular dataset was parsed. This decoupling is vital for easily incorporating new ARC-like datasets in the future by simply creating new parser implementations.
+Furthermore, the `ArcDataParserBase` establishes a clean separation between the
+concerns of data loading and preprocessing, and the environment's core
+simulation dynamics defined in `ArcMarlEnvBase`. A concrete environment (like
+`ArcEnv`) will utilize a concrete parser (like `ArcAgiParser`), but its primary
+logic for methods such as `step` and `reset` will depend on the _interface_
+defined by `ArcDataParserBase` (i.e., the `ParsedTaskData` Pytree it returns),
+not on the specific implementation details of how a particular dataset was
+parsed. This decoupling is vital for easily incorporating new ARC-like datasets
+in the future by simply creating new parser implementations.
 
 ## 4. Implementing the Concrete `ArcAgiEnv` (as `ArcEnv` in `src/jax_arc/envs/arc_env.py`)
 
-The concrete environment class, referred to as `ArcEnv` in the primary development guide 1 (and conceptually `ArcAgiEnv` for the ARC-AGI dataset), is where the ARC task-solving dynamics are implemented. This class inherits from `ArcMarlEnvBase` and provides concrete implementations for all its abstract methods.
+The concrete environment class, referred to as `ArcEnv` in the primary
+development guide 1 (and conceptually `ArcAgiEnv` for the ARC-AGI dataset), is
+where the ARC task-solving dynamics are implemented. This class inherits from
+`ArcMarlEnvBase` and provides concrete implementations for all its abstract
+methods.
 
 ```python
 # src/jax_arc/envs/arc_env.py
@@ -819,7 +1022,7 @@ class ArcEnv(ArcMarlEnvBase):
             max_grid_size_h=self.max_grid_size_h,
             max_grid_size_w=self.max_grid_size_w
         )
-        
+
         # Example: Number of action types could be loaded from config or defined
         self.num_action_types = cfg.get("num_action_types", 2) # e.g., PROPOSE, VOTE
         self.num_proposal_types = cfg.get("num_proposal_types", 1) # e.g., GRID_SIZE
@@ -829,7 +1032,7 @@ class ArcEnv(ArcMarlEnvBase):
 
         # 1. Sample a new ARC task using the instantiated parser
         task_data: ParsedTaskData = self.parser.get_random_task(key_task_sample)
-        
+
         # Initialize all grids (private and committed) to a default state
         initial_grids = jnp.zeros((self.num_agents, self.max_grid_size_h, self.max_grid_size_w), dtype=jnp.int32)
         initial_committed_grid = jnp.zeros((self.max_grid_size_h, self.max_grid_size_w), dtype=jnp.int32)
@@ -837,7 +1040,7 @@ class ArcEnv(ArcMarlEnvBase):
 
         # 2. Initialize the State Pytree
         state = State(
-            # Nest the entire ParsedTaskData object 
+            # Nest the entire ParsedTaskData object
             task=task_data,
 
             agent_scratchpad_grids=initial_grids,
@@ -872,16 +1075,16 @@ class ArcEnv(ArcMarlEnvBase):
 
         # 1. Process local actions (selection/manipulation on private scratchpads)
         state_after_actions = self._process_actions(key_process, state, actions)
-        
+
         # 2. Resolve commits and update the single shared grid
         state_after_resolve = self._resolve_commits(key_resolve, state_after_actions, actions)
 
         # 3. Calculate rewards and check for termination based on the resolved grid
         rewards, is_case_solved = self._calculate_rewards(key_reward, state_after_resolve)
-        
+
         # Transition to the next test case if the current one is solved
         next_idx = state.current_test_case_idx + 1
-        
+
         def _advance_case(s: State) -> State:
             """Logic to advance to the next test case."""
             return s.replace(
@@ -899,7 +1102,7 @@ class ArcEnv(ArcMarlEnvBase):
             lambda s: s,        # If false, do nothing
             state_after_actions # Operand
         )
-        
+
         done = self.is_terminal(state_after_grid_apply)
 
         # Update final state elements
@@ -957,7 +1160,7 @@ class ArcEnv(ArcMarlEnvBase):
         def body_fn(agent_idx, current_state):
             agent_id_str = self.agents[agent_idx]
             action = actions[agent_id_str]
-            
+
             # Dispatch to the correct JAX-native helper function
             new_state = lax.switch(
                 action.action_type,
@@ -984,18 +1187,18 @@ class ArcEnv(ArcMarlEnvBase):
     def _update_consensus(self, key: chex.PRNGKey, state: State) -> State:
         # Placeholder: Process votes, check support_threshold, update consensus_grid_dimensions
         # [1]: "Process votes and check if any hypothesis's vote_count exceeds a support_threshold
-        # from the Hydra config. Use jax.lax.cond to conditionally update 
+        # from the Hydra config. Use jax.lax.cond to conditionally update
         # state.consensus_grid_dimensions if a consensus is reached."
-        
+
         # Example: Check if any GRID_SIZE proposal has enough votes
         # This is highly conceptual.
-        # active_grid_proposals_mask = (state.agent_hypotheses_active_mask & 
+        # active_grid_proposals_mask = (state.agent_hypotheses_active_mask &
         #                               (state.agent_hypotheses_types == GRID_SIZE_PROPOSAL_TYPE))
         # votes_for_grid_proposals = state.agent_hypotheses_votes * active_grid_proposals_mask
         # best_proposal_idx = jnp.argmax(votes_for_grid_proposals)
         # best_proposal_votes = state.agent_hypotheses_votes[best_proposal_idx]
         # support_threshold_val = self.consensus_config.get("support_threshold", 0.6) * self.num_agents
-        
+
         # new_consensus_dims = jax.lax.cond(
         #     best_proposal_votes >= support_threshold_val,
         #     lambda _: state.agent_hypotheses_data[best_proposal_idx, :2].astype(jnp.int32), # Assuming data[:2] is [h,w]
@@ -1007,9 +1210,9 @@ class ArcEnv(ArcMarlEnvBase):
 
     def _apply_consensus_to_grid(self, key: chex.PRNGKey, state: State) -> State:
         # Placeholder: Modify working_output_grid based on consensus_grid_dimensions
-        # [1]: "If state.consensus_grid_dimensions is valid (not [-1, -1]), modify 
+        # [1]: "If state.consensus_grid_dimensions is valid (not [-1, -1]), modify
         # state.working_output_grid and state.working_output_mask."
-        
+
         # def resize_grid_fn(current_grid, current_mask, new_dims):
         #    # Create new grid of new_dims, potentially copy content
         #    new_grid = jnp.full((self.max_grid_size_h, self.max_grid_size_w), -1, dtype=jnp.int32)
@@ -1026,19 +1229,19 @@ class ArcEnv(ArcMarlEnvBase):
         # )
         # state = state.replace(working_output_grid=new_working_grid, working_output_mask=new_working_mask)
         return state
-        
+
         def _resolve_commits(self, key: chex.PRNGKey, state: State, actions: dict) -> State:
     # 1. Calculate a "strength" for each agent's potential commit.
     # Strength is based on the vote count and confidence of the backing hypothesis.
-    
+
     def get_strength(agent_idx: int) -> float:
         action = actions[f"agent_{agent_idx}"]
         hyp_idx = action.params[0]
-        
+
         # Fetch vote count and confidence for the referenced hypothesis
         vote_count = state.agent_hypotheses_votes[hyp_idx]
         confidence = state.agent_hypotheses_confidence[hyp_idx]
-        
+
         # Strength is a combination of votes and confidence (e.g., votes + confidence)
         # Only grant strength if the action is actually COMMIT_CHANGES
         is_commit_action = (action.action_type == ACTION_COMMIT_CHANGES)
@@ -1051,43 +1254,43 @@ class ArcEnv(ArcMarlEnvBase):
     # 2. For each pixel, find the agent with the highest strength who is modifying it.
     # Create a tensor of shape (num_agents, H, W) where each slice is the agent's strength
     # repeated across the grid, but only where they made a change.
-    
+
     # Get changes from the previous committed grid
     changes = state.agent_scratchpad_grids != state.committed_output_grid
-    
+
     # Broadcast strengths and combine with changes
     strength_map = jnp.expand_dims(agent_strengths, axis=(1, 2)) # Shape: (num_agents, 1, 1)
     write_strength_map = strength_map * changes # Shape: (num_agents, H, W)
-    
+
     # 3. Determine the "winning" agent for each pixel.
     # This gives the index of the agent with the max strength for each pixel.
     winning_agent_idx_map = jnp.argmax(write_strength_map, axis=0) # Shape: (H, W)
-    
+
     # 4. Construct the new committed grid by gathering pixels from the winners' scratchpads.
     # We can use the winning_agent_idx_map to index into agent_scratchpad_grids.
     # This is an advanced use of jax.vmap or indexing. A simpler, equivalent loop:
-    
+
     def get_pixel_from_winner(y, x):
         winner_idx = winning_agent_idx_map[y, x]
         return state.agent_scratchpad_grids[winner_idx, y, x]
-    
+
     # This can be vectorized, but a conceptual map shows the logic
     # Simplified approach:
     # Gather all candidate pixels and their strengths
     candidate_pixels = state.agent_scratchpad_grids # (A, H, W)
-    
+
     # Create a one-hot encoding of the winning agent for each pixel
     winner_one_hot = jax.nn.one_hot(winning_agent_idx_map, self.num_agents, axis=0) # (A, H, W)
-    
+
     # Mask out pixels from non-winning agents
     winning_pixels = candidate_pixels * winner_one_hot
-    
+
     # Sum along the agent axis to select the single winning pixel for each location
     new_grid_from_winners = jnp.sum(winning_pixels, axis=0)
 
     # Only update pixels where there was at least one commit
     any_commit_mask = jnp.any(changes, axis=0)
-    
+
     final_committed_grid = jnp.where(
         any_commit_mask,
         new_grid_from_winners,
@@ -1107,14 +1310,14 @@ class ArcEnv(ArcMarlEnvBase):
         # Compare against the currently active true output grid
         true_grid = state.task.true_test_output_grids[idx]
         true_mask = state.task.true_test_output_masks[idx]
-        
+
         rewards = {agent: 0.0 for agent in self.agents}
-        
+
         # Tier 1: Full solution
         is_correct = jnp.all(state.working_output_grid[true_mask] == true_grid[true_mask])
-        
+
         completion_reward_val = self.reward_config.get("R_complete_solution", 100.0)
-        
+
         # Reward can be tiered: small reward for solving a case, large for the whole task
         is_last_case = (idx + 1) >= state.task.num_test_pairs
         final_solution_reward = self.reward_config.get("final_solution", 10.0)
@@ -1171,15 +1374,20 @@ class ArcEnv(ArcMarlEnvBase):
 
 ### 4.1. Implementing Selection and Manipulation Actions
 
-The core of the new logic lies in implementing a suite of helper functions, each corresponding to an action type. These must be pure JAX functions.
+The core of the new logic lies in implementing a suite of helper functions, each
+corresponding to an action type. These must be pure JAX functions.
 
-- `_apply_clear_selection(state, action, agent_idx) -> State`: Returns `state.replace(selection_mask=jnp.zeros_like(state.selection_mask))`.
-	
-- `_apply_select_pixel(state, action, agent_idx) -> State`: Creates a new all-false mask and sets the single pixel at `(y, x)` to `True`.
-	
-- `_apply_change_color(state, action, agent_idx) -> State`: This is a key manipulation function. It uses the existing `state.selection_mask` to update the `working_output_grid`.
+- `_apply_clear_selection(state, action, agent_idx) -> State`: Returns
+  `state.replace(selection_mask=jnp.zeros_like(state.selection_mask))`.
 
-	```
+- `_apply_select_pixel(state, action, agent_idx) -> State`: Creates a new
+  all-false mask and sets the single pixel at `(y, x)` to `True`.
+
+- `_apply_change_color(state, action, agent_idx) -> State`: This is a key
+  manipulation function. It uses the existing `state.selection_mask` to update
+  the `working_output_grid`.
+
+  ```
     def _apply_change_color(self, state: State, action: Action, agent_idx: int) -> State:
         new_color = action.params[0]
         # jnp.where is a perfect JAX-native conditional update
@@ -1189,109 +1397,206 @@ The core of the new logic lies in implementing a suite of helper functions, each
             state.working_output_grid   # if false, keep the old color
         )
         return state.replace(working_output_grid=new_grid)
-    ```
+  ```
 
-- **`_apply_select_object_by_color`**: This is the most complex new function. Implementing a flood-fill/flood-select in a purely functional, JAX-JIT-compatible way is non-trivial. It typically requires an iterative approach using `jax.lax.scan` or `jax.lax.while_loop` to expand the selection from a seed point until no new pixels of the target color are found at the boundary. This is an advanced JAX technique but is essential for creating a powerful object selection tool.
+- **`_apply_select_object_by_color`**: This is the most complex new function.
+  Implementing a flood-fill/flood-select in a purely functional,
+  JAX-JIT-compatible way is non-trivial. It typically requires an iterative
+  approach using `jax.lax.scan` or `jax.lax.while_loop` to expand the selection
+  from a seed point until no new pixels of the target color are found at the
+  boundary. This is an advanced JAX technique but is essential for creating a
+  powerful object selection tool.
 
 ### 4.1. `__init__(self, cfg: DictConfig)`
 
-The constructor initializes the `ArcEnv` by first calling `super().__init__(cfg)` to set up common attributes inherited from `ArcMarlEnvBase` (like `self.num_agents`, `self.max_grid_size_h`, `self.reward_config`, etc.). A crucial step is the instantiation of its dataset-specific data parser. This is achieved using `hydra.utils.instantiate(cfg.parser_config, max_grid_size_h=self.max_grid_size_h, max_grid_size_w=self.max_grid_size_w)`. The `cfg.parser_config` (part of the environment's configuration, e.g., from `conf/environment/arc.yaml`) contains the `_target_` path to the concrete parser class 1 and any parser-specific parameters. The maximum grid dimensions are passed to the parser's constructor, as these are essential for the parser's padding operations
+The constructor initializes the `ArcEnv` by first calling
+`super().__init__(cfg)` to set up common attributes inherited from
+`ArcMarlEnvBase` (like `self.num_agents`, `self.max_grid_size_h`,
+`self.reward_config`, etc.). A crucial step is the instantiation of its
+dataset-specific data parser. This is achieved using
+`hydra.utils.instantiate(cfg.parser_config, max_grid_size_h=self.max_grid_size_h, max_grid_size_w=self.max_grid_size_w)`.
+The `cfg.parser_config` (part of the environment's configuration, e.g., from
+`conf/environment/arc.yaml`) contains the `_target_` path to the concrete parser
+class 1 and any parser-specific parameters. The maximum grid dimensions are
+passed to the parser's constructor, as these are essential for the parser's
+padding operations
 
 ### 4.2. `reset(self, key: chex.PRNGKey) -> tuple`
 
-The `reset` method is responsible for starting a new episode. It must be a pure JAX function.
+The `reset` method is responsible for starting a new episode. It must be a pure
+JAX function.
 
-1. **PRNG Key Management:** The input `key` is split (e.g., `key_task, key_state_init = jax.random.split(key)`) to ensure that distinct random operations use independent keys, a cornerstone of JAX's reproducibility
-	
-2. **Task Loading:** It uses the instantiated parser (`self.parser`) to sample and preprocess a new ARC task: `task_data: ParsedTaskData = self.parser.get_random_task(key_task)`. The parser returns a `ParsedTaskData` Pytree.
-	
+1. **PRNG Key Management:** The input `key` is split (e.g.,
+   `key_task, key_state_init = jax.random.split(key)`) to ensure that distinct
+   random operations use independent keys, a cornerstone of JAX's
+   reproducibility
+
+2. **Task Loading:** It uses the instantiated parser (`self.parser`) to sample
+   and preprocess a new ARC task:
+   `task_data: ParsedTaskData = self.parser.get_random_task(key_task)`. The
+   parser returns a `ParsedTaskData` Pytree.
+
 3. **State Initialization:** A new `State` Pytree is created and returned.
-	
-	- Task-specific fields (e.g., `input_grids_examples`, `current_test_input_grid`, and their masks) are populated directly from the `task_data` Pytree.
-		
-	- Collaborative workspace fields like `working_output_grid` and `working_output_mask` are initialized (e.g., `working_output_grid` to an empty grid of `(MAX_GRID_H, MAX_GRID_W)` filled with a padding value like -1, and `working_output_mask` to all `False`).
-		
-	- Hypothesis storage arrays (`agent_hypotheses_ids`, `agent_hypotheses_types`, `agent_hypotheses_data`, `agent_hypotheses_confidence`, `agent_hypotheses_votes`) are initialized to default "empty" values (e.g., -1 for IDs/types, zeros for data/confidence/votes). The `agent_hypotheses_active_mask` is initialized to all `False`
-		
-	- Consensus-related fields like `consensus_grid_dimensions` are initialized to indicate no consensus (e.g., `jnp.array([-1, -1], dtype=jnp.int32)`).
-		
-	- Metadata fields are set: `step_count = 0`, `terminal = False`, and `key = key_state_init`.
-		
-4. **Initial Observations:** `obs = self.get_obs(state)` is called to generate the initial observations for all agents.
-	
+
+   - Task-specific fields (e.g., `input_grids_examples`,
+     `current_test_input_grid`, and their masks) are populated directly from the
+     `task_data` Pytree.
+
+   - Collaborative workspace fields like `working_output_grid` and
+     `working_output_mask` are initialized (e.g., `working_output_grid` to an
+     empty grid of `(MAX_GRID_H, MAX_GRID_W)` filled with a padding value like
+     -1, and `working_output_mask` to all `False`).
+
+   - Hypothesis storage arrays (`agent_hypotheses_ids`,
+     `agent_hypotheses_types`, `agent_hypotheses_data`,
+     `agent_hypotheses_confidence`, `agent_hypotheses_votes`) are initialized to
+     default "empty" values (e.g., -1 for IDs/types, zeros for
+     data/confidence/votes). The `agent_hypotheses_active_mask` is initialized
+     to all `False`
+
+   - Consensus-related fields like `consensus_grid_dimensions` are initialized
+     to indicate no consensus (e.g., `jnp.array([-1, -1], dtype=jnp.int32)`).
+
+   - Metadata fields are set: `step_count = 0`, `terminal = False`, and
+     `key = key_state_init`.
+
+4. **Initial Observations:** `obs = self.get_obs(state)` is called to generate
+   the initial observations for all agents.
+
 5. The method returns the tuple `(obs, state)`.
 
 ### 4.3. `step(self, key: chex.PRNGKey, state: State, actions: dict[str, Action]) -> tuple`
 
-The `step` method advances the environment by one timestep based on agent actions. It must also be a pure JAX function.
+The `step` method advances the environment by one timestep based on agent
+actions. It must also be a pure JAX function.
 
-1. **PRNG Key Management:** The input `key` is split for any stochastic operations within the step.
-	
-2. **Orchestration of Internal Logic:** The `step` method primarily orchestrates calls to a sequence of internal helper methods, as prescribed by `1`:
-	
-	- `state_after_actions = self._process_actions(key_process, state, actions)`: Processes actions from all agents.
-		
-	- `state_after_consensus = self._update_consensus(key_consensus, state_after_actions)`: Updates any consensus based on current hypotheses and votes.
-		
-	- `state_after_grid_apply = self._apply_consensus_to_grid(key_apply, state_after_consensus)`: Applies agreed-upon changes to the `working_output_grid`.
-		
-	- `rewards = self._calculate_rewards(key_reward, state_after_grid_apply, actions)`: Calculates rewards for each agent. Note that `actions` might be needed for certain reward calculations (e.g., rewarding specific types of actions).
-		
-	- `done = self.is_terminal(state_after_grid_apply)`: Checks if the episode has terminated.
-		
-3. **State Update:** The `state` is updated with the new `step_count` (incremented by 1) and the `terminal` status using `state.replace(…)`. The PRNG `key` within the state is also updated.
-	
-4. **Next Observations:** `obs = self.get_obs(final_state)` generates the observations for the next timestep.
-	
-5. **Dones Dictionary:** A `dones` dictionary is created, mapping each agent ID to the `done` flag. Crucially, it must also include an `__all__` key mapping to the overall episode `done` flag, as per JaxMARL convention.
-	
-6. **Info Dictionary:** An `info` dictionary (initially empty) can be populated with any auxiliary diagnostic information.
-	
+1. **PRNG Key Management:** The input `key` is split for any stochastic
+   operations within the step.
+
+2. **Orchestration of Internal Logic:** The `step` method primarily orchestrates
+   calls to a sequence of internal helper methods, as prescribed by `1`:
+
+   - `state_after_actions = self._process_actions(key_process, state, actions)`:
+     Processes actions from all agents.
+
+   - `state_after_consensus = self._update_consensus(key_consensus, state_after_actions)`:
+     Updates any consensus based on current hypotheses and votes.
+
+   - `state_after_grid_apply = self._apply_consensus_to_grid(key_apply, state_after_consensus)`:
+     Applies agreed-upon changes to the `working_output_grid`.
+
+   - `rewards = self._calculate_rewards(key_reward, state_after_grid_apply, actions)`:
+     Calculates rewards for each agent. Note that `actions` might be needed for
+     certain reward calculations (e.g., rewarding specific types of actions).
+
+   - `done = self.is_terminal(state_after_grid_apply)`: Checks if the episode
+     has terminated.
+
+3. **State Update:** The `state` is updated with the new `step_count`
+   (incremented by 1) and the `terminal` status using `state.replace(…)`. The
+   PRNG `key` within the state is also updated.
+
+4. **Next Observations:** `obs = self.get_obs(final_state)` generates the
+   observations for the next timestep.
+
+5. **Dones Dictionary:** A `dones` dictionary is created, mapping each agent ID
+   to the `done` flag. Crucially, it must also include an `__all__` key mapping
+   to the overall episode `done` flag, as per JaxMARL convention.
+
+6. **Info Dictionary:** An `info` dictionary (initially empty) can be populated
+   with any auxiliary diagnostic information.
+
 7. The method returns the tuple `(obs, final_state, rewards, dones, info)`.
 
-The design of `step` as an orchestrator of smaller, pure functions (`_process_actions`, etc.) promotes modularity and makes the complex state transition logic easier to manage and test. This contrasts with potentially monolithic step functions or object-oriented approaches with in-place state modifications (like those possible in ARCLE 2), which are not amenable to JAX's JIT compilation. JaxARC's functional approach, where each helper returns a new state, is essential.
+The design of `step` as an orchestrator of smaller, pure functions
+(`_process_actions`, etc.) promotes modularity and makes the complex state
+transition logic easier to manage and test. This contrasts with potentially
+monolithic step functions or object-oriented approaches with in-place state
+modifications (like those possible in ARCLE 2), which are not amenable to JAX's
+JIT compilation. JaxARC's functional approach, where each helper returns a new
+state, is essential.
 
 ### 4.4. `get_obs(self, state: State) -> dict`
 
-This method constructs and returns the observation dictionary for all agents based on the current `State` Pytree. As specified in `1`, agents receive a shared view of the environment. The observation for each agent is a dictionary containing relevant slices of the `State` Pytree. Based on `1` and `1` (Section 6.3), this typically includes:
+This method constructs and returns the observation dictionary for all agents
+based on the current `State` Pytree. As specified in `1`, agents receive a
+shared view of the environment. The observation for each agent is a dictionary
+containing relevant slices of the `State` Pytree. Based on `1` and `1` (Section
+6.3), this typically includes:
 
-- The full ARC task specification (`input_grids_examples`, `output_grids_examples`, `current_test_input_grid`, and their masks).
-	
+- The full ARC task specification (`input_grids_examples`,
+  `output_grids_examples`, `current_test_input_grid`, and their masks).
+
 - The current state of the collaborative `working_output_grid` and its mask.
-	
-- The complete set of active agent hypotheses (`agent_hypotheses_ids`, `types`, `data`, `confidence`, `votes`, `active_mask`).
-	
+
+- The complete set of active agent hypotheses (`agent_hypotheses_ids`, `types`,
+  `data`, `confidence`, `votes`, `active_mask`).
+
 - Current consensus information (e.g., `consensus_grid_dimensions`).
-	
+
 - Environment metadata like step_count.
-	
-	The implementation would construct a dictionary holding these components and then create a per-agent dictionary where each agent receives this shared observation structure.
+
+  The implementation would construct a dictionary holding these components and
+  then create a per-agent dictionary where each agent receives this shared
+  observation structure.
 
 ### 4.5. Internal Helper Methods
 
-These methods encapsulate specific parts of the environment's logic and are called by `step`. They must all be pure functions, taking the current state (and other necessary inputs like actions or keys) and returning an updated state or other results (like rewards).
+These methods encapsulate specific parts of the environment's logic and are
+called by `step`. They must all be pure functions, taking the current state (and
+other necessary inputs like actions or keys) and returning an updated state or
+other results (like rewards).
 
-- `_process_actions(key, state, actions) -> State`: This method is responsible for interpreting agent actions. For `PROPOSE` actions, it involves finding an available slot in the `state.agent_hypotheses_*` arrays (e.g., using `jnp.argmin(state.agent_hypotheses_active_mask)` to find the first `False` entry, if one is guaranteed) and then immutably updating the arrays at that index using JAX's `.at[index].set(value)` syntax to store the new hypothesis
-	
-- `_update_consensus(key, state) -> State`: This method processes votes on existing hypotheses and checks if any hypothesis meets the consensus criteria (e.g., `vote_count` exceeding a `support_threshold` from `self.consensus_config`). It uses `jax.lax.cond` for conditional updates to `state.consensus_grid_dimensions` or other consensus fields if agreement is reached
-	
-- `_apply_consensus_to_grid(key, state) -> State`: If consensus has been reached on certain aspects (e.g., `state.consensus_grid_dimensions` is valid and not `[-1,-1]`), this method modifies `state.working_output_grid` and `state.working_output_mask` accordingly. This might involve creating a new grid of the agreed-upon size
-	
-- `_calculate_rewards(key, state, actions) -> dict`: This pure JAX function implements the multi-tiered reward system. Tier 1 rewards for full solution, Tier 2 for sub-goals like correct grid size consensus, and Tier 3 for collaboration (e.g., correct proposals)
-	
-- `is_terminal(state) -> bool`: Determines if the episode ends, either by achieving a full solution (`jnp.all((state.working_output_grid == state.true_test_output_grid) & state.true_test_output_mask)`) or by reaching the maximum step count
+- `_process_actions(key, state, actions) -> State`: This method is responsible
+  for interpreting agent actions. For `PROPOSE` actions, it involves finding an
+  available slot in the `state.agent_hypotheses_*` arrays (e.g., using
+  `jnp.argmin(state.agent_hypotheses_active_mask)` to find the first `False`
+  entry, if one is guaranteed) and then immutably updating the arrays at that
+  index using JAX's `.at[index].set(value)` syntax to store the new hypothesis
 
-The consistent use of immutable updates (e.g., `state.replace(…)` or returning new arrays from helpers) and explicit PRNG key management throughout these methods is paramount for JAX compatibility and reproducible behavior
+- `_update_consensus(key, state) -> State`: This method processes votes on
+  existing hypotheses and checks if any hypothesis meets the consensus criteria
+  (e.g., `vote_count` exceeding a `support_threshold` from
+  `self.consensus_config`). It uses `jax.lax.cond` for conditional updates to
+  `state.consensus_grid_dimensions` or other consensus fields if agreement is
+  reached
+
+- `_apply_consensus_to_grid(key, state) -> State`: If consensus has been reached
+  on certain aspects (e.g., `state.consensus_grid_dimensions` is valid and not
+  `[-1,-1]`), this method modifies `state.working_output_grid` and
+  `state.working_output_mask` accordingly. This might involve creating a new
+  grid of the agreed-upon size
+
+- `_calculate_rewards(key, state, actions) -> dict`: This pure JAX function
+  implements the multi-tiered reward system. Tier 1 rewards for full solution,
+  Tier 2 for sub-goals like correct grid size consensus, and Tier 3 for
+  collaboration (e.g., correct proposals)
+
+- `is_terminal(state) -> bool`: Determines if the episode ends, either by
+  achieving a full solution
+  (`jnp.all((state.working_output_grid == state.true_test_output_grid) & state.true_test_output_mask)`)
+  or by reaching the maximum step count
+
+The consistent use of immutable updates (e.g., `state.replace(…)` or returning
+new arrays from helpers) and explicit PRNG key management throughout these
+methods is paramount for JAX compatibility and reproducible behavior
 
 ## 5. Defining Observation and Action Spaces (`jaxmarl.environments.spaces`)
 
-The `observation_space` and `action_space` methods are critical components of any MARL environment. They define the structure, shape, and data type of the observations agents receive and the actions they can take. These definitions are essential for compatibility with MARL algorithms, which use them to construct agent policies (e.g., neural network architectures) and to validate interactions with the environment For JaxARC, these spaces are defined using
+The `observation_space` and `action_space` methods are critical components of
+any MARL environment. They define the structure, shape, and data type of the
+observations agents receive and the actions they can take. These definitions are
+essential for compatibility with MARL algorithms, which use them to construct
+agent policies (e.g., neural network architectures) and to validate interactions
+with the environment For JaxARC, these spaces are defined using
 
-`jaxmarl.environments.spaces`, which aligns with the user's requirement to use JaxMARL's native space implementation.
+`jaxmarl.environments.spaces`, which aligns with the user's requirement to use
+JaxMARL's native space implementation.
 
 ### 5.1. `action_space(self, agent: str) -> spaces.Space`
 
-This method must return a `jaxmarl.environments.spaces.Dict` instance that precisely matches the structure of the `Action` Pytree.
+This method must return a `jaxmarl.environments.spaces.Dict` instance that
+precisely matches the structure of the `Action` Pytree.
 
 Python
 
@@ -1306,7 +1611,7 @@ def action_space(self, agent: str) -> spaces.Space:
     return spaces.Dict({
         "action_type": spaces.Discrete(NUM_ACTION_TYPES), # Now has more actions
         "params": spaces.Box(
-            low=-self.max_grid_size_h, high=self.max_grid_size_h, 
+            low=-self.max_grid_size_h, high=self.max_grid_size_h,
             shape=(MAX_ACTION_PARAMS,), dtype=jnp.int32
         ) # Bounds widened to allow for negative delta in MOVE
     })
@@ -1316,13 +1621,25 @@ def action_space(self, agent: str) -> spaces.Space:
 
 **Analysis:**
 
-- `"action_type"`: Defined as `spaces.Discrete(self.num_action_types)`. This allows agents to select one from `self.num_action_types` distinct categories of actions (e.g., PROPOSE, VOTE). `self.num_action_types` would typically be loaded from the Hydra configuration.
-	
-- `"action_data"`: Defined as `spaces.Box(…)`. This is suitable for numerical data associated with an action. The `shape` is `(self.max_proposal_data_dim,)`, matching the padding of `Action.action_data`. The `low`, `high`, and `dtype` parameters must be set according to the expected range and type of values in `action_data` (e.g., grid cell values, coordinates, indices). The example values `low=-1, high=30, dtype=jnp.int32` are illustrative.
+- `"action_type"`: Defined as `spaces.Discrete(self.num_action_types)`. This
+  allows agents to select one from `self.num_action_types` distinct categories
+  of actions (e.g., PROPOSE, VOTE). `self.num_action_types` would typically be
+  loaded from the Hydra configuration.
+
+- `"action_data"`: Defined as `spaces.Box(…)`. This is suitable for numerical
+  data associated with an action. The `shape` is
+  `(self.max_proposal_data_dim,)`, matching the padding of `Action.action_data`.
+  The `low`, `high`, and `dtype` parameters must be set according to the
+  expected range and type of values in `action_data` (e.g., grid cell values,
+  coordinates, indices). The example values `low=-1, high=30, dtype=jnp.int32`
+  are illustrative.
 
 ### 5.2. `observation_space(self, agent: str) -> spaces.Space`
 
-This method must return a `jaxmarl.environments.spaces.Dict` instance that mirrors the structure and content of the observation dictionary produced by the `get_obs` method. Each key in the observation dictionary must have a corresponding space definition.
+This method must return a `jaxmarl.environments.spaces.Dict` instance that
+mirrors the structure and content of the observation dictionary produced by the
+`get_obs` method. Each key in the observation dictionary must have a
+corresponding space definition.
 
 Python
 
@@ -1335,7 +1652,7 @@ Python
 def observation_space(self, agent: str) -> spaces.Space:
     # Define num_proposal_types, e.g., from config or as a constant
     # num_proposal_types = self.cfg.get("num_proposal_types", 2) # Example
-    
+
     obs_space_dict = {
         "input_grids_examples": spaces.Box(low=-1, high=9, shape=(MAX_TRAIN_PAIRS, self.max_grid_size_h, self.max_grid_size_w), dtype=jnp.int32), # ARC colors 0-9, -1 for padding
         "input_masks_examples": spaces.Box(low=0, high=1, shape=(MAX_TRAIN_PAIRS, self.max_grid_size_h, self.max_grid_size_w), dtype=jnp.bool_),
@@ -1362,59 +1679,139 @@ def observation_space(self, agent: str) -> spaces.Space:
 
 Analysis:
 
-Each field from the shared_observation_components dictionary (described in Section 4.4) must have a corresponding entry in the spaces.Dict. spaces.Box is typically used for array-like data, specifying low and high bounds for the values, the exact shape of the array, and its dtype. These parameters must precisely match the data returned by get_obs. For example, grid data uses low=-1 (for padding) and high=9 (for ARC colors), with dtype=jnp.int32. Mask arrays use low=0, high=1 and dtype=jnp.bool_. The MAX_* constants defined in src/jax_arc/types.py (e.g., MAX_HYPOTHESES, MAX_PROPOSAL_DATA_DIM, MAX_TRAIN_PAIRS) directly inform the shape parameters for many of these spaces.Box definitions, demonstrating the tight coupling between Pytree design for static data representation and the definition of observation/action spaces.
+Each field from the shared*observation_components dictionary (described in
+Section 4.4) must have a corresponding entry in the spaces.Dict. spaces.Box is
+typically used for array-like data, specifying low and high bounds for the
+values, the exact shape of the array, and its dtype. These parameters must
+precisely match the data returned by get_obs. For example, grid data uses low=-1
+(for padding) and high=9 (for ARC colors), with dtype=jnp.int32. Mask arrays use
+low=0, high=1 and dtype=jnp.bool*. The MAX\_\* constants defined in
+src/jax_arc/types.py (e.g., MAX_HYPOTHESES, MAX_PROPOSAL_DATA_DIM,
+MAX_TRAIN_PAIRS) directly inform the shape parameters for many of these
+spaces.Box definitions, demonstrating the tight coupling between Pytree design
+for static data representation and the definition of observation/action spaces.
 
-The explicit use of JaxMARL's native `jaxmarl.environments.spaces` is important. While Gymnasium is a dependency of JaxMARL 1, relying on JaxMARL's own space API ensures full compatibility and may leverage JAX-specific optimizations or features within the JaxMARL framework itself. These space definitions are not merely descriptive; they constitute a strict API contract with MARL learning algorithms, which use these definitions to configure neural network architectures and validate environment interactions.
+The explicit use of JaxMARL's native `jaxmarl.environments.spaces` is important.
+While Gymnasium is a dependency of JaxMARL 1, relying on JaxMARL's own space API
+ensures full compatibility and may leverage JAX-specific optimizations or
+features within the JaxMARL framework itself. These space definitions are not
+merely descriptive; they constitute a strict API contract with MARL learning
+algorithms, which use these definitions to configure neural network
+architectures and validate environment interactions.
 
 ## 6. Alignment with ARCLE and JaxMARL Principles
 
-The design of the JaxARC environment draws conceptual inspiration from existing ARC environments like ARCLE 2 while strictly adhering to the API and implementation paradigms of JaxMARL and JAX.
+The design of the JaxARC environment draws conceptual inspiration from existing
+ARC environments like ARCLE 2 while strictly adhering to the API and
+implementation paradigms of JaxMARL and JAX.
 
 ### 6.1. ARCLE (Abstraction and Reasoning Corpus Learning Environment)
 
-ARCLE, being a Gymnasium-based environment for ARC, offers valuable conceptual precedents for framing ARC tasks as RL problems Its state representations and action definitions (e.g., coloring, resizing, selection, copy-paste operations in
+ARCLE, being a Gymnasium-based environment for ARC, offers valuable conceptual
+precedents for framing ARC tasks as RL problems Its state representations and
+action definitions (e.g., coloring, resizing, selection, copy-paste operations
+in
 
-`ARCEnv` or `O2ARCv2Env`) provide insights into the types of interactions agents might have with an ARC grid. The `O2ARCv2Env` in ARCLE, inspired by a human interface for solving ARC, suggests the potential for a rich and complex action space
+`ARCEnv` or `O2ARCv2Env`) provide insights into the types of interactions agents
+might have with an ARC grid. The `O2ARCv2Env` in ARCLE, inspired by a human
+interface for solving ARC, suggests the potential for a rich and complex action
+space
 
-However, there are key differences that necessitate careful adaptation for a JAX-native, JaxMARL-based environment:
+However, there are key differences that necessitate careful adaptation for a
+JAX-native, JaxMARL-based environment:
 
-- **Framework:** ARCLE uses Gymnasium, while JaxARC uses JaxMARL. This means JaxARC must implement the `MultiAgentEnv` interface from JaxMARL and embrace JAX's functional programming principles (purity, immutability), explicit PRNG key management, and Pytree-based state representations.
-	
-- **State Mutability:** ARCLE operations may modify the state in-place (e.g., "All operations receives state and action, and it changes state in-place" 2). In contrast, JaxARC's
-	
-	`step` method and all its internal helper functions must be pure, returning new state instances rather than modifying them in-place While ARCLE's
-	
-	`env.transition(state_copied, action)` 2 hints at a functional approach for obtaining next states without side effects, JaxARC mandates this purity for all JAX-transformed components.
-	
-- **Observation/Action Spaces:** ARCLE uses `gymnasium.spaces`. JaxARC must use `jaxmarl.environments.spaces`. While the underlying concepts of defining discrete or continuous spaces are similar, the specific API provided by JaxMARL must be utilized.
+- **Framework:** ARCLE uses Gymnasium, while JaxARC uses JaxMARL. This means
+  JaxARC must implement the `MultiAgentEnv` interface from JaxMARL and embrace
+  JAX's functional programming principles (purity, immutability), explicit PRNG
+  key management, and Pytree-based state representations.
 
-Thus, ARCLE serves as a valuable source for understanding the ARC problem domain within an RL context, but the JaxARC implementation must be guided by the specific requirements and idioms of JAX and JaxMARL, as detailed in the project's development guides
+- **State Mutability:** ARCLE operations may modify the state in-place (e.g.,
+  "All operations receives state and action, and it changes state in-place" 2).
+  In contrast, JaxARC's
+
+  `step` method and all its internal helper functions must be pure, returning
+  new state instances rather than modifying them in-place While ARCLE's
+
+  `env.transition(state_copied, action)` 2 hints at a functional approach for
+  obtaining next states without side effects, JaxARC mandates this purity for
+  all JAX-transformed components.
+
+- **Observation/Action Spaces:** ARCLE uses `gymnasium.spaces`. JaxARC must use
+  `jaxmarl.environments.spaces`. While the underlying concepts of defining
+  discrete or continuous spaces are similar, the specific API provided by
+  JaxMARL must be utilized.
+
+Thus, ARCLE serves as a valuable source for understanding the ARC problem domain
+within an RL context, but the JaxARC implementation must be guided by the
+specific requirements and idioms of JAX and JaxMARL, as detailed in the
+project's development guides
 
 ### 6.2. JaxMARL Principles
 
 The JaxARC environment is designed to align with the core principles of JaxMARL:
 
-- **`MultiAgentEnv` Inheritance:** `ArcMarlEnvBase` (and consequently `ArcEnv`) inherits from `jaxmarl.environments.multi_agent_env.MultiAgentEnv`. This ensures adherence to the JaxMARL API, including the signatures for `reset` and `step`, the methods for defining `observation_space` and `action_space`, and conventions such as dictionary-based actions, observations, rewards, and dones keyed by agent ID, including the `dones["__all__"]` flag for episode termination.
-	
-- **JAX-Native Design:** The entire environment, from its Pytree data structures (`State`, `Action`, etc.) to the logic within `step` and `reset`, is designed to be JAX-native. This involves using `chex.dataclass` for Pytrees, `jax.numpy` for array operations, explicit PRNG key management, and writing pure functions. This design enables efficient JIT compilation, vectorization (e.g., `jax.vmap` for running multiple environment instances in parallel), and execution on hardware accelerators
-	
-- **State as a Pytree:** Consistent with typical JaxMARL environments, the JaxARC environment manages its entire state as a JAX Pytree (specifically, the `State` dataclass).
-	
-- **Configuration via Hydra:** The extensive use of Hydra for managing configurations, as detailed in the JaxARC development guides 1, aligns with common best practices in modern JAX-based machine learning projects, facilitating reproducibility and systematic experimentation.
+- **`MultiAgentEnv` Inheritance:** `ArcMarlEnvBase` (and consequently `ArcEnv`)
+  inherits from `jaxmarl.environments.multi_agent_env.MultiAgentEnv`. This
+  ensures adherence to the JaxMARL API, including the signatures for `reset` and
+  `step`, the methods for defining `observation_space` and `action_space`, and
+  conventions such as dictionary-based actions, observations, rewards, and dones
+  keyed by agent ID, including the `dones["__all__"]` flag for episode
+  termination.
 
-In essence, JaxMARL defines the _interface_ (the "what," e.g., method names and signatures), while JAX's functional programming principles dictate the _implementation style_ (the "how," e.g., pure functions, immutable updates, static shapes). The provided development guides 1 are specifically tailored for building such a JaxMARL-compatible environment for ARC, inherently incorporating these JAX-native patterns.
+- **JAX-Native Design:** The entire environment, from its Pytree data structures
+  (`State`, `Action`, etc.) to the logic within `step` and `reset`, is designed
+  to be JAX-native. This involves using `chex.dataclass` for Pytrees,
+  `jax.numpy` for array operations, explicit PRNG key management, and writing
+  pure functions. This design enables efficient JIT compilation, vectorization
+  (e.g., `jax.vmap` for running multiple environment instances in parallel), and
+  execution on hardware accelerators
+
+- **State as a Pytree:** Consistent with typical JaxMARL environments, the
+  JaxARC environment manages its entire state as a JAX Pytree (specifically, the
+  `State` dataclass).
+
+- **Configuration via Hydra:** The extensive use of Hydra for managing
+  configurations, as detailed in the JaxARC development guides 1, aligns with
+  common best practices in modern JAX-based machine learning projects,
+  facilitating reproducibility and systematic experimentation.
+
+In essence, JaxMARL defines the _interface_ (the "what," e.g., method names and
+signatures), while JAX's functional programming principles dictate the
+_implementation style_ (the "how," e.g., pure functions, immutable updates,
+static shapes). The provided development guides 1 are specifically tailored for
+building such a JaxMARL-compatible environment for ARC, inherently incorporating
+these JAX-native patterns.
 
 ## 7. Conclusion and Path Forward
 
-This report has detailed the architectural blueprint for a JaxMARL environment tailored to the Abstraction and Reasoning Corpus. Key components include precisely defined JAX Pytrees (`ParsedTaskData`, `Hypothesis`, `State`, `Action`) that prioritize static shapes for JAX compatibility; abstract base classes (`ArcDataParserBase`, `ArcMarlEnvBase`) that promote modularity and adherence to the JaxMARL API; the structure of the concrete `ArcEnv` class with its core `reset` and `step` methods; and the definitions for `observation_space` and `action_space` using `jaxmarl.environments.spaces`.
+This report has detailed the architectural blueprint for a JaxMARL environment
+tailored to the Abstraction and Reasoning Corpus. Key components include
+precisely defined JAX Pytrees (`ParsedTaskData`, `Hypothesis`, `State`,
+`Action`) that prioritize static shapes for JAX compatibility; abstract base
+classes (`ArcDataParserBase`, `ArcMarlEnvBase`) that promote modularity and
+adherence to the JaxMARL API; the structure of the concrete `ArcEnv` class with
+its core `reset` and `step` methods; and the definitions for `observation_space`
+and `action_space` using `jaxmarl.environments.spaces`.
 
-The design emphasizes JAX-idiomatic principles: function purity, immutable state updates, explicit PRNG key management, and static data structures achieved through padding and masking. These are crucial for leveraging JAX's performance capabilities, particularly JIT compilation.
+The design emphasizes JAX-idiomatic principles: function purity, immutable state
+updates, explicit PRNG key management, and static data structures achieved
+through padding and masking. These are crucial for leveraging JAX's performance
+capabilities, particularly JIT compilation.
 
-The path forward involves implementing these detailed structures and methods. Subsequent development will focus on the internal logic of the helper functions orchestrated by `ArcEnv.step`—namely `_process_actions`, `_update_consensus`, `_apply_consensus_to_grid`, and `_calculate_rewards`—as well as developing comprehensive testing scripts. The phased implementation plan detailed in the provided developer guides 1 offers a structured approach to completing a fully functional and robust ARC environment within the JaxMARL framework.
+The path forward involves implementing these detailed structures and methods.
+Subsequent development will focus on the internal logic of the helper functions
+orchestrated by `ArcEnv.step`—namely `_process_actions`, `_update_consensus`,
+`_apply_consensus_to_grid`, and `_calculate_rewards`—as well as developing
+comprehensive testing scripts. The phased implementation plan detailed in the
+provided developer guides 1 offers a structured approach to completing a fully
+functional and robust ARC environment within the JaxMARL framework.
 
 ## 8. Visualization and Logging Utilities (`src/jax_arc/utils/logging_utils.py`)
 
-For effective debugging and monitoring of the environment and agents, it is crucial to visualize the state of the ARC grids. This is accomplished through a dedicated module, `src/jax_arc/utils/logging_utils.py`, which provides functions to render grids in different formats.
+For effective debugging and monitoring of the environment and agents, it is
+crucial to visualize the state of the ARC grids. This is accomplished through a
+dedicated module, `src/jax_arc/utils/logging_utils.py`, which provides functions
+to render grids in different formats.
 
 ### 8.1 Code Implementation
 
@@ -1514,7 +1911,7 @@ def render_grid_svg(
     for i in range(h):
         for j in range(w):
             y, x = i * total_cell_size, j * total_cell_size
-            
+
             if mask is not None and not mask[i, j]:
                 # Render masked-out cells as a slightly different background color
                 fill_color = "#444444"
@@ -1539,7 +1936,7 @@ def log_grid_to_console(grid: chex.Array, title: str = "Grid State"):
     """
     A simple wrapper function to be used with jax.debug.callback.
     It takes a grid and a title, renders it with Rich, and prints to the console.
-    
+
     This function itself contains a side-effect (print) and is not JAX-compatible,
     which is why it must be called via `jax.debug.callback`.
 
@@ -1550,10 +1947,10 @@ def log_grid_to_console(grid: chex.Array, title: str = "Grid State"):
         …     x=grid,
         …     callback=lambda x: log_grid_to_console(x, title="My Grid")
         … )
-    
+
     Or more directly:
         >>> jax.debug.callback(log_grid_to_console, grid, title="My Grid")
-    
+
     Args:
         grid: The grid to visualize.
         title: The title to display above the grid.
@@ -1567,17 +1964,29 @@ def log_grid_to_console(grid: chex.Array, title: str = "Grid State"):
 
 The module provides two main rendering functions:
 
-- `render_grid_rich`: Uses the `rich` library to create a colorized, textual representation of the grid suitable for printing directly to a modern terminal.
-	
-- `render_grid_svg`: Uses the `drawsvg` library to generate a vector-based SVG image of the grid, which is ideal for saving to files, logging to platforms like Weights & Biases, or embedding in reports.
+- `render_grid_rich`: Uses the `rich` library to create a colorized, textual
+  representation of the grid suitable for printing directly to a modern
+  terminal.
+
+- `render_grid_svg`: Uses the `drawsvg` library to generate a vector-based SVG
+  image of the grid, which is ideal for saving to files, logging to platforms
+  like Weights & Biases, or embedding in reports.
 
 ### 8.3. Integration with JAX using `jax.debug.callback`
 
-A core principle of JAX is that functions intended for JIT compilation must be _pure_—they cannot have side effects like printing to the console or writing to a file. Our visualization functions are inherently side-effectful.
+A core principle of JAX is that functions intended for JIT compilation must be
+_pure_—they cannot have side effects like printing to the console or writing to
+a file. Our visualization functions are inherently side-effectful.
 
-To bridge this gap, we use `jax.debug.callback`. This function allows a JIT-compiled function to safely "call back" to the Python interpreter to execute a regular, side-effectful Python function on intermediate values from the JAX computation.
+To bridge this gap, we use `jax.debug.callback`. This function allows a
+JIT-compiled function to safely "call back" to the Python interpreter to execute
+a regular, side-effectful Python function on intermediate values from the JAX
+computation.
 
-The `logging_utils.py` module includes `log_grid_to_console`, a simple wrapper designed for this purpose. Here is how you can integrate it into your environment's `step` method to print the `working_output_grid` at the beginning of every step:
+The `logging_utils.py` module includes `log_grid_to_console`, a simple wrapper
+designed for this purpose. Here is how you can integrate it into your
+environment's `step` method to print the `working_output_grid` at the beginning
+of every step:
 
 ```python
 # Inside ArcEnv.step() method
@@ -1588,17 +1997,23 @@ def step(self, key: chex.PRNGKey, state: State, actions: dict[str, Action]) -> t
     # This callback will execute at the start of each step, printing the grid.
     # The title can be dynamically formatted with JAX-traced values like state.step_count.
     jax.debug.callback(
-        logging_utils.log_grid_to_console, 
-        state.working_output_grid, 
+        logging_utils.log_grid_to_console,
+        state.working_output_grid,
         title=f"Step {state.step_count}: Working Grid"
     )
 
     # … The rest of the step logic follows …
 ```
 
-This approach allows you to gain invaluable insight into the environment's state over time without breaking the purity and performance benefits of JAX's JIT compilation. For more complex logging, such as saving SVG files, a similar callback approach would be used in your main training script.
+This approach allows you to gain invaluable insight into the environment's state
+over time without breaking the purity and performance benefits of JAX's JIT
+compilation. For more complex logging, such as saving SVG files, a similar
+callback approach would be used in your main training script.
 
-The existing logging utilities can be easily extended to visualize the new per-agent selection masks. When calling `jax.debug.callback` in a training loop, one can iterate through the masks to gain insight into what each agent is focusing on.
+The existing logging utilities can be easily extended to visualize the new
+per-agent selection masks. When calling `jax.debug.callback` in a training loop,
+one can iterate through the masks to gain insight into what each agent is
+focusing on.
 
 ```python
 # Example of logging multiple masks inside a JIT-ted function
@@ -1611,4 +2026,5 @@ def log_all_selections(masks):
 jax.debug.callback(log_all_selections, state.agent_selection_masks)
 ```
 
-This provides invaluable debugging insight into individual agent behaviors and potential coordination.
+This provides invaluable debugging insight into individual agent behaviors and
+potential coordination.

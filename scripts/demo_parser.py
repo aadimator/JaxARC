@@ -29,7 +29,9 @@ def load_and_parse_sample_task(cfg: DictConfig) -> None:
     # Determine which dataset split to use (e.g., training, evaluation)
     # For this demo, we'll default to 'training' if not specified,
     # but you might want to make this configurable via command line.
-    dataset_type = cfg.environment.get("default_split", "training")  # Example: default to training
+    dataset_type = cfg.environment.get(
+        "default_split", "training"
+    )  # Example: default to training
 
     if dataset_type not in cfg.environment:
         logger.error(f"Dataset type '{dataset_type}' not found in configuration.")
@@ -45,7 +47,9 @@ def load_and_parse_sample_task(cfg: DictConfig) -> None:
     logger.info(f"Data root: {cfg.environment.data_root}")
 
     challenges_path = Path(current_config.challenges)
-    solutions_path = Path(current_config.solutions) if "solutions" in current_config else None
+    solutions_path = (
+        Path(current_config.solutions) if "solutions" in current_config else None
+    )
 
     if challenges_path.exists():
         logger.info(f"Loading {dataset_type} tasks from: {challenges_path}")
@@ -69,19 +73,29 @@ def load_and_parse_sample_task(cfg: DictConfig) -> None:
 
                 if first_task.train_pairs:
                     first_train = first_task.train_pairs[0]
-                    logger.info(f"  First training input shape: {first_train.input.array.shape}")
+                    logger.info(
+                        f"  First training input shape: {first_train.input.array.shape}"
+                    )
                     if first_train.output:
-                        logger.info(f"  First training output shape: {first_train.output.array.shape}")
+                        logger.info(
+                            f"  First training output shape: {first_train.output.array.shape}"
+                        )
                     else:
                         logger.info("  First training output: Not available")
 
                 if first_task.test_pairs:
                     first_test = first_task.test_pairs[0]
-                    logger.info(f"  First test input shape: {first_test.input.array.shape}")
+                    logger.info(
+                        f"  First test input shape: {first_test.input.array.shape}"
+                    )
                     if first_test.output:
-                        logger.info(f"  First test output shape: {first_test.output.array.shape}")
+                        logger.info(
+                            f"  First test output shape: {first_test.output.array.shape}"
+                        )
                     else:
-                        logger.info("  First test output: Not available (or not loaded)")
+                        logger.info(
+                            "  First test output: Not available (or not loaded)"
+                        )
 
         except (ValueError, KeyError, FileNotFoundError) as e:
             logger.error(f"Error parsing tasks: {e}")
@@ -107,7 +121,9 @@ def main(cfg: DictConfig) -> None:
     logger.info("To switch datasets, use environment argument, e.g.:")
     logger.info("  pixi run python scripts/demo_parser.py environment=arc_agi_1")
     logger.info("  pixi run python scripts/demo_parser.py environment=arc_agi_2")
-    logger.info("You can also specify a split, e.g., by modifying the config or script to select 'evaluation' or 'testing'.")
+    logger.info(
+        "You can also specify a split, e.g., by modifying the config or script to select 'evaluation' or 'testing'."
+    )
 
 
 if __name__ == "__main__":
