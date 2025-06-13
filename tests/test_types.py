@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from jaxarc.base.types import AgentID, ArcTask, Grid, Hypothesis, TaskPair
+from jaxarc.types import AgentID, ArcTask, Grid, Hypothesis, TaskPair
 
 
 # Test Grid class

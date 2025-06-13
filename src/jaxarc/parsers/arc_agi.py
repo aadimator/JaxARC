@@ -7,7 +7,7 @@ from typing import Any
 import jax.numpy as jnp
 from loguru import logger
 
-from jaxarc.base.types import ArcTask, Grid, TaskPair
+from jaxarc.types import ArcTask, Grid, TaskPair
 
 
 class ArcAgiParser:
