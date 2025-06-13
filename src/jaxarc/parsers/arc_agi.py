@@ -159,7 +159,9 @@ class ArcAgiParser:
                         solutions_file.read_text(encoding="utf-8")
                     )
                 except json.JSONDecodeError as e:
-                    logger.error(f"Invalid JSON in solutions file {solutions_file}: {e}. Solutions will not be loaded.")
+                    logger.error(
+                        f"Invalid JSON in solutions file {solutions_file}: {e}. Solutions will not be loaded."
+                    )
                     solutions_data = {}
 
                 for task_id, task_obj in tasks.items():
