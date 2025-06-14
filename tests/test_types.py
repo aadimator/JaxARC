@@ -232,6 +232,7 @@ def test_hypothesis_confidence_bounds():
         )
         assert hypothesis.confidence == conf
 
+
 # Additional Hypothesis Testing Scenarios
 def test_hypothesis_voting_support():
     """Tests the voting and active state features of Hypothesis."""

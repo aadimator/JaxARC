@@ -4,14 +4,20 @@ import json
 from pathlib import Path
 from typing import Any
 
+import chex
+import jax
 import jax.numpy as jnp
 from loguru import logger
+from omegaconf import DictConfig
 
-from jaxarc.types import ArcTask, Grid, TaskPair
+from jaxarc.base import ArcDataParserBase
+from jaxarc.types import ParsedTaskData
+
+from .utils import convert_grid_to_jax, log_parsing_stats, pad_array_sequence
 
 
-class ArcAgiParser:
-    """Parses ARC-AGI task files into ArcTask objects.
+class ArcAgiParser(ArcDataParserBase):
+    """Parses ARC-AGI task files into ParsedTaskData objects.
 
     This parser supports ARC-AGI datasets downloaded from Kaggle, including:
     - ARC-AGI-1 (2024 dataset)
@@ -20,217 +26,320 @@ class ArcAgiParser:
     Both datasets follow the same JSON structure format and can be parsed
     with this implementation. It handles challenge files (containing training
     pairs and test inputs) and optional solution files (containing test outputs).
+
+    The parser outputs JAX-compatible ParsedTaskData structures with padded
+    arrays and boolean masks for efficient processing in the MARL environment.
     """
 
-    def _parse_grid_json(self, grid_json: list[list[int]]) -> Grid:
-        """Converts a JSON representation of a grid to a Grid object."""
-        if (
-            not grid_json
-            or not isinstance(grid_json, list)
-            or not all(isinstance(row, list) for row in grid_json)
-            or (grid_json and any(len(row) != len(grid_json[0]) for row in grid_json))
-        ):
-            msg = "Grid JSON must be a list of lists with consistent row lengths."
-            raise ValueError(msg)
+    def __init__(
+        self,
+        cfg: DictConfig,
+    ) -> None:
+        """Initialize the ArcAgiParser with configuration.
 
-        if not all(all(isinstance(cell, int) for cell in row) for row in grid_json):
-            msg = "Grid cells must be integers."
-            raise ValueError(msg)
-        return Grid(array=jnp.array(grid_json, dtype=jnp.int32))
-
-    def _parse_pair_json(
-        self, pair_json: dict[str, Any], is_train_pair: bool
-    ) -> TaskPair:
-        """Converts a JSON representation of an input-output pair to a TaskPair object.
-
-        For training pairs, 'output' is expected in pair_json.
-        For test inputs (from challenge files), 'output' is not expected here.
+        Args:
+            cfg: Configuration object containing dataset paths and parser settings,
+                 including max_grid_height, max_grid_width, max_train_pairs, and max_test_pairs
         """
-        if "input" not in pair_json:
-            msg = "Task pair JSON must contain an 'input' key."
-            raise ValueError(msg)
+        super().__init__(cfg)
 
-        input_grid = self._parse_grid_json(pair_json["input"])
-        output_grid: Grid | None = None
+        # Load and cache all tasks in memory
+        self._task_ids: list[str] = []
+        self._cached_tasks: dict[str, dict] = {}
 
-        if is_train_pair:
-            if "output" not in pair_json:
-                msg = "Training task pair JSON must contain an 'output' key."
-                raise ValueError(msg)
-            output_grid = self._parse_grid_json(pair_json["output"])
-        # If it's a test pair from the challenge file, output_grid remains None.
-        # The 'output' key in test pairs from challenge files is ignored,
-        # as solutions are loaded separately.
-        elif "output" in pair_json and not is_train_pair:
-            logger.warning(
-                "Test input pair in challenge file contains an 'output' key. "
-                "This is unexpected and will be ignored. Test outputs are loaded "
-                "from the solutions file if available."
-            )
+        self._load_and_cache_tasks()
 
-        return TaskPair(input=input_grid, output=output_grid)
+    def _load_and_cache_tasks(self) -> None:
+        """Load and cache all tasks from challenges and solutions files."""
+        try:
+            # Load from default split (usually 'training')
+            default_split = self.cfg.get("default_split", "training")
+            split_config = self.cfg.get(default_split, {})
 
-    def parse_task_json(self, task_json: dict[str, Any], task_id: str) -> ArcTask:
-        """Converts a JSON representation of a single task to an ArcTask object.
+            challenges_path = split_config.get("challenges")
+            solutions_path = split_config.get("solutions")
 
-        Assumes task_json is the content for a specific task_id.
-        Test pairs parsed from here will have output=None.
+            # Load challenges data
+            challenges_data = {}
+            if challenges_path:
+                challenges_file = Path(challenges_path)
+                if challenges_file.exists():
+                    with challenges_file.open("r", encoding="utf-8") as f:
+                        challenges_data = json.load(f)
+                    logger.info(
+                        f"Loaded {len(challenges_data)} tasks from {challenges_file}"
+                    )
+                else:
+                    logger.warning(f"Challenges file not found: {challenges_file}")
+                    return
+
+            # Load solutions data
+            solutions_data = {}
+            if solutions_path:
+                solutions_file = Path(solutions_path)
+                if solutions_file.exists():
+                    with solutions_file.open("r", encoding="utf-8") as f:
+                        solutions_data = json.load(f)
+                    logger.info(f"Loaded solutions from {solutions_file}")
+                else:
+                    logger.warning(f"Solutions file not found: {solutions_file}")
+
+            # Merge challenges and solutions data
+            self._cached_tasks = {}
+            for task_id, task_data in challenges_data.items():
+                # Start with the challenge data
+                merged_task = task_data.copy()
+
+                # Add solutions if available
+                if solutions_data.get(task_id):
+                    # Solutions are stored as a list of outputs for test pairs
+                    test_outputs = solutions_data[task_id]
+
+                    # Merge solutions into test pairs
+                    if "test" in merged_task:
+                        for i, test_pair in enumerate(merged_task["test"]):
+                            if i < len(test_outputs):
+                                test_pair["output"] = test_outputs[i]
+
+                self._cached_tasks[task_id] = merged_task
+
+            self._task_ids = list(self._cached_tasks.keys())
+            logger.info(f"Cached {len(self._cached_tasks)} tasks in memory")
+
+        except Exception as e:
+            logger.error(f"Error loading and caching tasks: {e}")
+            raise
+
+    def load_task_file(self, task_file_path: str) -> Any:
+        """Load raw task data from a JSON file.
+
+        Args:
+            task_file_path: Path to the JSON file containing task data
+
+        Returns:
+            Dictionary containing the raw task data
+
+        Raises:
+            FileNotFoundError: If the file doesn't exist
+            ValueError: If the JSON is invalid
         """
-        train_pairs_json = task_json.get("train", [])
-        test_inputs_json = task_json.get("test", [])
+        file_path = Path(task_file_path)
 
-        train_pairs = [
-            self._parse_pair_json(pair, is_train_pair=True) for pair in train_pairs_json
-        ]
-
-        test_pairs_with_inputs_only = [
-            self._parse_pair_json(pair, is_train_pair=False)
-            for pair in test_inputs_json
-        ]
-
-        return ArcTask(
-            task_id=task_id,
-            train_pairs=train_pairs,
-            test_pairs=test_pairs_with_inputs_only,
-        )
-
-    def parse_task_file(self, file_path: str | Path, task_id: str) -> ArcTask:
-        """Parses a single task from a JSON challenge file by its ID.
-
-        The resulting ArcTask's test_pairs will have output=None, as this
-        method does not handle solution files.
-        """
-        file_path = Path(file_path)
         if not file_path.exists():
             msg = f"Task file not found: {file_path}"
             raise FileNotFoundError(msg)
 
         try:
-            data = json.loads(file_path.read_text(encoding="utf-8"))
-            if task_id not in data:
-                msg = f"Task ID '{task_id}' not found in {file_path}"
-                raise KeyError(msg)
-            task_json_content = data[task_id]
-            return self.parse_task_json(task_json_content, task_id)
+            with file_path.open("r", encoding="utf-8") as f:
+                return json.load(f)
         except json.JSONDecodeError as e:
             msg = f"Invalid JSON in file {file_path}: {e}"
             raise ValueError(msg) from e
-        except Exception as e:
-            logger.error(f"Error parsing task {task_id} from {file_path}: {e}")
-            raise
 
-    def parse_all_tasks_from_file(
+    def preprocess_task_data(
         self,
-        challenges_file_path: str | Path,
-        solutions_file_path: str | Path | None = None,
-    ) -> dict[str, ArcTask]:
-        """Parses all tasks from a JSON challenge file.
+        raw_task_data: Any,
+        key: chex.PRNGKey,  # noqa: ARG002
+    ) -> ParsedTaskData:
+        """Convert raw task data into ParsedTaskData structure.
 
-        If a solutions_file_path is provided, it attempts to load test outputs
-        and populate them into the corresponding ArcTask objects.
+        Args:
+            raw_task_data: Raw task data dictionary
+            key: JAX PRNG key (unused in this deterministic preprocessing)
+
+        Returns:
+            ParsedTaskData: JAX-compatible task data with padded arrays
+
+        Raises:
+            ValueError: If the task data format is invalid
         """
-        challenges_file = Path(challenges_file_path)
-        if not challenges_file.exists():
-            msg = f"Challenge file not found: {challenges_file}"
-            raise FileNotFoundError(msg)
+        if not isinstance(raw_task_data, dict):
+            msg = f"Expected dict, got {type(raw_task_data)}"
+            raise ValueError(msg)
 
-        try:
-            challenges_data = json.loads(challenges_file.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as e:
-            msg = f"Invalid JSON in challenge file {challenges_file}: {e}"
-            raise ValueError(msg) from e
+        # Extract task ID and content
+        if len(raw_task_data) != 1:
+            msg = f"Expected single task, got {len(raw_task_data)} tasks"
+            raise ValueError(msg)
 
-        tasks: dict[str, ArcTask] = {}
-        for task_id, task_json_content in challenges_data.items():
-            try:
-                tasks[task_id] = self.parse_task_json(task_json_content, task_id)
-            except Exception as e:
-                logger.error(
-                    f"Skipping task {task_id} from {challenges_file} due to parsing error: {e}"
-                )
-                continue
+        task_id, task_content = next(iter(raw_task_data.items()))
 
-        if solutions_file_path:
-            solutions_file = Path(solutions_file_path)
-            if solutions_file.exists():
-                logger.info(f"Loading solutions from: {solutions_file}")
-                try:
-                    solutions_data = json.loads(
-                        solutions_file.read_text(encoding="utf-8")
-                    )
-                except json.JSONDecodeError as e:
-                    logger.error(
-                        f"Invalid JSON in solutions file {solutions_file}: {e}. Solutions will not be loaded."
-                    )
-                    solutions_data = {}
+        # Process training pairs
+        train_pairs_data = task_content.get("train", [])
+        test_pairs_data = task_content.get("test", [])
 
-                for task_id, task_obj in tasks.items():
-                    if task_id in solutions_data:
-                        solution_outputs_json = solutions_data[task_id]
+        if not train_pairs_data:
+            msg = "Task must have at least one training pair"
+            raise ValueError(msg)
 
-                        if not isinstance(solution_outputs_json, list):
-                            logger.warning(
-                                f"Task {task_id}: Solutions data is not a list. Skipping solutions for this task."
-                            )
-                            continue  # Skip to the next task_id if solutions format is wrong
+        if not test_pairs_data:
+            msg = "Task must have at least one test pair"
+            raise ValueError(msg)
 
-                        if len(solution_outputs_json) != len(task_obj.test_pairs):
-                            logger.warning(
-                                f"Task {task_id}: Mismatch between number of test inputs ({len(task_obj.test_pairs)}) and solution outputs ({len(solution_outputs_json)}). "
-                                "Some test outputs may not be loaded or may be incorrect if lists are misaligned."
-                            )
+        # Convert training pairs to JAX arrays
+        train_input_grids = []
+        train_output_grids = []
 
-                        updated_test_pairs: list[TaskPair] = []
-                        for i, test_pair_input_only in enumerate(task_obj.test_pairs):
-                            current_output_grid: Grid | None = None  # Default to None
-                            if i < len(solution_outputs_json):
-                                try:
-                                    # Ensure the specific solution output exists and is a list of lists
-                                    output_grid_json = solution_outputs_json[i]
-                                    if isinstance(output_grid_json, list):
-                                        current_output_grid = self._parse_grid_json(
-                                            output_grid_json
-                                        )
-                                    else:
-                                        logger.warning(
-                                            f"Task {task_id}, test pair {i}: Expected solution output to be a grid (list of lists), got {type(output_grid_json)}. Output will be None."
-                                        )
-                                except IndexError:
-                                    # This case is covered by the length check above, but good for safety
-                                    logger.warning(
-                                        f"Task {task_id}, test pair {i}: No corresponding solution output found. Output will be None."
-                                    )
-                                except (
-                                    ValueError
-                                ) as e_parse:  # Catch errors from _parse_grid_json
-                                    logger.warning(
-                                        f"Task {task_id}, test pair {i}: Error parsing solution grid: {e_parse}. Output will be None."
-                                    )
-                                except (
-                                    Exception
-                                ) as e_sol:  # Catch any other unexpected errors
-                                    logger.error(
-                                        f"Task {task_id}, test pair {i}: Unexpected error processing solution: {e_sol}. Output will be None."
-                                    )
-                            else:  # Not enough solutions provided for the number of test inputs
-                                logger.warning(
-                                    f"Task {task_id}, test pair {i}: Missing solution output. Output will be None."
-                                )
+        for i, pair in enumerate(train_pairs_data):
+            if "input" not in pair or "output" not in pair:
+                msg = f"Training pair {i} missing input or output"
+                raise ValueError(msg)
 
-                            updated_test_pairs.append(
-                                TaskPair(
-                                    input=test_pair_input_only.input,
-                                    output=current_output_grid,
-                                )
-                            )
-                        task_obj.test_pairs = updated_test_pairs
-                    else:
-                        logger.warning(
-                            f"Task {task_id}: No solutions found in solutions file. Test outputs will be None."
-                        )
+            input_grid = convert_grid_to_jax(pair["input"])
+            output_grid = convert_grid_to_jax(pair["output"])
+
+            # Validate grid dimensions
+            self.validate_grid_dimensions(*input_grid.shape)
+            self.validate_grid_dimensions(*output_grid.shape)
+
+            train_input_grids.append(input_grid)
+            train_output_grids.append(output_grid)
+
+        # Convert test pairs to JAX arrays
+        test_input_grids = []
+        test_output_grids = []
+
+        for i, pair in enumerate(test_pairs_data):
+            if "input" not in pair:
+                msg = f"Test pair {i} missing input"
+                raise ValueError(msg)
+
+            input_grid = convert_grid_to_jax(pair["input"])
+            self.validate_grid_dimensions(*input_grid.shape)
+            test_input_grids.append(input_grid)
+
+            # For test pairs, output might be None (challenge files)
+            # or provided (solution files). We'll handle both cases.
+            if "output" in pair and pair["output"] is not None:
+                output_grid = convert_grid_to_jax(pair["output"])
+                self.validate_grid_dimensions(*output_grid.shape)
+                test_output_grids.append(output_grid)
             else:
-                logger.warning(
-                    f"Solutions file specified but not found: {solutions_file}. Test outputs will be None."
-                )
+                # Create dummy output grid (will be masked as invalid)
+                dummy_output = jnp.zeros_like(input_grid)
+                test_output_grids.append(dummy_output)
 
-        return tasks
+        # Pad all arrays to maximum dimensions
+        padded_train_inputs, train_input_masks = pad_array_sequence(
+            train_input_grids,
+            self.max_train_pairs,
+            self.max_grid_height,
+            self.max_grid_width,
+            fill_value=-1,  # Use -1 as fill value for inputs
+        )
+
+        padded_train_outputs, train_output_masks = pad_array_sequence(
+            train_output_grids,
+            self.max_train_pairs,
+            self.max_grid_height,
+            self.max_grid_width,
+            fill_value=-1,
+        )
+
+        padded_test_inputs, test_input_masks = pad_array_sequence(
+            test_input_grids,
+            self.max_test_pairs,
+            self.max_grid_height,
+            self.max_grid_width,
+            fill_value=-1,
+        )
+
+        padded_test_outputs, test_output_masks = pad_array_sequence(
+            test_output_grids,
+            self.max_test_pairs,
+            self.max_grid_height,
+            self.max_grid_width,
+            fill_value=-1,
+        )
+
+        # Log parsing statistics
+        max_train_dims = max(
+            (grid.shape for grid in train_input_grids + train_output_grids),
+            default=(0, 0),
+        )
+        max_test_dims = max(
+            (grid.shape for grid in test_input_grids + test_output_grids),
+            default=(0, 0),
+        )
+        max_dims = (
+            max(max_train_dims[0], max_test_dims[0]),
+            max(max_train_dims[1], max_test_dims[1]),
+        )
+
+        log_parsing_stats(
+            len(train_pairs_data), len(test_pairs_data), max_dims, task_id
+        )
+
+        # Create ParsedTaskData structure
+        return ParsedTaskData(
+            input_grids_examples=padded_train_inputs,
+            input_masks_examples=train_input_masks,
+            output_grids_examples=padded_train_outputs,
+            output_masks_examples=train_output_masks,
+            num_train_pairs=len(train_pairs_data),
+            test_input_grids=padded_test_inputs,
+            test_input_masks=test_input_masks,
+            true_test_output_grids=padded_test_outputs,
+            true_test_output_masks=test_output_masks,
+            num_test_pairs=len(test_pairs_data),
+            task_id=task_id,
+        )
+
+    def get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData:
+        """Get a random task from the dataset.
+
+        Args:
+            key: JAX PRNG key for random selection
+
+        Returns:
+            ParsedTaskData: A randomly selected and preprocessed task
+
+        Raises:
+            RuntimeError: If no tasks are available
+        """
+        if not self._task_ids:
+            msg = "No tasks available in dataset"
+            raise RuntimeError(msg)
+
+        # Randomly select a task ID
+        task_index = jax.random.randint(key, (), 0, len(self._task_ids))
+        task_id = self._task_ids[int(task_index)]
+
+        # Get the cached task data
+        task_data = {task_id: self._cached_tasks[task_id]}
+
+        # Preprocess and return
+        return self.preprocess_task_data(task_data, key)
+
+    def get_task_by_id(self, task_id: str) -> ParsedTaskData:
+        """Get a specific task by its ID.
+
+        Args:
+            task_id: ID of the task to retrieve
+
+        Returns:
+            ParsedTaskData: The preprocessed task data
+
+        Raises:
+            ValueError: If the task ID is not found
+        """
+        if task_id not in self._task_ids:
+            msg = f"Task ID '{task_id}' not found in dataset"
+            raise ValueError(msg)
+
+        # Get the cached task data
+        task_data = {task_id: self._cached_tasks[task_id]}
+
+        # Create a dummy key for preprocessing (deterministic)
+        key = jax.random.PRNGKey(0)
+
+        # Preprocess and return
+        return self.preprocess_task_data(task_data, key)
+
+    def get_available_task_ids(self) -> list[str]:
+        """Get list of all available task IDs.
+
+        Returns:
+            List of task IDs available in the dataset
+        """
+        return self._task_ids.copy()

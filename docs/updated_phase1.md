@@ -825,7 +825,7 @@ class IndividualFileParser(ArcParserBase):
 
         # In this format, test pairs are assumed to be complete.
         test_pairs = [
-            self._parse_pair_json(pair, is_train_pair=True) # Re-use is_train_pair=True logic to get output
+            self._parse_pair_json(pair, is_train_pair=True) # Reuse is_train_pair=True logic to get output
             for pair in task_json_content.get("test", [])
         ]
 
@@ -2015,7 +2015,7 @@ per-agent selection masks. When calling `jax.debug.callback` in a training loop,
 one can iterate through the masks to gain insight into what each agent is
 focusing on.
 
-```python
+```
 # Example of logging multiple masks inside a JIT-ted function
 def log_all_selections(masks):
     for i in range(masks.shape[0]):

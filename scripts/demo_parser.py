@@ -3,7 +3,7 @@ Demonstration script showing how to use the ArcAgiParser with different datasets
 
 This script shows how to:
 1. Load configuration for different ARC-AGI datasets
-2. Use the parser to load and parse tasks
+2. Use the parser to load and parse tasks into JAX-compatible structures
 3. Switch between ARC-AGI-1 and ARC-AGI-2 datasets
 
 Usage:
@@ -13,119 +13,228 @@ Usage:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import hydra
+import jax
+import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
 
-from jaxarc.parsers import ArcAgiParser
+from jaxarc.parsers.arc_agi import ArcAgiParser
 
 
 def load_and_parse_sample_task(cfg: DictConfig) -> None:
     """Load and parse a sample task from the configured dataset."""
-    parser = ArcAgiParser()
-
-    # Determine which dataset split to use (e.g., training, evaluation)
-    # For this demo, we'll default to 'training' if not specified,
-    # but you might want to make this configurable via command line.
-    dataset_type = cfg.environment.get(
-        "default_split", "training"
-    )  # Example: default to training
-
-    if dataset_type not in cfg.environment:
-        logger.error(f"Dataset type '{dataset_type}' not found in configuration.")
-        return
-
-    current_config = cfg.environment[dataset_type]
-    base_dataset_name = cfg.environment.dataset_name
-
-    logger.info(
-        f"Dataset: {base_dataset_name}_{dataset_type} ({cfg.environment.dataset_year})"
+    # Create parser with configuration and max dimensions
+    parser = ArcAgiParser(
+        cfg=cfg.environment,
     )
+
+    dataset_name = cfg.environment.dataset_name
+    dataset_year = cfg.environment.dataset_year
+
+    logger.info(f"Dataset: {dataset_name} ({dataset_year})")
     logger.info(f"Description: {cfg.environment.description}")
-    logger.info(f"Data root: {cfg.environment.data_root}")
+    logger.info(f"Available tasks: {len(parser.get_available_task_ids())}")
 
-    challenges_path = Path(current_config.challenges)
-    solutions_path = (
-        Path(current_config.solutions) if "solutions" in current_config else None
-    )
+    # Get a random task
+    key = jax.random.PRNGKey(42)
+    try:
+        parsed_task = parser.get_random_task(key)
 
-    if challenges_path.exists():
-        logger.info(f"Loading {dataset_type} tasks from: {challenges_path}")
-        if solutions_path:
-            logger.info(f"Using solutions from: {solutions_path}")
-        else:
-            logger.info(f"No solutions file specified for {dataset_type}.")
+        logger.info(f"Successfully parsed task: {parsed_task.task_id}")
+        logger.info(f"Number of training pairs: {parsed_task.num_train_pairs}")
+        logger.info(f"Number of test pairs: {parsed_task.num_test_pairs}")
+        logger.info(f"Input grids shape: {parsed_task.input_grids_examples.shape}")
+        logger.info(f"Output grids shape: {parsed_task.output_grids_examples.shape}")
+        logger.info(f"Test input grids shape: {parsed_task.test_input_grids.shape}")
 
-        try:
-            tasks = parser.parse_all_tasks_from_file(challenges_path, solutions_path)
-            logger.info(f"Found {len(tasks)} tasks in the {dataset_type} file")
+        # Show some details about the first training pair
+        if parsed_task.num_train_pairs > 0:
+            first_input_mask = parsed_task.input_masks_examples[0]
+            first_output_mask = parsed_task.output_masks_examples[0]
 
-            if tasks:
-                # Show details of the first task
-                first_task_id = next(iter(tasks.keys()))
-                first_task = tasks[first_task_id]
+            # Count valid (non-padded) cells
+            input_valid_cells = int(first_input_mask.sum())
+            output_valid_cells = int(first_output_mask.sum())
 
-                logger.info(f"Sample task: {first_task_id}")
-                logger.info(f"  Training pairs: {len(first_task.train_pairs)}")
-                logger.info(f"  Test pairs: {len(first_task.test_pairs)}")
+            logger.info(f"First training pair - input valid cells: {input_valid_cells}")
+            logger.info(
+                f"First training pair - output valid cells: {output_valid_cells}"
+            )
 
-                if first_task.train_pairs:
-                    first_train = first_task.train_pairs[0]
+            # Show actual grid content (only valid region)
+            if input_valid_cells > 0:
+                valid_rows = first_input_mask.any(axis=1)
+                valid_cols = first_input_mask.any(axis=0)
+
+                # Find the actual grid bounds
+                row_indices = jnp.where(valid_rows)[0]
+                col_indices = jnp.where(valid_cols)[0]
+
+                if len(row_indices) > 0 and len(col_indices) > 0:
+                    min_row, max_row = int(row_indices[0]), int(row_indices[-1]) + 1
+                    min_col, max_col = int(col_indices[0]), int(col_indices[-1]) + 1
+
+                    actual_input_grid = parsed_task.input_grids_examples[
+                        0, min_row:max_row, min_col:max_col
+                    ]
+                    actual_output_grid = parsed_task.output_grids_examples[
+                        0, min_row:max_row, min_col:max_col
+                    ]
+
                     logger.info(
-                        f"  First training input shape: {first_train.input.array.shape}"
+                        f"First training input grid ({actual_input_grid.shape}):"
                     )
-                    if first_train.output:
-                        logger.info(
-                            f"  First training output shape: {first_train.output.array.shape}"
-                        )
-                    else:
-                        logger.info("  First training output: Not available")
-
-                if first_task.test_pairs:
-                    first_test = first_task.test_pairs[0]
+                    logger.info(f"\n{actual_input_grid}")
                     logger.info(
-                        f"  First test input shape: {first_test.input.array.shape}"
+                        f"First training output grid ({actual_output_grid.shape}):"
                     )
-                    if first_test.output:
-                        logger.info(
-                            f"  First test output shape: {first_test.output.array.shape}"
-                        )
-                    else:
-                        logger.info(
-                            "  First test output: Not available (or not loaded)"
-                        )
+                    logger.info(f"\n{actual_output_grid}")
 
-        except (ValueError, KeyError, FileNotFoundError) as e:
-            logger.error(f"Error parsing tasks: {e}")
+        # Test specific task retrieval
+        available_ids = parser.get_available_task_ids()
+        if available_ids:
+            specific_task = parser.get_task_by_id(available_ids[0])
+            logger.info(
+                f"Successfully retrieved specific task: {specific_task.task_id}"
+            )
 
-    else:
-        logger.warning(f"Training challenges file not found at {challenges_path}")
-        logger.info(
-            "Make sure to download the dataset and adjust the paths in the config files."
+        # Demonstrate JAX compatibility
+        logger.info("Testing JAX compatibility...")
+
+        def sum_valid_pixels(grids: jnp.ndarray, masks: jnp.ndarray) -> jnp.ndarray:
+            return jnp.sum(grids * masks)
+
+        jitted_sum = jax.jit(sum_valid_pixels)
+        total_input_pixels = jitted_sum(  # pylint: disable=E1102
+            parsed_task.input_grids_examples, parsed_task.input_masks_examples
         )
+        logger.info(
+            f"Total valid input pixels across all training pairs: {total_input_pixels}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error parsing task: {e}")
+        raise
+
+
+def analyze_dataset_statistics(cfg: DictConfig) -> None:
+    """Analyze the dataset to find actual maximum training and test pairs."""
+    logger.info("=" * 50)
+    logger.info("DATASET STATISTICS ANALYSIS")
+    logger.info("=" * 50)
+
+    # Create parser with configuration
+    parser = ArcAgiParser(cfg=cfg.environment)
+
+    # Access the cached tasks to analyze them
+    cached_tasks = parser._cached_tasks
+
+    max_train_pairs = 0
+    max_test_pairs = 0
+    max_grid_height = 0
+    max_grid_width = 0
+
+    train_pair_counts = []
+    test_pair_counts = []
+
+    logger.info(f"Analyzing {len(cached_tasks)} tasks...")
+
+    for _task_id, task_data in cached_tasks.items():
+        # Count training pairs
+        train_pairs = len(task_data.get("train", []))
+        test_pairs = len(task_data.get("test", []))
+
+        train_pair_counts.append(train_pairs)
+        test_pair_counts.append(test_pairs)
+
+        max_train_pairs = max(max_train_pairs, train_pairs)
+        max_test_pairs = max(max_test_pairs, test_pairs)
+
+        # Also check grid dimensions
+        for pair in task_data.get("train", []):
+            if pair.get("input"):
+                height = len(pair["input"])
+                width = len(pair["input"][0]) if height > 0 else 0
+                max_grid_height = max(max_grid_height, height)
+                max_grid_width = max(max_grid_width, width)
+            if pair.get("output"):
+                height = len(pair["output"])
+                width = len(pair["output"][0]) if height > 0 else 0
+                max_grid_height = max(max_grid_height, height)
+                max_grid_width = max(max_grid_width, width)
+
+        for pair in task_data.get("test", []):
+            if pair.get("input"):
+                height = len(pair["input"])
+                width = len(pair["input"][0]) if height > 0 else 0
+                max_grid_height = max(max_grid_height, height)
+                max_grid_width = max(max_grid_width, width)
+            if pair.get("output"):
+                height = len(pair["output"])
+                width = len(pair["output"][0]) if height > 0 else 0
+                max_grid_height = max(max_grid_height, height)
+                max_grid_width = max(max_grid_width, width)
+
+    # Report findings
+    logger.info("ACTUAL DATASET MAXIMUMS:")
+    logger.info(f"  Maximum training pairs per task: {max_train_pairs}")
+    logger.info(f"  Maximum test pairs per task: {max_test_pairs}")
+    logger.info(f"  Maximum grid height: {max_grid_height}")
+    logger.info(f"  Maximum grid width: {max_grid_width}")
+    logger.info("")
+    logger.info("CURRENT CONFIG SETTINGS:")
+    logger.info(f"  Configured max_train_pairs: {cfg.environment.max_train_pairs}")
+    logger.info(f"  Configured max_test_pairs: {cfg.environment.max_test_pairs}")
+    logger.info(f"  Configured max_grid_height: {cfg.environment.max_grid_height}")
+    logger.info(f"  Configured max_grid_width: {cfg.environment.max_grid_width}")
+    logger.info("")
+
+    # Provide recommendations
+    if max_train_pairs <= cfg.environment.max_train_pairs:
+        logger.info("✅ Current max_train_pairs setting is sufficient")
+    else:
+        logger.warning(
+            f"⚠️  Recommended to increase max_train_pairs to {max_train_pairs}"
+        )
+
+    if max_test_pairs <= cfg.environment.max_test_pairs:
+        logger.info("✅ Current max_test_pairs setting is sufficient")
+    else:
+        logger.warning(f"⚠️  Recommended to increase max_test_pairs to {max_test_pairs}")
+
+    if max_grid_height <= cfg.environment.max_grid_height:
+        logger.info("✅ Current max_grid_height setting is sufficient")
+    else:
+        logger.warning(
+            f"⚠️  Recommended to increase max_grid_height to {max_grid_height}"
+        )
+
+    if max_grid_width <= cfg.environment.max_grid_width:
+        logger.info("✅ Current max_grid_width setting is sufficient")
+    else:
+        logger.warning(f"⚠️  Recommended to increase max_grid_width to {max_grid_width}")
+
+    logger.info("=" * 50)
 
 
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(cfg: DictConfig) -> None:
-    """Main function demonstrating parser usage."""
+    """Main function to run the parser demo."""
+    logger.info("Starting ARC-AGI Parser Demo")
+    logger.info(f"Configuration: {cfg.environment.dataset_name}")
 
-    logger.info("ARC-AGI Parser Demonstration")
-    logger.info("=" * 40)
+    try:
+        # First analyze the dataset statistics
+        analyze_dataset_statistics(cfg)
 
-    load_and_parse_sample_task(cfg)
-
-    logger.info("=" * 40)
-    logger.info("Demonstration complete!")
-    logger.info("To switch datasets, use environment argument, e.g.:")
-    logger.info("  pixi run python scripts/demo_parser.py environment=arc_agi_1")
-    logger.info("  pixi run python scripts/demo_parser.py environment=arc_agi_2")
-    logger.info(
-        "You can also specify a split, e.g., by modifying the config or script to select 'evaluation' or 'testing'."
-    )
+        # Then run the sample task demonstration
+        load_and_parse_sample_task(cfg)
+        logger.info("Demo completed successfully!")
+    except Exception as e:
+        logger.error(f"Demo failed: {e}")
+        return
 
 
 if __name__ == "__main__":
-    # Hydra decorator automatically provides cfg parameter when script is run
-    main()  # # pylint: disable=E1120
+    main()  # pylint: disable=E1120
