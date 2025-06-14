@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
+from pyprojroot import here
 
 from jaxarc.base import ArcDataParserBase
 from jaxarc.types import ParsedTaskData
@@ -62,7 +63,7 @@ class ArcAgiParser(ArcDataParserBase):
             # Load challenges data
             challenges_data = {}
             if challenges_path:
-                challenges_file = Path(challenges_path)
+                challenges_file = here(challenges_path)
                 if challenges_file.exists():
                     with challenges_file.open("r", encoding="utf-8") as f:
                         challenges_data = json.load(f)
@@ -76,7 +77,7 @@ class ArcAgiParser(ArcDataParserBase):
             # Load solutions data
             solutions_data = {}
             if solutions_path:
-                solutions_file = Path(solutions_path)
+                solutions_file = here(solutions_path)
                 if solutions_file.exists():
                     with solutions_file.open("r", encoding="utf-8") as f:
                         solutions_data = json.load(f)
