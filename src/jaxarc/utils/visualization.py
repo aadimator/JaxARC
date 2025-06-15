@@ -41,18 +41,45 @@ ARC_COLOR_PALETTE: list[str] = [
 # Rich color mapping for terminal display
 # Using Rich's color names that are closest to the ARC palette
 RICH_COLOR_MAP: dict[int, str] = {
-    0: "black",
-    1: "blue",
-    2: "red",
-    3: "green",
-    4: "yellow",
-    5: "white",  # grey -> white for better visibility
-    6: "magenta",  # pink -> magenta
-    7: "bright_yellow",  # orange -> bright_yellow
-    8: "cyan",  # light blue -> cyan
-    9: "red3",  # brown -> red3
-    -1: "grey23",  # padding/invalid cells
+    0: "#252525",
+    1: "#0074D9",
+    2: "#FF4136",
+    3: "#37D449",
+    4: "#FFDC00",
+    5: "#E6E6E6",  # grey -> white for better visibility
+    6: "#F012BE",  # pink -> magenta
+    7: "#FF871E",  # orange -> bright_yellow
+    8: "#54D2EB",  # light blue -> cyan
+    9: "#8D1D2C",  # brown -> red3
+    -1: "#FFFFFF",  # padding/invalid cells
 }
+# RICH_COLOR_MAP: dict[int, str] = {
+#     0: "black",
+#     1: "blue",
+#     2: "red",
+#     3: "green",
+#     4: "yellow",
+#     5: "white",  # grey -> white for better visibility
+#     6: "magenta",  # pink -> magenta
+#     7: "bright_yellow",  # orange -> bright_yellow
+#     8: "cyan",  # light blue -> cyan
+#     9: "red3",  # brown -> red3
+#     -1: "grey23",  # padding/invalid cells
+# }
+
+# RICH_COLOR_MAP = {
+#     0: "black",
+#     1: "blue",
+#     2: "red",
+#     3: "green",
+#     4: "yellow",
+#     5: "white",  # grey -> white for better visibility
+#     6: "magenta",  # pink -> magenta
+#     7: "bright_yellow",  # orange -> bright_yellow
+#     8: "cyan",  # light blue -> cyan
+#     9: "red3",  # brown -> red3
+#     -1: "grey23",  # padding/invalid cells
+# }
 
 
 def _extract_grid_data(grid_input: jnp.ndarray | np.ndarray | Grid) -> np.ndarray:
@@ -732,6 +759,66 @@ def visualize_parsed_task_data_rich(
             console.print(test_output_table)
 
 
+def _draw_dotted_squircle(
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    label: str,
+    stroke_color: str = "#666666",
+    stroke_width: float = 0.05,
+    corner_radius: float = 0.3,
+    dash_array: str = "0.1,0.1",
+) -> list[drawsvg.DrawingElement]:
+    """Draw a dotted squircle (rounded rectangle) with label.
+
+    Args:
+        x: Left edge of the squircle
+        y: Top edge of the squircle
+        width: Width of the squircle
+        height: Height of the squircle
+        label: Label text to display
+        stroke_color: Color of the dotted border
+        stroke_width: Width of the border
+        corner_radius: Radius for rounded corners
+        dash_array: SVG dash pattern for dotted line
+
+    Returns:
+        List of drawing elements (squircle and label)
+    """
+    elements = []
+
+    # Draw dotted squircle
+    squircle = drawsvg.Rectangle(
+        x, y, width, height,
+        rx=corner_radius, ry=corner_radius,
+        fill="none",
+        stroke=stroke_color,
+        stroke_width=stroke_width,
+        stroke_dasharray=dash_array,
+        opacity=0.7
+    )
+    elements.append(squircle)
+
+    # Add label
+    label_x = x + width - 0.1
+    label_y = y + 0.3
+    label_text = drawsvg.Text(
+        text=label,
+        x=label_x,
+        y=label_y,
+        font_size=0.25,
+        font_family="Anuphan",
+        font_weight="700",
+        fill=stroke_color,
+        text_anchor="end",
+        opacity=0.8
+    )
+    elements.append(label_text)
+
+    return elements
+
+
 def draw_parsed_task_data_svg(
     task_data: ParsedTaskData,
     width: float = 30.0,
@@ -771,7 +858,7 @@ def draw_parsed_task_data_svg(
             task_data.output_grids_examples[i],
             task_data.input_masks_examples[i],
             task_data.output_masks_examples[i],
-            f"Example {i + 1}",
+            f"{i + 1}",
             False  # is_test
         ))
 
@@ -787,7 +874,7 @@ def draw_parsed_task_data_svg(
                 output_grid,
                 task_data.test_input_masks[i],
                 output_mask,
-                f"Test {i + 1}",
+                f"{i + 1}",
                 True  # is_test
             ))
 
@@ -807,6 +894,38 @@ def draw_parsed_task_data_svg(
         )
         drawing.set_pixel_scale(40)
         return drawing
+
+    # Prepare training examples
+    train_examples = []
+    for i in range(task_data.num_train_pairs):
+        train_examples.append((
+            task_data.input_grids_examples[i],
+            task_data.output_grids_examples[i],
+            task_data.input_masks_examples[i],
+            task_data.output_masks_examples[i],
+            f"{i + 1}",
+            False  # is_test
+        ))
+
+    # Prepare test examples
+    test_examples = []
+    if include_test:
+        for i in range(task_data.num_test_pairs):
+            show_test_output = include_test == "all"
+            output_grid = task_data.true_test_output_grids[i] if show_test_output else None
+            output_mask = task_data.true_test_output_masks[i] if show_test_output else None
+
+            test_examples.append((
+                task_data.test_input_grids[i],
+                output_grid,
+                task_data.test_input_masks[i],
+                output_mask,
+                f"{i + 1}",
+                True  # is_test
+            ))
+
+    # Combine all examples
+    examples = train_examples + test_examples
 
     # Calculate ideal width for each example based on aspect ratio and height constraint
     max_widths = np.zeros(len(examples))
@@ -831,8 +950,11 @@ def draw_parsed_task_data_svg(
         xmax_for_pair = ymax * max_ratio
         max_widths[i] = xmax_for_pair
 
+    # Add extra spacing between training and test groups
+    group_spacing = 0.5 if len(train_examples) > 0 and len(test_examples) > 0 else 0.0
+
     # Proportional allocation algorithm - distribute width based on needs
-    paddingless_width = width - padding * len(examples)
+    paddingless_width = width - padding * len(examples) - group_spacing
     allocation = np.zeros_like(max_widths)
     increment = 0.01
 
@@ -851,8 +973,19 @@ def draw_parsed_task_data_svg(
 
     # Two-pass rendering following reference implementation pattern
     drawlist = []
-    x_ptr = 0.0
-    y_ptr = 0.0
+
+    # Account for squircle margins in positioning if we have grouping
+    squircle_margin = 0.15
+    has_grouping = len(train_examples) > 0 and len(test_examples) > 0
+    x_offset = squircle_margin if has_grouping else 0.0
+    y_offset = squircle_margin if has_grouping else 0.0
+
+    # Calculate group boundaries
+    train_width = sum(allocation[:len(train_examples)]) + padding * len(train_examples) if train_examples else 0
+    test_start_x = x_offset + train_width + (group_spacing if has_grouping else 0)
+
+    x_ptr = x_offset
+    y_ptr = y_offset
 
     # First pass: Draw input grids and calculate input row height
     for i, (input_grid, output_grid, input_mask, output_mask, label, is_test) in enumerate(examples):
@@ -861,7 +994,7 @@ def draw_parsed_task_data_svg(
             input_mask,
             max_width=allocation[i],
             max_height=ymax,
-            label=f"{label} Input",
+            label=f"In #{label}",
             border_color=border_colors[0],
             padding=padding,
             extra_bottom_padding=extra_bottom_padding,
@@ -882,7 +1015,7 @@ def draw_parsed_task_data_svg(
                 output_mask,
                 max_width=allocation[i],
                 max_height=ymax,
-                label=f"{label} Output",
+                label=f"Out #{label}",
                 border_color=border_colors[1],
                 padding=padding,
                 extra_bottom_padding=extra_bottom_padding,
@@ -891,21 +1024,33 @@ def draw_parsed_task_data_svg(
             if isinstance(output_result_for_spacing, tuple):
                 _, _, (actual_output_width, _) = output_result_for_spacing
 
+        # Determine x position based on whether this is a test example
+        if is_test and has_grouping:
+            # For test examples, position relative to test start
+            test_index = i - len(train_examples)
+            test_x_offset = sum(allocation[len(train_examples):len(train_examples)+test_index]) + padding * test_index
+            current_x_ptr = test_start_x + test_x_offset
+        else:
+            # For training examples, use current x_ptr
+            current_x_ptr = x_ptr
+
         # Position input grid
         drawlist.append(
             drawsvg.Use(
                 input_group,
-                x=x_ptr + (allocation[i] + padding - input_size[0]) / 2 - input_origin[0],
-                y=-input_origin[1],
+                x=current_x_ptr + (allocation[i] + padding - input_size[0]) / 2 - input_origin[0],
+                y=y_offset - input_origin[1],
             )
         )
 
-        x_ptr += max(input_size[0], actual_output_width)
+        # Only advance x_ptr for training examples or when not grouping
+        if not is_test or not has_grouping:
+            x_ptr += max(input_size[0], actual_output_width)
+
         y_ptr = max(y_ptr, input_size[1])
 
     # Second pass: Draw arrows and outputs
-    x_ptr = 0.0
-    y_ptr2 = 0.0
+    y_ptr2 = y_offset
 
     for i, (input_grid, output_grid, input_mask, output_mask, label, is_test) in enumerate(examples):
         # Recalculate input for positioning
@@ -914,7 +1059,7 @@ def draw_parsed_task_data_svg(
             input_mask,
             max_width=allocation[i],
             max_height=ymax,
-            label=f"{label} Input",
+            label=f"In #{label}",
             border_color=border_colors[0],
             padding=padding,
             extra_bottom_padding=extra_bottom_padding,
@@ -940,7 +1085,7 @@ def draw_parsed_task_data_svg(
                 output_mask,
                 max_width=allocation[i],
                 max_height=ymax,
-                label=f"{label} Output",
+                label=f"Out #{label}",
                 border_color=border_colors[1],
                 padding=padding,
                 extra_bottom_padding=extra_bottom_padding,
@@ -958,8 +1103,19 @@ def draw_parsed_task_data_svg(
             # Approximate height for '?' slot
             output_y_total_height = ymax + padding + extra_bottom_padding
 
+        # Determine x position based on whether this is a test example
+        if is_test and has_grouping:
+            # For test examples, position relative to test start
+            test_index = i - len(train_examples)
+            test_x_offset = sum(allocation[len(train_examples):len(train_examples)+test_index]) + padding * test_index
+            current_x_ptr = test_start_x + test_x_offset
+        else:
+            # For training examples, calculate position from start
+            train_x_offset = sum(allocation[:i]) + padding * i
+            current_x_ptr = x_offset + train_x_offset
+
         # Draw arrow
-        arrow_x_center = x_ptr + input_size[0] / 2
+        arrow_x_center = current_x_ptr + input_size[0] / 2
         arrow_top_y = y_ptr + padding - 0.6
         arrow_bottom_y = y_ptr + padding + io_gap - 0.6
 
@@ -985,7 +1141,7 @@ def draw_parsed_task_data_svg(
             drawlist.append(
                 drawsvg.Use(
                     output_g,
-                    x=x_ptr + (allocation[i] + padding - output_x_recalc) / 2 - output_origin_recalc[0],
+                    x=current_x_ptr + (allocation[i] + padding - output_x_recalc) / 2 - output_origin_recalc[0],
                     y=y_ptr - output_origin_recalc[1] + io_gap,
                 )
             )
@@ -995,7 +1151,7 @@ def draw_parsed_task_data_svg(
             drawlist.append(
                 drawsvg.Text(
                     "?",
-                    x=x_ptr + (allocation[i] + padding) / 2,
+                    x=current_x_ptr + (allocation[i] + padding) / 2,
                     y=q_text_y_center,
                     font_size=1.0,
                     font_family="Anuphan",
@@ -1006,12 +1162,15 @@ def draw_parsed_task_data_svg(
                 )
             )
 
-        x_ptr += max(input_size[0], output_x_recalc)
         y_ptr2 = max(y_ptr2, y_ptr + io_gap + output_y_total_height)
 
-    # Calculate final drawing dimensions
-    final_drawing_width = round(x_ptr, 1)
-    final_drawing_height = round(y_ptr2, 1)
+    # Calculate final drawing dimensions accounting for squircle margins
+    if has_grouping:
+        test_width = sum(allocation[len(train_examples):]) + padding * len(test_examples) if test_examples else 0
+        final_drawing_width = round(x_offset + train_width + group_spacing + test_width + squircle_margin, 1)
+    else:
+        final_drawing_width = round(x_ptr, 1)
+    final_drawing_height = round(y_ptr2 + (squircle_margin if has_grouping else 0), 1)
 
     # Ensure dimensions are not negative or too small
     final_drawing_width = max(final_drawing_width, 1.0)
@@ -1024,6 +1183,37 @@ def draw_parsed_task_data_svg(
     # Add all draw elements
     for item in drawlist:
         drawing.append(item)
+
+    # Add grouping squircles if we have both training and test examples
+    if len(train_examples) > 0 and len(test_examples) > 0:
+        # Calculate training group bounds
+        train_width = sum(allocation[:len(train_examples)]) + padding * len(train_examples)
+
+        # Training group squircle
+        train_squircle_elements = _draw_dotted_squircle(
+            x=0,
+            y=0,
+            width=train_width + squircle_margin * 2,
+            height=y_ptr2 - y_offset + squircle_margin,
+            label="Train",
+            stroke_color="#4A90E2",
+        )
+        for element in train_squircle_elements:
+            drawing.append(element)
+
+        # Test group squircle
+        test_start_x = train_width + group_spacing + squircle_margin
+        test_width = sum(allocation[len(train_examples):]) + padding * len(test_examples)
+        test_squircle_elements = _draw_dotted_squircle(
+            x=test_start_x,
+            y=0,
+            width=test_width + squircle_margin,
+            height=y_ptr2 - y_offset + squircle_margin,
+            label="Test",
+            stroke_color="#E94B3C",
+        )
+        for element in test_squircle_elements:
+            drawing.append(element)
 
     # Add title
     font_size = 0.3
@@ -1089,19 +1279,3 @@ def save_svg_drawing(
     else:
         error_msg = f"Unknown file extension for {filename}. Supported: .svg, .png, .pdf"
         raise ValueError(error_msg)
-
-
-# Fix the typo in RICH_COLOR_MAP
-RICH_COLOR_MAP = {
-    0: "black",
-    1: "blue",
-    2: "red",
-    3: "green",
-    4: "yellow",
-    5: "white",  # grey -> white for better visibility
-    6: "magenta",  # pink -> magenta
-    7: "bright_yellow",  # orange -> bright_yellow
-    8: "cyan",  # light blue -> cyan
-    9: "red3",  # brown -> red3
-    -1: "grey23",  # padding/invalid cells
-}
