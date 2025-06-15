@@ -57,13 +57,13 @@ RICH_COLOR_MAP: dict[int, str] = {
 
 def _extract_grid_data(grid_input: jnp.ndarray | np.ndarray | Grid) -> np.ndarray:
     """Extract numpy array from various grid input types.
-    
+
     Args:
         grid_input: Grid data in various formats (JAX array, numpy array, or Grid object)
-        
+
     Returns:
         numpy array representation of the grid
-        
+
     Raises:
         ValueError: If input format is not supported
     """
@@ -71,44 +71,44 @@ def _extract_grid_data(grid_input: jnp.ndarray | np.ndarray | Grid) -> np.ndarra
         return np.asarray(grid_input.array)  # type: ignore[attr-defined]
     if isinstance(grid_input, (jnp.ndarray, np.ndarray)):
         return np.asarray(grid_input)
-    
+
     msg = f"Unsupported grid input type: {type(grid_input)}"
     raise ValueError(msg)
 
 
 def _extract_valid_region(
-    grid: np.ndarray, 
+    grid: np.ndarray,
     mask: np.ndarray | None = None
 ) -> tuple[np.ndarray, tuple[int, int], tuple[int, int]]:
     """Extract the valid (non-padded) region from a grid.
-    
+
     Args:
         grid: The grid array
         mask: Optional boolean mask indicating valid cells
-        
+
     Returns:
         Tuple of (valid_grid, (start_row, start_col), (height, width))
     """
     if mask is None:
         # Assume all cells are valid if no mask provided
         return grid, (0, 0), (grid.shape[0], grid.shape[1])
-    
+
     if not np.any(mask):
         # No valid cells
         return np.array([[]], dtype=grid.dtype), (0, 0), (0, 0)
-    
+
     # Find bounding box of valid region
     valid_rows = np.where(np.any(mask, axis=1))[0]
     valid_cols = np.where(np.any(mask, axis=0))[0]
-    
+
     if len(valid_rows) == 0 or len(valid_cols) == 0:
         return np.array([[]], dtype=grid.dtype), (0, 0), (0, 0)
-    
+
     start_row, end_row = valid_rows[0], valid_rows[-1] + 1
     start_col, end_col = valid_cols[0], valid_cols[-1] + 1
-    
+
     valid_grid = grid[start_row:end_row, start_col:end_col]
-    
+
     return valid_grid, (start_row, start_col), (end_row - start_row, end_col - start_col)
 
 
@@ -121,7 +121,7 @@ def visualize_grid_rich(
     double_width: bool = True,
 ) -> Table:
     """Create a Rich Table visualization of a single grid.
-    
+
     Args:
         grid_input: Grid data (JAX array, numpy array, or Grid object)
         mask: Optional boolean mask indicating valid cells
@@ -129,30 +129,30 @@ def visualize_grid_rich(
         show_coordinates: Whether to show row/column coordinates
         show_numbers: If True, show colored numbers; if False, show colored blocks
         double_width: If True and show_numbers=False, use double-width blocks for square appearance
-        
+
     Returns:
         Rich Table object for display
     """
     grid = _extract_grid_data(grid_input)
-    
+
     if mask is not None:
         mask = np.asarray(mask)
-    
+
     if grid.size == 0:
         table = Table(title=f"{title} (Empty)", show_header=False, show_edge=True)
         table.add_column("Empty")
         table.add_row("[grey23]Empty grid[/]")
         return table
-    
+
     # Extract valid region
     valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(grid, mask)
-    
+
     if height == 0 or width == 0:
         table = Table(title=f"{title} (No valid data)", show_header=False, show_edge=True)
         table.add_column("Empty")
         table.add_row("[grey23]No valid data[/]")
         return table
-    
+
     # Create table
     table = Table(
         title=f"{title} ({height}x{width})",
@@ -162,27 +162,27 @@ def visualize_grid_rich(
         padding=0,
         pad_edge=False,
     )
-    
+
     # Add columns
     if show_coordinates:
         table.add_column("", justify="center", width=3)  # Row numbers
-    
+
     for j in range(width):
         col_header = str(start_col + j) if show_coordinates else ""
         # Adjust column width based on display mode
         col_width = 2  # Single blocks
         table.add_column(col_header, justify="center", width=col_width)
-    
+
     # Add rows
     for i in range(height):
         row_items = []
-        
+
         if show_coordinates:
             row_items.append(str(start_row + i))
-        
+
         for j in range(width):
             color_val = int(valid_grid[i, j])
-            
+
             # Check if this cell is valid (if mask is provided)
             is_valid = True
             if mask is not None:
@@ -190,7 +190,7 @@ def visualize_grid_rich(
                 actual_col = start_col + j
                 if (actual_row < mask.shape[0] and actual_col < mask.shape[1]):
                     is_valid = mask[actual_row, actual_col]
-            
+
             if not is_valid:
                 if show_numbers:
                     row_items.append("[grey23]·[/]")
@@ -209,9 +209,9 @@ def visualize_grid_rich(
                 # Use single block character
                 rich_color = RICH_COLOR_MAP.get(color_val, "white")
                 row_items.append(f"[{rich_color}]█[/]")
-        
+
         table.add_row(*row_items)
-    
+
     return table
 
 
@@ -224,10 +224,10 @@ def log_grid_to_console(
     double_width: bool = True,
 ) -> None:
     """Log a grid visualization to the console using Rich.
-    
+
     This function is designed to be used with jax.debug.callback for logging
     during JAX transformations.
-    
+
     Args:
         grid_input: Grid data (JAX array, numpy array, or Grid object)
         mask: Optional boolean mask indicating valid cells
@@ -256,7 +256,7 @@ def draw_grid_svg(
     as_group: bool = False,
 ) -> drawsvg.Drawing | tuple[drawsvg.Group, tuple[float, float], tuple[float, float]]:
     """Draw a single grid as an SVG.
-    
+
     Args:
         grid_input: Grid data (JAX array, numpy array, or Grid object)
         mask: Optional boolean mask indicating valid cells
@@ -268,56 +268,56 @@ def draw_grid_svg(
         border_color: Color for the grid border
         show_size: Whether to show grid dimensions
         as_group: If True, return as a group for inclusion in larger drawings
-        
+
     Returns:
         Either a Drawing object or tuple of (Group, origin, size) if as_group=True
     """
     grid = _extract_grid_data(grid_input)
-    
+
     if mask is not None:
         mask = np.asarray(mask)
-    
+
     # Handle empty grids
     if grid.size == 0:
         if as_group:
             return drawsvg.Group(), (-0.5 * padding, -0.5 * padding), (padding, padding + extra_bottom_padding)
-        
+
         drawing = drawsvg.Drawing(
-            padding, 
+            padding,
             padding + extra_bottom_padding,
             origin=(-0.5 * padding, -0.5 * padding)
         )
         drawing.set_pixel_scale(40)
         return drawing
-    
+
     # Extract valid region
     valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(grid, mask)
-    
+
     if height == 0 or width == 0:
         if as_group:
             return drawsvg.Group(), (-0.5 * padding, -0.5 * padding), (padding, padding + extra_bottom_padding)
-        
+
         drawing = drawsvg.Drawing(
             padding,
-            padding + extra_bottom_padding, 
+            padding + extra_bottom_padding,
             origin=(-0.5 * padding, -0.5 * padding)
         )
         drawing.set_pixel_scale(40)
         return drawing
-    
+
     # Calculate cell size
     cell_size_x = max_width / width if width > 0 else max_height
     cell_size_y = max_height / height if height > 0 else max_width
     cell_size = min(cell_size_x, cell_size_y) if width > 0 and height > 0 else 0
-    
+
     actual_width = width * cell_size
     actual_height = height * cell_size
-    
+
     # Drawing setup
     line_thickness = 0.01
     border_width = 0.08
     lt = line_thickness / 2
-    
+
     if as_group:
         drawing = drawsvg.Group()
     else:
@@ -327,12 +327,12 @@ def draw_grid_svg(
             origin=(-0.5 * padding, -0.5 * padding)
         )
         drawing.set_pixel_scale(40)
-    
+
     # Draw grid cells
     for i in range(height):
         for j in range(width):
             color_val = int(valid_grid[i, j])
-            
+
             # Check if cell is valid
             is_valid = True
             if mask is not None:
@@ -340,12 +340,12 @@ def draw_grid_svg(
                 actual_col = start_col + j
                 if (actual_row < mask.shape[0] and actual_col < mask.shape[1]):
                     is_valid = mask[actual_row, actual_col]
-            
+
             if is_valid and 0 <= color_val < len(ARC_COLOR_PALETTE):
                 fill_color = ARC_COLOR_PALETTE[color_val]
             else:
                 fill_color = "#CCCCCC"  # Light gray for invalid/unknown colors
-            
+
             drawing.append(
                 drawsvg.Rectangle(
                     j * cell_size + lt,
@@ -355,7 +355,7 @@ def draw_grid_svg(
                     fill=fill_color,
                 )
             )
-    
+
     # Add border
     border_margin = border_width / 3
     drawing.append(
@@ -369,17 +369,17 @@ def draw_grid_svg(
             stroke_width=border_width,
         )
     )
-    
+
     if not as_group:
         # Embed font
         cast(drawsvg.Drawing, drawing).embed_google_font(
             "Anuphan:wght@400;600;700",
             text=set("Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ")
         )
-    
+
     # Add size and label text
     font_size = (padding / 2 + extra_bottom_padding) / 2
-    
+
     if show_size:
         drawing.append(
             drawsvg.Text(
@@ -392,7 +392,7 @@ def draw_grid_svg(
                 font_family="Anuphan",
             )
         )
-    
+
     if label:
         drawing.append(
             drawsvg.Text(
@@ -406,14 +406,14 @@ def draw_grid_svg(
                 font_weight="600",
             )
         )
-    
+
     if as_group:
         return (
             cast(drawsvg.Group, drawing),
             (-0.5 * padding, -0.5 * padding),
             (actual_width + padding, actual_height + padding + extra_bottom_padding),
         )
-    
+
     return cast(drawsvg.Drawing, drawing)
 
 
@@ -427,7 +427,7 @@ def visualize_task_pair_rich(
     double_width: bool = True,
 ) -> tuple[Table, Table | None]:
     """Visualize an input-output pair using Rich tables.
-    
+
     Args:
         input_grid: Input grid data
         output_grid: Output grid data (optional)
@@ -436,18 +436,18 @@ def visualize_task_pair_rich(
         title: Title for the visualization
         show_numbers: If True, show colored numbers; if False, show colored blocks
         double_width: If True and show_numbers=False, use double-width blocks for square appearance
-        
+
     Returns:
         Tuple of (input_table, output_table). output_table is None if no output_grid provided.
     """
     input_table = visualize_grid_rich(
-        input_grid, 
-        input_mask, 
+        input_grid,
+        input_mask,
         f"{title} - Input",
         show_numbers=show_numbers,
         double_width=double_width,
     )
-    
+
     output_table = None
     if output_grid is not None:
         output_table = visualize_grid_rich(
@@ -457,7 +457,7 @@ def visualize_task_pair_rich(
             show_numbers=show_numbers,
             double_width=double_width,
         )
-    
+
     return input_table, output_table
 
 
@@ -471,113 +471,157 @@ def draw_task_pair_svg(
     label: str = "",
     show_unknown_output: bool = True,
 ) -> drawsvg.Drawing:
-    """Draw an input-output task pair as SVG.
-    
+    """Draw an input-output task pair as SVG with strict height and flexible width.
+
     Args:
         input_grid: Input grid data
         output_grid: Output grid data (optional)
         input_mask: Optional mask for input grid
         output_mask: Optional mask for output grid
-        width: Total width of the drawing
-        height: Total height of the drawing
+        width: Maximum width for the drawing (actual width may be less)
+        height: Strict height constraint - all content must fit within this height
         label: Label for the pair
         show_unknown_output: Whether to show "?" for missing output
-        
+
     Returns:
         SVG Drawing object
     """
     padding = 0.5
-    io_gap = 0.8
-    max_grid_height = (height - padding - io_gap) / 2
-    max_grid_width = width / 2 - padding
-    
-    # Draw input grid
+    extra_bottom_padding = 0.25
+    io_gap = 0.4
+
+    # Calculate available space for grids - height is STRICT
+    ymax = (height - padding - extra_bottom_padding - io_gap) / 2
+
+    # Calculate aspect ratios to determine width requirements
+    input_grid_data = _extract_grid_data(input_grid)
+    input_mask_data = np.asarray(input_mask) if input_mask is not None else None
+    _, _, (input_h, input_w) = _extract_valid_region(input_grid_data, input_mask_data)
+
+    input_ratio = input_w / input_h if input_h > 0 else 1.0
+    max_ratio = input_ratio
+
+    if output_grid is not None:
+        output_grid_data = _extract_grid_data(output_grid)
+        output_mask_data = np.asarray(output_mask) if output_mask is not None else None
+        _, _, (output_h, output_w) = _extract_valid_region(output_grid_data, output_mask_data)
+
+        output_ratio = output_w / output_h if output_h > 0 else 1.0
+        max_ratio = max(input_ratio, output_ratio)
+
+    # Calculate required width based on height constraint and aspect ratio
+    required_width = ymax * max_ratio + padding * 2
+    final_width = max(required_width, padding * 2 + 1.0)  # Minimum width
+
+    # Don't exceed specified width constraint
+    if final_width > width:
+        final_width = width
+
+    max_grid_width = final_width - padding * 2
+
+    # Draw elements following two-pass approach
+    drawlist = []
+    x_ptr = 0.0
+    y_ptr = 0.0
+
+    # First pass: Draw input grid and determine dimensions
     input_result = draw_grid_svg(
         input_grid,
         input_mask,
         max_width=max_grid_width,
-        max_height=max_grid_height,
+        max_height=ymax,
         label=f"{label} Input" if label else "Input",
+        padding=padding,
+        extra_bottom_padding=extra_bottom_padding,
         as_group=True,
     )
-    
+
     if isinstance(input_result, tuple):
         input_group, input_origin, input_size = input_result
     else:
-        # This shouldn't happen when as_group=True, but handle gracefully
         msg = "Expected tuple result when as_group=True"
         raise ValueError(msg)
-    
-    # Calculate positions
-    input_x = padding / 2
-    input_y = 0
-    
-    # Create main drawing
-    drawing = drawsvg.Drawing(width, height, origin=(0, 0))
-    drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
-    
-    # Add input grid
-    drawing.append(
-        drawsvg.Use(
-            input_group,
-            x=input_x - input_origin[0],
-            y=input_y - input_origin[1],
-        )
-    )
-    
-    # Draw arrow
-    arrow_x = input_x + input_size[0] / 2
-    arrow_top_y = input_size[1] - 0.3
-    arrow_bottom_y = input_size[1] + io_gap - 0.3
-    
-    drawing.append(drawsvg.Line(
-        arrow_x, arrow_top_y, arrow_x, arrow_bottom_y,
-        stroke_width=0.05, stroke="#888888"
-    ))
-    drawing.append(drawsvg.Line(
-        arrow_x - 0.15, arrow_bottom_y - 0.2,
-        arrow_x, arrow_bottom_y,
-        stroke_width=0.05, stroke="#888888"
-    ))
-    drawing.append(drawsvg.Line(
-        arrow_x + 0.15, arrow_bottom_y - 0.2,
-        arrow_x, arrow_bottom_y,
-        stroke_width=0.05, stroke="#888888"
-    ))
-    
-    # Draw output
-    output_y = input_size[1] + io_gap
-    
+
+    # Calculate output dimensions for spacing
+    actual_output_width = 0.0
+    output_y_total_height = 0.0
+    output_g = None
+    output_origin_out = (-padding / 2, -padding / 2)
+
     if output_grid is not None:
         output_result = draw_grid_svg(
             output_grid,
             output_mask,
             max_width=max_grid_width,
-            max_height=max_grid_height,
+            max_height=ymax,
             label=f"{label} Output" if label else "Output",
+            padding=padding,
+            extra_bottom_padding=extra_bottom_padding,
             as_group=True,
         )
-        
+
         if isinstance(output_result, tuple):
-            output_group, output_origin, _output_size = output_result
+            output_g, output_origin_out, output_size = output_result
+            actual_output_width = output_size[0]
+            output_y_total_height = output_size[1]
         else:
             msg = "Expected tuple result when as_group=True"
             raise ValueError(msg)
-        
-        drawing.append(
+    else:
+        # Approximate height for '?' slot
+        output_y_total_height = ymax + padding + extra_bottom_padding
+
+    # Position input grid
+    drawlist.append(
+        drawsvg.Use(
+            input_group,
+            x=(max_grid_width + padding - input_size[0]) / 2 - input_origin[0],
+            y=-input_origin[1],
+        )
+    )
+
+    x_ptr += max(input_size[0], actual_output_width)
+    y_ptr = max(y_ptr, input_size[1])
+
+    # Second pass: Draw arrow and output
+    arrow_x_center = input_size[0] / 2
+    arrow_top_y = y_ptr + padding - 0.6
+    arrow_bottom_y = y_ptr + padding + io_gap - 0.6
+
+    drawlist.append(drawsvg.Line(
+        arrow_x_center, arrow_top_y, arrow_x_center, arrow_bottom_y,
+        stroke_width=0.05, stroke="#888888"
+    ))
+    drawlist.append(drawsvg.Line(
+        arrow_x_center - 0.15, arrow_bottom_y - 0.2,
+        arrow_x_center, arrow_bottom_y,
+        stroke_width=0.05, stroke="#888888"
+    ))
+    drawlist.append(drawsvg.Line(
+        arrow_x_center + 0.15, arrow_bottom_y - 0.2,
+        arrow_x_center, arrow_bottom_y,
+        stroke_width=0.05, stroke="#888888"
+    ))
+
+    # Position output
+    y_content_top_output_area = y_ptr + io_gap
+
+    if output_g is not None:
+        drawlist.append(
             drawsvg.Use(
-                output_group,
-                x=input_x - output_origin[0],
-                y=output_y - output_origin[1],
+                output_g,
+                x=(max_grid_width + padding - actual_output_width) / 2 - output_origin_out[0],
+                y=y_ptr - output_origin_out[1] + io_gap,
             )
         )
     elif show_unknown_output:
-        # Draw question mark
-        drawing.append(
+        # Draw question mark for unknown output
+        q_text_y_center = y_content_top_output_area + (ymax / 2) + extra_bottom_padding / 2
+        drawlist.append(
             drawsvg.Text(
                 "?",
-                x=input_x + max_grid_width / 2,
-                y=output_y + max_grid_height / 2,
+                x=(max_grid_width + padding) / 2,
+                y=q_text_y_center,
                 font_size=1.0,
                 font_family="Anuphan",
                 font_weight="700",
@@ -586,14 +630,28 @@ def draw_task_pair_svg(
                 alignment_baseline="middle",
             )
         )
-    
+
+    y_ptr2 = y_ptr + io_gap + output_y_total_height
+
+    # Calculate final drawing dimensions
+    final_drawing_width = max(x_ptr, final_width)
+    final_drawing_height = max(y_ptr2, height)  # Height is strict
+
+    # Create final drawing
+    drawing = drawsvg.Drawing(final_drawing_width, final_drawing_height + 0.2, origin=(0, 0))
+    drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
+
+    # Add all draw elements
+    for item in drawlist:
+        drawing.append(item)
+
     # Embed font and set scale
     drawing.embed_google_font(
         "Anuphan:wght@400;600;700",
         text=set("Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ")
     )
     drawing.set_pixel_scale(40)
-    
+
     return drawing
 
 
@@ -605,7 +663,7 @@ def visualize_parsed_task_data_rich(
     double_width: bool = True,
 ) -> None:
     """Visualize a ParsedTaskData object using Rich console output.
-    
+
     Args:
         task_data: The parsed task data to visualize
         show_test: Whether to show test pairs
@@ -614,16 +672,16 @@ def visualize_parsed_task_data_rich(
         double_width: If True and show_numbers=False, use double-width blocks for square appearance
     """
     console = Console()
-    
+
     # Show task info
     console.print(f"\n[bold blue]Task: {task_data.task_id or 'Unknown'}[/bold blue]")
     console.print(f"Training pairs: {task_data.num_train_pairs}")
     console.print(f"Test pairs: {task_data.num_test_pairs}")
-    
+
     # Show training examples
     for i in range(task_data.num_train_pairs):
         console.print(f"\n[bold]Training Example {i + 1}[/bold]")
-        
+
         # Input
         input_table = visualize_grid_rich(
             task_data.input_grids_examples[i],
@@ -634,7 +692,7 @@ def visualize_parsed_task_data_rich(
             double_width,
         )
         console.print(input_table)
-        
+
         # Output
         output_table = visualize_grid_rich(
             task_data.output_grids_examples[i],
@@ -645,12 +703,12 @@ def visualize_parsed_task_data_rich(
             double_width,
         )
         console.print(output_table)
-    
+
     # Show test examples
     if show_test:
         for i in range(task_data.num_test_pairs):
             console.print(f"\n[bold]Test Example {i + 1}[/bold]")
-            
+
             # Test input
             test_input_table = visualize_grid_rich(
                 task_data.test_input_grids[i],
@@ -661,7 +719,7 @@ def visualize_parsed_task_data_rich(
                 double_width,
             )
             console.print(test_input_table)
-            
+
             # Test output (ground truth)
             test_output_table = visualize_grid_rich(
                 task_data.true_test_output_grids[i],
@@ -681,34 +739,59 @@ def draw_parsed_task_data_svg(
     include_test: bool | str = False,
     border_colors: list[str] | None = None,
 ) -> drawsvg.Drawing:
-    """Draw a complete ParsedTaskData as an SVG.
-    
+    """Draw a complete ParsedTaskData as an SVG with strict height and flexible width.
+
     Args:
         task_data: The parsed task data to visualize
-        width: Desired width of the drawing
-        height: Desired height of the drawing
+        width: Maximum width for the drawing (actual width may be less)
+        height: Strict height constraint - all content must fit within this height
         include_test: Whether to include test examples. If 'all', show test outputs too.
         border_colors: Custom border colors [input_color, output_color]
-        
+
     Returns:
         SVG Drawing object
     """
     if border_colors is None:
         border_colors = ["#111111ff", "#111111ff"]
-    
+
     padding = 0.5
-    io_gap = 0.6
-    pair_gap = 0.3
-    
-    # Calculate available space per grid
-    max_grid_height = (height - padding * 2 - io_gap) / 2
-    
-    # Determine how many examples to show
-    num_examples = task_data.num_train_pairs
+    extra_bottom_padding = 0.25
+    io_gap = 0.4
+
+    # Calculate available space for grids - height is STRICT
+    ymax = (height - padding - extra_bottom_padding - io_gap) / 2
+
+    # Prepare examples list
+    examples = []
+
+    # Add training examples
+    for i in range(task_data.num_train_pairs):
+        examples.append((
+            task_data.input_grids_examples[i],
+            task_data.output_grids_examples[i],
+            task_data.input_masks_examples[i],
+            task_data.output_masks_examples[i],
+            f"Example {i + 1}",
+            False  # is_test
+        ))
+
+    # Add test examples
     if include_test:
-        num_examples += task_data.num_test_pairs
-    
-    if num_examples == 0:
+        for i in range(task_data.num_test_pairs):
+            show_test_output = include_test == "all"
+            output_grid = task_data.true_test_output_grids[i] if show_test_output else None
+            output_mask = task_data.true_test_output_masks[i] if show_test_output else None
+
+            examples.append((
+                task_data.test_input_grids[i],
+                output_grid,
+                task_data.test_input_masks[i],
+                output_mask,
+                f"Test {i + 1}",
+                True  # is_test
+            ))
+
+    if not examples:
         # Empty task
         drawing = drawsvg.Drawing(width, height, origin=(0, 0))
         drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
@@ -724,127 +807,196 @@ def draw_parsed_task_data_svg(
         )
         drawing.set_pixel_scale(40)
         return drawing
-    
-    # Calculate width allocation for each example
-    available_width = width - padding * (num_examples + 1)
-    width_per_example = available_width / num_examples
-    
-    # Create main drawing
-    drawing = drawsvg.Drawing(width, height, origin=(0, 0))
-    drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
-    
-    x_pos = padding
-    max_input_height = 0
-    
-    example_data = []
-    
-    # Prepare training examples
-    for i in range(task_data.num_train_pairs):
-        example_data.append({
-            'input_grid': task_data.input_grids_examples[i],
-            'input_mask': task_data.input_masks_examples[i],
-            'output_grid': task_data.output_grids_examples[i],
-            'output_mask': task_data.output_masks_examples[i],
-            'label': f"Example {i + 1}",
-            'is_test': False,
-        })
-    
-    # Prepare test examples
-    if include_test:
-        for i in range(task_data.num_test_pairs):
-            show_test_output = include_test == "all"
-            example_data.append({
-                'input_grid': task_data.test_input_grids[i],
-                'input_mask': task_data.test_input_masks[i],
-                'output_grid': task_data.true_test_output_grids[i] if show_test_output else None,
-                'output_mask': task_data.true_test_output_masks[i] if show_test_output else None,
-                'label': f"Test {i + 1}",
-                'is_test': True,
-            })
-    
-    # Draw each example
-    for example in example_data:
-        # Draw input
+
+    # Calculate ideal width for each example based on aspect ratio and height constraint
+    max_widths = np.zeros(len(examples))
+
+    for i, (input_grid, output_grid, input_mask, output_mask, label, is_test) in enumerate(examples):
+        input_grid_data = _extract_grid_data(input_grid)
+        input_mask_data = np.asarray(input_mask) if input_mask is not None else None
+        _, _, (input_h, input_w) = _extract_valid_region(input_grid_data, input_mask_data)
+
+        input_ratio = input_w / input_h if input_h > 0 else 1.0
+        max_ratio = input_ratio
+
+        if output_grid is not None:
+            output_grid_data = _extract_grid_data(output_grid)
+            output_mask_data = np.asarray(output_mask) if output_mask is not None else None
+            _, _, (output_h, output_w) = _extract_valid_region(output_grid_data, output_mask_data)
+
+            output_ratio = output_w / output_h if output_h > 0 else 1.0
+            max_ratio = max(input_ratio, output_ratio)
+
+        # Calculate ideal width based on height constraint and aspect ratio
+        xmax_for_pair = ymax * max_ratio
+        max_widths[i] = xmax_for_pair
+
+    # Proportional allocation algorithm - distribute width based on needs
+    paddingless_width = width - padding * len(examples)
+    allocation = np.zeros_like(max_widths)
+    increment = 0.01
+
+    if paddingless_width > 0 and len(examples) > 0:
+        if np.any(max_widths > 0):
+            for _ in range(int(paddingless_width // increment)):
+                incr_mask = (allocation + increment) <= max_widths
+                if incr_mask.sum() > 0:
+                    allocation[incr_mask] += increment / incr_mask.sum()
+                else:
+                    break
+
+        # Fallback: equal distribution if no progress made
+        if np.sum(allocation) == 0:
+            allocation[:] = paddingless_width / len(examples)
+
+    # Two-pass rendering following reference implementation pattern
+    drawlist = []
+    x_ptr = 0.0
+    y_ptr = 0.0
+
+    # First pass: Draw input grids and calculate input row height
+    for i, (input_grid, output_grid, input_mask, output_mask, label, is_test) in enumerate(examples):
         input_result = draw_grid_svg(
-            example['input_grid'],
-            example['input_mask'],
-            max_width=width_per_example - pair_gap,
-            max_height=max_grid_height,
-            label=f"{example['label']} Input",
+            input_grid,
+            input_mask,
+            max_width=allocation[i],
+            max_height=ymax,
+            label=f"{label} Input",
             border_color=border_colors[0],
+            padding=padding,
+            extra_bottom_padding=extra_bottom_padding,
             as_group=True,
         )
-        
+
         if isinstance(input_result, tuple):
             input_group, input_origin, input_size = input_result
         else:
             msg = "Expected tuple result when as_group=True"
             raise ValueError(msg)
-        
-        drawing.append(
-            drawsvg.Use(
-                input_group,
-                x=x_pos - input_origin[0],
-                y=padding - input_origin[1],
-            )
-        )
-        
-        max_input_height = max(max_input_height, input_size[1])
-        
-        # Draw arrow
-        arrow_x = x_pos + input_size[0] / 2
-        arrow_top_y = padding + input_size[1] - 0.3
-        arrow_bottom_y = padding + max_input_height + io_gap - 0.3
-        
-        drawing.append(drawsvg.Line(
-            arrow_x, arrow_top_y, arrow_x, arrow_bottom_y,
-            stroke_width=0.05, stroke="#888888"
-        ))
-        drawing.append(drawsvg.Line(
-            arrow_x - 0.15, arrow_bottom_y - 0.2,
-            arrow_x, arrow_bottom_y,
-            stroke_width=0.05, stroke="#888888"
-        ))
-        drawing.append(drawsvg.Line(
-            arrow_x + 0.15, arrow_bottom_y - 0.2,
-            arrow_x, arrow_bottom_y,
-            stroke_width=0.05, stroke="#888888"
-        ))
-        
-        # Draw output
-        output_y = padding + max_input_height + io_gap
-        
-        if example['output_grid'] is not None:
-            output_result = draw_grid_svg(
-                example['output_grid'],
-                example['output_mask'],
-                max_width=width_per_example - pair_gap,
-                max_height=max_grid_height,
-                label=f"{example['label']} Output",
+
+        # Calculate actual output width for spacing
+        actual_output_width = 0.0
+        if output_grid is not None:
+            output_result_for_spacing = draw_grid_svg(
+                output_grid,
+                output_mask,
+                max_width=allocation[i],
+                max_height=ymax,
+                label=f"{label} Output",
                 border_color=border_colors[1],
+                padding=padding,
+                extra_bottom_padding=extra_bottom_padding,
                 as_group=True,
             )
-            
+            if isinstance(output_result_for_spacing, tuple):
+                _, _, (actual_output_width, _) = output_result_for_spacing
+
+        # Position input grid
+        drawlist.append(
+            drawsvg.Use(
+                input_group,
+                x=x_ptr + (allocation[i] + padding - input_size[0]) / 2 - input_origin[0],
+                y=-input_origin[1],
+            )
+        )
+
+        x_ptr += max(input_size[0], actual_output_width)
+        y_ptr = max(y_ptr, input_size[1])
+
+    # Second pass: Draw arrows and outputs
+    x_ptr = 0.0
+    y_ptr2 = 0.0
+
+    for i, (input_grid, output_grid, input_mask, output_mask, label, is_test) in enumerate(examples):
+        # Recalculate input for positioning
+        input_result = draw_grid_svg(
+            input_grid,
+            input_mask,
+            max_width=allocation[i],
+            max_height=ymax,
+            label=f"{label} Input",
+            border_color=border_colors[0],
+            padding=padding,
+            extra_bottom_padding=extra_bottom_padding,
+            as_group=True,
+        )
+
+        if isinstance(input_result, tuple):
+            input_group, input_origin, input_size = input_result
+        else:
+            msg = "Expected tuple result when as_group=True"
+            raise ValueError(msg)
+
+        output_g = None
+        output_x_recalc = 0.0
+        output_y_total_height = 0.0
+        output_origin_recalc = (-padding / 2, -padding / 2)
+
+        show_output = (not is_test) or (include_test == "all")
+
+        if show_output and output_grid is not None:
+            output_result = draw_grid_svg(
+                output_grid,
+                output_mask,
+                max_width=allocation[i],
+                max_height=ymax,
+                label=f"{label} Output",
+                border_color=border_colors[1],
+                padding=padding,
+                extra_bottom_padding=extra_bottom_padding,
+                as_group=True,
+            )
+
             if isinstance(output_result, tuple):
-                output_group, output_origin, _output_size = output_result
+                output_g, output_origin_recalc, output_size = output_result
+                output_x_recalc = output_size[0]
+                output_y_total_height = output_size[1]
             else:
                 msg = "Expected tuple result when as_group=True"
                 raise ValueError(msg)
-            
-            drawing.append(
+        else:
+            # Approximate height for '?' slot
+            output_y_total_height = ymax + padding + extra_bottom_padding
+
+        # Draw arrow
+        arrow_x_center = x_ptr + input_size[0] / 2
+        arrow_top_y = y_ptr + padding - 0.6
+        arrow_bottom_y = y_ptr + padding + io_gap - 0.6
+
+        drawlist.append(drawsvg.Line(
+            arrow_x_center, arrow_top_y, arrow_x_center, arrow_bottom_y,
+            stroke_width=0.05, stroke="#888888"
+        ))
+        drawlist.append(drawsvg.Line(
+            arrow_x_center - 0.15, arrow_bottom_y - 0.2,
+            arrow_x_center, arrow_bottom_y,
+            stroke_width=0.05, stroke="#888888"
+        ))
+        drawlist.append(drawsvg.Line(
+            arrow_x_center + 0.15, arrow_bottom_y - 0.2,
+            arrow_x_center, arrow_bottom_y,
+            stroke_width=0.05, stroke="#888888"
+        ))
+
+        # Position output
+        y_content_top_output_area = y_ptr + io_gap
+
+        if show_output and output_g is not None:
+            drawlist.append(
                 drawsvg.Use(
-                    output_group,
-                    x=x_pos - output_origin[0],
-                    y=output_y - output_origin[1],
+                    output_g,
+                    x=x_ptr + (allocation[i] + padding - output_x_recalc) / 2 - output_origin_recalc[0],
+                    y=y_ptr - output_origin_recalc[1] + io_gap,
                 )
             )
         else:
-            # Draw question mark for unknown output
-            drawing.append(
+            # Draw question mark
+            q_text_y_center = y_content_top_output_area + (ymax / 2) + extra_bottom_padding / 2
+            drawlist.append(
                 drawsvg.Text(
                     "?",
-                    x=x_pos + width_per_example / 2,
-                    y=output_y + max_grid_height / 2,
+                    x=x_ptr + (allocation[i] + padding) / 2,
+                    y=q_text_y_center,
                     font_size=1.0,
                     font_family="Anuphan",
                     font_weight="700",
@@ -853,17 +1005,34 @@ def draw_parsed_task_data_svg(
                     alignment_baseline="middle",
                 )
             )
-        
-        x_pos += width_per_example + pair_gap
-    
+
+        x_ptr += max(input_size[0], output_x_recalc)
+        y_ptr2 = max(y_ptr2, y_ptr + io_gap + output_y_total_height)
+
+    # Calculate final drawing dimensions
+    final_drawing_width = round(x_ptr, 1)
+    final_drawing_height = round(y_ptr2, 1)
+
+    # Ensure dimensions are not negative or too small
+    final_drawing_width = max(final_drawing_width, 1.0)
+    final_drawing_height = max(final_drawing_height, height)  # Height is strict
+
+    # Create final drawing with calculated dimensions
+    drawing = drawsvg.Drawing(final_drawing_width, final_drawing_height + 0.2, origin=(0, 0))
+    drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
+
+    # Add all draw elements
+    for item in drawlist:
+        drawing.append(item)
+
     # Add title
     font_size = 0.3
     title_text = f"Task {task_data.task_id or 'Unknown'}"
     drawing.append(
         drawsvg.Text(
             title_text,
-            x=width - 0.1,
-            y=height - 0.1,
+            x=final_drawing_width - 0.1,
+            y=final_drawing_height + 0.1,
             font_size=font_size,
             font_family="Anuphan",
             font_weight="600",
@@ -872,14 +1041,14 @@ def draw_parsed_task_data_svg(
             alignment_baseline="bottom",
         )
     )
-    
+
     # Embed font and set scale
     drawing.embed_google_font(
         "Anuphan:wght@400;600;700",
         text=set("Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ")
     )
     drawing.set_pixel_scale(40)
-    
+
     return drawing
 
 
@@ -889,12 +1058,12 @@ def save_svg_drawing(
     context: Any | None = None,
 ) -> None:
     """Save an SVG drawing to file with support for multiple formats.
-    
+
     Args:
         drawing: The SVG drawing to save
         filename: Output filename (extension determines format: .svg, .png, .pdf)
         context: Optional context for PDF conversion
-        
+
     Raises:
         ValueError: If file extension is not supported
         ImportError: If required dependencies are missing for PNG/PDF output
@@ -908,7 +1077,7 @@ def save_svg_drawing(
     elif filename.endswith(".pdf"):
         buffer = io.StringIO()
         drawing.as_svg(output_file=buffer, context=context)
-        
+
         try:
             import cairosvg  # type: ignore[import-untyped,import-not-found]
             cairosvg.svg2pdf(bytestring=buffer.getvalue(), write_to=filename)
@@ -925,7 +1094,7 @@ def save_svg_drawing(
 # Fix the typo in RICH_COLOR_MAP
 RICH_COLOR_MAP = {
     0: "black",
-    1: "blue", 
+    1: "blue",
     2: "red",
     3: "green",
     4: "yellow",
