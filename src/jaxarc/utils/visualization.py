@@ -17,8 +17,15 @@ import drawsvg  # type: ignore[import-untyped]
 import jax.numpy as jnp
 import numpy as np
 from loguru import logger
-from rich.console import Console
+from rich import box
+from rich.columns import Columns
+from rich.console import Console, Group
+from rich.layout import Layout
+from rich.padding import Padding
+from rich.panel import Panel
+from rich.rule import Rule
 from rich.table import Table
+from rich.text import Text
 
 if TYPE_CHECKING:
     from jaxarc.types import Grid, ParsedTaskData
@@ -146,7 +153,8 @@ def visualize_grid_rich(
     show_coordinates: bool = False,
     show_numbers: bool = False,
     double_width: bool = True,
-) -> Table:
+    border_style: str = "default",
+) -> Table | Panel:
     """Create a Rich Table visualization of a single grid.
 
     Args:
@@ -156,6 +164,7 @@ def visualize_grid_rich(
         show_coordinates: Whether to show row/column coordinates
         show_numbers: If True, show colored numbers; if False, show colored blocks
         double_width: If True and show_numbers=False, use double-width blocks for square appearance
+        border_style: Border style - 'input' for blue borders, 'output' for green borders, 'default' for normal
 
     Returns:
         Rich Table object for display
@@ -166,25 +175,45 @@ def visualize_grid_rich(
         mask = np.asarray(mask)
 
     if grid.size == 0:
-        table = Table(title=f"{title} (Empty)", show_header=False, show_edge=True)
+        table = Table(show_header=False, show_edge=False, show_lines=False, box=None)
         table.add_column("Empty")
         table.add_row("[grey23]Empty grid[/]")
-        return table
+
+        panel_style = _get_panel_border_style(border_style)
+        title_style = _get_title_style(border_style)
+
+        return Panel(
+            table,
+            title=Text(f"{title} (Empty)", style=title_style),
+            border_style=panel_style,
+            box=box.ROUNDED if border_style == "input" else box.HEAVY,
+            padding=(0, 0),
+        )
 
     # Extract valid region
     valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(grid, mask)
 
     if height == 0 or width == 0:
-        table = Table(title=f"{title} (No valid data)", show_header=False, show_edge=True)
+        table = Table(show_header=False, show_edge=False, show_lines=False, box=None)
         table.add_column("Empty")
         table.add_row("[grey23]No valid data[/]")
-        return table
 
-    # Create table
+        panel_style = _get_panel_border_style(border_style)
+        title_style = _get_title_style(border_style)
+
+        return Panel(
+            table,
+            title=Text(f"{title} (No valid data)", style=title_style),
+            border_style=panel_style,
+            box=box.ROUNDED if border_style == "input" else box.HEAVY,
+            padding=(0, 0),
+        )
+
+    # Create table without borders (will be wrapped in panel)
     table = Table(
-        title=f"{title} ({height}x{width})",
         show_header=show_coordinates,
-        show_edge=True,
+        show_edge=False,
+        show_lines=False,
         box=None,
         padding=0,
         pad_edge=False,
@@ -198,7 +227,7 @@ def visualize_grid_rich(
         col_header = str(start_col + j) if show_coordinates else ""
         # Adjust column width based on display mode
         col_width = 2  # Single blocks
-        table.add_column(col_header, justify="center", width=col_width)
+        table.add_column(col_header, justify="center", width=col_width, no_wrap=True)
 
     # Add rows
     for i in range(height):
@@ -239,7 +268,17 @@ def visualize_grid_rich(
 
         table.add_row(*row_items)
 
-    return table
+    # Wrap table in panel with appropriate border style
+    panel_style = _get_panel_border_style(border_style)
+    title_style = _get_title_style(border_style)
+
+    return Panel(
+        table,
+        title=Text(f"{title} ({height}x{width})", style=title_style),
+        border_style=panel_style,
+        box=box.ROUNDED if border_style == "input" else box.HEAVY,
+        padding=(0, 0),
+    )
 
 
 def log_grid_to_console(
@@ -452,8 +491,9 @@ def visualize_task_pair_rich(
     title: str = "Task Pair",
     show_numbers: bool = False,
     double_width: bool = True,
-) -> tuple[Table, Table | None]:
-    """Visualize an input-output pair using Rich tables.
+    console: Console | None = None,
+) -> None:
+    """Visualize an input-output pair using Rich tables with responsive layout.
 
     Args:
         input_grid: Input grid data
@@ -463,19 +503,22 @@ def visualize_task_pair_rich(
         title: Title for the visualization
         show_numbers: If True, show colored numbers; if False, show colored blocks
         double_width: If True and show_numbers=False, use double-width blocks for square appearance
-
-    Returns:
-        Tuple of (input_table, output_table). output_table is None if no output_grid provided.
+        console: Optional Rich console (creates one if None)
     """
+    if console is None:
+        console = Console()
+
+    # Create input table with blue border
     input_table = visualize_grid_rich(
         input_grid,
         input_mask,
         f"{title} - Input",
         show_numbers=show_numbers,
         double_width=double_width,
+        border_style="input",
     )
 
-    output_table = None
+    # Create output table or placeholder
     if output_grid is not None:
         output_table = visualize_grid_rich(
             output_grid,
@@ -483,9 +526,41 @@ def visualize_task_pair_rich(
             f"{title} - Output",
             show_numbers=show_numbers,
             double_width=double_width,
+            border_style="output",
+        )
+    else:
+        # Create placeholder for unknown output
+        output_table = Table(
+            show_header=False,
+            show_edge=False,
+            show_lines=False,
+            box=None,
+        )
+        output_table.add_column("Unknown", justify="center")
+        question_text = Text("?", style="bold yellow")
+        output_table.add_row(question_text)
+
+        output_table = Panel(
+            output_table,
+            title=Text(f"{title} - Output", style="bold green"),
+            border_style="green",
+            box=box.HEAVY,
+            padding=(0, 0),
         )
 
-    return input_table, output_table
+    # Responsive layout based on terminal width
+    terminal_width = console.size.width
+
+    # If terminal is wide enough, show side-by-side
+    if terminal_width >= 120:
+        columns = Columns([input_table, output_table], equal=True, expand=True)
+        console.print(columns)
+    else:
+        # Stack vertically with clear separation
+        console.print(input_table)
+        arrow_text = Text("↓", justify="center", style="bold")
+        console.print(arrow_text)
+        console.print(output_table)
 
 
 def draw_task_pair_svg(
@@ -689,7 +764,7 @@ def visualize_parsed_task_data_rich(
     show_numbers: bool = False,
     double_width: bool = True,
 ) -> None:
-    """Visualize a ParsedTaskData object using Rich console output.
+    """Visualize a ParsedTaskData object using Rich console output with enhanced layout and grouping.
 
     Args:
         task_data: The parsed task data to visualize
@@ -699,44 +774,92 @@ def visualize_parsed_task_data_rich(
         double_width: If True and show_numbers=False, use double-width blocks for square appearance
     """
     console = Console()
+    terminal_width = console.size.width
 
-    # Show task info
-    console.print(f"\n[bold blue]Task: {task_data.task_id or 'Unknown'}[/bold blue]")
-    console.print(f"Training pairs: {task_data.num_train_pairs}")
-    console.print(f"Test pairs: {task_data.num_test_pairs}")
+    # Enhanced task header with Panel
+    task_title = f"Task: {task_data.task_id or 'Unknown'}"
 
-    # Show training examples
-    for i in range(task_data.num_train_pairs):
-        console.print(f"\n[bold]Training Example {i + 1}[/bold]")
+    # Create properly styled text for task info
+    task_info = Text(justify="center")
+    task_info.append("Training Examples: ", style="bold")
+    task_info.append(str(task_data.num_train_pairs))
+    task_info.append("  ")
+    task_info.append("Test Examples: ", style="bold")
+    task_info.append(str(task_data.num_test_pairs))
 
-        # Input
-        input_table = visualize_grid_rich(
-            task_data.input_grids_examples[i],
-            task_data.input_masks_examples[i],
-            f"Input {i + 1}",
-            show_coordinates,
-            show_numbers,
-            double_width,
+    header_panel = Panel(
+        task_info,
+        title=task_title,
+        title_align="left",
+        border_style="bright_blue",
+        box=box.ROUNDED,
+        padding=(0, 1),
+    )
+    console.print(header_panel)
+    console.print()
+
+    # Training examples with visual grouping
+    if task_data.num_train_pairs > 0:
+        training_content = []
+
+        for i in range(task_data.num_train_pairs):
+            # Create input table with input border style
+            input_table = visualize_grid_rich(
+                task_data.input_grids_examples[i],
+                task_data.input_masks_examples[i],
+                f"Input {i + 1}",
+                show_coordinates,
+                show_numbers,
+                double_width,
+                border_style="input",
+            )
+
+            # Create output table with output border style
+            output_table = visualize_grid_rich(
+                task_data.output_grids_examples[i],
+                task_data.output_masks_examples[i],
+                f"Output {i + 1}",
+                show_coordinates,
+                show_numbers,
+                double_width,
+                border_style="output",
+            )
+
+            # Responsive layout for each pair
+            if terminal_width >= 120:
+                # Side-by-side layout for wide terminals
+                pair_layout = Columns([input_table, output_table], equal=True, expand=True)
+                training_content.append(pair_layout)
+            else:
+                # Vertical layout for narrow terminals
+                training_content.append(input_table)
+                arrow_text = Text("↓", justify="center", style="bold")
+                training_content.append(Padding(arrow_text, (0, 0, 1, 0)))
+                training_content.append(output_table)
+
+            # Add separator between examples
+            if i < task_data.num_train_pairs - 1:
+                training_content.append(Rule(style="dim"))
+
+        # Wrap training examples in a blue panel
+        training_group = Group(*training_content)
+        training_panel = Panel(
+            training_group,
+            title=f"Training Examples ({task_data.num_train_pairs})",
+            title_align="left",
+            border_style="blue",
+            box=box.ROUNDED,
+            padding=(1, 1),
         )
-        console.print(input_table)
+        console.print(training_panel)
 
-        # Output
-        output_table = visualize_grid_rich(
-            task_data.output_grids_examples[i],
-            task_data.output_masks_examples[i],
-            f"Output {i + 1}",
-            show_coordinates,
-            show_numbers,
-            double_width,
-        )
-        console.print(output_table)
+    # Test examples with visual grouping
+    if show_test and task_data.num_test_pairs > 0:
+        console.print()  # Space between groups
+        test_content = []
 
-    # Show test examples
-    if show_test:
         for i in range(task_data.num_test_pairs):
-            console.print(f"\n[bold]Test Example {i + 1}[/bold]")
-
-            # Test input
+            # Create test input table
             test_input_table = visualize_grid_rich(
                 task_data.test_input_grids[i],
                 task_data.test_input_masks[i],
@@ -744,19 +867,88 @@ def visualize_parsed_task_data_rich(
                 show_coordinates,
                 show_numbers,
                 double_width,
+                border_style="input",
             )
-            console.print(test_input_table)
 
-            # Test output (ground truth)
-            test_output_table = visualize_grid_rich(
-                task_data.true_test_output_grids[i],
-                task_data.true_test_output_masks[i],
-                f"Test Output {i + 1} (Ground Truth)",
-                show_coordinates,
-                show_numbers,
-                double_width,
-            )
-            console.print(test_output_table)
+            # Create test output table or placeholder
+            if (i < len(task_data.true_test_output_grids) and
+                task_data.true_test_output_grids[i] is not None):
+                test_output_table = visualize_grid_rich(
+                    task_data.true_test_output_grids[i],
+                    task_data.true_test_output_masks[i],
+                    f"Test Output {i + 1}",
+                    show_coordinates,
+                    show_numbers,
+                    double_width,
+                    border_style="output",
+                )
+            else:
+                # Create placeholder for unknown test output
+                test_output_table = Table(
+                    show_header=False,
+                    show_edge=False,
+                    show_lines=False,
+                    box=None,
+                )
+                test_output_table.add_column("Unknown", justify="center")
+                question_text = Text("?", style="bold yellow")
+                test_output_table.add_row(question_text)
+
+                test_output_table = Panel(
+                    test_output_table,
+                    title=Text(f"Test Output {i + 1}", style="bold green"),
+                    border_style="green",
+                    box=box.HEAVY,
+                    padding=(0, 0),
+                )
+
+            # Responsive layout for each test pair
+            if terminal_width >= 120:
+                # Side-by-side layout for wide terminals
+                pair_layout = Columns([test_input_table, test_output_table], equal=True, expand=True)
+                test_content.append(pair_layout)
+            else:
+                # Vertical layout for narrow terminals
+                test_content.append(test_input_table)
+                arrow_text = Text("↓", justify="center", style="bold")
+                test_content.append(Padding(arrow_text, (0, 0, 1, 0)))
+                test_content.append(test_output_table)
+
+            # Add separator between examples
+            if i < task_data.num_test_pairs - 1:
+                test_content.append(Rule(style="dim"))
+
+        # Wrap test examples in a red panel
+        test_group = Group(*test_content)
+        test_panel = Panel(
+            test_group,
+            title=f"Test Examples ({task_data.num_test_pairs})",
+            title_align="left",
+            border_style="red",
+            box=box.ROUNDED,
+            padding=(1, 1),
+        )
+        console.print(test_panel)
+
+
+def _get_panel_border_style(border_style: str) -> str:
+    """Get panel border style based on border type."""
+    if border_style == "input":
+        return "blue"
+    elif border_style == "output":
+        return "green"
+    else:
+        return "blue"
+
+
+def _get_title_style(border_style: str) -> str:
+    """Get title style based on border type."""
+    if border_style == "input":
+        return "bold blue"
+    elif border_style == "output":
+        return "bold green"
+    else:
+        return "bold"
 
 
 def _draw_dotted_squircle(
