@@ -83,7 +83,9 @@ def pad_array_sequence(
         ValueError: If number of arrays exceeds target_length
     """
     if len(arrays) > target_length:
-        msg = f"Number of arrays ({len(arrays)}) exceeds target length ({target_length})"
+        msg = (
+            f"Number of arrays ({len(arrays)}) exceeds target length ({target_length})"
+        )
         raise ValueError(msg)
 
     padded_grids = []
@@ -105,7 +107,9 @@ def pad_array_sequence(
     empty_slots = target_length - len(arrays)
     if empty_slots > 0:
         empty_grid = jnp.full(
-            (target_height, target_width), fill_value, dtype=arrays[0].dtype if arrays else jnp.int32
+            (target_height, target_width),
+            fill_value,
+            dtype=arrays[0].dtype if arrays else jnp.int32,
         )
         empty_mask = jnp.zeros((target_height, target_width), dtype=jnp.bool_)
 

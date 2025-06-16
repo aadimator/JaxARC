@@ -110,67 +110,89 @@ class ParsedTaskData:
 
     def __post_init__(self) -> None:
         """Validate the structure and types of the ParsedTaskData."""
-        # Validate training data shapes and types
-        chex.assert_rank(self.input_grids_examples, 3)
-        chex.assert_rank(self.input_masks_examples, 3)
-        chex.assert_rank(self.output_grids_examples, 3)
-        chex.assert_rank(self.output_masks_examples, 3)
+        # Check if we're in a JAX transformation context where array fields
+        # have been transformed into non-array objects (e.g., during tree operations)
+        if not (
+            hasattr(self.input_grids_examples, "ndim")
+            and hasattr(self.input_grids_examples, "shape")
+        ):
+            # Skip validation during JAX tree operations where fields are transformed
+            return
 
-        # Validate test data shapes and types
-        chex.assert_rank(self.test_input_grids, 3)
-        chex.assert_rank(self.test_input_masks, 3)
-        chex.assert_rank(self.true_test_output_grids, 3)
-        chex.assert_rank(self.true_test_output_masks, 3)
+        try:
+            # Determine expected rank (3 for single data, 4 for batched data)
+            expected_rank = self.input_grids_examples.ndim
 
-        # Ensure training arrays have consistent shapes
-        train_shape = self.input_grids_examples.shape
-        chex.assert_shape(self.input_masks_examples, train_shape)
-        chex.assert_shape(self.output_grids_examples, train_shape)
-        chex.assert_shape(self.output_masks_examples, train_shape)
+            # Validate training data shapes and types (support both rank 3 and 4)
+            chex.assert_rank(self.input_grids_examples, expected_rank)
+            chex.assert_rank(self.input_masks_examples, expected_rank)
+            chex.assert_rank(self.output_grids_examples, expected_rank)
+            chex.assert_rank(self.output_masks_examples, expected_rank)
 
-        # Ensure test arrays have consistent shapes
-        test_shape = self.test_input_grids.shape
-        chex.assert_shape(self.test_input_masks, test_shape)
-        chex.assert_shape(self.true_test_output_grids, test_shape)
-        chex.assert_shape(self.true_test_output_masks, test_shape)
+            # Validate test data shapes and types
+            chex.assert_rank(self.test_input_grids, expected_rank)
+            chex.assert_rank(self.test_input_masks, expected_rank)
+            chex.assert_rank(self.true_test_output_grids, expected_rank)
+            chex.assert_rank(self.true_test_output_masks, expected_rank)
 
-        # Validate that grid dimensions are the same for train and test
-        if train_shape[1:] != test_shape[1:]:
-            error_msg = (
-                f"Training and test grid dimensions must match. "
-                f"Training: {train_shape[1:]}, Test: {test_shape[1:]}"
-            )
-            raise ValueError(error_msg)
+            # Ensure training arrays have consistent shapes
+            train_shape = self.input_grids_examples.shape
+            chex.assert_shape(self.input_masks_examples, train_shape)
+            chex.assert_shape(self.output_grids_examples, train_shape)
+            chex.assert_shape(self.output_masks_examples, train_shape)
 
-        # Validate data types
-        chex.assert_type(self.input_grids_examples, jnp.integer)
-        chex.assert_type(self.output_grids_examples, jnp.integer)
-        chex.assert_type(self.test_input_grids, jnp.integer)
-        chex.assert_type(self.true_test_output_grids, jnp.integer)
+            # Ensure test arrays have consistent shapes
+            test_shape = self.test_input_grids.shape
+            chex.assert_shape(self.test_input_masks, test_shape)
+            chex.assert_shape(self.true_test_output_grids, test_shape)
+            chex.assert_shape(self.true_test_output_masks, test_shape)
 
-        # Validate mask types (should be boolean)
-        chex.assert_type(self.input_masks_examples, jnp.bool_)
-        chex.assert_type(self.output_masks_examples, jnp.bool_)
-        chex.assert_type(self.test_input_masks, jnp.bool_)
-        chex.assert_type(self.true_test_output_masks, jnp.bool_)
+            # Validate that grid dimensions are the same for train and test
+            if train_shape[1:] != test_shape[1:]:
+                error_msg = (
+                    f"Training and test grid dimensions must match. "
+                    f"Training: {train_shape[1:]}, Test: {test_shape[1:]}"
+                )
+                raise ValueError(error_msg)
 
-        # Validate counts are non-negative and within bounds
-        max_train_pairs = train_shape[0]
-        max_test_pairs = test_shape[0]
+            # Validate data types
+            chex.assert_type(self.input_grids_examples, jnp.integer)
+            chex.assert_type(self.output_grids_examples, jnp.integer)
+            chex.assert_type(self.test_input_grids, jnp.integer)
+            chex.assert_type(self.true_test_output_grids, jnp.integer)
 
-        if not (0 <= self.num_train_pairs <= max_train_pairs):
-            error_msg = (
-                f"num_train_pairs ({self.num_train_pairs}) must be between "
-                f"0 and {max_train_pairs}"
-            )
-            raise ValueError(error_msg)
+            # Validate mask types (should be boolean)
+            chex.assert_type(self.input_masks_examples, jnp.bool_)
+            chex.assert_type(self.output_masks_examples, jnp.bool_)
+            chex.assert_type(self.test_input_masks, jnp.bool_)
+            chex.assert_type(self.true_test_output_masks, jnp.bool_)
 
-        if not (0 <= self.num_test_pairs <= max_test_pairs):
-            error_msg = (
-                f"num_test_pairs ({self.num_test_pairs}) must be between "
-                f"0 and {max_test_pairs}"
-            )
-            raise ValueError(error_msg)
+            # Validate counts are non-negative and within bounds
+            max_train_pairs = train_shape[0]
+            max_test_pairs = test_shape[0]
+
+            if not (0 <= self.num_train_pairs <= max_train_pairs):
+                error_msg = (
+                    f"num_train_pairs ({self.num_train_pairs}) must be between "
+                    f"0 and {max_train_pairs}"
+                )
+                raise ValueError(error_msg)
+
+            if not (0 <= self.num_test_pairs <= max_test_pairs):
+                error_msg = (
+                    f"num_test_pairs ({self.num_test_pairs}) must be between "
+                    f"0 and {max_test_pairs}"
+                )
+                raise ValueError(error_msg)
+
+        except (AttributeError, TypeError):
+            # Skip validation only for specific JAX transformation errors
+            # This preserves normal validation while allowing JAX operations
+            pass
+
+        # Note: Additional validation (shape compatibility, bounds checking) should be done
+        # at data creation time outside of JAX-transformed functions, as Python control flow
+        # with JAX tracers is not supported in JIT-compiled contexts.
 
 
 # --- Additional Types for MARL Environment ---

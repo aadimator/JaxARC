@@ -20,7 +20,6 @@ from loguru import logger
 from rich import box
 from rich.columns import Columns
 from rich.console import Console, Group
-from rich.layout import Layout
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
@@ -111,8 +110,7 @@ def _extract_grid_data(grid_input: jnp.ndarray | np.ndarray | Grid) -> np.ndarra
 
 
 def _extract_valid_region(
-    grid: np.ndarray,
-    mask: np.ndarray | None = None
+    grid: np.ndarray, mask: np.ndarray | None = None
 ) -> tuple[np.ndarray, tuple[int, int], tuple[int, int]]:
     """Extract the valid (non-padded) region from a grid.
 
@@ -143,7 +141,11 @@ def _extract_valid_region(
 
     valid_grid = grid[start_row:end_row, start_col:end_col]
 
-    return valid_grid, (start_row, start_col), (end_row - start_row, end_col - start_col)
+    return (
+        valid_grid,
+        (start_row, start_col),
+        (end_row - start_row, end_col - start_col),
+    )
 
 
 def visualize_grid_rich(
@@ -191,7 +193,9 @@ def visualize_grid_rich(
         )
 
     # Extract valid region
-    valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(grid, mask)
+    valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(
+        grid, mask
+    )
 
     if height == 0 or width == 0:
         table = Table(show_header=False, show_edge=False, show_lines=False, box=None)
@@ -244,7 +248,7 @@ def visualize_grid_rich(
             if mask is not None:
                 actual_row = start_row + i
                 actual_col = start_col + j
-                if (actual_row < mask.shape[0] and actual_col < mask.shape[1]):
+                if actual_row < mask.shape[0] and actual_col < mask.shape[1]:
                     is_valid = mask[actual_row, actual_col]
 
             if not is_valid:
@@ -346,27 +350,37 @@ def draw_grid_svg(
     # Handle empty grids
     if grid.size == 0:
         if as_group:
-            return drawsvg.Group(), (-0.5 * padding, -0.5 * padding), (padding, padding + extra_bottom_padding)
+            return (
+                drawsvg.Group(),
+                (-0.5 * padding, -0.5 * padding),
+                (padding, padding + extra_bottom_padding),
+            )
 
         drawing = drawsvg.Drawing(
             padding,
             padding + extra_bottom_padding,
-            origin=(-0.5 * padding, -0.5 * padding)
+            origin=(-0.5 * padding, -0.5 * padding),
         )
         drawing.set_pixel_scale(40)
         return drawing
 
     # Extract valid region
-    valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(grid, mask)
+    valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(
+        grid, mask
+    )
 
     if height == 0 or width == 0:
         if as_group:
-            return drawsvg.Group(), (-0.5 * padding, -0.5 * padding), (padding, padding + extra_bottom_padding)
+            return (
+                drawsvg.Group(),
+                (-0.5 * padding, -0.5 * padding),
+                (padding, padding + extra_bottom_padding),
+            )
 
         drawing = drawsvg.Drawing(
             padding,
             padding + extra_bottom_padding,
-            origin=(-0.5 * padding, -0.5 * padding)
+            origin=(-0.5 * padding, -0.5 * padding),
         )
         drawing.set_pixel_scale(40)
         return drawing
@@ -390,7 +404,7 @@ def draw_grid_svg(
         drawing = drawsvg.Drawing(
             actual_width + padding,
             actual_height + padding + extra_bottom_padding,
-            origin=(-0.5 * padding, -0.5 * padding)
+            origin=(-0.5 * padding, -0.5 * padding),
         )
         drawing.set_pixel_scale(40)
 
@@ -404,7 +418,7 @@ def draw_grid_svg(
             if mask is not None:
                 actual_row = start_row + i
                 actual_col = start_col + j
-                if (actual_row < mask.shape[0] and actual_col < mask.shape[1]):
+                if actual_row < mask.shape[0] and actual_col < mask.shape[1]:
                     is_valid = mask[actual_row, actual_col]
 
             if is_valid and 0 <= color_val < len(ARC_COLOR_PALETTE):
@@ -440,7 +454,9 @@ def draw_grid_svg(
         # Embed font
         cast(drawsvg.Drawing, drawing).embed_google_font(
             "Anuphan:wght@400;600;700",
-            text=set("Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+            text=set(
+                "Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            ),
         )
 
     # Add size and label text
@@ -606,7 +622,9 @@ def draw_task_pair_svg(
     if output_grid is not None:
         output_grid_data = _extract_grid_data(output_grid)
         output_mask_data = np.asarray(output_mask) if output_mask is not None else None
-        _, _, (output_h, output_w) = _extract_valid_region(output_grid_data, output_mask_data)
+        _, _, (output_h, output_w) = _extract_valid_region(
+            output_grid_data, output_mask_data
+        )
 
         output_ratio = output_w / output_h if output_h > 0 else 1.0
         max_ratio = max(input_ratio, output_ratio)
@@ -616,8 +634,7 @@ def draw_task_pair_svg(
     final_width = max(required_width, padding * 2 + 1.0)  # Minimum width
 
     # Don't exceed specified width constraint
-    if final_width > width:
-        final_width = width
+    final_width = min(final_width, width)
 
     max_grid_width = final_width - padding * 2
 
@@ -690,20 +707,36 @@ def draw_task_pair_svg(
     arrow_top_y = y_ptr + padding - 0.6
     arrow_bottom_y = y_ptr + padding + io_gap - 0.6
 
-    drawlist.append(drawsvg.Line(
-        arrow_x_center, arrow_top_y, arrow_x_center, arrow_bottom_y,
-        stroke_width=0.05, stroke="#888888"
-    ))
-    drawlist.append(drawsvg.Line(
-        arrow_x_center - 0.15, arrow_bottom_y - 0.2,
-        arrow_x_center, arrow_bottom_y,
-        stroke_width=0.05, stroke="#888888"
-    ))
-    drawlist.append(drawsvg.Line(
-        arrow_x_center + 0.15, arrow_bottom_y - 0.2,
-        arrow_x_center, arrow_bottom_y,
-        stroke_width=0.05, stroke="#888888"
-    ))
+    drawlist.append(
+        drawsvg.Line(
+            arrow_x_center,
+            arrow_top_y,
+            arrow_x_center,
+            arrow_bottom_y,
+            stroke_width=0.05,
+            stroke="#888888",
+        )
+    )
+    drawlist.append(
+        drawsvg.Line(
+            arrow_x_center - 0.15,
+            arrow_bottom_y - 0.2,
+            arrow_x_center,
+            arrow_bottom_y,
+            stroke_width=0.05,
+            stroke="#888888",
+        )
+    )
+    drawlist.append(
+        drawsvg.Line(
+            arrow_x_center + 0.15,
+            arrow_bottom_y - 0.2,
+            arrow_x_center,
+            arrow_bottom_y,
+            stroke_width=0.05,
+            stroke="#888888",
+        )
+    )
 
     # Position output
     y_content_top_output_area = y_ptr + io_gap
@@ -712,13 +745,16 @@ def draw_task_pair_svg(
         drawlist.append(
             drawsvg.Use(
                 output_g,
-                x=(max_grid_width + padding - actual_output_width) / 2 - output_origin_out[0],
+                x=(max_grid_width + padding - actual_output_width) / 2
+                - output_origin_out[0],
                 y=y_ptr - output_origin_out[1] + io_gap,
             )
         )
     elif show_unknown_output:
         # Draw question mark for unknown output
-        q_text_y_center = y_content_top_output_area + (ymax / 2) + extra_bottom_padding / 2
+        q_text_y_center = (
+            y_content_top_output_area + (ymax / 2) + extra_bottom_padding / 2
+        )
         drawlist.append(
             drawsvg.Text(
                 "?",
@@ -740,7 +776,9 @@ def draw_task_pair_svg(
     final_drawing_height = max(y_ptr2, height)  # Height is strict
 
     # Create final drawing
-    drawing = drawsvg.Drawing(final_drawing_width, final_drawing_height + 0.2, origin=(0, 0))
+    drawing = drawsvg.Drawing(
+        final_drawing_width, final_drawing_height + 0.2, origin=(0, 0)
+    )
     drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
 
     # Add all draw elements
@@ -750,7 +788,9 @@ def draw_task_pair_svg(
     # Embed font and set scale
     drawing.embed_google_font(
         "Anuphan:wght@400;600;700",
-        text=set("Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        text=set(
+            "Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        ),
     )
     drawing.set_pixel_scale(40)
 
@@ -828,7 +868,9 @@ def visualize_parsed_task_data_rich(
             # Responsive layout for each pair
             if terminal_width >= 120:
                 # Side-by-side layout for wide terminals
-                pair_layout = Columns([input_table, output_table], equal=True, expand=True)
+                pair_layout = Columns(
+                    [input_table, output_table], equal=True, expand=True
+                )
                 training_content.append(pair_layout)
             else:
                 # Vertical layout for narrow terminals
@@ -871,8 +913,10 @@ def visualize_parsed_task_data_rich(
             )
 
             # Create test output table or placeholder
-            if (i < len(task_data.true_test_output_grids) and
-                task_data.true_test_output_grids[i] is not None):
+            if (
+                i < len(task_data.true_test_output_grids)
+                and task_data.true_test_output_grids[i] is not None
+            ):
                 test_output_table = visualize_grid_rich(
                     task_data.true_test_output_grids[i],
                     task_data.true_test_output_masks[i],
@@ -905,7 +949,9 @@ def visualize_parsed_task_data_rich(
             # Responsive layout for each test pair
             if terminal_width >= 120:
                 # Side-by-side layout for wide terminals
-                pair_layout = Columns([test_input_table, test_output_table], equal=True, expand=True)
+                pair_layout = Columns(
+                    [test_input_table, test_output_table], equal=True, expand=True
+                )
                 test_content.append(pair_layout)
             else:
                 # Vertical layout for narrow terminals
@@ -935,20 +981,18 @@ def _get_panel_border_style(border_style: str) -> str:
     """Get panel border style based on border type."""
     if border_style == "input":
         return "blue"
-    elif border_style == "output":
+    if border_style == "output":
         return "green"
-    else:
-        return "blue"
+    return "blue"
 
 
 def _get_title_style(border_style: str) -> str:
     """Get title style based on border type."""
     if border_style == "input":
         return "bold blue"
-    elif border_style == "output":
+    if border_style == "output":
         return "bold green"
-    else:
-        return "bold"
+    return "bold"
 
 
 def _draw_dotted_squircle(
@@ -982,13 +1026,17 @@ def _draw_dotted_squircle(
 
     # Draw dotted squircle
     squircle = drawsvg.Rectangle(
-        x, y, width, height,
-        rx=corner_radius, ry=corner_radius,
+        x,
+        y,
+        width,
+        height,
+        rx=corner_radius,
+        ry=corner_radius,
         fill="none",
         stroke=stroke_color,
         stroke_width=stroke_width,
         stroke_dasharray=dash_array,
-        opacity=0.7
+        opacity=0.7,
     )
     elements.append(squircle)
 
@@ -1004,7 +1052,7 @@ def _draw_dotted_squircle(
         font_weight="700",
         fill=stroke_color,
         text_anchor="end",
-        opacity=0.8
+        opacity=0.8,
     )
     elements.append(label_text)
 
@@ -1045,30 +1093,38 @@ def draw_parsed_task_data_svg(
 
     # Add training examples
     for i in range(task_data.num_train_pairs):
-        examples.append((
-            task_data.input_grids_examples[i],
-            task_data.output_grids_examples[i],
-            task_data.input_masks_examples[i],
-            task_data.output_masks_examples[i],
-            f"{i + 1}",
-            False  # is_test
-        ))
+        examples.append(
+            (
+                task_data.input_grids_examples[i],
+                task_data.output_grids_examples[i],
+                task_data.input_masks_examples[i],
+                task_data.output_masks_examples[i],
+                f"{i + 1}",
+                False,  # is_test
+            )
+        )
 
     # Add test examples
     if include_test:
         for i in range(task_data.num_test_pairs):
             show_test_output = include_test == "all"
-            output_grid = task_data.true_test_output_grids[i] if show_test_output else None
-            output_mask = task_data.true_test_output_masks[i] if show_test_output else None
+            output_grid = (
+                task_data.true_test_output_grids[i] if show_test_output else None
+            )
+            output_mask = (
+                task_data.true_test_output_masks[i] if show_test_output else None
+            )
 
-            examples.append((
-                task_data.test_input_grids[i],
-                output_grid,
-                task_data.test_input_masks[i],
-                output_mask,
-                f"{i + 1}",
-                True  # is_test
-            ))
+            examples.append(
+                (
+                    task_data.test_input_grids[i],
+                    output_grid,
+                    task_data.test_input_masks[i],
+                    output_mask,
+                    f"{i + 1}",
+                    True,  # is_test
+                )
+            )
 
     if not examples:
         # Empty task
@@ -1090,31 +1146,39 @@ def draw_parsed_task_data_svg(
     # Prepare training examples
     train_examples = []
     for i in range(task_data.num_train_pairs):
-        train_examples.append((
-            task_data.input_grids_examples[i],
-            task_data.output_grids_examples[i],
-            task_data.input_masks_examples[i],
-            task_data.output_masks_examples[i],
-            f"{i + 1}",
-            False  # is_test
-        ))
+        train_examples.append(
+            (
+                task_data.input_grids_examples[i],
+                task_data.output_grids_examples[i],
+                task_data.input_masks_examples[i],
+                task_data.output_masks_examples[i],
+                f"{i + 1}",
+                False,  # is_test
+            )
+        )
 
     # Prepare test examples
     test_examples = []
     if include_test:
         for i in range(task_data.num_test_pairs):
             show_test_output = include_test == "all"
-            output_grid = task_data.true_test_output_grids[i] if show_test_output else None
-            output_mask = task_data.true_test_output_masks[i] if show_test_output else None
+            output_grid = (
+                task_data.true_test_output_grids[i] if show_test_output else None
+            )
+            output_mask = (
+                task_data.true_test_output_masks[i] if show_test_output else None
+            )
 
-            test_examples.append((
-                task_data.test_input_grids[i],
-                output_grid,
-                task_data.test_input_masks[i],
-                output_mask,
-                f"{i + 1}",
-                True  # is_test
-            ))
+            test_examples.append(
+                (
+                    task_data.test_input_grids[i],
+                    output_grid,
+                    task_data.test_input_masks[i],
+                    output_mask,
+                    f"{i + 1}",
+                    True,  # is_test
+                )
+            )
 
     # Combine all examples
     examples = train_examples + test_examples
@@ -1122,18 +1186,31 @@ def draw_parsed_task_data_svg(
     # Calculate ideal width for each example based on aspect ratio and height constraint
     max_widths = np.zeros(len(examples))
 
-    for i, (input_grid, output_grid, input_mask, output_mask, label, is_test) in enumerate(examples):
+    for i, (
+        input_grid,
+        output_grid,
+        input_mask,
+        output_mask,
+        label,
+        is_test,
+    ) in enumerate(examples):
         input_grid_data = _extract_grid_data(input_grid)
         input_mask_data = np.asarray(input_mask) if input_mask is not None else None
-        _, _, (input_h, input_w) = _extract_valid_region(input_grid_data, input_mask_data)
+        _, _, (input_h, input_w) = _extract_valid_region(
+            input_grid_data, input_mask_data
+        )
 
         input_ratio = input_w / input_h if input_h > 0 else 1.0
         max_ratio = input_ratio
 
         if output_grid is not None:
             output_grid_data = _extract_grid_data(output_grid)
-            output_mask_data = np.asarray(output_mask) if output_mask is not None else None
-            _, _, (output_h, output_w) = _extract_valid_region(output_grid_data, output_mask_data)
+            output_mask_data = (
+                np.asarray(output_mask) if output_mask is not None else None
+            )
+            _, _, (output_h, output_w) = _extract_valid_region(
+                output_grid_data, output_mask_data
+            )
 
             output_ratio = output_w / output_h if output_h > 0 else 1.0
             max_ratio = max(input_ratio, output_ratio)
@@ -1173,14 +1250,25 @@ def draw_parsed_task_data_svg(
     y_offset = squircle_margin if has_grouping else 0.0
 
     # Calculate group boundaries
-    train_width = sum(allocation[:len(train_examples)]) + padding * len(train_examples) if train_examples else 0
+    train_width = (
+        sum(allocation[: len(train_examples)]) + padding * len(train_examples)
+        if train_examples
+        else 0
+    )
     test_start_x = x_offset + train_width + (group_spacing if has_grouping else 0)
 
     x_ptr = x_offset
     y_ptr = y_offset
 
     # First pass: Draw input grids and calculate input row height
-    for i, (input_grid, output_grid, input_mask, output_mask, label, is_test) in enumerate(examples):
+    for i, (
+        input_grid,
+        output_grid,
+        input_mask,
+        output_mask,
+        label,
+        is_test,
+    ) in enumerate(examples):
         input_result = draw_grid_svg(
             input_grid,
             input_mask,
@@ -1220,7 +1308,10 @@ def draw_parsed_task_data_svg(
         if is_test and has_grouping:
             # For test examples, position relative to test start
             test_index = i - len(train_examples)
-            test_x_offset = sum(allocation[len(train_examples):len(train_examples)+test_index]) + padding * test_index
+            test_x_offset = (
+                sum(allocation[len(train_examples) : len(train_examples) + test_index])
+                + padding * test_index
+            )
             current_x_ptr = test_start_x + test_x_offset
         else:
             # For training examples, use current x_ptr
@@ -1230,7 +1321,9 @@ def draw_parsed_task_data_svg(
         drawlist.append(
             drawsvg.Use(
                 input_group,
-                x=current_x_ptr + (allocation[i] + padding - input_size[0]) / 2 - input_origin[0],
+                x=current_x_ptr
+                + (allocation[i] + padding - input_size[0]) / 2
+                - input_origin[0],
                 y=y_offset - input_origin[1],
             )
         )
@@ -1244,7 +1337,14 @@ def draw_parsed_task_data_svg(
     # Second pass: Draw arrows and outputs
     y_ptr2 = y_offset
 
-    for i, (input_grid, output_grid, input_mask, output_mask, label, is_test) in enumerate(examples):
+    for i, (
+        input_grid,
+        output_grid,
+        input_mask,
+        output_mask,
+        label,
+        is_test,
+    ) in enumerate(examples):
         # Recalculate input for positioning
         input_result = draw_grid_svg(
             input_grid,
@@ -1299,7 +1399,10 @@ def draw_parsed_task_data_svg(
         if is_test and has_grouping:
             # For test examples, position relative to test start
             test_index = i - len(train_examples)
-            test_x_offset = sum(allocation[len(train_examples):len(train_examples)+test_index]) + padding * test_index
+            test_x_offset = (
+                sum(allocation[len(train_examples) : len(train_examples) + test_index])
+                + padding * test_index
+            )
             current_x_ptr = test_start_x + test_x_offset
         else:
             # For training examples, calculate position from start
@@ -1311,20 +1414,36 @@ def draw_parsed_task_data_svg(
         arrow_top_y = y_ptr + padding - 0.6
         arrow_bottom_y = y_ptr + padding + io_gap - 0.6
 
-        drawlist.append(drawsvg.Line(
-            arrow_x_center, arrow_top_y, arrow_x_center, arrow_bottom_y,
-            stroke_width=0.05, stroke="#888888"
-        ))
-        drawlist.append(drawsvg.Line(
-            arrow_x_center - 0.15, arrow_bottom_y - 0.2,
-            arrow_x_center, arrow_bottom_y,
-            stroke_width=0.05, stroke="#888888"
-        ))
-        drawlist.append(drawsvg.Line(
-            arrow_x_center + 0.15, arrow_bottom_y - 0.2,
-            arrow_x_center, arrow_bottom_y,
-            stroke_width=0.05, stroke="#888888"
-        ))
+        drawlist.append(
+            drawsvg.Line(
+                arrow_x_center,
+                arrow_top_y,
+                arrow_x_center,
+                arrow_bottom_y,
+                stroke_width=0.05,
+                stroke="#888888",
+            )
+        )
+        drawlist.append(
+            drawsvg.Line(
+                arrow_x_center - 0.15,
+                arrow_bottom_y - 0.2,
+                arrow_x_center,
+                arrow_bottom_y,
+                stroke_width=0.05,
+                stroke="#888888",
+            )
+        )
+        drawlist.append(
+            drawsvg.Line(
+                arrow_x_center + 0.15,
+                arrow_bottom_y - 0.2,
+                arrow_x_center,
+                arrow_bottom_y,
+                stroke_width=0.05,
+                stroke="#888888",
+            )
+        )
 
         # Position output
         y_content_top_output_area = y_ptr + io_gap
@@ -1333,13 +1452,17 @@ def draw_parsed_task_data_svg(
             drawlist.append(
                 drawsvg.Use(
                     output_g,
-                    x=current_x_ptr + (allocation[i] + padding - output_x_recalc) / 2 - output_origin_recalc[0],
+                    x=current_x_ptr
+                    + (allocation[i] + padding - output_x_recalc) / 2
+                    - output_origin_recalc[0],
                     y=y_ptr - output_origin_recalc[1] + io_gap,
                 )
             )
         else:
             # Draw question mark
-            q_text_y_center = y_content_top_output_area + (ymax / 2) + extra_bottom_padding / 2
+            q_text_y_center = (
+                y_content_top_output_area + (ymax / 2) + extra_bottom_padding / 2
+            )
             drawlist.append(
                 drawsvg.Text(
                     "?",
@@ -1358,8 +1481,14 @@ def draw_parsed_task_data_svg(
 
     # Calculate final drawing dimensions accounting for squircle margins
     if has_grouping:
-        test_width = sum(allocation[len(train_examples):]) + padding * len(test_examples) if test_examples else 0
-        final_drawing_width = round(x_offset + train_width + group_spacing + test_width + squircle_margin, 1)
+        test_width = (
+            sum(allocation[len(train_examples) :]) + padding * len(test_examples)
+            if test_examples
+            else 0
+        )
+        final_drawing_width = round(
+            x_offset + train_width + group_spacing + test_width + squircle_margin, 1
+        )
     else:
         final_drawing_width = round(x_ptr, 1)
     final_drawing_height = round(y_ptr2 + (squircle_margin if has_grouping else 0), 1)
@@ -1369,7 +1498,9 @@ def draw_parsed_task_data_svg(
     final_drawing_height = max(final_drawing_height, height)  # Height is strict
 
     # Create final drawing with calculated dimensions
-    drawing = drawsvg.Drawing(final_drawing_width, final_drawing_height + 0.2, origin=(0, 0))
+    drawing = drawsvg.Drawing(
+        final_drawing_width, final_drawing_height + 0.2, origin=(0, 0)
+    )
     drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
 
     # Add all draw elements
@@ -1379,7 +1510,9 @@ def draw_parsed_task_data_svg(
     # Add grouping squircles if we have both training and test examples
     if len(train_examples) > 0 and len(test_examples) > 0:
         # Calculate training group bounds
-        train_width = sum(allocation[:len(train_examples)]) + padding * len(train_examples)
+        train_width = sum(allocation[: len(train_examples)]) + padding * len(
+            train_examples
+        )
 
         # Training group squircle
         train_squircle_elements = _draw_dotted_squircle(
@@ -1395,7 +1528,9 @@ def draw_parsed_task_data_svg(
 
         # Test group squircle
         test_start_x = train_width + group_spacing + squircle_margin
-        test_width = sum(allocation[len(train_examples):]) + padding * len(test_examples)
+        test_width = sum(allocation[len(train_examples) :]) + padding * len(
+            test_examples
+        )
         test_squircle_elements = _draw_dotted_squircle(
             x=test_start_x,
             y=0,
@@ -1427,7 +1562,9 @@ def draw_parsed_task_data_svg(
     # Embed font and set scale
     drawing.embed_google_font(
         "Anuphan:wght@400;600;700",
-        text=set("Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        text=set(
+            "Input Output 0123456789x Test Task ABCDEFGHIJ? abcdefghjklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        ),
     )
     drawing.set_pixel_scale(40)
 
@@ -1462,6 +1599,7 @@ def save_svg_drawing(
 
         try:
             import cairosvg  # type: ignore[import-untyped,import-not-found]
+
             cairosvg.svg2pdf(bytestring=buffer.getvalue(), write_to=filename)
             logger.info(f"Saved PDF to {filename}")
         except ImportError as e:
@@ -1469,5 +1607,7 @@ def save_svg_drawing(
             logger.error(error_msg)
             raise ImportError(error_msg) from e
     else:
-        error_msg = f"Unknown file extension for {filename}. Supported: .svg, .png, .pdf"
+        error_msg = (
+            f"Unknown file extension for {filename}. Supported: .svg, .png, .pdf"
+        )
         raise ValueError(error_msg)

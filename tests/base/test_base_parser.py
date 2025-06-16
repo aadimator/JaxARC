@@ -29,7 +29,9 @@ class ConcreteParser(ArcDataParserBase):
     def load_task_file(self, task_file_path: str) -> Any:
         return self.load_task_file_mock(task_file_path)
 
-    def preprocess_task_data(self, raw_task_data: Any, key: chex.PRNGKey) -> ParsedTaskData:
+    def preprocess_task_data(
+        self, raw_task_data: Any, key: chex.PRNGKey
+    ) -> ParsedTaskData:
         return self.preprocess_task_data_mock(raw_task_data, key)
 
     def get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData:
@@ -41,24 +43,28 @@ class TestArcDataParserBase:
 
     def test_cannot_instantiate_abstract_class(self):
         """Test that the abstract base class cannot be instantiated directly."""
-        cfg = DictConfig({
-            "max_grid_height": 30,
-            "max_grid_width": 30,
-            "max_train_pairs": 5,
-            "max_test_pairs": 5
-        })
+        cfg = DictConfig(
+            {
+                "max_grid_height": 30,
+                "max_grid_width": 30,
+                "max_train_pairs": 5,
+                "max_test_pairs": 5,
+            }
+        )
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             ArcDataParserBase(cfg)  # type: ignore[abstract]
 
     def test_concrete_implementation_initialization(self):
         """Test that concrete implementations can be instantiated properly."""
-        cfg = DictConfig({
-            "dataset_path": "/some/path",
-            "max_grid_height": 30,
-            "max_grid_width": 30,
-            "max_train_pairs": 5,
-            "max_test_pairs": 5
-        })
+        cfg = DictConfig(
+            {
+                "dataset_path": "/some/path",
+                "max_grid_height": 30,
+                "max_grid_width": 30,
+                "max_train_pairs": 5,
+                "max_test_pairs": 5,
+            }
+        )
         parser = ConcreteParser(cfg)
 
         assert parser.cfg == cfg
@@ -71,106 +77,126 @@ class TestArcDataParserBase:
         """Test that initialization validates grid dimensions."""
         # Test negative height
         with pytest.raises(ValueError, match="Grid dimensions must be positive"):
-            cfg = DictConfig({
-                "max_grid_height": -1,
-                "max_grid_width": 30,
-                "max_train_pairs": 5,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {
+                    "max_grid_height": -1,
+                    "max_grid_width": 30,
+                    "max_train_pairs": 5,
+                    "max_test_pairs": 5,
+                }
+            )
             ConcreteParser(cfg)
 
         # Test zero height
         with pytest.raises(ValueError, match="Grid dimensions must be positive"):
-            cfg = DictConfig({
-                "max_grid_height": 0,
-                "max_grid_width": 30,
-                "max_train_pairs": 5,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {
+                    "max_grid_height": 0,
+                    "max_grid_width": 30,
+                    "max_train_pairs": 5,
+                    "max_test_pairs": 5,
+                }
+            )
             ConcreteParser(cfg)
 
         # Test negative width
         with pytest.raises(ValueError, match="Grid dimensions must be positive"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_grid_width": -1,
-                "max_train_pairs": 5,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {
+                    "max_grid_height": 30,
+                    "max_grid_width": -1,
+                    "max_train_pairs": 5,
+                    "max_test_pairs": 5,
+                }
+            )
             ConcreteParser(cfg)
 
         # Test zero width
         with pytest.raises(ValueError, match="Grid dimensions must be positive"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_grid_width": 0,
-                "max_train_pairs": 5,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {
+                    "max_grid_height": 30,
+                    "max_grid_width": 0,
+                    "max_train_pairs": 5,
+                    "max_test_pairs": 5,
+                }
+            )
             ConcreteParser(cfg)
 
     def test_initialization_validation_pair_counts(self):
         """Test that initialization validates pair count limits."""
         # Test negative train pairs
         with pytest.raises(ValueError, match="Max pairs must be positive"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_grid_width": 30,
-                "max_train_pairs": -1,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "max_train_pairs": -1,
+                    "max_test_pairs": 5,
+                }
+            )
             ConcreteParser(cfg)
 
         # Test zero train pairs
         with pytest.raises(ValueError, match="Max pairs must be positive"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_grid_width": 30,
-                "max_train_pairs": 0,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "max_train_pairs": 0,
+                    "max_test_pairs": 5,
+                }
+            )
             ConcreteParser(cfg)
 
         # Test negative test pairs
         with pytest.raises(ValueError, match="Max pairs must be positive"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_grid_width": 30,
-                "max_train_pairs": 5,
-                "max_test_pairs": -1
-            })
+            cfg = DictConfig(
+                {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "max_train_pairs": 5,
+                    "max_test_pairs": -1,
+                }
+            )
             ConcreteParser(cfg)
 
         # Test zero test pairs
         with pytest.raises(ValueError, match="Max pairs must be positive"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_grid_width": 30,
-                "max_train_pairs": 5,
-                "max_test_pairs": 0
-            })
+            cfg = DictConfig(
+                {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "max_train_pairs": 5,
+                    "max_test_pairs": 0,
+                }
+            )
             ConcreteParser(cfg)
 
     def test_get_max_dimensions(self):
         """Test the get_max_dimensions method."""
-        cfg = DictConfig({
-            "max_grid_height": 25,
-            "max_grid_width": 20,
-            "max_train_pairs": 3,
-            "max_test_pairs": 2
-        })
+        cfg = DictConfig(
+            {
+                "max_grid_height": 25,
+                "max_grid_width": 20,
+                "max_train_pairs": 3,
+                "max_test_pairs": 2,
+            }
+        )
         parser = ConcreteParser(cfg)
         dims = parser.get_max_dimensions()
         assert dims == (25, 20, 3, 2)
 
     def test_validate_grid_dimensions(self):
         """Test the validate_grid_dimensions method."""
-        cfg = DictConfig({
-            "max_grid_height": 30,
-            "max_grid_width": 30,
-            "max_train_pairs": 5,
-            "max_test_pairs": 5
-        })
+        cfg = DictConfig(
+            {
+                "max_grid_height": 30,
+                "max_grid_width": 30,
+                "max_train_pairs": 5,
+                "max_test_pairs": 5,
+            }
+        )
         parser = ConcreteParser(cfg)
 
         # Should not raise for valid dimensions
@@ -192,64 +218,61 @@ class TestArcDataParserBase:
         """Test that KeyError is raised when required config fields are missing."""
         # Missing max_grid_height
         with pytest.raises(KeyError, match="Missing required configuration field"):
-            cfg = DictConfig({
-                "max_grid_width": 30,
-                "max_train_pairs": 5,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {"max_grid_width": 30, "max_train_pairs": 5, "max_test_pairs": 5}
+            )
             ConcreteParser(cfg)
 
         # Missing max_grid_width
         with pytest.raises(KeyError, match="Missing required configuration field"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_train_pairs": 5,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {"max_grid_height": 30, "max_train_pairs": 5, "max_test_pairs": 5}
+            )
             ConcreteParser(cfg)
 
         # Missing max_train_pairs
         with pytest.raises(KeyError, match="Missing required configuration field"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_grid_width": 30,
-                "max_test_pairs": 5
-            })
+            cfg = DictConfig(
+                {"max_grid_height": 30, "max_grid_width": 30, "max_test_pairs": 5}
+            )
             ConcreteParser(cfg)
 
         # Missing max_test_pairs
         with pytest.raises(KeyError, match="Missing required configuration field"):
-            cfg = DictConfig({
-                "max_grid_height": 30,
-                "max_grid_width": 30,
-                "max_train_pairs": 5
-            })
+            cfg = DictConfig(
+                {"max_grid_height": 30, "max_grid_width": 30, "max_train_pairs": 5}
+            )
             ConcreteParser(cfg)
 
     def test_abstract_methods_must_be_implemented(self):
         """Test that concrete implementations must implement all abstract methods."""
+
         class IncompleteParser(ArcDataParserBase):
             """Incomplete implementation of ArcDataParserBase."""
 
-            pass  # No implementation of abstract methods
+            # No implementation of abstract methods
 
-        cfg = DictConfig({
-            "max_grid_height": 30,
-            "max_grid_width": 30,
-            "max_train_pairs": 5,
-            "max_test_pairs": 5
-        })
+        cfg = DictConfig(
+            {
+                "max_grid_height": 30,
+                "max_grid_width": 30,
+                "max_train_pairs": 5,
+                "max_test_pairs": 5,
+            }
+        )
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             IncompleteParser(cfg)  # type: ignore[abstract]
 
     def test_load_task_file_is_called(self):
         """Test that load_task_file is called with the correct path."""
-        cfg = DictConfig({
-            "max_grid_height": 30,
-            "max_grid_width": 30,
-            "max_train_pairs": 5,
-            "max_test_pairs": 5
-        })
+        cfg = DictConfig(
+            {
+                "max_grid_height": 30,
+                "max_grid_width": 30,
+                "max_train_pairs": 5,
+                "max_test_pairs": 5,
+            }
+        )
         parser = ConcreteParser(cfg)
         parser.load_task_file_mock.return_value = {"some": "data"}
 
@@ -259,12 +282,14 @@ class TestArcDataParserBase:
 
     def test_preprocess_task_data_is_called(self):
         """Test that preprocess_task_data is called with the correct arguments."""
-        cfg = DictConfig({
-            "max_grid_height": 30,
-            "max_grid_width": 30,
-            "max_train_pairs": 5,
-            "max_test_pairs": 5
-        })
+        cfg = DictConfig(
+            {
+                "max_grid_height": 30,
+                "max_grid_width": 30,
+                "max_train_pairs": 5,
+                "max_test_pairs": 5,
+            }
+        )
         parser = ConcreteParser(cfg)
         raw_data = {"some": "raw_data"}
         key = jax.random.PRNGKey(0)
@@ -281,12 +306,14 @@ class TestArcDataParserBase:
 
     def test_get_random_task_is_called(self):
         """Test that get_random_task is called with the correct key."""
-        cfg = DictConfig({
-            "max_grid_height": 25,
-            "max_grid_width": 20,
-            "max_train_pairs": 3,
-            "max_test_pairs": 2
-        })
+        cfg = DictConfig(
+            {
+                "max_grid_height": 25,
+                "max_grid_width": 20,
+                "max_train_pairs": 3,
+                "max_test_pairs": 2,
+            }
+        )
         parser = ConcreteParser(cfg)
         key = jax.random.PRNGKey(42)
 
