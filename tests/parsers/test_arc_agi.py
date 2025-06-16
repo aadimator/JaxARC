@@ -324,9 +324,9 @@ class TestArcAgiParser:
         expected_values = jnp.array([[1, 2], [3, 4]])
         assert jnp.array_equal(first_input_grid[:2, :2], expected_values)
 
-        # Check that padded regions are zero
-        assert jnp.all(first_input_grid[2:, :] == 0)  # Bottom rows
-        assert jnp.all(first_input_grid[:, 2:] == 0)  # Right columns
+        # Check that padded regions use -1 as fill value
+        assert jnp.all(first_input_grid[2:, :] == -1)  # Bottom rows
+        assert jnp.all(first_input_grid[:, 2:] == -1)  # Right columns
 
     def test_different_grid_sizes(self, parser_config):
         """Test handling of different grid sizes within max limits."""
