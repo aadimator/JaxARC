@@ -7,14 +7,12 @@ used in ARC multi-agent reinforcement learning environments.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
-from unittest.mock import Mock, patch
+from typing import Any
 
 import chex
 import jax
 import jax.numpy as jnp
 import pytest
-from jaxmarl.environments.spaces import Box, Dict as DictSpace, Discrete
 
 from jaxarc.base.base_env import ArcEnvState, ArcMarlEnvBase
 from jaxarc.types import ParsedTaskData
@@ -34,7 +32,7 @@ class MockArcEnv(ArcMarlEnvBase):
             agent: self._get_default_observation_space() for agent in self.agents
         }
 
-    def reset(self, key: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], ArcEnvState]:
+    def reset(self, key: chex.PRNGKey) -> tuple[dict[str, chex.Array], ArcEnvState]:
         """Mock reset implementation."""
         task_data = self._create_mock_task_data()
         state = self._create_mock_state(task_data)
@@ -43,79 +41,82 @@ class MockArcEnv(ArcMarlEnvBase):
 
     def step_env(
         self,
-        key: chex.PRNGKey,
+        key: chex.PRNGKey,  # noqa: ARG002
         state: ArcEnvState,
-        actions: Dict[str, chex.Array],
-    ) -> Tuple[Dict[str, chex.Array], ArcEnvState, Dict[str, float], Dict[str, bool], Dict[str, Any]]:
+        actions: dict[str, chex.Array],  # noqa: ARG002
+    ) -> tuple[
+        dict[str, chex.Array],
+        ArcEnvState,
+        dict[str, float],
+        dict[str, bool],
+        dict[str, Any],
+    ]:
         """Mock step_env implementation."""
         next_state = state.replace(
-            episode_step=state.episode_step + 1,
-            phase_step=state.phase_step + 1,
+            step=state.step + 1,
         )
 
         obs = self.get_obs(next_state)
-        rewards = {agent: 0.0 for agent in self.agents}
-        dones = {agent: False for agent in self.agents}
+        rewards = dict.fromkeys(self.agents, 0.0)
+        dones = dict.fromkeys(self.agents, False)
         dones["__all__"] = False
         infos = {}
 
         return obs, next_state, rewards, dones, infos
 
-    def get_obs(self, state: ArcEnvState) -> Dict[str, chex.Array]:
+    def get_obs(self, state: ArcEnvState) -> dict[str, chex.Array]:
         """Mock get_obs implementation."""
         obs = {}
         for agent in self.agents:
             obs[agent] = {
-                "current_grid": state.current_grid,
-                "target_grid": state.target_grid,
-                "grid_mask": state.current_grid_mask,
-                "phase": state.phase,
-                "phase_step": state.phase_step,
-                "agent_hypotheses": state.agent_hypotheses,
-                "hypothesis_votes": state.hypothesis_votes,
+                "working_grid": state.working_grid,
+                "working_grid_mask": state.working_grid_mask,
+                "program": state.program,
+                "program_length": state.program_length,
+                "active_train_pair_idx": state.active_train_pair_idx,
             }
         return obs
 
-    def _load_task_data(self, key: chex.PRNGKey) -> ParsedTaskData:
+    def _load_task_data(self, key: chex.PRNGKey) -> ParsedTaskData:  # noqa: ARG002
         """Mock task data loading."""
         return self._create_mock_task_data()
 
     def _process_hypotheses(
         self,
-        key: chex.PRNGKey,
+        key: chex.PRNGKey,  # noqa: ARG002
         state: ArcEnvState,
-        actions: Dict[str, chex.Array],
+        actions: dict[str, chex.Array],  # noqa: ARG002
     ) -> ArcEnvState:
         """Mock hypothesis processing."""
         return state
 
     def _update_consensus(
         self,
-        key: chex.PRNGKey,
+        key: chex.PRNGKey,  # noqa: ARG002
         state: ArcEnvState,
-        actions: Dict[str, chex.Array],
+        actions: dict[str, chex.Array],  # noqa: ARG002
     ) -> ArcEnvState:
         """Mock consensus updating."""
         return state
 
     def _apply_grid_transformation(
         self,
-        key: chex.PRNGKey,
+        key: chex.PRNGKey,  # noqa: ARG002
         state: ArcEnvState,
-        transformation_data: chex.Array,
+        transformation_data: chex.Array,  # noqa: ARG002
     ) -> ArcEnvState:
         """Mock grid transformation."""
         return state
 
     def _calculate_rewards(
         self,
-        key: chex.PRNGKey,
-        prev_state: ArcEnvState,
-        next_state: ArcEnvState,
-        actions: Dict[str, chex.Array],
-    ) -> Dict[str, float]:
+        key: chex.PRNGKey,  # noqa: ARG002
+        prev_state: ArcEnvState,  # noqa: ARG002
+        next_state: ArcEnvState,  # noqa: ARG002
+        actions: dict[str, chex.Array],  # noqa: ARG002
+    ) -> dict[str, float]:
         """Mock reward calculation."""
-        return {agent: 0.0 for agent in self.agents}
+        return dict.fromkeys(self.agents, 0.0)
 
     def _create_mock_task_data(self) -> ParsedTaskData:
         """Create mock task data for testing."""
@@ -124,15 +125,31 @@ class MockArcEnv(ArcMarlEnvBase):
         grid_h, grid_w = 5, 5
 
         return ParsedTaskData(
-            input_grids_examples=jnp.zeros((max_train_pairs, grid_h, grid_w), dtype=jnp.int32),
-            input_masks_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.bool_),
-            output_grids_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.int32),
-            output_masks_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.bool_),
+            input_grids_examples=jnp.zeros(
+                (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            input_masks_examples=jnp.ones(
+                (max_train_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
+            output_grids_examples=jnp.ones(
+                (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            output_masks_examples=jnp.ones(
+                (max_train_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
             num_train_pairs=2,
-            test_input_grids=jnp.zeros((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
-            test_input_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
-            true_test_output_grids=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
-            true_test_output_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
+            test_input_grids=jnp.zeros(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            test_input_masks=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
+            true_test_output_grids=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            true_test_output_masks=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
             num_test_pairs=1,
             task_id=None,
         )
@@ -145,34 +162,20 @@ class MockArcEnv(ArcMarlEnvBase):
             # JaxMARL required fields
             done=jnp.array(False, dtype=jnp.bool_),
             step=0,
-
             # ARC task state
             task_data=task_data,
-            current_test_case=jnp.array(0, dtype=jnp.int32),
-            phase=jnp.array(0, dtype=jnp.int32),
-
-            # Grid manipulation state
-            current_grid=jnp.zeros((grid_h, grid_w), dtype=jnp.int32),
-            current_grid_mask=jnp.ones((grid_h, grid_w), dtype=jnp.bool_),
-            target_grid=jnp.ones((grid_h, grid_w), dtype=jnp.int32),
-            target_grid_mask=jnp.ones((grid_h, grid_w), dtype=jnp.bool_),
-
-            # Agent collaboration state
-            agent_hypotheses=jnp.zeros((self.num_agents, self.max_hypotheses_per_agent, self.hypothesis_dim), dtype=jnp.float32),
-            hypothesis_votes=jnp.zeros((self.num_agents, self.max_hypotheses_per_agent), dtype=jnp.int32),
-            consensus_threshold=jnp.array(self.consensus_threshold, dtype=jnp.int32),
+            active_train_pair_idx=jnp.array(0, dtype=jnp.int32),
+            # Grid state
+            working_grid=jnp.zeros((grid_h, grid_w), dtype=jnp.int32),
+            working_grid_mask=jnp.ones((grid_h, grid_w), dtype=jnp.bool_),
+            # Program state
+            program=jnp.zeros(
+                (self.max_program_length, self.max_action_params), dtype=jnp.int32
+            ),
+            program_length=jnp.array(0, dtype=jnp.int32),
+            # Agent state
             active_agents=jnp.ones((self.num_agents,), dtype=jnp.bool_),
-
-            # Step and timing state
-            phase_step=jnp.array(0, dtype=jnp.int32),
-            max_phase_steps=jnp.array(self.max_phase_steps, dtype=jnp.int32),
-            episode_step=jnp.array(0, dtype=jnp.int32),
-            max_episode_steps=jnp.array(self.max_episode_steps, dtype=jnp.int32),
-
-            # Reward and performance tracking
             cumulative_rewards=jnp.zeros((self.num_agents,), dtype=jnp.float32),
-            solution_found=jnp.array(False, dtype=jnp.bool_),
-            last_action_valid=jnp.ones((self.num_agents,), dtype=jnp.bool_),
         )
 
 
@@ -188,8 +191,8 @@ class TestArcEnvState:
         # Basic structure checks
         assert isinstance(state, ArcEnvState)
         assert state.step == 0
-        assert state.done == False
-        assert state.phase == 0
+        assert not state.done
+        assert state.active_train_pair_idx == 0
 
     def test_state_validation(self):
         """Test ArcEnvState validation logic."""
@@ -199,10 +202,10 @@ class TestArcEnvState:
 
         # Check types are correct
         chex.assert_type(state.done, jnp.bool_)
-        chex.assert_type(state.current_test_case, jnp.int32)
-        chex.assert_type(state.phase, jnp.int32)
-        chex.assert_type(state.current_grid, jnp.integer)
-        chex.assert_type(state.current_grid_mask, jnp.bool_)
+        chex.assert_type(state.active_train_pair_idx, jnp.int32)
+        chex.assert_type(state.program_length, jnp.int32)
+        chex.assert_type(state.working_grid, jnp.integer)
+        chex.assert_type(state.working_grid_mask, jnp.bool_)
 
     def test_state_shapes(self):
         """Test ArcEnvState array shapes."""
@@ -211,17 +214,15 @@ class TestArcEnvState:
         state = env._create_mock_state(task_data)
 
         # Check grid shapes
-        assert state.current_grid.shape == (10, 15)
-        assert state.current_grid_mask.shape == (10, 15)
-        assert state.target_grid.shape == (10, 15)
-        assert state.target_grid_mask.shape == (10, 15)
+        assert state.working_grid.shape == (10, 15)
+        assert state.working_grid_mask.shape == (10, 15)
 
-        # Check agent-related shapes
-        assert state.agent_hypotheses.shape[0] == 3  # num_agents
-        assert state.hypothesis_votes.shape[0] == 3  # num_agents
+        # Check program shape
+        assert state.program.shape == (env.max_program_length, env.max_action_params)
+
+        # Check agent-related arrays
         assert state.active_agents.shape == (3,)
         assert state.cumulative_rewards.shape == (3,)
-        assert state.last_action_valid.shape == (3,)
 
     def test_state_immutability(self):
         """Test that ArcEnvState supports immutable updates."""
@@ -230,14 +231,14 @@ class TestArcEnvState:
         state = env._create_mock_state(task_data)
 
         # Test replace method
-        new_state = state.replace(phase=jnp.array(1, dtype=jnp.int32))
+        new_state = state.replace(active_train_pair_idx=jnp.array(1, dtype=jnp.int32))
 
         # Original should be unchanged
-        assert state.phase == 0
-        assert new_state.phase == 1
+        assert state.active_train_pair_idx == 0
+        assert new_state.active_train_pair_idx == 1
 
         # Other fields should be the same
-        assert jnp.array_equal(state.current_grid, new_state.current_grid)
+        assert jnp.array_equal(state.working_grid, new_state.working_grid)
 
 
 class TestArcMarlEnvBase:
@@ -251,20 +252,16 @@ class TestArcMarlEnvBase:
         assert env.max_grid_size == (20, 25)
         assert len(env.agents) == 3
         assert env.agents == ["agent_0", "agent_1", "agent_2"]
-        assert env.consensus_threshold == 2  # majority of 3
 
-    def test_default_consensus_threshold(self):
-        """Test default consensus threshold calculation."""
-        # Test with different numbers of agents
-        for num_agents in [2, 3, 4, 5, 6]:
-            env = MockArcEnv(num_agents=num_agents)
-            expected_threshold = num_agents // 2 + 1
-            assert env.consensus_threshold == expected_threshold
+    def test_max_program_length(self):
+        """Test max program length configuration."""
+        env = MockArcEnv(num_agents=4, max_program_length=50)
+        assert env.max_program_length == 50
 
-    def test_custom_consensus_threshold(self):
-        """Test custom consensus threshold."""
-        env = MockArcEnv(num_agents=4, consensus_threshold=3)
-        assert env.consensus_threshold == 3
+    def test_max_episode_steps(self):
+        """Test max episode steps configuration."""
+        env = MockArcEnv(num_agents=2, max_episode_steps=200)
+        assert env.max_episode_steps == 200
 
     def test_action_and_observation_spaces(self):
         """Test action and observation space creation."""
@@ -281,7 +278,7 @@ class TestArcMarlEnvBase:
     def test_name_property(self):
         """Test environment name property."""
         env = MockArcEnv(num_agents=2)
-        assert env.name == "ArcMarlEnv-Base"
+        assert env.name == "ArcMarlEnvBase"
 
     def test_agent_classes_property(self):
         """Test agent_classes property."""
@@ -290,54 +287,27 @@ class TestArcMarlEnvBase:
 
         assert len(agent_classes) == 3
         for agent in env.agents:
-            assert agent_classes[agent] == "ArcAgent"
+            assert agent_classes[agent] == "base_agent"
 
 
 class TestArcMarlEnvHelperMethods:
     """Test cases for helper methods in ArcMarlEnvBase."""
 
-    def test_advance_phase(self):
-        """Test phase advancement logic."""
+    def test_grid_similarity_calculation(self):
+        """Test grid similarity calculation."""
         env = MockArcEnv(num_agents=2)
-        task_data = env._create_mock_task_data()
-        state = env._create_mock_state(task_data)
 
-        # Test advancing from phase 0 to 1
-        new_state = env._advance_phase(state)
-        assert new_state.phase == 1
-        assert new_state.phase_step == 0
+        # Create identical grids
+        grid1 = jnp.array([[1, 2], [3, 4]])
+        grid2 = jnp.array([[1, 2], [3, 4]])
 
-        # Test wrapping from phase 3 to 0
-        state_phase_3 = state.replace(phase=jnp.array(3, dtype=jnp.int32))
-        wrapped_state = env._advance_phase(state_phase_3)
-        assert wrapped_state.phase == 0
-        assert wrapped_state.phase_step == 0
+        similarity = env._calculate_grid_similarity(grid1, grid2)
+        assert similarity == 1.0
 
-    def test_check_phase_completion(self):
-        """Test phase completion checking."""
-        env = MockArcEnv(num_agents=2, max_phase_steps=5)
-        task_data = env._create_mock_task_data()
-        state = env._create_mock_state(task_data)
-
-        # Not completed at start
-        assert not env._check_phase_completion(state)
-
-        # Completed when step limit reached
-        state_at_limit = state.replace(phase_step=jnp.array(5, dtype=jnp.int32))
-        assert env._check_phase_completion(state_at_limit)
-
-    def test_check_solution_correctness(self):
-        """Test solution correctness checking."""
-        env = MockArcEnv(num_agents=2)
-        task_data = env._create_mock_task_data()
-        state = env._create_mock_state(task_data)
-
-        # Initially incorrect (current_grid=0, target_grid=1)
-        assert not env._check_solution_correctness(state)
-
-        # Make them match
-        correct_state = state.replace(current_grid=state.target_grid)
-        assert env._check_solution_correctness(correct_state)
+        # Create partially matching grids
+        grid3 = jnp.array([[1, 2], [3, 5]])
+        similarity = env._calculate_grid_similarity(grid1, grid3)
+        assert similarity == 0.75  # 3 out of 4 pixels match
 
     def test_is_terminal(self):
         """Test terminal condition checking."""
@@ -348,47 +318,41 @@ class TestArcMarlEnvHelperMethods:
         # Not terminal initially
         assert not env._is_terminal(state)
 
-        # Terminal when solution is found
-        correct_state = state.replace(current_grid=state.target_grid)
-        assert env._is_terminal(correct_state)
-
         # Terminal when step limit reached
-        limit_state = state.replace(episode_step=jnp.array(10, dtype=jnp.int32))
+        limit_state = state.replace(step=10)
         assert env._is_terminal(limit_state)
+
+        # Terminal when explicitly done
+        done_state = state.replace(done=jnp.array(True, dtype=jnp.bool_))
+        assert env._is_terminal(done_state)
 
     def test_default_action_space(self):
         """Test default action space structure."""
-        env = MockArcEnv(num_agents=2, max_grid_size=(15, 20), max_hypotheses_per_agent=3)
+        env = MockArcEnv(num_agents=2, max_grid_size=(15, 20))
         action_space = env._get_default_action_space()
 
-        assert isinstance(action_space, DictSpace)
-        assert "action_type" in action_space.spaces
-        assert "grid_x" in action_space.spaces
-        assert "grid_y" in action_space.spaces
-        assert "color" in action_space.spaces
-        assert "hypothesis_id" in action_space.spaces
-        assert "vote" in action_space.spaces
+        from jaxmarl.environments.spaces import Box
 
-        # Check specific dimensions
-        assert action_space.spaces["grid_x"].n == 20  # width
-        assert action_space.spaces["grid_y"].n == 15  # height
-        assert action_space.spaces["hypothesis_id"].n == 3
+        assert isinstance(action_space, Box)
+
+        # Should have action_dim = 2 + max_action_params
+        expected_dim = 2 + env.max_action_params
+        assert action_space.shape == (expected_dim,)
+        assert action_space.dtype == jnp.int32
 
     def test_default_observation_space(self):
         """Test default observation space structure."""
-        env = MockArcEnv(num_agents=3, max_grid_size=(12, 8), hypothesis_dim=32)
+        env = MockArcEnv(num_agents=3, max_grid_size=(12, 8))
         obs_space = env._get_default_observation_space()
 
-        assert isinstance(obs_space, DictSpace)
-        assert "current_grid" in obs_space.spaces
-        assert "target_grid" in obs_space.spaces
-        assert "grid_mask" in obs_space.spaces
-        assert "phase" in obs_space.spaces
-        assert "agent_hypotheses" in obs_space.spaces
+        from jaxmarl.environments.spaces import Box
 
-        # Check specific shapes
-        assert obs_space.spaces["current_grid"].shape == (12, 8)
-        assert obs_space.spaces["agent_hypotheses"].shape == (3, env.max_hypotheses_per_agent, 32)
+        assert isinstance(obs_space, Box)
+        assert obs_space.dtype == jnp.float32
+
+        # Check that obs_space has positive dimensions
+        assert len(obs_space.shape) == 1
+        assert obs_space.shape[0] > 0
 
 
 class TestJaxCompatibility:
@@ -415,14 +379,9 @@ class TestJaxCompatibility:
         # Create mock actions
         actions = {}
         for agent in env.agents:
-            actions[agent] = {
-                "action_type": jnp.array(0, dtype=jnp.int32),
-                "grid_x": jnp.array(0, dtype=jnp.int32),
-                "grid_y": jnp.array(0, dtype=jnp.int32),
-                "color": jnp.array(1, dtype=jnp.int32),
-                "hypothesis_id": jnp.array(0, dtype=jnp.int32),
-                "vote": jnp.array(0, dtype=jnp.int32),
-            }
+            # Action: [category, type_id, ...params]
+            action_dim = 2 + env.max_action_params
+            actions[agent] = jnp.zeros(action_dim, dtype=jnp.int32)
 
         # Test JIT compilation of step
         jit_step = jax.jit(env.step_env)
@@ -438,16 +397,16 @@ class TestJaxCompatibility:
 
         # Create batch of states and extract batchable array fields
         batch_size = 4
-        episode_steps = []
+        steps = []
         cumulative_rewards = []
         for i in range(batch_size):
             state = env._create_mock_state(task_data)
-            state = state.replace(episode_step=jnp.array(i, dtype=jnp.int32))
-            episode_steps.append(state.episode_step)
+            state = state.replace(step=i)
+            steps.append(jnp.array(state.step, dtype=jnp.int32))
             cumulative_rewards.append(state.cumulative_rewards)
 
         # Stack the individual array fields
-        batched_episode_steps = jnp.stack(episode_steps)
+        batched_steps = jnp.stack(steps)
         batched_rewards = jnp.stack(cumulative_rewards)
 
         # Test vmap on individual array fields
@@ -460,7 +419,7 @@ class TestJaxCompatibility:
         vmap_increment = jax.vmap(increment_step)
         vmap_sum = jax.vmap(sum_rewards)
 
-        incremented_steps = vmap_increment(batched_episode_steps)
+        incremented_steps = vmap_increment(batched_steps)
         summed_rewards = vmap_sum(batched_rewards)
 
         expected_steps = jnp.array([1, 2, 3, 4])
@@ -481,7 +440,7 @@ class TestJaxCompatibility:
 
         # Test tree map
         def add_one_to_ints(x):
-            if hasattr(x, 'dtype') and jnp.issubdtype(x.dtype, jnp.integer):
+            if hasattr(x, "dtype") and jnp.issubdtype(x.dtype, jnp.integer):
                 return x + 1
             return x
 
@@ -500,7 +459,7 @@ class TestJaxCompatibility:
 
         # States should be equivalent (same random seed)
         def compare_arrays(x, y):
-            if hasattr(x, 'shape') and hasattr(y, 'shape'):
+            if hasattr(x, "shape") and hasattr(y, "shape"):
                 return jnp.array_equal(x, y)
             return x == y
 
@@ -541,7 +500,7 @@ class TestErrorHandling:
         # Test that validation would catch wrong types
         # (We can't actually create invalid states due to chex validation,
         # but we can verify the validation exists)
-        assert hasattr(valid_state, '__post_init__')
+        assert hasattr(valid_state, "__post_init__")
 
 
 if __name__ == "__main__":

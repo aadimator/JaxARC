@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from enum import IntEnum
 from typing import NewType
 
 import chex
@@ -292,3 +293,88 @@ class GridSelection:
 
         if self.metadata is not None:
             chex.assert_rank(self.metadata, 1)  # Should be 1D array
+
+
+# --- Primitive Environment Action System ---
+
+
+class PrimitiveType(IntEnum):
+    """Enumeration of primitive operations available in the environment."""
+
+    DRAW_PIXEL = 0
+    DRAW_LINE = 1
+    FLOOD_FILL = 2
+    COPY_PASTE_RECT = 3
+
+
+class ControlType(IntEnum):
+    """Enumeration of control actions available in the environment."""
+
+    SUBMIT = 0
+    RESET = 1
+    NO_OP = 2
+
+
+class ActionCategory(IntEnum):
+    """Enumeration of action categories."""
+
+    PRIMITIVE = 0
+    CONTROL = 1
+
+
+@chex.dataclass
+class Action:
+    """
+    Represents an action in the primitive environment.
+
+    Attributes:
+        category: Category of action (PRIMITIVE or CONTROL)
+        primitive_type: Type of primitive operation (if category is PRIMITIVE)
+        control_type: Type of control action (if category is CONTROL)
+        params: Parameters for the action (padded to max size)
+        agent_id: ID of the agent taking the action
+    """
+
+    category: jnp.ndarray  # int32 scalar
+    primitive_type: jnp.ndarray  # int32 scalar
+    control_type: jnp.ndarray  # int32 scalar
+    params: jnp.ndarray  # Shape: (max_action_params,)
+    agent_id: AgentID
+
+    def __post_init__(self) -> None:
+        """Validate action structure and types."""
+        chex.assert_type(self.category, jnp.int32)
+        chex.assert_shape(self.category, ())
+        chex.assert_type(self.primitive_type, jnp.int32)
+        chex.assert_shape(self.primitive_type, ())
+        chex.assert_type(self.control_type, jnp.int32)
+        chex.assert_shape(self.control_type, ())
+        chex.assert_rank(self.params, 1)  # Should be 1D array
+
+
+@chex.dataclass
+class AgentInternalState:
+    """
+    Internal state for a single agent in the primitive environment.
+
+    Attributes:
+        agent_id: ID of the agent
+        active: Whether the agent is currently active
+        program_buffer: Buffer storing the agent's current program
+        last_action: Last action taken by the agent
+    """
+
+    agent_id: AgentID
+    active: jnp.ndarray  # bool scalar
+    program_buffer: jnp.ndarray  # Shape: (max_program_length, max_action_params)
+    last_action: Action | None = None
+
+    def __post_init__(self) -> None:
+        """Validate agent internal state structure."""
+        chex.assert_type(self.active, jnp.bool_)
+        chex.assert_shape(self.active, ())
+        chex.assert_rank(self.program_buffer, 2)  # Should be 2D array
+
+
+# --- Configuration Management ---
+# Configuration is handled via Hydra - see conf/environment/primitive_env.yaml

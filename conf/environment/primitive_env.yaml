@@ -1,0 +1,68 @@
+# Environment Configuration for Primitive ARC Environment
+# This configuration contains environment-specific behavior settings
+
+# Episode and Agent Settings
+max_episode_steps: 500
+max_program_length: 100
+max_num_agents: 4
+max_invalid_actions: 5
+
+# Action Space Configuration
+primitive_types:
+  - DRAW_PIXEL # 0
+  - DRAW_LINE # 1
+  - FLOOD_FILL # 2
+  - COPY_PASTE_RECT # 3
+
+control_types:
+  - LOAD_TRAIN_PAIR # 0
+  - RESET_WORKING_GRID # 1
+  - SUBMIT_PROGRAM # 2
+
+# Reward Configuration
+reward:
+  # Primary rewards
+  progress_weight: 1.0
+  correctness_weight: 2.0
+
+  # Efficiency incentives
+  step_penalty: -0.01
+  efficiency_bonus: 0.1
+
+  # Final evaluation
+  success_bonus: 10.0
+  partial_credit: 0.5
+
+  # Collaboration (if multi-agent)
+  redundancy_penalty: -0.05
+  coordination_bonus: 0.1
+
+# Environment Behavior
+reset_on_done: true
+enable_early_stopping: true
+
+# Observation Configuration
+observation:
+  include_grid: true
+  include_task_examples: true
+  include_program_history: true
+  include_agent_states: false # Keep simple for primitive env
+
+  # Grid encoding
+  grid_channels: 1
+  normalize_colors: false
+
+  # History
+  max_history_length: 10
+
+# Logging and Debugging
+debug_mode: false
+log_actions: true
+log_rewards: true
+render_intermediate_grids: false
+
+# JAX Configuration
+jax:
+  enable_jit: true
+  enable_vmap: true
+  precision: "float32"

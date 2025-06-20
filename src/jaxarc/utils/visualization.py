@@ -1191,8 +1191,8 @@ def draw_parsed_task_data_svg(
         output_grid,
         input_mask,
         output_mask,
-        label,
-        is_test,
+        _label,
+        _is_test,
     ) in enumerate(examples):
         input_grid_data = _extract_grid_data(input_grid)
         input_mask_data = np.asarray(input_mask) if input_mask is not None else None
