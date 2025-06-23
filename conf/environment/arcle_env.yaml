@@ -1,0 +1,72 @@
+# Environment Configuration for ARCLE Environment
+# Based on ARCLE's proven design with JAX optimizations
+
+# Grid and Episode Settings
+max_grid_size: [30, 30]  # Default maximum grid dimensions [h, w]
+max_episode_steps: 100   # Maximum steps per episode
+dynamic_grid_loading: true  # Load actual grid sizes from dataset
+
+# Action Space Configuration
+mask_threshold: 0.5  # Threshold for converting continuous mask to boolean
+use_continuous_mask: true  # Use continuous mask for differentiable learning
+
+# Operation Configuration
+operations:
+  # Color operations (0-19)
+  fill_colors: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  flood_fill_colors: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+  # Object operations (20-27)
+  move_directions: ["up", "down", "left", "right"]
+  rotate_angles: [90, 270]
+  flip_axes: ["horizontal", "vertical"]
+
+  # Clipboard operations (28-30)
+  clipboard_enabled: true
+
+  # Grid operations (31-33)
+  grid_manipulation_enabled: true
+
+  # Submit operation (34)
+  submit_enabled: true
+
+# Reward Configuration
+reward:
+  reward_on_submit_only: true   # Only reward on submit operation
+  similarity_threshold: 0.95    # Threshold for considering a task solved
+  step_penalty: 0.0             # Penalty per step (0.0 for no penalty)
+  success_bonus: 1.0            # Bonus for successful completion
+
+# Observation Configuration
+observation:
+  include_selection_mask: true  # Include current selection in observation
+  include_clipboard: true       # Include clipboard state in observation
+  flatten_observation: true     # Flatten arrays for neural network input
+  normalize_grids: true         # Normalize grid values to [0, 1]
+
+# Performance Optimization
+performance:
+  jit_compile: true             # Enable JAX JIT compilation
+  vectorize_envs: true          # Enable environment vectorization
+  batch_size: 1000              # Default batch size for vectorization
+  use_static_shapes: true       # Use static shapes for JAX optimization
+  fixed_iterations: 64          # Fixed iterations for flood fill (JAX compatibility)
+
+# Flood Fill Settings
+flood_fill:
+  max_iterations: 64            # Maximum iterations for flood fill
+  connectivity: 4               # 4-connected or 8-connected (4 or 8)
+
+# Logging and Debugging
+debug:
+  log_operations: true          # Log operations for debugging
+  visualize_selections: true    # Visualize selection masks in rendering
+  check_op_validity: true       # Check operation validity before execution
+  print_similarity_score: true  # Print similarity score after operations
+
+# Dataset Configuration
+dataset:
+  use_fixed_seed: false         # Use fixed seed for reproducibility
+  seed: 42                      # Fixed seed value if enabled
+  preload_tasks: false          # Preload all tasks into memory
+  cache_processed_tasks: true   # Cache processed tasks for faster loading

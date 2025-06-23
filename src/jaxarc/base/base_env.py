@@ -286,7 +286,7 @@ class ArcMarlEnvBase(MultiAgentEnv, ABC):
             true_test_output_grids=output_grid[:1],
             true_test_output_masks=jnp.ones((1, grid_h, grid_w), dtype=jnp.bool_),
             num_test_pairs=1,
-            task_id=None,
+            task_index=jnp.array(0, dtype=jnp.int32),
         )
 
     @property

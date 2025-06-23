@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - dataset: arc_agi_2 # Which dataset to use
-  - environment: primitive_env # Which environment to use
+  - environment: arcle_env # Which environment to use
 
 paths:
   data_raw: "data/raw"

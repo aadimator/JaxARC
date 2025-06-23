@@ -13,6 +13,7 @@ from pyprojroot import here
 
 from jaxarc.base import ArcDataParserBase
 from jaxarc.types import ParsedTaskData
+from jaxarc.utils.task_manager import create_jax_task_index
 
 from .utils import convert_grid_to_jax, log_parsing_stats, pad_array_sequence
 
@@ -271,7 +272,7 @@ class ArcAgiParser(ArcDataParserBase):
             len(train_pairs_data), len(test_pairs_data), max_dims, task_id
         )
 
-        # Create ParsedTaskData structure
+        # Create ParsedTaskData structure with JAX-compatible task index
         return ParsedTaskData(
             input_grids_examples=padded_train_inputs,
             input_masks_examples=train_input_masks,
@@ -283,7 +284,7 @@ class ArcAgiParser(ArcDataParserBase):
             true_test_output_grids=padded_test_outputs,
             true_test_output_masks=test_output_masks,
             num_test_pairs=len(test_pairs_data),
-            task_id=task_id,
+            task_index=create_jax_task_index(task_id),
         )
 
     def get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData:
