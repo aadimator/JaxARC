@@ -13,12 +13,11 @@ from typing import Any
 import chex
 import jax
 import jax.numpy as jnp
-from jaxmarl.environments.spaces import Box, Discrete
+from jaxmarl.environments.spaces import Box
 
-from ..base.base_env import ArcMarlEnvBase, ArcEnvState
+from ..base.base_env import ArcEnvState, ArcMarlEnvBase
 from ..types import (
     ActionCategory,
-    AgentID,
     ControlType,
     ParsedTaskData,
     PrimitiveType,
@@ -99,8 +98,8 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
             dtype=jnp.float32,
         )
 
-        self.action_spaces = {agent: action_space for agent in self.agents}
-        self.observation_spaces = {agent: obs_space for agent in self.agents}
+        self.action_spaces = dict.fromkeys(self.agents, action_space)
+        self.observation_spaces = dict.fromkeys(self.agents, obs_space)
 
     def reset(self, key: chex.PRNGKey) -> tuple[dict[str, chex.Array], ArcEnvState]:
         """
@@ -132,10 +131,10 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
         actions: dict[str, chex.Array],
     ) -> tuple[
         dict[str, chex.Array],  # observations
-        ArcEnvState,   # next_state
-        dict[str, float],       # rewards
-        dict[str, bool],        # dones
-        dict[str, Any],         # info
+        ArcEnvState,  # next_state
+        dict[str, float],  # rewards
+        dict[str, bool],  # dones
+        dict[str, Any],  # info
     ]:
         """
         Execute one environment step.
@@ -158,7 +157,7 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
 
         # Check if episode is done
         done = self._is_terminal(next_state)
-        dones = {agent: done for agent in self.agents}
+        dones = dict.fromkeys(self.agents, done)
         dones["__all__"] = done
 
         # Get observations for next state
@@ -184,25 +183,36 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
         working_mask_flat = state.working_grid_mask.flatten().astype(jnp.float32)
 
         # Get current target from task data (first training pair output)
-        target_grid_flat = state.task_data.output_grids_examples[state.active_train_pair_idx].flatten()
+        target_grid_flat = state.task_data.output_grids_examples[
+            state.active_train_pair_idx
+        ].flatten()
 
         # Task examples (first 2 training pairs, simplified)
-        task_examples = jnp.concatenate([
-            state.task_data.input_grids_examples[:2].flatten(),
-            state.task_data.output_grids_examples[:2].flatten()
-        ])
+        task_examples = jnp.concatenate(
+            [
+                state.task_data.input_grids_examples[:2].flatten(),
+                state.task_data.output_grids_examples[:2].flatten(),
+            ]
+        )
 
         # Program history
         program_flat = state.program.flatten()
 
         # Misc state info
-        misc_info = jnp.array([
-            jnp.float32(state.step),
-            state.active_train_pair_idx.astype(jnp.float32),
-            state.program_length.astype(jnp.float32),
-            jnp.sum(state.active_agents).astype(jnp.float32),
-            0.0, 0.0, 0.0, 0.0, 0.0, 0.0  # padding
-        ])
+        misc_info = jnp.array(
+            [
+                jnp.float32(state.step),
+                state.active_train_pair_idx.astype(jnp.float32),
+                state.program_length.astype(jnp.float32),
+                jnp.sum(state.active_agents).astype(jnp.float32),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,  # padding
+            ]
+        )
 
         # Combine all observation components
         obs_components = [
@@ -223,7 +233,7 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
         else:
             obs = obs[:expected_size]
 
-        return {agent: obs for agent in self.agents}
+        return dict.fromkeys(self.agents, obs)
 
     def _create_dummy_task_data(self, key: chex.PRNGKey) -> ParsedTaskData:
         """Create dummy task data for testing (placeholder implementation)."""
@@ -231,7 +241,9 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
 
         # Create dummy grids with different seeds so input != output
         key1, key2 = jax.random.split(key)
-        input_grid = jax.random.randint(key1, (2, grid_h, grid_w), 0, 10)  # 2 training pairs
+        input_grid = jax.random.randint(
+            key1, (2, grid_h, grid_w), 0, 10
+        )  # 2 training pairs
         output_grid = jax.random.randint(key2, (2, grid_h, grid_w), 0, 10)
 
         return ParsedTaskData(
@@ -245,7 +257,7 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
             true_test_output_grids=output_grid[:1],
             true_test_output_masks=jnp.ones((1, grid_h, grid_w), dtype=jnp.bool_),
             num_test_pairs=1,
-            task_id=None,
+            task_index=jnp.array(0, dtype=jnp.int32),
         )
 
     def _initialize_state(
@@ -257,7 +269,9 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
         working_grid_mask = task_data.input_masks_examples[0]
 
         # Initialize program
-        program = jnp.zeros((self.max_program_length, self.max_action_params), dtype=jnp.int32)
+        program = jnp.zeros(
+            (self.max_program_length, self.max_action_params), dtype=jnp.int32
+        )
 
         # Initialize agent states
         active_agents = jnp.ones(self.num_agents, dtype=jnp.bool_)
@@ -328,8 +342,8 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
             lambda: jax.lax.cond(
                 category == ActionCategory.CONTROL,
                 lambda: self._process_control_action(key, state, control_type, params),
-                lambda: state  # Invalid action - return state unchanged
-            )
+                lambda: state,  # Invalid action - return state unchanged
+            ),
         )
 
     def _process_primitive_action(
@@ -345,24 +359,26 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
 
         # Add action to program if there's space
         new_program_length = jnp.minimum(
-            state.program_length + 1,
-            self.max_program_length
+            state.program_length + 1, self.max_program_length
         )
 
         # Create program entry
-        program_entry = jnp.concatenate([
-            jnp.array([ActionCategory.PRIMITIVE, primitive_type, 0], dtype=jnp.int32),
-            params[:self.max_action_params-3].astype(jnp.int32)
-        ])
+        program_entry = jnp.concatenate(
+            [
+                jnp.array(
+                    [ActionCategory.PRIMITIVE, primitive_type, 0], dtype=jnp.int32
+                ),
+                params[: self.max_action_params - 3].astype(jnp.int32),
+            ]
+        )
 
         # Pad to full size
         if program_entry.shape[0] < self.max_action_params:
             program_entry = jnp.pad(
-                program_entry,
-                (0, self.max_action_params - program_entry.shape[0])
+                program_entry, (0, self.max_action_params - program_entry.shape[0])
             )
         else:
-            program_entry = program_entry[:self.max_action_params]
+            program_entry = program_entry[: self.max_action_params]
 
         # Update program
         new_program = state.program.at[state.program_length].set(program_entry)
@@ -383,16 +399,20 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
         return jax.lax.cond(
             control_type == ControlType.RESET,
             lambda: state.replace(
-                working_grid=state.task_data.input_grids_examples[state.active_train_pair_idx],
-                working_grid_mask=state.task_data.input_masks_examples[state.active_train_pair_idx],
+                working_grid=state.task_data.input_grids_examples[
+                    state.active_train_pair_idx
+                ],
+                working_grid_mask=state.task_data.input_masks_examples[
+                    state.active_train_pair_idx
+                ],
                 program=jnp.zeros_like(state.program),
                 program_length=jnp.array(0, dtype=jnp.int32),
             ),
             lambda: jax.lax.cond(
                 control_type == ControlType.SUBMIT,
                 lambda: state.replace(done=jnp.array(True)),
-                lambda: state  # Unknown control action
-            )
+                lambda: state,  # Unknown control action
+            ),
         )
 
     def _calculate_rewards(
@@ -415,12 +435,20 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
             Dictionary of rewards for each agent
         """
         # Get current target
-        target_grid = next_state.task_data.output_grids_examples[next_state.active_train_pair_idx]
+        target_grid = next_state.task_data.output_grids_examples[
+            next_state.active_train_pair_idx
+        ]
 
         # Calculate progress reward
-        prev_similarity = self._calculate_grid_similarity(prev_state.working_grid, target_grid)
-        new_similarity = self._calculate_grid_similarity(next_state.working_grid, target_grid)
-        progress_reward = (new_similarity - prev_similarity) * self.config.get("reward", {}).get("progress_weight", 1.0)
+        prev_similarity = self._calculate_grid_similarity(
+            prev_state.working_grid, target_grid
+        )
+        new_similarity = self._calculate_grid_similarity(
+            next_state.working_grid, target_grid
+        )
+        progress_reward = (new_similarity - prev_similarity) * self.config.get(
+            "reward", {}
+        ).get("progress_weight", 1.0)
 
         # Step penalty
         step_penalty = self.config.get("reward", {}).get("step_penalty", -0.01)
@@ -429,12 +457,12 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
         success_bonus = jax.lax.cond(
             next_state.done & (new_similarity > 0.95),  # Nearly perfect
             lambda: self.config.get("reward", {}).get("success_bonus", 10.0),
-            lambda: 0.0
+            lambda: 0.0,
         )
 
         total_reward = progress_reward + step_penalty + success_bonus
 
-        return {agent: total_reward for agent in self.agents}
+        return dict.fromkeys(self.agents, total_reward)
 
     def _calculate_grid_similarity(self, grid1: chex.Array, grid2: chex.Array) -> float:
         """Calculate similarity between two grids."""
@@ -460,13 +488,17 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
         rewards: dict[str, float],
     ) -> dict[str, Any]:
         """Compile info dictionary for debugging and analysis."""
-        target_grid = next_state.task_data.output_grids_examples[next_state.active_train_pair_idx]
+        target_grid = next_state.task_data.output_grids_examples[
+            next_state.active_train_pair_idx
+        ]
 
         return {
             "step": next_state.step,
             "active_train_pair": next_state.active_train_pair_idx,
             "program_length": next_state.program_length,
-            "grid_similarity": self._calculate_grid_similarity(next_state.working_grid, target_grid),
+            "grid_similarity": self._calculate_grid_similarity(
+                next_state.working_grid, target_grid
+            ),
             "active_agents": jnp.sum(next_state.active_agents),
             "episode_done": self._is_terminal(next_state),
         }
@@ -479,10 +511,11 @@ class MultiAgentPrimitiveArcEnv(ArcMarlEnvBase):
     @property
     def agent_classes(self) -> dict[str, str]:
         """Agent class mapping."""
-        return {agent: "primitive_agent" for agent in self.agents}
+        return dict.fromkeys(self.agents, "primitive_agent")
 
 
 # --- JAX Optimization Patterns ---
+
 
 @jax.jit
 def batched_env_step(
@@ -490,7 +523,9 @@ def batched_env_step(
     states: ArcEnvState,
     actions: dict[str, chex.Array],
     env: MultiAgentPrimitiveArcEnv,
-) -> tuple[dict[str, chex.Array], ArcEnvState, dict[str, chex.Array], dict[str, chex.Array]]:
+) -> tuple[
+    dict[str, chex.Array], ArcEnvState, dict[str, chex.Array], dict[str, chex.Array]
+]:
     """Batched environment step for parallel execution."""
     # Use vmap to vectorize over batch dimension
     return jax.vmap(env.step_env)(keys, states, actions)
@@ -514,6 +549,7 @@ def memory_efficient_primitive_application(
 
 def batch_grid_similarity(grids1: chex.Array, grids2: chex.Array) -> chex.Array:
     """Calculate similarity between batches of grids."""
+
     def single_similarity(grid1: chex.Array, grid2: chex.Array) -> float:
         matches = jnp.sum(grid1 == grid2)
         total_pixels = grid1.size
@@ -523,6 +559,7 @@ def batch_grid_similarity(grids1: chex.Array, grids2: chex.Array) -> chex.Array:
 
 
 # --- Configuration Loading ---
+
 
 def load_config(config_path: str | None = None) -> dict:
     """Load environment configuration from Hydra config."""
@@ -538,8 +575,7 @@ def load_config(config_path: str | None = None) -> dict:
                 "progress_weight": 1.0,
                 "step_penalty": -0.01,
                 "success_bonus": 10.0,
-            }
+            },
         }
-    else:
-        # TODO: Implement actual Hydra config loading
-        raise NotImplementedError("Config loading from file not yet implemented")
+    # TODO: Implement actual Hydra config loading
+    raise NotImplementedError("Config loading from file not yet implemented")

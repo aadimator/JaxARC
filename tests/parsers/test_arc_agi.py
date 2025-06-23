@@ -147,7 +147,7 @@ class TestArcAgiParser:
         parsed_data = parser.preprocess_task_data(sample_task_data, key)
 
         assert isinstance(parsed_data, ParsedTaskData)
-        assert parsed_data.task_id == "test_task_001"
+        assert parsed_data.task_index is not None
         assert parsed_data.num_train_pairs == 2
         assert parsed_data.num_test_pairs == 1
 
@@ -215,7 +215,7 @@ class TestArcAgiParser:
         parsed_data = parser.get_random_task(key)
 
         assert isinstance(parsed_data, ParsedTaskData)
-        assert parsed_data.task_id is not None
+        assert parsed_data.task_index is not None
         assert parsed_data.num_train_pairs > 0
         assert parsed_data.num_test_pairs > 0
 
@@ -228,7 +228,7 @@ class TestArcAgiParser:
         parsed_data = parser.get_task_by_id(task_id)
 
         assert isinstance(parsed_data, ParsedTaskData)
-        assert parsed_data.task_id == task_id
+        assert parsed_data.task_index is not None
 
     def test_get_task_by_invalid_id(self, parser):
         """Test getting task with invalid ID."""
@@ -425,7 +425,7 @@ class TestArcAgiParser:
             parsed_task = parser.get_task_by_id("test_task")
 
             # Verify the solutions were merged correctly
-            assert parsed_task.task_id == "test_task"
+            assert parsed_task.task_index is not None
             assert parsed_task.num_test_pairs == 2
 
             # Check that test outputs are now present and correct

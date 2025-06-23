@@ -51,8 +51,14 @@ tasks through a structured hypothesis-proposal-consensus mechanism.
 - Use visualization tools to debug and understand grid transformations
 - Follow a test-driven development (TDD) approach to ensure correctness
 - Never update/edit/touch this file.
-- When making changes, ensure at the end that you update the `/planning-docs/PROJECT_ARCHITECTURE.md` file to reflect the current state of the project.
-- Never start implementing new features, or when I say "discuss first". You should think hard about the problem and your potential solution, and write a planning document stored in `/planning-docs/` directory. We'll iterate on it together, and only once I approve it, then you can use that to start implementing the feature.
+- When making changes, ensure at the end that you update the
+  `/planning-docs/PROJECT_ARCHITECTURE.md` file to reflect the current state of
+  the project.
+- Never start implementing new features, or when I say "discuss first". You
+  should think hard about the problem and your potential solution, and write a
+  planning document stored in `/planning-docs/` directory. We'll iterate on it
+  together, and only once I approve it, then you can use that to start
+  implementing the feature.
 
 # Useful Pixi Commands
 

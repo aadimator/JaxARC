@@ -7,14 +7,13 @@ functionality to ensure proper JAX compatibility and multi-agent behavior.
 
 from __future__ import annotations
 
+import chex
 import jax
 import jax.numpy as jnp
 import pytest
-import chex
-from typing import Dict
 
-from jaxarc.envs.primitive_env import MultiAgentPrimitiveArcEnv
 from jaxarc.base.base_env import ArcEnvState
+from jaxarc.envs.primitive_env import MultiAgentPrimitiveArcEnv
 
 
 class TestMultiAgentPrimitiveArcEnv:
@@ -33,7 +32,7 @@ class TestMultiAgentPrimitiveArcEnv:
                 "progress_weight": 1.0,
                 "step_penalty": -0.01,
                 "success_bonus": 5.0,
-            }
+            },
         }
 
     @pytest.fixture
@@ -61,8 +60,8 @@ class TestMultiAgentPrimitiveArcEnv:
         assert len(env.action_spaces) == env.num_agents
 
         for agent_id, action_space in env.action_spaces.items():
-            assert hasattr(action_space, 'shape')
-            assert hasattr(action_space, 'dtype')
+            assert hasattr(action_space, "shape")
+            assert hasattr(action_space, "dtype")
             assert action_space.dtype == jnp.int32
             # Action space should be [category, primitive_type, control_type, ...params]
             expected_dim = 3 + env.max_action_params
@@ -73,12 +72,14 @@ class TestMultiAgentPrimitiveArcEnv:
         assert len(env.observation_spaces) == env.num_agents
 
         for agent_id, obs_space in env.observation_spaces.items():
-            assert hasattr(obs_space, 'shape')
-            assert hasattr(obs_space, 'dtype')
+            assert hasattr(obs_space, "shape")
+            assert hasattr(obs_space, "dtype")
             assert obs_space.dtype == jnp.float32
             assert len(obs_space.shape) == 1  # Flattened observation
 
-    def test_reset_functionality(self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey):
+    def test_reset_functionality(
+        self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey
+    ):
         """Test environment reset functionality."""
         observations, state = env.reset(prng_key)
 
@@ -100,7 +101,9 @@ class TestMultiAgentPrimitiveArcEnv:
         assert state.step == 0
         assert not state.done
 
-    def test_step_functionality(self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey):
+    def test_step_functionality(
+        self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey
+    ):
         """Test environment step functionality."""
         # Reset environment first
         key1, key2 = jax.random.split(prng_key)
@@ -130,13 +133,17 @@ class TestMultiAgentPrimitiveArcEnv:
         for agent_id in env.agents:
             assert agent_id in rewards
             # Rewards can be JAX arrays or Python floats
-            assert hasattr(rewards[agent_id], 'dtype') or isinstance(rewards[agent_id], float)
+            assert hasattr(rewards[agent_id], "dtype") or isinstance(
+                rewards[agent_id], float
+            )
 
         # Check dones structure
         assert len(dones) == env.num_agents + 1  # +1 for "__all__"
         assert "__all__" in dones
 
-    def test_jax_compatibility(self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey):
+    def test_jax_compatibility(
+        self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey
+    ):
         """Test that environment functions work with JAX transformations."""
         # Test that reset can be JIT compiled
         jitted_reset = jax.jit(env.reset)
@@ -180,7 +187,9 @@ class TestMultiAgentPrimitiveArcEnv:
         expected = 24.0 / 25.0  # 24 matching pixels out of 25
         assert abs(similarity - expected) < 1e-6
 
-    def test_terminal_conditions(self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey):
+    def test_terminal_conditions(
+        self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey
+    ):
         """Test terminal condition checking."""
         observations, state = env.reset(prng_key)
 
@@ -191,7 +200,9 @@ class TestMultiAgentPrimitiveArcEnv:
         max_steps_state = state.replace(step=env.max_episode_steps)
         assert env._is_terminal(max_steps_state)
 
-    def test_reward_calculation(self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey):
+    def test_reward_calculation(
+        self, env: MultiAgentPrimitiveArcEnv, prng_key: chex.PRNGKey
+    ):
         """Test reward calculation."""
         key1, key2 = jax.random.split(prng_key)
         observations, state = env.reset(key1)
@@ -212,9 +223,15 @@ class TestMultiAgentPrimitiveArcEnv:
         for agent_id in env.agents:
             assert agent_id in rewards
             # Rewards can be JAX arrays or Python floats
-            assert hasattr(rewards[agent_id], 'dtype') or isinstance(rewards[agent_id], float)
+            assert hasattr(rewards[agent_id], "dtype") or isinstance(
+                rewards[agent_id], float
+            )
             # Should include step penalty at minimum
-            reward_val = float(rewards[agent_id]) if hasattr(rewards[agent_id], 'dtype') else rewards[agent_id]
+            reward_val = (
+                float(rewards[agent_id])
+                if hasattr(rewards[agent_id], "dtype")
+                else rewards[agent_id]
+            )
             assert reward_val <= 1.0  # Should be reasonable (including progress reward)
 
 

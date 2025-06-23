@@ -151,7 +151,7 @@ class MockArcEnv(ArcMarlEnvBase):
                 (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
             ),
             num_test_pairs=1,
-            task_id=None,
+            task_index=jnp.array(0, dtype=jnp.int32),
         )
 
     def _create_mock_state(self, task_data: ParsedTaskData) -> ArcEnvState:

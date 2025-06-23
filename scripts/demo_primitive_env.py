@@ -30,7 +30,7 @@ def demo_basic_functionality():
             "progress_weight": 1.0,
             "step_penalty": -0.01,
             "success_bonus": 10.0,
-        }
+        },
     }
 
     # Initialize environment
@@ -155,7 +155,9 @@ def demo_jax_compatibility(env: MultiAgentPrimitiveArcEnv):
     target_grid = state.task_data.output_grids_examples[state.active_train_pair_idx]
     batched_targets = jnp.stack([target_grid] * batch_size)
 
-    similarities = jax.vmap(env._calculate_grid_similarity)(batched_grids, batched_targets)
+    similarities = jax.vmap(env._calculate_grid_similarity)(
+        batched_grids, batched_targets
+    )
     logger.info(f"✅ Vectorized similarity calculation: {similarities}")
 
 
@@ -163,7 +165,7 @@ def demo_action_types():
     """Demonstrate different action types and their usage."""
     logger.info("\n🎮 Action Types Demo")
 
-    from src.jaxarc.types import PrimitiveType, ControlType, ActionCategory
+    from src.jaxarc.types import ActionCategory, ControlType, PrimitiveType
 
     logger.info("Available primitive types:")
     for prim_type in PrimitiveType:
@@ -179,7 +181,9 @@ def demo_action_types():
 
     # Example action construction
     logger.info("\n📝 Example action format:")
-    logger.info("Action array: [category, primitive_type, control_type, param1, param2, ...]")
+    logger.info(
+        "Action array: [category, primitive_type, control_type, param1, param2, ...]"
+    )
     logger.info("- Draw pixel at (5,3) with color 2:")
     logger.info("  [PRIMITIVE, DRAW_PIXEL, 0, 5, 3, 2, 0, ...]")
     logger.info("- Submit solution:")
