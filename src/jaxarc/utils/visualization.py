@@ -26,67 +26,25 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from jaxarc.utils.task_manager import extract_task_id_from_index
+
 if TYPE_CHECKING:
     from jaxarc.types import Grid, ParsedTaskData
 
 # ARC color palette - matches the provided color map
-ARC_COLOR_PALETTE: list[str] = [
-    "#252525",  # 0: black
-    "#0074D9",  # 1: blue
-    "#FF4136",  # 2: red
-    "#37D449",  # 3: green
-    "#FFDC00",  # 4: yellow
-    "#E6E6E6",  # 5: grey
-    "#F012BE",  # 6: pink
-    "#FF871E",  # 7: orange
-    "#54D2EB",  # 8: light blue
-    "#8D1D2C",  # 9: brown
-    "#FFFFFF",  # 10: white (for padding/invalid)
-]
-
-# Rich color mapping for terminal display
-# Using Rich's color names that are closest to the ARC palette
-RICH_COLOR_MAP: dict[int, str] = {
-    0: "#252525",
-    1: "#0074D9",
-    2: "#FF4136",
-    3: "#37D449",
-    4: "#FFDC00",
-    5: "#E6E6E6",  # grey -> white for better visibility
-    6: "#F012BE",  # pink -> magenta
-    7: "#FF871E",  # orange -> bright_yellow
-    8: "#54D2EB",  # light blue -> cyan
-    9: "#8D1D2C",  # brown -> red3
-    -1: "#FFFFFF",  # padding/invalid cells
+ARC_COLOR_PALETTE: dict[int, str] = {
+    0: "#252525",  # 0: black
+    1: "#0074D9",  # 1: blue
+    2: "#FF4136",  # 2: red
+    3: "#37D449",  # 3: green
+    4: "#FFDC00",  # 4: yellow
+    5: "#E6E6E6",  # 5: grey
+    6: "#F012BE",  # 6: pink
+    7: "#FF871E",  # 7: orange
+    8: "#54D2EB",  # 8: light blue
+    9: "#8D1D2C",  # 9: brown
+    10: "#FFFFFF",  # 10: white (for padding/invalid)
 }
-# RICH_COLOR_MAP: dict[int, str] = {
-#     0: "black",
-#     1: "blue",
-#     2: "red",
-#     3: "green",
-#     4: "yellow",
-#     5: "white",  # grey -> white for better visibility
-#     6: "magenta",  # pink -> magenta
-#     7: "bright_yellow",  # orange -> bright_yellow
-#     8: "cyan",  # light blue -> cyan
-#     9: "red3",  # brown -> red3
-#     -1: "grey23",  # padding/invalid cells
-# }
-
-# RICH_COLOR_MAP = {
-#     0: "black",
-#     1: "blue",
-#     2: "red",
-#     3: "green",
-#     4: "yellow",
-#     5: "white",  # grey -> white for better visibility
-#     6: "magenta",  # pink -> magenta
-#     7: "bright_yellow",  # orange -> bright_yellow
-#     8: "cyan",  # light blue -> cyan
-#     9: "red3",  # brown -> red3
-#     -1: "grey23",  # padding/invalid cells
-# }
-
 
 def _extract_grid_data(grid_input: jnp.ndarray | np.ndarray | Grid) -> np.ndarray:
     """Extract numpy array from various grid input types.
@@ -259,15 +217,15 @@ def visualize_grid_rich(
                     row_items.append(f"[grey23]{placeholder}[/]")
             elif show_numbers:
                 # Show colored numbers
-                rich_color = RICH_COLOR_MAP.get(color_val, "white")
+                rich_color = ARC_COLOR_PALETTE.get(color_val, "white")
                 row_items.append(f"[{rich_color}]{color_val}[/]")
             elif double_width:
                 # Use double-width blocks for more square appearance
-                rich_color = RICH_COLOR_MAP.get(color_val, "white")
+                rich_color = ARC_COLOR_PALETTE.get(color_val, "white")
                 row_items.append(f"[{rich_color}]██[/]")
             else:
                 # Use single block character
-                rich_color = RICH_COLOR_MAP.get(color_val, "white")
+                rich_color = ARC_COLOR_PALETTE.get(color_val, "white")
                 row_items.append(f"[{rich_color}]█[/]")
 
         table.add_row(*row_items)
@@ -421,8 +379,8 @@ def draw_grid_svg(
                 if actual_row < mask.shape[0] and actual_col < mask.shape[1]:
                     is_valid = mask[actual_row, actual_col]
 
-            if is_valid and 0 <= color_val < len(ARC_COLOR_PALETTE):
-                fill_color = ARC_COLOR_PALETTE[color_val]
+            if is_valid and 0 <= color_val < len(ARC_COLOR_PALETTE.keys()):
+                fill_color = ARC_COLOR_PALETTE.get(color_val, "white")
             else:
                 fill_color = "#CCCCCC"  # Light gray for invalid/unknown colors
 
@@ -777,7 +735,7 @@ def draw_task_pair_svg(
 
     # Create final drawing
     drawing = drawsvg.Drawing(
-        final_drawing_width, final_drawing_height + 0.2, origin=(0, 0)
+        final_drawing_width, final_drawing_height + 0.3, origin=(0, 0)
     )
     drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
 
@@ -817,7 +775,8 @@ def visualize_parsed_task_data_rich(
     terminal_width = console.size.width
 
     # Enhanced task header with Panel
-    task_title = f"Task: {task_data.task_id or 'Unknown'}"
+    task_id = extract_task_id_from_index(task_data.task_index)
+    task_title = f"Task: {task_id}"
 
     # Create properly styled text for task info
     task_info = Text(justify="center")
@@ -1132,7 +1091,7 @@ def draw_parsed_task_data_svg(
         drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
         drawing.append(
             drawsvg.Text(
-                f"Task {task_data.task_id or 'Unknown'} (No examples)",
+                f"Task {extract_task_id_from_index(task_data.task_index)} (No examples)",
                 x=width / 2,
                 y=height / 2,
                 font_size=0.5,
@@ -1499,7 +1458,7 @@ def draw_parsed_task_data_svg(
 
     # Create final drawing with calculated dimensions
     drawing = drawsvg.Drawing(
-        final_drawing_width, final_drawing_height + 0.2, origin=(0, 0)
+        final_drawing_width, final_drawing_height + 0.3, origin=(0, 0)
     )
     drawing.append(drawsvg.Rectangle(0, 0, "100%", "100%", fill="#eeeff6"))
 
@@ -1544,12 +1503,12 @@ def draw_parsed_task_data_svg(
 
     # Add title
     font_size = 0.3
-    title_text = f"Task {task_data.task_id or 'Unknown'}"
+    title_text = f"Task: {extract_task_id_from_index(task_data.task_index)}"
     drawing.append(
         drawsvg.Text(
             title_text,
             x=final_drawing_width - 0.1,
-            y=final_drawing_height + 0.1,
+            y=final_drawing_height + 0.2,
             font_size=font_size,
             font_family="Anuphan",
             font_weight="600",

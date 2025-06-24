@@ -6,15 +6,18 @@ This script tests the core functionality of the ARCLE environment to ensure
 it works correctly despite any type checking issues.
 """
 
-import sys
+from __future__ import annotations
+
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import jax
 import jax.numpy as jnp
-import numpy as np
+
 from jaxarc.envs.arcle_env import ARCLEEnvironment
-from jaxarc.types import ParsedTaskData, ARCLEState
+from jaxarc.types import ParsedTaskData
 from jaxarc.utils.task_manager import create_jax_task_index
 
 
@@ -42,7 +45,7 @@ def create_dummy_task_data(grid_size=(10, 10)):
         true_test_output_grids=output_grid,
         true_test_output_masks=masks,
         num_test_pairs=1,
-        task_index=create_jax_task_index("test_task_001")
+        task_index=create_jax_task_index("test_task_001"),
     )
 
 
@@ -52,9 +55,7 @@ def test_environment_creation():
 
     try:
         env = ARCLEEnvironment(
-            num_agents=1,
-            max_grid_size=(10, 10),
-            max_episode_steps=50
+            num_agents=1, max_grid_size=(10, 10), max_episode_steps=50
         )
         print("✅ Environment created successfully")
         print(f"   - Name: {env.name}")
@@ -92,6 +93,7 @@ def test_environment_reset(env):
     except Exception as e:
         print(f"❌ Environment reset failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -112,13 +114,15 @@ def test_environment_step(env, initial_obs, initial_state):
         selection = selection.at[2:4, 2:4].set(1.0)  # Select where the square is
 
         action = {
-            'selection': selection,
-            'operation': jnp.array(2, dtype=jnp.int32)  # Fill with color 2
+            "selection": selection,
+            "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
         }
         actions = {agent_id: action}
 
         # Take a step
-        obs, new_state, rewards, dones, infos = env.step_env(key, initial_state, actions)
+        obs, new_state, rewards, dones, infos = env.step_env(
+            key, initial_state, actions
+        )
 
         print("✅ Environment step successful")
         print(f"   - New step: {new_state.step}")
@@ -136,6 +140,7 @@ def test_environment_step(env, initial_obs, initial_state):
     except Exception as e:
         print(f"❌ Environment step failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -162,16 +167,20 @@ def test_multiple_steps(env):
             selection = (selection > 0.8).astype(jnp.float32)  # Sparse selection
 
             action = {
-                'selection': selection,
-                'operation': jnp.array(step_num % 3, dtype=jnp.int32)  # Cycle through operations
+                "selection": selection,
+                "operation": jnp.array(
+                    step_num % 3, dtype=jnp.int32
+                ),  # Cycle through operations
             }
             actions = {agent_id: action}
 
             obs, state, rewards, dones, infos = env.step_env(step_key, state, actions)
 
-            print(f"   Step {step_num + 1}: reward={rewards[agent_id]:.3f}, "
-                  f"similarity={float(state.similarity_score):.3f}, "
-                  f"done={dones[agent_id]}")
+            print(
+                f"   Step {step_num + 1}: reward={rewards[agent_id]:.3f}, "
+                f"similarity={float(state.similarity_score):.3f}, "
+                f"done={dones[agent_id]}"
+            )
 
             if dones[agent_id]:
                 print("   Episode terminated early")
@@ -182,6 +191,7 @@ def test_multiple_steps(env):
     except Exception as e:
         print(f"❌ Multiple steps test failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -202,8 +212,8 @@ def test_submit_action(env):
         # Create submit action
         selection = jnp.zeros((h, w), dtype=jnp.float32)  # Empty selection for submit
         action = {
-            'selection': selection,
-            'operation': jnp.array(34, dtype=jnp.int32)  # Submit operation
+            "selection": selection,
+            "operation": jnp.array(34, dtype=jnp.int32),  # Submit operation
         }
         actions = {agent_id: action}
 
@@ -217,6 +227,7 @@ def test_submit_action(env):
     except Exception as e:
         print(f"❌ Submit action test failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 

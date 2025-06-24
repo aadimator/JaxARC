@@ -6,10 +6,9 @@ import jax.numpy as jnp
 import pytest
 
 from jaxarc.types import (
-    AgentAction,
+    ARCLEAction,
     ArcTask,
     Grid,
-    GridSelection,
     ParsedTaskData,
     TaskPair,
 )
@@ -31,28 +30,38 @@ def test_grid_creation():
 def test_grid_invalid_rank():
     """Tests that Grid raises assertion error for non-2D arrays."""
     with pytest.raises(AssertionError):
-        Grid(data=jnp.array([1, 2, 3], dtype=jnp.int32),
-             mask=jnp.ones(3, dtype=jnp.bool_))  # 1D array
+        Grid(
+            data=jnp.array([1, 2, 3], dtype=jnp.int32),
+            mask=jnp.ones(3, dtype=jnp.bool_),
+        )  # 1D array
 
     with pytest.raises(AssertionError):
-        Grid(data=jnp.array([[[1]]], dtype=jnp.int32),
-             mask=jnp.ones((1, 1, 1), dtype=jnp.bool_))  # 3D array
+        Grid(
+            data=jnp.array([[[1]]], dtype=jnp.int32),
+            mask=jnp.ones((1, 1, 1), dtype=jnp.bool_),
+        )  # 3D array
 
 
 def test_grid_non_integer_type():
     """Tests that Grid raises assertion error for non-integer arrays."""
     with pytest.raises(AssertionError):
-        Grid(data=jnp.array([[1.0, 2.0]], dtype=jnp.float32),
-             mask=jnp.ones((1, 2), dtype=jnp.bool_))
+        Grid(
+            data=jnp.array([[1.0, 2.0]], dtype=jnp.float32),
+            mask=jnp.ones((1, 2), dtype=jnp.bool_),
+        )
 
 
 # Test TaskPair class
 def test_task_pair_creation():
     """Tests the creation of a TaskPair object."""
-    input_grid = Grid(data=jnp.array([[0, 1]], dtype=jnp.int32),
-                      mask=jnp.ones((1, 2), dtype=jnp.bool_))
-    output_grid = Grid(data=jnp.array([[1, 0]], dtype=jnp.int32),
-                       mask=jnp.ones((1, 2), dtype=jnp.bool_))
+    input_grid = Grid(
+        data=jnp.array([[0, 1]], dtype=jnp.int32),
+        mask=jnp.ones((1, 2), dtype=jnp.bool_),
+    )
+    output_grid = Grid(
+        data=jnp.array([[1, 0]], dtype=jnp.int32),
+        mask=jnp.ones((1, 2), dtype=jnp.bool_),
+    )
 
     task_pair = TaskPair(input_grid=input_grid, output_grid=output_grid)
 
@@ -68,10 +77,14 @@ def test_task_pair_creation():
 # Test ArcTask class
 def test_arc_task_creation():
     """Tests the creation of an ArcTask object."""
-    input_grid = Grid(data=jnp.array([[0, 1]], dtype=jnp.int32),
-                      mask=jnp.ones((1, 2), dtype=jnp.bool_))
-    output_grid = Grid(data=jnp.array([[1, 0]], dtype=jnp.int32),
-                       mask=jnp.ones((1, 2), dtype=jnp.bool_))
+    input_grid = Grid(
+        data=jnp.array([[0, 1]], dtype=jnp.int32),
+        mask=jnp.ones((1, 2), dtype=jnp.bool_),
+    )
+    output_grid = Grid(
+        data=jnp.array([[1, 0]], dtype=jnp.int32),
+        mask=jnp.ones((1, 2), dtype=jnp.bool_),
+    )
     task_pair = TaskPair(input_grid=input_grid, output_grid=output_grid)
 
     arc_task = ArcTask(
@@ -87,10 +100,12 @@ def test_arc_task_creation():
 
 def test_arc_task_optional_id():
     """Tests ArcTask creation with optional task_id."""
-    input_grid = Grid(data=jnp.array([[0]], dtype=jnp.int32),
-                      mask=jnp.ones((1, 1), dtype=jnp.bool_))
-    output_grid = Grid(data=jnp.array([[1]], dtype=jnp.int32),
-                       mask=jnp.ones((1, 1), dtype=jnp.bool_))
+    input_grid = Grid(
+        data=jnp.array([[0]], dtype=jnp.int32), mask=jnp.ones((1, 1), dtype=jnp.bool_)
+    )
+    output_grid = Grid(
+        data=jnp.array([[1]], dtype=jnp.int32), mask=jnp.ones((1, 1), dtype=jnp.bool_)
+    )
     task_pair = TaskPair(input_grid=input_grid, output_grid=output_grid)
 
     arc_task = ArcTask(training_pairs=[task_pair], test_pairs=[task_pair])
@@ -105,22 +120,36 @@ def test_parsed_task_data_creation():
     grid_h, grid_w = 5, 5
 
     parsed_data = ParsedTaskData(
-        input_grids_examples=jnp.zeros((max_train_pairs, grid_h, grid_w), dtype=jnp.int32),
-        input_masks_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.bool_),
-        output_grids_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.int32),
-        output_masks_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.bool_),
+        input_grids_examples=jnp.zeros(
+            (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
+        ),
+        input_masks_examples=jnp.ones(
+            (max_train_pairs, grid_h, grid_w), dtype=jnp.bool_
+        ),
+        output_grids_examples=jnp.ones(
+            (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
+        ),
+        output_masks_examples=jnp.ones(
+            (max_train_pairs, grid_h, grid_w), dtype=jnp.bool_
+        ),
         num_train_pairs=2,
         test_input_grids=jnp.zeros((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
         test_input_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
-        true_test_output_grids=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
-        true_test_output_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
+        true_test_output_grids=jnp.ones(
+            (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
+        ),
+        true_test_output_masks=jnp.ones(
+            (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
+        ),
         num_test_pairs=1,
         task_index=jnp.array(0, dtype=jnp.int32),
     )
 
     assert parsed_data.num_train_pairs == 2
     assert parsed_data.num_test_pairs == 1
-    chex.assert_shape(parsed_data.input_grids_examples, (max_train_pairs, grid_h, grid_w))
+    chex.assert_shape(
+        parsed_data.input_grids_examples, (max_train_pairs, grid_h, grid_w)
+    )
     chex.assert_shape(parsed_data.test_input_grids, (max_test_pairs, grid_h, grid_w))
     chex.assert_type(parsed_data.task_index, jnp.int32)
 
@@ -197,72 +226,46 @@ def test_parsed_task_data_pytree_compatibility():
     assert jnp.all(transformed.input_grids_examples == 1)
 
 
-# Test AgentAction class
-def test_agent_action_creation():
-    """Tests AgentAction creation and validation."""
-    action = AgentAction(
+# Test ARCLEAction class
+def test_arcle_action_creation():
+    """Tests ARCLEAction creation and validation."""
+    action = ARCLEAction(
+        selection=jnp.array([[0.5, 1.0], [0.0, 0.8]], dtype=jnp.float32),
+        operation=jnp.array(5, dtype=jnp.int32),
         agent_id=1,
-        action_type=jnp.array(2, dtype=jnp.int32),
-        params=jnp.array([10, 20, 0, 0, 0], dtype=jnp.int32),
-        step_number=jnp.array(0, dtype=jnp.int32),
+        timestamp=100,
     )
 
-    chex.assert_type(action.action_type, jnp.int32)
-    chex.assert_type(action.params, jnp.int32)
-    chex.assert_type(action.step_number, jnp.int32)
-    chex.assert_shape(action.action_type, ())
-    chex.assert_shape(action.step_number, ())
-    chex.assert_rank(action.params, 1)
-
-
-def test_agent_action_validation():
-    """Tests AgentAction validation logic."""
-    # Valid action should pass validation
-    action = AgentAction(
-        agent_id=1,
-        action_type=jnp.array(1, dtype=jnp.int32),
-        params=jnp.array([5, 5, 1, 0, 0], dtype=jnp.int32),
-        step_number=jnp.array(0, dtype=jnp.int32),
-    )
-
+    chex.assert_type(action.selection, jnp.float32)
+    chex.assert_type(action.operation, jnp.int32)
+    chex.assert_shape(action.selection, (2, 2))
+    chex.assert_shape(action.operation, ())
     assert action.agent_id == 1
-    assert action.action_type == 1
+    assert action.timestamp == 100
 
 
-# Test GridSelection class
-def test_grid_selection_creation():
-    """Tests GridSelection creation and validation."""
-    selection = GridSelection(
-        mask=jnp.array([[True, False], [False, True]], dtype=jnp.bool_),
-        selection_type=jnp.array(1, dtype=jnp.int32),
-        params=jnp.array([0, 0, 1, 1, 0], dtype=jnp.int32),
+def test_arcle_action_selection_bounds():
+    """Tests ARCLEAction selection values are within [0, 1] bounds."""
+    # Valid selection values
+    action = ARCLEAction(
+        selection=jnp.array([[0.0, 0.5], [1.0, 0.25]], dtype=jnp.float32),
+        operation=jnp.array(10, dtype=jnp.int32),
+        agent_id=2,
+        timestamp=200,
     )
 
-    chex.assert_shape(selection.mask, (2, 2))
-    chex.assert_shape(selection.params, (5,))
-    chex.assert_type(selection.mask, jnp.bool_)
-    chex.assert_type(selection.params, jnp.int32)
-    chex.assert_type(selection.selection_type, jnp.int32)
+    assert jnp.min(action.selection) >= 0.0
+    assert jnp.max(action.selection) <= 1.0
 
 
-def test_grid_selection_validation():
-    """Tests GridSelection validation logic."""
-    selection = GridSelection(
-        mask=jnp.array([[True, False, False], [False, True, False]], dtype=jnp.bool_),
-        selection_type=jnp.array(0, dtype=jnp.int32),
-        params=jnp.array([0, 0, 1, 1, 0], dtype=jnp.int32),
+def test_arcle_action_operation_bounds():
+    """Tests ARCLEAction operation ID validation."""
+    # Valid operation ID (within 0-34 range)
+    action = ARCLEAction(
+        selection=jnp.array([[1.0]], dtype=jnp.float32),
+        operation=jnp.array(34, dtype=jnp.int32),  # Maximum valid operation
+        agent_id=0,
+        timestamp=0,
     )
 
-    assert selection.selection_type == 0
-
-
-def test_grid_selection_optional_metadata():
-    """Tests GridSelection with optional metadata fields."""
-    selection = GridSelection(
-        mask=jnp.array([[True]], dtype=jnp.bool_),
-        selection_type=jnp.array(2, dtype=jnp.int32),
-        params=jnp.array([0, 0, 0, 0, 0], dtype=jnp.int32),
-    )
-
-    chex.assert_shape(selection.mask, (1, 1))
-    assert selection.selection_type == 2
+    assert 0 <= action.operation <= 34

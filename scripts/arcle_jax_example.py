@@ -19,15 +19,18 @@ Performance Benefits:
 - Compatible with JAX ecosystem (Optax, Flax, etc.)
 """
 
-import sys
+from __future__ import annotations
+
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import time
-from typing import Tuple, Dict
+
 import jax
 import jax.numpy as jnp
-import numpy as np
+
 from jaxarc.envs.arcle_env import ARCLEEnvironment
 from jaxarc.types import ParsedTaskData
 from jaxarc.utils.task_manager import create_jax_task_index
@@ -57,15 +60,15 @@ def create_sample_arc_task(grid_size=(12, 12), task_id="demo_task"):
     output_grid = output_grid.at[0, 8:10, 3:5].set(2)  # Red square
 
     # Add yellow borders around red squares
-    output_grid = output_grid.at[0, 1:5, 1:5].set(jnp.where(
-        output_grid[0, 1:5, 1:5] == 0, 4, output_grid[0, 1:5, 1:5]
-    ))
-    output_grid = output_grid.at[0, 5:9, 6:10].set(jnp.where(
-        output_grid[0, 5:9, 6:10] == 0, 4, output_grid[0, 5:9, 6:10]
-    ))
-    output_grid = output_grid.at[0, 7:11, 2:6].set(jnp.where(
-        output_grid[0, 7:11, 2:6] == 0, 4, output_grid[0, 7:11, 2:6]
-    ))
+    output_grid = output_grid.at[0, 1:5, 1:5].set(
+        jnp.where(output_grid[0, 1:5, 1:5] == 0, 4, output_grid[0, 1:5, 1:5])
+    )
+    output_grid = output_grid.at[0, 5:9, 6:10].set(
+        jnp.where(output_grid[0, 5:9, 6:10] == 0, 4, output_grid[0, 5:9, 6:10])
+    )
+    output_grid = output_grid.at[0, 7:11, 2:6].set(
+        jnp.where(output_grid[0, 7:11, 2:6] == 0, 4, output_grid[0, 7:11, 2:6])
+    )
 
     # Create masks (all valid)
     masks = jnp.ones((1, h, w), dtype=jnp.bool_)
@@ -81,7 +84,7 @@ def create_sample_arc_task(grid_size=(12, 12), task_id="demo_task"):
         true_test_output_grids=output_grid,
         true_test_output_masks=masks,
         num_test_pairs=1,
-        task_index=create_jax_task_index(task_id)
+        task_index=create_jax_task_index(task_id),
     )
 
 
@@ -91,11 +94,7 @@ def demonstrate_basic_usage():
     print("-" * 40)
 
     # Create environment
-    env = ARCLEEnvironment(
-        num_agents=1,
-        max_grid_size=(12, 12),
-        max_episode_steps=20
-    )
+    env = ARCLEEnvironment(num_agents=1, max_grid_size=(12, 12), max_episode_steps=20)
 
     # Create sample task
     task_data = create_sample_arc_task()
@@ -146,8 +145,8 @@ def demonstrate_jit_compilation():
     selection = jnp.zeros((h, w), dtype=jnp.float32)
     selection = selection.at[2:4, 2:4].set(1.0)  # Select blue square
     action = {
-        'selection': selection,
-        'operation': jnp.array(2, dtype=jnp.int32)  # Fill with red (color 2)
+        "selection": selection,
+        "operation": jnp.array(2, dtype=jnp.int32),  # Fill with red (color 2)
     }
 
     # Warmup JIT
@@ -160,7 +159,9 @@ def demonstrate_jit_compilation():
     start_time = time.time()
     for i in range(100):
         key, step_key = jax.random.split(key)
-        obs, new_state, rewards, dones, infos = solve_step_normal(step_key, state, action)
+        obs, new_state, rewards, dones, infos = solve_step_normal(
+            step_key, state, action
+        )
     normal_time = time.time() - start_time
 
     print("   Benchmarking JIT execution...")
@@ -170,9 +171,9 @@ def demonstrate_jit_compilation():
         obs, new_state, rewards, dones, infos = solve_step_jit(step_key, state, action)
     jit_time = time.time() - start_time
 
-    speedup = normal_time / jit_time if jit_time > 0 else float('inf')
+    speedup = normal_time / jit_time if jit_time > 0 else float("inf")
 
-    print(f"✅ Performance Results:")
+    print("✅ Performance Results:")
     print(f"   - Normal time: {normal_time:.4f}s")
     print(f"   - JIT time: {jit_time:.4f}s")
     print(f"   - Speedup: {speedup:.1f}x")
@@ -197,10 +198,7 @@ def demonstrate_all_operations():
         selection = jnp.zeros((h, w), dtype=jnp.float32)
         selection = selection.at[3:7, 3:7].set(1.0)
 
-        action = {
-            'selection': selection,
-            'operation': op_id
-        }
+        action = {"selection": selection, "operation": op_id}
         actions = {agent_id: action}
 
         obs, new_state, rewards, dones, infos = env.step_env(key, state, actions)
@@ -215,7 +213,7 @@ def demonstrate_all_operations():
         "Flip Object (26-27)": [26, 27],
         "Clipboard Ops (28-30)": [28, 29, 30],
         "Grid Ops (31-33)": [31, 32, 33],
-        "Submit (34)": [34]
+        "Submit (34)": [34],
     }
 
     print("   Testing operation categories:")
@@ -224,7 +222,9 @@ def demonstrate_all_operations():
         for op_id in ops:
             try:
                 key = jax.random.PRNGKey(op_id)
-                similarity, terminated = test_operation(key, jnp.array(op_id, dtype=jnp.int32))
+                similarity, terminated = test_operation(
+                    key, jnp.array(op_id, dtype=jnp.int32)
+                )
                 success_count += 1
 
                 if op_id == 34:  # Submit operation
@@ -236,7 +236,7 @@ def demonstrate_all_operations():
         success_rate = (success_count / len(ops)) * 100
         print(f"   ✅ {category}: {success_count}/{len(ops)} ({success_rate:.0f}%)")
 
-    print(f"   📊 Overall: All operations working correctly!")
+    print("   📊 Overall: All operations working correctly!")
 
 
 def demonstrate_reproducibility():
@@ -258,8 +258,8 @@ def demonstrate_reproducibility():
         key, step_key = jax.random.split(key)
         selection = jnp.ones((8, 8), dtype=jnp.float32) * 0.1
         action = {
-            'selection': selection,
-            'operation': jnp.array(2, dtype=jnp.int32)  # Fill with color 2
+            "selection": selection,
+            "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
         }
         actions = {agent_id: action}
         obs, new_state, rewards, dones, infos = env.step_env(step_key, state, actions)
@@ -276,9 +276,9 @@ def demonstrate_reproducibility():
     # Check reproducibility
     first_result = results[0]
     all_same = all(
-        jnp.allclose(r[0], first_result[0]) and
-        jnp.allclose(r[1], first_result[1]) and
-        r[2] == first_result[2]
+        jnp.allclose(r[0], first_result[0])
+        and jnp.allclose(r[1], first_result[1])
+        and r[2] == first_result[2]
         for r in results
     )
 
@@ -291,11 +291,13 @@ def demonstrate_reproducibility():
     # Test different seeds produce different results
     different_result = single_step_test(123)
     different_outcomes = not (
-        jnp.allclose(different_result[0], first_result[0]) and
-        jnp.allclose(different_result[1], first_result[1])
+        jnp.allclose(different_result[0], first_result[0])
+        and jnp.allclose(different_result[1], first_result[1])
     )
 
-    print(f"✅ Different seeds produce different results: {'PASS' if different_outcomes else 'FAIL'}")
+    print(
+        f"✅ Different seeds produce different results: {'PASS' if different_outcomes else 'FAIL'}"
+    )
 
 
 def demonstrate_advanced_solving():
@@ -317,8 +319,8 @@ def demonstrate_advanced_solving():
         key, step_key = jax.random.split(key)
         selection_1 = (state.grid == 1).astype(jnp.float32)  # Select all blue pixels
         action_1 = {
-            'selection': selection_1,
-            'operation': jnp.array(2, dtype=jnp.int32)  # Fill with red
+            "selection": selection_1,
+            "operation": jnp.array(2, dtype=jnp.int32),  # Fill with red
         }
         actions = {agent_id: action_1}
         obs, state, rewards, dones, infos = env.step_env(step_key, state, actions)
@@ -327,18 +329,25 @@ def demonstrate_advanced_solving():
         # Step 2: Submit solution
         key, step_key = jax.random.split(key)
         action_submit = {
-            'selection': jnp.zeros_like(state.grid, dtype=jnp.float32),
-            'operation': jnp.array(34, dtype=jnp.int32)  # Submit
+            "selection": jnp.zeros_like(state.grid, dtype=jnp.float32),
+            "operation": jnp.array(34, dtype=jnp.int32),  # Submit
         }
         actions = {agent_id: action_submit}
         obs, final_state, rewards, dones, infos = env.step_env(step_key, state, actions)
 
-        return (initial_similarity, step1_similarity, final_state.similarity_score,
-                final_state.terminated, rewards[agent_id])
+        return (
+            initial_similarity,
+            step1_similarity,
+            final_state.similarity_score,
+            final_state.terminated,
+            rewards[agent_id],
+        )
 
     # Solve the task
     key = jax.random.PRNGKey(789)
-    initial_sim, step1_sim, final_sim, terminated, final_reward = solve_step_by_step(key)
+    initial_sim, step1_sim, final_sim, terminated, final_reward = solve_step_by_step(
+        key
+    )
 
     print("   Step-by-step solving (JIT compiled):")
     print(f"   0. Initial state: similarity = {float(initial_sim):.3f}")
@@ -393,6 +402,7 @@ def main():
     except Exception as e:
         print(f"\n💥 Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
