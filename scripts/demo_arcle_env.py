@@ -11,20 +11,19 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 
+import hydra
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
-import matplotlib.pyplot as plt
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from jaxarc.envs import ARCLEEnvironment
-from jaxarc.utils.visualization import draw_grid_svg, log_grid_to_console
+from jaxarc.utils.visualization import log_grid_to_console
 
 
 def visualize_grids(
@@ -39,17 +38,17 @@ def visualize_grids(
     target_grid = np.array(target_grid)
 
     # Plot grids
-    axes[0].imshow(input_grid, cmap='tab10', vmin=0, vmax=9)
+    axes[0].imshow(input_grid, cmap="tab10", vmin=0, vmax=9)
     axes[0].set_title("Input Grid")
-    axes[0].axis('off')
+    axes[0].axis("off")
 
-    axes[1].imshow(grid, cmap='tab10', vmin=0, vmax=9)
+    axes[1].imshow(grid, cmap="tab10", vmin=0, vmax=9)
     axes[1].set_title("Working Grid")
-    axes[1].axis('off')
+    axes[1].axis("off")
 
-    axes[2].imshow(target_grid, cmap='tab10', vmin=0, vmax=9)
+    axes[2].imshow(target_grid, cmap="tab10", vmin=0, vmax=9)
     axes[2].set_title("Target Grid")
-    axes[2].axis('off')
+    axes[2].axis("off")
 
     plt.suptitle(title)
     plt.tight_layout()
@@ -101,19 +100,20 @@ def demo_operations(env, state, key):
         # Fill operations
         {"op": 2, "mask_type": "square", "desc": "Fill square with color 2"},
         {"op": 5, "mask_type": "column", "desc": "Fill column with color 5"},
-
         # Flood fill
         {"op": 11, "mask_type": "point", "desc": "Flood fill with color 1"},
-
         # Object operations
         {"op": 20, "mask_type": "square", "desc": "Move object up"},
         {"op": 24, "mask_type": "square", "desc": "Rotate object 90°"},
         {"op": 26, "mask_type": "square", "desc": "Flip object horizontally"},
-
         # Clipboard operations
         {"op": 29, "mask_type": "square", "desc": "Copy to clipboard"},
-        {"op": 30, "mask_type": "square", "center": (2, 2), "desc": "Paste from clipboard"},
-
+        {
+            "op": 30,
+            "mask_type": "square",
+            "center": (2, 2),
+            "desc": "Paste from clipboard",
+        },
         # Grid operations
         {"op": 31, "mask_type": "square", "desc": "Copy input to output"},
         {"op": 32, "mask_type": "square", "desc": "Reset grid"},
@@ -126,13 +126,15 @@ def demo_operations(env, state, key):
     for i, demo in enumerate(demos):
         # Create selection mask
         center = demo.get("center", (h // 2, w // 2))
-        mask = create_selection_mask(h, w, demo.get("mask_type", "square"), center=center)
+        mask = create_selection_mask(
+            h, w, demo.get("mask_type", "square"), center=center
+        )
 
         # Create action
         action = {
             "agent_0": {
                 "selection": jnp.array(mask.astype(np.float32)),
-                "operation": jnp.array(demo["op"])
+                "operation": jnp.array(demo["op"]),
             }
         }
 
@@ -142,16 +144,18 @@ def demo_operations(env, state, key):
         state = new_state
 
         # Visualize result
-        logger.info(f"Operation {i+1}: {demo['desc']} (op_id={demo['op']})")
+        logger.info(f"Operation {i + 1}: {demo['desc']} (op_id={demo['op']})")
         logger.info(f"Reward: {rewards['agent_0']}")
         logger.info(f"Similarity score: {state.similarity_score}")
 
         # Save visualization
-        save_path = output_dir / f"op_{i+1}_{demo['op']}.png"
+        save_path = output_dir / f"op_{i + 1}_{demo['op']}.png"
         visualize_grids(
-            state.grid, state.input_grid, state.target_grid,
-            title=f"Operation {i+1}: {demo['desc']} (op_id={demo['op']})",
-            save_path=save_path
+            state.grid,
+            state.input_grid,
+            state.target_grid,
+            title=f"Operation {i + 1}: {demo['desc']} (op_id={demo['op']})",
+            save_path=save_path,
         )
 
         # Also log grid to console
@@ -171,7 +175,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"JAX devices: {jax.devices()}")
 
     # Create a basic ARCLE environment configuration if not available
-    if hasattr(cfg, 'environment') and hasattr(cfg.environment, '_target_'):
+    if hasattr(cfg, "environment") and hasattr(cfg.environment, "_target_"):
         env_config = OmegaConf.to_container(cfg.environment, resolve=True)
     else:
         # Use default ARCLE config
@@ -205,9 +209,11 @@ def main(cfg: DictConfig) -> None:
 
     # Save initial visualization
     visualize_grids(
-        state.grid, state.input_grid, state.target_grid,
+        state.grid,
+        state.input_grid,
+        state.target_grid,
         title="Initial State",
-        save_path=output_dir / "initial_state.png"
+        save_path=output_dir / "initial_state.png",
     )
 
     # Demo operations
@@ -219,7 +225,7 @@ def main(cfg: DictConfig) -> None:
     action = {
         "agent_0": {
             "selection": jnp.zeros_like(state.grid, dtype=jnp.float32),
-            "operation": jnp.array(34)  # Submit operation
+            "operation": jnp.array(34),  # Submit operation
         }
     }
 
@@ -232,9 +238,11 @@ def main(cfg: DictConfig) -> None:
 
     # Save final visualization
     visualize_grids(
-        state.grid, state.input_grid, state.target_grid,
+        state.grid,
+        state.input_grid,
+        state.target_grid,
         title=f"Final State (Similarity: {state.similarity_score:.4f})",
-        save_path=output_dir / "final_state.png"
+        save_path=output_dir / "final_state.png",
     )
 
     logger.info(f"Demo complete. Visualizations saved to {output_dir}")
@@ -243,5 +251,6 @@ def main(cfg: DictConfig) -> None:
 if __name__ == "__main__":
     # Override to use ARCLE environment
     import sys
+
     sys.argv.extend(["environment=arcle_env"])
     main()

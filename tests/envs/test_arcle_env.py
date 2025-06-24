@@ -7,29 +7,22 @@ the ARCLE approach with JAX optimizations.
 
 from __future__ import annotations
 
+import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-import chex
 
 from jaxarc.envs import ARCLEEnvironment
+from jaxarc.envs.arcle_env import ARCLEState
 from jaxarc.envs.arcle_operations import (
-    fill_color,
-    flood_fill_color,
-    move_object,
-    rotate_object,
-    flip_object,
-    copy_input_grid,
-    copy_to_clipboard,
-    paste_from_clipboard,
-    cut_to_clipboard,
     clear_grid,
-    resize_grid,
-    submit_solution,
+    copy_to_clipboard,
     execute_arcle_operation,
+    fill_color,
+    paste_from_clipboard,
 )
-from jaxarc.types import ARCLEState, ARCLEAction, ParsedTaskData
+from jaxarc.types import ParsedTaskData
 
 
 @pytest.fixture
@@ -121,10 +114,12 @@ def test_environment_reset(arcle_environment):
     assert state.terminated == jnp.array(False)
 
     # Check grids
-    chex.assert_rank(state.grid, 2)
-    chex.assert_rank(state.input_grid, 2)
-    chex.assert_rank(state.target_grid, 2)
-    chex.assert_type(state.grid, jnp.int32)
+    chex.assert_rank(state.working_grid, 2)
+    input_grid = state.task_data.input_grids_examples[state.active_train_pair_idx]
+    target_grid = state.task_data.output_grids_examples[state.active_train_pair_idx]
+    chex.assert_rank(input_grid, 2)
+    chex.assert_rank(target_grid, 2)
+    chex.assert_type(state.working_grid, jnp.int32)
 
     # Check dimensions
     assert state.grid_dim.shape == (2,)
@@ -142,7 +137,7 @@ def test_environment_step(arcle_environment):
     # Create a selection mask (select center 3x3 region)
     h, w = state.grid_dim
     selection = jnp.zeros((h, w), dtype=jnp.float32)
-    selection = selection.at[h//2-1:h//2+2, w//2-1:w//2+2].set(1.0)
+    selection = selection.at[h // 2 - 1 : h // 2 + 2, w // 2 - 1 : w // 2 + 2].set(1.0)
 
     # Test fill color operation (operation ID 1 = fill with color 1)
     action = {
@@ -153,7 +148,9 @@ def test_environment_step(arcle_environment):
     }
 
     key, subkey = jax.random.split(key)
-    obs, next_state, rewards, dones, info = arcle_environment.step(subkey, state, action)
+    obs, next_state, rewards, dones, info = arcle_environment.step(
+        subkey, state, action
+    )
 
     # Check state updates
     assert next_state.step_count == state.step_count + 1
@@ -161,7 +158,9 @@ def test_environment_step(arcle_environment):
 
     # The center 3x3 region should now be color 1
     center_y, center_x = h // 2, w // 2
-    center_region = next_state.grid[center_y-1:center_y+2, center_x-1:center_x+2]
+    center_region = next_state.working_grid[
+        center_y - 1 : center_y + 2, center_x - 1 : center_x + 2
+    ]
     assert jnp.all(center_region == 1)
 
     # Test a few more operations
@@ -188,7 +187,9 @@ def test_environment_step(arcle_environment):
         }
 
         key, subkey = jax.random.split(key)
-        obs, next_state, rewards, dones, info = arcle_environment.step(subkey, state, action)
+        obs, next_state, rewards, dones, info = arcle_environment.step(
+            subkey, state, action
+        )
 
         # Basic checks for each operation
         assert next_state.step_count == state.step_count + 1
@@ -206,7 +207,9 @@ def test_environment_step(arcle_environment):
     }
 
     key, subkey = jax.random.split(key)
-    obs, next_state, rewards, dones, info = arcle_environment.step(subkey, state, action)
+    obs, next_state, rewards, dones, info = arcle_environment.step(
+        subkey, state, action
+    )
 
     # Should be done after submit
     assert dones["agent_0"]
@@ -223,10 +226,25 @@ def test_operations_execution():
     grid = jnp.zeros((max_h, max_w), dtype=jnp.int32)
     grid = grid.at[2:5, 2:5].set(1)  # 3x3 square of 1's
 
+    # Create dummy task data for operations testing
+    dummy_task_data = ParsedTaskData(
+        input_grids_examples=jnp.zeros((1, max_h, max_w), dtype=jnp.int32),
+        input_masks_examples=jnp.ones((1, max_h, max_w), dtype=jnp.bool_),
+        output_grids_examples=jnp.zeros((1, max_h, max_w), dtype=jnp.int32),
+        output_masks_examples=jnp.ones((1, max_h, max_w), dtype=jnp.bool_),
+        num_train_pairs=1,
+        test_input_grids=jnp.zeros((1, max_h, max_w), dtype=jnp.int32),
+        test_input_masks=jnp.ones((1, max_h, max_w), dtype=jnp.bool_),
+        true_test_output_grids=jnp.zeros((1, max_h, max_w), dtype=jnp.int32),
+        true_test_output_masks=jnp.ones((1, max_h, max_w), dtype=jnp.bool_),
+        num_test_pairs=1,
+        task_index=jnp.array(-1, dtype=jnp.int32),
+    )
+
     test_state = ARCLEState(
         done=jnp.array(False),
         step=0,
-        task_data=None,  # Not needed for operation tests
+        task_data=dummy_task_data,
         active_train_pair_idx=jnp.array(0, dtype=jnp.int32),
         working_grid=grid,
         working_grid_mask=jnp.ones((max_h, max_w), dtype=jnp.bool_),
@@ -234,9 +252,6 @@ def test_operations_execution():
         program_length=jnp.array(0, dtype=jnp.int32),
         active_agents=jnp.array([True], dtype=jnp.bool_),
         cumulative_rewards=jnp.array([0.0], dtype=jnp.float32),
-        grid=grid,
-        input_grid=jnp.zeros((max_h, max_w), dtype=jnp.int32),
-        target_grid=jnp.zeros((max_h, max_w), dtype=jnp.int32),
         selected=jnp.zeros((max_h, max_w), dtype=jnp.bool_),
         clipboard=jnp.zeros((max_h, max_w), dtype=jnp.int32),
         grid_dim=jnp.array([max_h, max_w], dtype=jnp.int32),
@@ -253,7 +268,7 @@ def test_operations_execution():
 
     # Test fill color
     new_state = fill_color(test_state, selection, 2)
-    assert jnp.all(new_state.grid[2:5, 2:5] == 2)
+    assert jnp.all(new_state.working_grid[2:5, 2:5] == 2)
 
     # Test copy and paste
     new_state = copy_to_clipboard(test_state, selection)
@@ -262,28 +277,44 @@ def test_operations_execution():
     # Test paste by overlapping selection with clipboard content
     # The paste operation only works where selection is True AND clipboard has content
     overlap_selection = jnp.zeros((max_h, max_w), dtype=jnp.bool_)
-    overlap_selection = overlap_selection.at[2:5, 2:5].set(True)  # Same area as clipboard
+    overlap_selection = overlap_selection.at[2:5, 2:5].set(
+        True
+    )  # Same area as clipboard
 
     paste_state = paste_from_clipboard(new_state, overlap_selection)
     # Should still be 1's since we're pasting 1's over 1's
-    assert jnp.all(paste_state.grid[2:5, 2:5] == 1)
+    assert jnp.all(paste_state.working_grid[2:5, 2:5] == 1)
 
     # Test reset grid
     reset_state = clear_grid(test_state, jnp.ones_like(selection))
-    assert jnp.all(reset_state.grid == 0)
+    assert jnp.all(reset_state.working_grid == 0)
 
 
 def test_execute_arcle_operation():
-    """Test the main operation dispatch function."""
+    """Test execute_arcle_operation function."""
     # Create a simple test state
     max_h, max_w = 10, 10
     grid = jnp.zeros((max_h, max_w), dtype=jnp.int32)
-    grid = grid.at[2:5, 2:5].set(1)  # 3x3 square of 1's
+
+    # Create dummy task data for operations testing
+    dummy_task_data = ParsedTaskData(
+        input_grids_examples=jnp.zeros((1, max_h, max_w), dtype=jnp.int32),
+        input_masks_examples=jnp.ones((1, max_h, max_w), dtype=jnp.bool_),
+        output_grids_examples=jnp.zeros((1, max_h, max_w), dtype=jnp.int32),
+        output_masks_examples=jnp.ones((1, max_h, max_w), dtype=jnp.bool_),
+        num_train_pairs=1,
+        test_input_grids=jnp.zeros((1, max_h, max_w), dtype=jnp.int32),
+        test_input_masks=jnp.ones((1, max_h, max_w), dtype=jnp.bool_),
+        true_test_output_grids=jnp.zeros((1, max_h, max_w), dtype=jnp.int32),
+        true_test_output_masks=jnp.ones((1, max_h, max_w), dtype=jnp.bool_),
+        num_test_pairs=1,
+        task_index=jnp.array(-1, dtype=jnp.int32),
+    )
 
     test_state = ARCLEState(
         done=jnp.array(False),
         step=0,
-        task_data=None,  # Not needed for operation tests
+        task_data=dummy_task_data,
         active_train_pair_idx=jnp.array(0, dtype=jnp.int32),
         working_grid=grid,
         working_grid_mask=jnp.ones((max_h, max_w), dtype=jnp.bool_),
@@ -291,9 +322,6 @@ def test_execute_arcle_operation():
         program_length=jnp.array(0, dtype=jnp.int32),
         active_agents=jnp.array([True], dtype=jnp.bool_),
         cumulative_rewards=jnp.array([0.0], dtype=jnp.float32),
-        grid=grid,
-        input_grid=jnp.zeros((max_h, max_w), dtype=jnp.int32),
-        target_grid=jnp.zeros((max_h, max_w), dtype=jnp.int32),
         selected=jnp.zeros((max_h, max_w), dtype=jnp.bool_),
         clipboard=jnp.zeros((max_h, max_w), dtype=jnp.int32),
         grid_dim=jnp.array([max_h, max_w], dtype=jnp.int32),
@@ -321,7 +349,9 @@ def test_execute_arcle_operation():
         # Set selection in state before executing operation
         state_with_selection = test_state.replace(selected=selection)
 
-        new_state = execute_arcle_operation(state_with_selection, jnp.array(op_id, dtype=jnp.int32))
+        new_state = execute_arcle_operation(
+            state_with_selection, jnp.array(op_id, dtype=jnp.int32)
+        )
 
         # Basic checks - execute_arcle_operation should set terminated for submit (34)
         if op_id == 34:
@@ -339,12 +369,13 @@ def test_reward_computation(arcle_environment):
     obs, state = arcle_environment.reset(subkey)
 
     # Make the working grid exactly match the target grid
-    perfect_state = state.replace(grid=state.target_grid)
+    target_grid = state.task_data.output_grids_examples[state.active_train_pair_idx]
+    perfect_state = state.replace(working_grid=target_grid)
 
     # Create a submit action
     action = {
         "agent_0": {
-            "selection": jnp.zeros_like(state.grid, dtype=jnp.float32),
+            "selection": jnp.zeros_like(state.working_grid, dtype=jnp.float32),
             "operation": jnp.array(34),  # Submit
         }
     }
@@ -361,16 +392,19 @@ def test_reward_computation(arcle_environment):
     assert perfect_rewards["agent_0"] >= original_rewards["agent_0"]
 
     # Check if a non-submit action gives zero reward
+    # Create a non-submit action for comparison
     non_submit_action = {
         "agent_0": {
-            "selection": jnp.zeros_like(state.grid, dtype=jnp.float32),
+            "selection": jnp.zeros_like(state.working_grid, dtype=jnp.float32),
             "operation": jnp.array(0),  # Fill with color 0
         }
     }
 
     if arcle_environment.reward_on_submit_only:
         key, subkey = jax.random.split(key)
-        _, _, non_submit_rewards, _, _ = arcle_environment.step(subkey, state, non_submit_action)
+        _, _, non_submit_rewards, _, _ = arcle_environment.step(
+            subkey, state, non_submit_action
+        )
         assert non_submit_rewards["agent_0"] == 0.0
 
 
@@ -394,7 +428,7 @@ def test_jit_compatibility(arcle_environment):
     # Create a simple action
     action = {
         "agent_0": {
-            "selection": jnp.zeros_like(state.grid, dtype=jnp.float32),
+            "selection": jnp.zeros_like(state.working_grid, dtype=jnp.float32),
             "operation": jnp.array(0),  # Fill with color 0
         }
     }

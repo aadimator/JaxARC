@@ -19,7 +19,7 @@ from jaxmarl.environments.spaces import Box
 from ..types import ParsedTaskData
 
 
-@chex.dataclass
+@chex.dataclass(kw_only=True)
 class ArcEnvState:
     """
     Base state dataclass for ARC Multi-Agent environments.
@@ -286,7 +286,7 @@ class ArcMarlEnvBase(MultiAgentEnv, ABC):
             true_test_output_grids=output_grid[:1],
             true_test_output_masks=jnp.ones((1, grid_h, grid_w), dtype=jnp.bool_),
             num_test_pairs=1,
-            task_index=jnp.array(0, dtype=jnp.int32),
+            task_index=jnp.array(-1, dtype=jnp.int32),
         )
 
     @property

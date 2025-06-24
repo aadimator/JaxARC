@@ -12,14 +12,14 @@ between string IDs and integer indices outside of JAX transformations.
 
 from __future__ import annotations
 
-import threading
-from typing import Dict, Optional, Set
-import pickle
 import json
+import pickle
+import threading
 from pathlib import Path
+from typing import Dict, Optional, Set
 
-import jax.numpy as jnp
 import chex
+import jax.numpy as jnp
 from loguru import logger
 
 
@@ -161,17 +161,17 @@ class TaskIDManager:
 
         with self._lock:
             data = {
-                'id_to_index': self._id_to_index.copy(),
-                'index_to_id': {str(k): v for k, v in self._index_to_id.items()},
-                'next_index': self._next_index
+                "id_to_index": self._id_to_index.copy(),
+                "index_to_id": {str(k): v for k, v in self._index_to_id.items()},
+                "next_index": self._next_index,
             }
 
         try:
-            if filepath.suffix.lower() == '.json':
-                with open(filepath, 'w') as f:
+            if filepath.suffix.lower() == ".json":
+                with open(filepath, "w") as f:
                     json.dump(data, f, indent=2)
             else:
-                with open(filepath, 'wb') as f:
+                with open(filepath, "wb") as f:
                     pickle.dump(data, f)
 
             logger.info(f"Saved task ID mappings to {filepath}")
@@ -192,19 +192,21 @@ class TaskIDManager:
             raise FileNotFoundError(f"Task ID mapping file not found: {filepath}")
 
         try:
-            if filepath.suffix.lower() == '.json':
-                with open(filepath, 'r') as f:
+            if filepath.suffix.lower() == ".json":
+                with open(filepath) as f:
                     data = json.load(f)
             else:
-                with open(filepath, 'rb') as f:
+                with open(filepath, "rb") as f:
                     data = pickle.load(f)
 
             with self._lock:
-                self._id_to_index = data['id_to_index'].copy()
-                self._index_to_id = {int(k): v for k, v in data['index_to_id'].items()}
-                self._next_index = data['next_index']
+                self._id_to_index = data["id_to_index"].copy()
+                self._index_to_id = {int(k): v for k, v in data["index_to_id"].items()}
+                self._next_index = data["next_index"]
 
-            logger.info(f"Loaded task ID mappings from {filepath} ({self.num_tasks()} tasks)")
+            logger.info(
+                f"Loaded task ID mappings from {filepath} ({self.num_tasks()} tasks)"
+            )
         except Exception as e:
             logger.error(f"Failed to load task ID mappings: {e}")
             raise
@@ -310,6 +312,7 @@ def get_jax_task_index(task_id: str) -> chex.Array:
 
 # Utility functions for creating JAX-compatible task data
 
+
 def create_jax_task_index(task_id: Optional[str] = None) -> chex.Array:
     """
     Create a JAX-compatible task index.
@@ -360,6 +363,7 @@ def is_dummy_task_index(task_index: chex.Array) -> bool:
 
 # Context manager for temporary task managers
 
+
 class TemporaryTaskManager:
     """Context manager for using a temporary task ID manager."""
 
@@ -392,6 +396,7 @@ class TemporaryTaskManager:
 
 
 # Example usage and testing utilities
+
 
 def example_usage():
     """Example of how to use the task ID management system."""

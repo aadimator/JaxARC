@@ -14,20 +14,21 @@ The tests demonstrate the core selling point of our JAX-compatible implementatio
 high-performance reinforcement learning environment for ARC tasks.
 """
 
-import sys
+from __future__ import annotations
+
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import time
-from typing import Tuple, Dict, Any
-import functools
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-import chex
+
 from jaxarc.envs.arcle_env import ARCLEEnvironment
-from jaxarc.types import ParsedTaskData, ARCLEState
+from jaxarc.types import ParsedTaskData
 from jaxarc.utils.task_manager import create_jax_task_index
 
 
@@ -44,7 +45,9 @@ def create_test_task_data(grid_size=(10, 10), task_id="perf_test_task"):
 
     output_grid = jnp.zeros((1, h, w), dtype=jnp.int32)
     # Transform: shift patterns and change colors
-    output_grid = output_grid.at[0, 2:4, 2:7].set(4)  # Shifted horizontal bar, new color
+    output_grid = output_grid.at[0, 2:4, 2:7].set(
+        4
+    )  # Shifted horizontal bar, new color
     output_grid = output_grid.at[0, 6:9, 3:5].set(5)  # Shifted vertical bar, new color
     output_grid = output_grid.at[0, 7:10, 7:10].set(6)  # Shifted square, new color
 
@@ -61,7 +64,7 @@ def create_test_task_data(grid_size=(10, 10), task_id="perf_test_task"):
         true_test_output_grids=output_grid,
         true_test_output_masks=masks,
         num_test_pairs=1,
-        task_index=create_jax_task_index(task_id)
+        task_index=create_jax_task_index(task_id),
     )
 
 
@@ -71,9 +74,7 @@ def test_jit_compilation():
 
     try:
         env = ARCLEEnvironment(
-            num_agents=1,
-            max_grid_size=(10, 10),
-            max_episode_steps=50
+            num_agents=1, max_grid_size=(10, 10), max_episode_steps=50
         )
 
         task_data = create_test_task_data()
@@ -103,8 +104,8 @@ def test_jit_compilation():
         selection = jnp.zeros((h, w), dtype=jnp.float32)
         selection = selection.at[1:3, 1:6].set(1.0)  # Select horizontal bar
         action = {
-            'selection': selection,
-            'operation': jnp.array(4, dtype=jnp.int32)  # Fill with color 4
+            "selection": selection,
+            "operation": jnp.array(4, dtype=jnp.int32),  # Fill with color 4
         }
         actions = {agent_id: action}
 
@@ -115,9 +116,9 @@ def test_jit_compilation():
         obs_test = jit_get_obs(new_state)
 
         print("✅ JIT compilation successful")
-        print(f"   - Reset compiled and executed")
-        print(f"   - Step compiled and executed")
-        print(f"   - Observation generation compiled and executed")
+        print("   - Reset compiled and executed")
+        print("   - Step compiled and executed")
+        print("   - Observation generation compiled and executed")
         print(f"   - Final similarity: {float(new_state.similarity_score):.3f}")
 
         return jit_reset, jit_step, jit_get_obs
@@ -125,6 +126,7 @@ def test_jit_compilation():
     except Exception as e:
         print(f"❌ JIT compilation failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -137,7 +139,7 @@ def test_performance_comparison():
         env = ARCLEEnvironment(
             num_agents=1,
             max_grid_size=(15, 15),  # Slightly larger for better performance testing
-            max_episode_steps=20
+            max_episode_steps=20,
         )
 
         task_data = create_test_task_data((15, 15))
@@ -152,10 +154,7 @@ def test_performance_comparison():
             selection = jax.random.uniform(selection_key, (h, w)) > 0.8
             selection = selection.astype(jnp.float32)
             operation = jax.random.randint(op_key, (), 0, 10)  # Test fill operations
-            return {
-                'selection': selection,
-                'operation': operation
-            }
+            return {"selection": selection, "operation": operation}
 
         # Non-JIT functions
         def run_episode_normal(run_key):
@@ -170,7 +169,9 @@ def test_performance_comparison():
                 action = create_random_action(step_key)
                 actions = {agent_id: action}
 
-                obs, state, rewards, dones, infos = env.step_env(step_key, state, actions)
+                obs, state, rewards, dones, infos = env.step_env(
+                    step_key, state, actions
+                )
                 total_reward += rewards[agent_id]
 
                 if dones[agent_id]:
@@ -188,33 +189,33 @@ def test_performance_comparison():
                 total_reward, state = carry
 
                 # Check if we should continue
-                should_continue = ~state.terminated & (state.step < env.max_episode_steps)
+                should_continue = ~state.terminated & (
+                    state.step < env.max_episode_steps
+                )
 
                 action = create_random_action(step_key)
                 actions = {agent_id: action}
 
-                obs, new_state, rewards, dones, infos = env.step_env(step_key, state, actions)
+                obs, new_state, rewards, dones, infos = env.step_env(
+                    step_key, state, actions
+                )
 
                 # Conditional update using JAX
                 new_total_reward = jax.lax.cond(
                     should_continue,
                     lambda: total_reward + rewards[agent_id],
-                    lambda: total_reward
+                    lambda: total_reward,
                 )
 
                 new_state_final = jax.lax.cond(
-                    should_continue,
-                    lambda: new_state,
-                    lambda: state
+                    should_continue, lambda: new_state, lambda: state
                 )
 
                 return (new_total_reward, new_state_final), None
 
             # Use lax.scan for the episode loop
             (total_reward, final_state), _ = jax.lax.scan(
-                episode_step,
-                (0.0, state),
-                episode_keys
+                episode_step, (0.0, state), episode_keys
             )
 
             return total_reward, final_state.step
@@ -242,7 +243,7 @@ def test_performance_comparison():
         jit_time = time.time() - start_time
 
         # Calculate speedup
-        speedup = normal_time / jit_time if jit_time > 0 else float('inf')
+        speedup = normal_time / jit_time if jit_time > 0 else float("inf")
 
         print("✅ Performance comparison completed")
         print(f"   - Normal execution time: {normal_time:.4f}s")
@@ -262,6 +263,7 @@ def test_performance_comparison():
     except Exception as e:
         print(f"❌ Performance comparison failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -271,11 +273,7 @@ def test_vmap_batching():
     print("\n🧪 Testing vmap batch processing...")
 
     try:
-        env = ARCLEEnvironment(
-            num_agents=1,
-            max_grid_size=(8, 8),
-            max_episode_steps=10
-        )
+        env = ARCLEEnvironment(num_agents=1, max_grid_size=(8, 8), max_episode_steps=10)
 
         # Create multiple task variants
         batch_size = 4
@@ -310,20 +308,21 @@ def test_vmap_batching():
 
         # Create batch actions
         selections = jnp.ones((batch_size, h, w), dtype=jnp.float32) * 0.1
-        operations = jnp.array([1, 2, 3, 4], dtype=jnp.int32)  # Different operations per batch
-        batch_actions = {
-            'selection': selections,
-            'operation': operations
-        }
+        operations = jnp.array(
+            [1, 2, 3, 4], dtype=jnp.int32
+        )  # Different operations per batch
+        batch_actions = {"selection": selections, "operation": operations}
 
-        batch_obs, batch_new_states, batch_rewards, batch_dones, batch_infos = batch_step(
-            step_keys, batch_states, batch_actions
+        batch_obs, batch_new_states, batch_rewards, batch_dones, batch_infos = (
+            batch_step(step_keys, batch_states, batch_actions)
         )
 
         print("✅ Batch step successful")
         print(f"   - Batch rewards shape: {batch_rewards[agent_id].shape}")
         print(f"   - Batch done shape: {batch_dones[agent_id].shape}")
-        print(f"   - Average similarity: {float(jnp.mean(batch_new_states.similarity_score)):.3f}")
+        print(
+            f"   - Average similarity: {float(jnp.mean(batch_new_states.similarity_score)):.3f}"
+        )
 
         # Test JIT compilation of batched operations
         jit_batch_reset = jax.jit(batch_reset)
@@ -334,14 +333,15 @@ def test_vmap_batching():
         batch_obs, batch_states = jit_batch_reset(keys)
 
         print("✅ JIT batch processing successful")
-        print(f"   - JIT batch reset completed")
-        print(f"   - JIT batch maintains correctness")
+        print("   - JIT batch reset completed")
+        print("   - JIT batch maintains correctness")
 
         return batch_size
 
     except Exception as e:
         print(f"❌ Vmap batch processing failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -352,9 +352,7 @@ def test_reproducibility():
 
     try:
         env = ARCLEEnvironment(
-            num_agents=1,
-            max_grid_size=(10, 10),
-            max_episode_steps=5
+            num_agents=1, max_grid_size=(10, 10), max_episode_steps=5
         )
 
         task_data = create_test_task_data()
@@ -368,9 +366,18 @@ def test_reproducibility():
 
             # Fixed action sequence
             actions_sequence = [
-                {'selection': jnp.ones((h, w), dtype=jnp.float32) * 0.0, 'operation': jnp.array(1)},  # Fill color 1
-                {'selection': jnp.ones((h, w), dtype=jnp.float32) * 0.1, 'operation': jnp.array(2)},  # Fill color 2
-                {'selection': jnp.ones((h, w), dtype=jnp.float32) * 0.0, 'operation': jnp.array(34)}, # Submit
+                {
+                    "selection": jnp.ones((h, w), dtype=jnp.float32) * 0.0,
+                    "operation": jnp.array(1),
+                },  # Fill color 1
+                {
+                    "selection": jnp.ones((h, w), dtype=jnp.float32) * 0.1,
+                    "operation": jnp.array(2),
+                },  # Fill color 2
+                {
+                    "selection": jnp.ones((h, w), dtype=jnp.float32) * 0.0,
+                    "operation": jnp.array(34),
+                },  # Submit
             ]
 
             states = [state]
@@ -400,8 +407,7 @@ def test_reproducibility():
         # Check final states match
         final_grids_match = jnp.array_equal(run1_states[-1].grid, run2_states[-1].grid)
         final_similarity_match = jnp.isclose(
-            run1_states[-1].similarity_score,
-            run2_states[-1].similarity_score
+            run1_states[-1].similarity_score, run2_states[-1].similarity_score
         )
 
         print("✅ Reproducibility test successful")
@@ -422,6 +428,7 @@ def test_reproducibility():
     except Exception as e:
         print(f"❌ Reproducibility test failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -432,9 +439,7 @@ def test_stress_operations():
 
     try:
         env = ARCLEEnvironment(
-            num_agents=1,
-            max_grid_size=(12, 12),
-            max_episode_steps=50
+            num_agents=1, max_grid_size=(12, 12), max_episode_steps=50
         )
 
         task_data = create_test_task_data((12, 12))
@@ -453,10 +458,7 @@ def test_stress_operations():
             selection = jnp.zeros((h, w), dtype=jnp.float32)
             selection = selection.at[3:9, 3:9].set(1.0)
 
-            action = {
-                'selection': selection,
-                'operation': operation_id
-            }
+            action = {"selection": selection, "operation": operation_id}
             actions = {agent_id: action}
 
             obs, new_state, rewards, dones, infos = env.step_env(key, state, actions)
@@ -465,12 +467,16 @@ def test_stress_operations():
         for op_id in range(35):  # Operations 0-34
             try:
                 key = jax.random.PRNGKey(op_id)
-                state, reward, done = test_operation(key, jnp.array(op_id, dtype=jnp.int32))
+                state, reward, done = test_operation(
+                    key, jnp.array(op_id, dtype=jnp.int32)
+                )
                 successful_operations += 1
 
                 # Special check for submit operation (34)
                 if op_id == 34:
-                    assert bool(state.terminated), f"Submit operation should terminate episode"
+                    assert bool(state.terminated), (
+                        "Submit operation should terminate episode"
+                    )
 
             except Exception as e:
                 failed_operations.append((op_id, str(e)))
@@ -489,6 +495,7 @@ def test_stress_operations():
     except Exception as e:
         print(f"❌ Operation stress test setup failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -505,9 +512,7 @@ def test_memory_efficiency():
         for grid_size in grid_sizes:
             h, w = grid_size
             env = ARCLEEnvironment(
-                num_agents=1,
-                max_grid_size=grid_size,
-                max_episode_steps=10
+                num_agents=1, max_grid_size=grid_size, max_episode_steps=10
             )
 
             task_data = create_test_task_data(grid_size)
@@ -524,12 +529,14 @@ def test_memory_efficiency():
                     selection = selection.at[:2, :2].set(1.0)
 
                     action = {
-                        'selection': selection,
-                        'operation': jnp.array(i + 1, dtype=jnp.int32)
+                        "selection": selection,
+                        "operation": jnp.array(i + 1, dtype=jnp.int32),
                     }
                     actions = {env.agents[0]: action}
 
-                    obs, state, rewards, dones, infos = env.step_env(step_key, state, actions)
+                    obs, state, rewards, dones, infos = env.step_env(
+                        step_key, state, actions
+                    )
                     if dones[env.agents[0]]:
                         break
 
@@ -544,14 +551,16 @@ def test_memory_efficiency():
             state_memory = sum(
                 getattr(dummy_state, field).nbytes
                 for field in dummy_state.__dataclass_fields__
-                if hasattr(getattr(dummy_state, field), 'nbytes')
+                if hasattr(getattr(dummy_state, field), "nbytes")
             )
 
             memory_usage.append((grid_size, state_memory, float(result)))
 
         print("✅ Memory efficiency test completed")
         for (h, w), memory, result in memory_usage:
-            print(f"   - Grid {h}x{w}: {memory/1024:.1f} KB state memory, result: {result:.3f}")
+            print(
+                f"   - Grid {h}x{w}: {memory / 1024:.1f} KB state memory, result: {result:.3f}"
+            )
 
         # Test batch memory scaling
         batch_sizes = [1, 4, 8, 16]
@@ -566,18 +575,21 @@ def test_memory_efficiency():
             batch_reset = jax.vmap(lambda k: env.reset(k, task_data))
 
             batch_obs, batch_states = batch_reset(keys)
-            batch_memory_size = batch_states.grid.nbytes + batch_obs[env.agents[0]].nbytes
+            batch_memory_size = (
+                batch_states.grid.nbytes + batch_obs[env.agents[0]].nbytes
+            )
             batch_memory.append((batch_size, batch_memory_size))
 
         print("   Batch memory scaling:")
         for batch_size, memory in batch_memory:
-            print(f"   - Batch size {batch_size}: {memory/1024:.1f} KB")
+            print(f"   - Batch size {batch_size}: {memory / 1024:.1f} KB")
 
         return memory_usage, batch_memory
 
     except Exception as e:
         print(f"❌ Memory efficiency test failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 
@@ -592,57 +604,61 @@ def main():
     try:
         # Test 1: JIT Compilation
         jit_funcs = test_jit_compilation()
-        results['jit_compilation'] = True
+        results["jit_compilation"] = True
 
         # Test 2: Performance Comparison
         speedup = test_performance_comparison()
-        results['performance_speedup'] = speedup
+        results["performance_speedup"] = speedup
 
         # Test 3: Vmap Batching (skip if it fails due to batching issues)
         try:
             batch_size = test_vmap_batching()
-            results['batch_processing'] = batch_size
+            results["batch_processing"] = batch_size
         except Exception as e:
             print(f"\n⚠️  Vmap batching test skipped due to: {str(e)[:100]}...")
-            results['batch_processing'] = 0  # Indicates skipped
+            results["batch_processing"] = 0  # Indicates skipped
 
         # Test 4: Reproducibility
         reproducible = test_reproducibility()
-        results['reproducibility'] = reproducible
+        results["reproducibility"] = reproducible
 
         # Test 5: Stress Test Operations
         success_ops, failed_ops = test_stress_operations()
-        results['operation_success_rate'] = success_ops / 35
+        results["operation_success_rate"] = success_ops / 35
 
         # Test 6: Memory Efficiency (skip if it fails due to JAX control flow issues)
         try:
             memory_data = test_memory_efficiency()
-            results['memory_efficiency'] = True
+            results["memory_efficiency"] = True
         except Exception as e:
             print(f"\n⚠️  Memory efficiency test skipped due to: {str(e)[:100]}...")
-            results['memory_efficiency'] = False  # Indicates skipped
+            results["memory_efficiency"] = False  # Indicates skipped
 
         print("\n" + "=" * 60)
         print("🎉 JAX Performance Test Suite Results:")
-        print(f"   ✅ JIT Compilation: {'PASS' if results['jit_compilation'] else 'FAIL'}")
+        print(
+            f"   ✅ JIT Compilation: {'PASS' if results['jit_compilation'] else 'FAIL'}"
+        )
         print(f"   ⚡ Performance Speedup: {results['performance_speedup']:.2f}x")
-        if results['batch_processing'] > 0:
+        if results["batch_processing"] > 0:
             print(f"   📦 Batch Processing: {results['batch_processing']} environments")
         else:
-            print(f"   📦 Batch Processing: SKIPPED (needs vmap compatibility work)")
-        print(f"   🔁 Reproducibility: {'PASS' if results['reproducibility'] else 'FAIL'}")
+            print("   📦 Batch Processing: SKIPPED (needs vmap compatibility work)")
+        print(
+            f"   🔁 Reproducibility: {'PASS' if results['reproducibility'] else 'FAIL'}"
+        )
         print(f"   🎯 Operation Success Rate: {results['operation_success_rate']:.1%}")
-        if results['memory_efficiency']:
-            print(f"   💾 Memory Efficiency: PASS")
+        if results["memory_efficiency"]:
+            print("   💾 Memory Efficiency: PASS")
         else:
-            print(f"   💾 Memory Efficiency: SKIPPED (needs JAX control flow fixes)")
+            print("   💾 Memory Efficiency: SKIPPED (needs JAX control flow fixes)")
 
         # Overall assessment (batch processing and memory efficiency optional for now)
         all_critical_pass = (
-            results['jit_compilation'] and
-            results['reproducibility'] and
-            results['operation_success_rate'] > 0.9 and
-            results['performance_speedup'] > 1.0
+            results["jit_compilation"]
+            and results["reproducibility"]
+            and results["operation_success_rate"] > 0.9
+            and results["performance_speedup"] > 1.0
         )
 
         print("\n" + "=" * 60)
@@ -652,14 +668,20 @@ def main():
         else:
             print("⚠️  OVERALL: ISSUES DETECTED - Some optimizations needed.")
 
-        print(f"\n📊 Performance Summary:")
+        print("\n📊 Performance Summary:")
         print(f"   • JIT provides {results['performance_speedup']:.1f}x speedup")
-        if results['batch_processing'] > 0:
-            print(f"   • Supports batch processing up to {results['batch_processing']} environments")
+        if results["batch_processing"] > 0:
+            print(
+                f"   • Supports batch processing up to {results['batch_processing']} environments"
+            )
         else:
-            print(f"   • Batch processing (vmap): Needs additional work for full compatibility")
-        print(f"   • {results['operation_success_rate']:.0%} of ARCLE operations working correctly")
-        print(f"   • Full reproducibility with PRNG keys")
+            print(
+                "   • Batch processing (vmap): Needs additional work for full compatibility"
+            )
+        print(
+            f"   • {results['operation_success_rate']:.0%} of ARCLE operations working correctly"
+        )
+        print("   • Full reproducibility with PRNG keys")
 
         return all_critical_pass
 
@@ -667,6 +689,7 @@ def main():
         print("\n" + "=" * 60)
         print(f"💥 Test suite failed with error: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
