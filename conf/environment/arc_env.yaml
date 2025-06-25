@@ -1,5 +1,5 @@
-# Environment Configuration for ARCLE Environment
-# Based on ARCLE's proven design with JAX optimizations
+# Environment Configuration for ARC Environment
+# Grid-based operations with JAX optimizations
 
 # Grid and Episode Settings
 max_grid_size: [30, 30] # Default maximum grid dimensions [h, w]

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Basic test script for ARCLE environment functionality.
+Basic test script for ARC environment functionality.
 
-This script tests the core functionality of the ARCLE environment to ensure
+This script tests the core functionality of the ARC environment to ensure
 it works correctly despite any type checking issues.
 """
 
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 import jax
 import jax.numpy as jnp
 
-from jaxarc.envs.arcle_env import ARCLEEnvironment
+from jaxarc.envs import ArcEnvironment
 from jaxarc.types import ParsedTaskData
 from jaxarc.utils.task_manager import create_jax_task_index
 
@@ -50,11 +50,11 @@ def create_dummy_task_data(grid_size=(10, 10)):
 
 
 def test_environment_creation():
-    """Test that we can create an ARCLE environment."""
+    """Test that we can create an ARC environment."""
     print("🧪 Testing environment creation...")
 
     try:
-        env = ARCLEEnvironment(
+        env = ArcEnvironment(
             num_agents=1, max_grid_size=(10, 10), max_episode_steps=50
         )
         print("✅ Environment created successfully")
@@ -234,7 +234,7 @@ def test_submit_action(env):
 
 def main():
     """Run all tests."""
-    print("🚀 Starting ARCLE Environment Basic Tests")
+    print("🚀 Starting ARC Environment Basic Tests")
     print("=" * 50)
 
     try:
@@ -254,7 +254,7 @@ def main():
         test_submit_action(env)
 
         print("\n" + "=" * 50)
-        print("🎉 All tests passed! ARCLE environment is working correctly.")
+        print("🎉 All tests passed! ARC environment is working correctly.")
 
     except Exception as e:
         print("\n" + "=" * 50)

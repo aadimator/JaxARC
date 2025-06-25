@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-JAX Performance and JIT Compilation Test Suite for ARCLE Environment.
+JAX Performance and JIT Compilation Test Suite for ARC Environment.
 
-This comprehensive test suite verifies that the ARCLE environment:
+This comprehensive test suite verifies that the ARC environment:
 1. Is fully JIT-compatible and compilable
 2. Shows performance improvements from JIT compilation
 3. Works correctly with JAX transformations (vmap, pmap)
@@ -27,7 +27,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from jaxarc.envs.arcle_env import ARCLEEnvironment
+from jaxarc.envs import ArcEnvironment
 from jaxarc.types import ParsedTaskData
 from jaxarc.utils.task_manager import create_jax_task_index
 
@@ -69,11 +69,11 @@ def create_test_task_data(grid_size=(10, 10), task_id="perf_test_task"):
 
 
 def test_jit_compilation():
-    """Test that ARCLE environment functions can be JIT compiled."""
+    """Test that ARC environment functions can be JIT compiled."""
     print("🧪 Testing JIT compilation...")
 
     try:
-        env = ARCLEEnvironment(
+        env = ArcEnvironment(
             num_agents=1, max_grid_size=(10, 10), max_episode_steps=50
         )
 
@@ -136,7 +136,7 @@ def test_performance_comparison():
     print("\n🧪 Testing performance improvements from JIT...")
 
     try:
-        env = ARCLEEnvironment(
+        env = ArcEnvironment(
             num_agents=1,
             max_grid_size=(15, 15),  # Slightly larger for better performance testing
             max_episode_steps=20,
@@ -273,7 +273,7 @@ def test_vmap_batching():
     print("\n🧪 Testing vmap batch processing...")
 
     try:
-        env = ARCLEEnvironment(num_agents=1, max_grid_size=(8, 8), max_episode_steps=10)
+        env = ArcEnvironment(num_agents=1, max_grid_size=(8, 8), max_episode_steps=10)
 
         # Create multiple task variants
         batch_size = 4
@@ -351,7 +351,7 @@ def test_reproducibility():
     print("\n🧪 Testing reproducibility with PRNG keys...")
 
     try:
-        env = ARCLEEnvironment(
+        env = ArcEnvironment(
             num_agents=1, max_grid_size=(10, 10), max_episode_steps=5
         )
 
@@ -434,11 +434,11 @@ def test_reproducibility():
 
 
 def test_stress_operations():
-    """Stress test all ARCLE operations to ensure they work correctly."""
-    print("\n🧪 Testing all ARCLE operations...")
+    """Stress test all ARC operations to ensure they work correctly."""
+    print("\n🧪 Testing all ARC operations...")
 
     try:
-        env = ARCLEEnvironment(
+        env = ArcEnvironment(
             num_agents=1, max_grid_size=(12, 12), max_episode_steps=50
         )
 
@@ -511,7 +511,7 @@ def test_memory_efficiency():
 
         for grid_size in grid_sizes:
             h, w = grid_size
-            env = ARCLEEnvironment(
+            env = ArcEnvironment(
                 num_agents=1, max_grid_size=grid_size, max_episode_steps=10
             )
 
@@ -566,7 +566,7 @@ def test_memory_efficiency():
         batch_sizes = [1, 4, 8, 16]
         batch_memory = []
 
-        env = ARCLEEnvironment(max_grid_size=(10, 10))
+        env = ArcEnvironment(max_grid_size=(10, 10))
         task_data = create_test_task_data((10, 10))
 
         for batch_size in batch_sizes:
@@ -596,7 +596,7 @@ def test_memory_efficiency():
 
 def main():
     """Run comprehensive JAX performance and compatibility tests."""
-    print("🚀 Starting ARCLE JAX Performance Test Suite")
+    print("🚀 Starting ARC JAX Performance Test Suite")
     print("=" * 60)
 
     results = {}
@@ -664,7 +664,7 @@ def main():
         print("\n" + "=" * 60)
         if all_critical_pass:
             print("🏆 OVERALL: EXCELLENT - Full JAX compatibility achieved!")
-            print("   The ARCLE environment is ready for high-performance training.")
+            print("   The ARC environment is ready for high-performance training.")
         else:
             print("⚠️  OVERALL: ISSUES DETECTED - Some optimizations needed.")
 

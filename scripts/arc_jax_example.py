@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-JAX ARCLE Environment - Comprehensive Usage Example
+JAX ARC Environment - Comprehensive Usage Example
 
-This example demonstrates the high-performance, JAX-compatible ARCLE environment
+This example demonstrates the high-performance, JAX-compatible ARC environment
 for training agents on Abstract Reasoning Challenge (ARC) tasks.
 
 Key Features Demonstrated:
 - JIT compilation for massive performance gains
 - Full JAX compatibility with transformations
 - Reproducible experiments with PRNG keys
-- All 35 ARCLE operations working correctly
+- All 35 ARC operations working correctly
 - Task management with integer indexing system
 - Grid-based ARC task solving
 
@@ -31,7 +31,7 @@ import time
 import jax
 import jax.numpy as jnp
 
-from jaxarc.envs.arcle_env import ARCLEEnvironment
+from jaxarc.envs import ArcEnvironment
 from jaxarc.types import ParsedTaskData
 from jaxarc.utils.task_manager import create_jax_task_index
 
@@ -89,12 +89,12 @@ def create_sample_arc_task(grid_size=(12, 12), task_id="demo_task"):
 
 
 def demonstrate_basic_usage():
-    """Demonstrate basic ARCLE environment usage."""
-    print("🔧 Basic ARCLE Environment Usage")
+    """Demonstrate basic ARC environment usage."""
+    print("🔧 Basic ARC Environment Usage")
     print("-" * 40)
 
     # Create environment
-    env = ARCLEEnvironment(num_agents=1, max_grid_size=(12, 12), max_episode_steps=20)
+    env = ArcEnvironment(num_agents=1, max_grid_size=(12, 12), max_episode_steps=20)
 
     # Create sample task
     task_data = create_sample_arc_task()
@@ -117,7 +117,7 @@ def demonstrate_jit_compilation():
     print("\n⚡ JIT Compilation Demonstration")
     print("-" * 40)
 
-    env = ARCLEEnvironment(max_grid_size=(15, 15))
+    env = ArcEnvironment(max_grid_size=(15, 15))
     task_data = create_sample_arc_task((15, 15))
     agent_id = env.agents[0]
 
@@ -181,11 +181,11 @@ def demonstrate_jit_compilation():
 
 
 def demonstrate_all_operations():
-    """Demonstrate all 35 ARCLE operations."""
-    print("\n🎯 ARCLE Operations Demonstration")
+    """Demonstrate all 35 ARC operations."""
+    print("\n🎯 ARC Operations Demonstration")
     print("-" * 40)
 
-    env = ARCLEEnvironment(max_grid_size=(10, 10))
+    env = ArcEnvironment(max_grid_size=(10, 10))
     task_data = create_sample_arc_task((10, 10))
     agent_id = env.agents[0]
 
@@ -244,7 +244,7 @@ def demonstrate_reproducibility():
     print("\n🔁 Reproducibility Demonstration")
     print("-" * 40)
 
-    env = ARCLEEnvironment(max_grid_size=(8, 8))
+    env = ArcEnvironment(max_grid_size=(8, 8))
     task_data = create_sample_arc_task((8, 8))
     agent_id = env.agents[0]
 
@@ -305,7 +305,7 @@ def demonstrate_advanced_solving():
     print("\n🧩 Advanced Task Solving Demonstration")
     print("-" * 40)
 
-    env = ARCLEEnvironment(max_grid_size=(12, 12))
+    env = ArcEnvironment(max_grid_size=(12, 12))
     task_data = create_sample_arc_task()
     agent_id = env.agents[0]
 
@@ -360,10 +360,10 @@ def demonstrate_advanced_solving():
 
 def main():
     """Run comprehensive ARCLE JAX demonstration."""
-    print("🚀 JAX ARCLE Environment - Comprehensive Demo")
+    print("🚀 JAX ARC Environment - Comprehensive Demo")
     print("=" * 60)
     print("This demo showcases the high-performance, JAX-compatible")
-    print("ARCLE environment for Abstract Reasoning Challenge tasks.")
+    print("ARC environment for Abstract Reasoning Challenge tasks.")
     print("=" * 60)
 
     try:
@@ -387,7 +387,7 @@ def main():
         print("\n🏆 Key Achievements:")
         print("   ✅ Full JAX compatibility with JIT compilation")
         print("   ⚡ 15,000x+ performance speedup from JIT")
-        print("   🎯 All 35 ARCLE operations working correctly")
+        print("   🎯 All 35 ARC operations working correctly")
         print("   🔁 Complete reproducibility with PRNG keys")
         print("   🧩 Ready for ARC task training and research")
 

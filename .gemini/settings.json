@@ -1,0 +1,5 @@
+{
+  "theme": "GitHub",
+  "contextFileName": [".github/copilot-instructions.md", "GEMINI.md"],
+  "usageStatisticsEnabled": true
+}
