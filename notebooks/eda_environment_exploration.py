@@ -3,7 +3,7 @@
 #
 # This notebook demonstrates the complete workflow of:
 # 1. Loading and parsing ARC datasets using configuration files
-# 2. Instantiating the ARCLE environment
+# 2. Instantiating the ARC environment
 # 3. Loading tasks into the environment
 # 4. Exploring different actions and operations
 # 5. Visualizing grids and transformations
@@ -18,7 +18,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from jaxarc.envs import ARCLEEnvironment
+from jaxarc.envs import ArcEnvironment
 
 # JaxARC imports
 from jaxarc.parsers import ArcAgiParser
@@ -45,7 +45,7 @@ console.print(
     Panel(
         f"[bold green]Configuration Loaded[/bold green]\n\n"
         f"Dataset: {config.dataset.dataset_name}\n"
-        f"Environment: arcle_env\n"
+        f"Environment: arc_env\n"
         f"Data Root: {config.dataset.data_root}\n"
         f"Max Grid Size: {config.dataset.max_grid_size}x{config.dataset.max_grid_size}",
         title="JaxARC Configuration",
@@ -140,15 +140,15 @@ visualize_parsed_task_data_rich(parsed_task)
 # %% [markdown]
 # ## 5. Environment Initialization
 #
-# Now let's create the ARCLE environment using the new implementation.
+# Now let's create the ARC environment using the new implementation.
 
 # %%
-# Initialize the ARCLE environment with proper configuration
+# Initialize the ARC environment with proper configuration
 env_config = config.environment
 max_grid_size = tuple(env_config.get("max_grid_size", [30, 30]))
 max_episode_steps = env_config.get("max_episode_steps", 100)
 
-env = ARCLEEnvironment(
+env = ArcEnvironment(
     config=env_config,
     num_agents=1,
     max_grid_size=max_grid_size,
@@ -164,7 +164,7 @@ console.print(
         f"Number of Agents: {env.num_agents}\n"
         f"Agents: {env.agents}\n"
         f"Reward on Submit Only: {env.reward_on_submit_only}",
-        title="ARCLE Environment",
+        title="ARC Environment",
     )
 )
 
@@ -227,17 +227,17 @@ console.print(
 # %% [markdown]
 # ## 7. Action Space Exploration
 #
-# Let's explore the different types of actions available in the ARCLE environment.
+# Let's explore the different types of actions available in the ARC environment.
 
 # %%
 console.print("[bold yellow]Available Operations:[/bold yellow]")
 
-operations_table = Table(title="ARCLE Operations")
+operations_table = Table(title="ARC Operations")
 operations_table.add_column("Operation ID", style="cyan")
 operations_table.add_column("Operation Type", style="magenta")
 operations_table.add_column("Description", style="green")
 
-# Add operation examples based on the ARCLE design
+# Add operation examples based on the ARC design
 operation_examples = [
     (0, "Fill Color", "Fill selection with color 0 (black)"),
     (1, "Fill Color", "Fill selection with color 1 (blue)"),
@@ -275,7 +275,7 @@ console.print(operations_table)
 # Let's create sample actions and execute them to see how they affect the grid.
 
 # %%
-# Create a sample action following the ARCLE format
+# Create a sample action following the ARC format
 h, w = env.max_grid_size
 
 # Create a selection mask (small rectangular region)
@@ -596,7 +596,7 @@ if parsed_task.num_train_pairs > 1:
 # %% [markdown]
 # ## 13. Summary and Key Insights
 #
-# This notebook has demonstrated the complete JaxARC workflow with the new ARCLE environment.
+# This notebook has demonstrated the complete JaxARC workflow with the new ARC environment.
 
 # %%
 console.print(
@@ -605,7 +605,7 @@ console.print(
         f"✅ Configuration loading with Hydra\n"
         f"✅ Dataset parsing with ArcAgiParser\n"
         f"✅ Task selection and data structure exploration\n"
-        f"✅ ARCLE environment initialization with proper base class\n"
+        f"✅ ARC environment initialization with proper base class\n"
         f"✅ Task loading into environment via reset_with_task\n"
         f"✅ Action space analysis (selection + operation)\n"
         f"✅ Single and multi-step action execution\n"
@@ -617,7 +617,7 @@ console.print(
         f"• Parser: {type(parser).__name__}\n"
         f"• Task ID: {parsed_task.task_id}\n"
         f"• Action Space: Dict(selection: Box({h}, {w}), operation: Discrete(35))\n"
-        f"• State: ARCLEState with current_grid, target_grid, clipboard, etc.\n"
+        f"• State: ArcEnvironmentState with current_grid, target_grid, clipboard, etc.\n"
         f"• JAX/JIT Compatible: ✅\n"
         f"• Reward System: {'Submit-only' if env.reward_on_submit_only else 'Continuous'}",
         title="Exploration Complete!",
@@ -627,11 +627,11 @@ console.print(
 # %% [markdown]
 # ## Next Steps
 #
-# The ARCLE environment is now fully functional! Next steps include:
+# The ARC environment is now fully functional! Next steps include:
 #
 # 1. **Agent Implementation**: Create learning agents that can select actions intelligently
 # 2. **Training Pipeline**: Set up RL training loops using JaxMARL
-# 3. **Operation Implementation**: Complete the ARCLE operations in `arcle_operations.py`
+# 3. **Operation Implementation**: Complete the ARC operations in `grid_operations.py`
 # 4. **Multi-Task Learning**: Train agents across multiple ARC tasks
 # 5. **Evaluation Framework**: Systematic evaluation on test sets
 # 6. **Advanced Features**: Multi-agent collaboration, hierarchical policies

@@ -1,11 +1,11 @@
 """
-ARCLE Environment - JAX-compatible implementation using proper base classes.
+ARC Environment - JAX-compatible implementation using proper base classes.
 
-This module implements the ARCLE (Abstraction and Reasoning Challenge Learning Environment)
+This module implements an ARC (Abstraction and Reasoning Corpus) environment
 using JAX and integrates with the JaxMARL framework through the ArcMarlEnvBase.
 
 Key Features:
-- Single-agent ARCLE implementation (extensible to multi-agent)
+- Single-agent ARC implementation (extensible to multi-agent)
 - Selection mask + operation ID action space
 - Task loading from ParsedTaskData
 - JAX-compatible operations and state updates
@@ -22,17 +22,18 @@ import jax.numpy as jnp
 from jaxmarl.environments.spaces import Box, Dict, Discrete
 
 from ..base.base_env import ArcEnvState, ArcMarlEnvBase
+from ..spaces.multibinary import MultiBinary
 from ..types import ParsedTaskData
-from .arcle_operations import compute_grid_similarity, execute_arcle_operation
+from .grid_operations import compute_grid_similarity, execute_grid_operation
 
 
-@chex.dataclass
-class ARCLEState(ArcEnvState):
+@chex.dataclass(kw_only=True)
+class ArcEnvironmentState(ArcEnvState):
     """
-    State representation for ARCLE environment.
+    State representation for ARC environment.
 
     This includes all base environment state fields (equivalent to ArcEnvState)
-    plus ARCLE-specific additions for grid manipulation, clipboard operations,
+    plus ARC-specific additions for grid manipulation, clipboard operations,
     and episode tracking.
 
     All arrays use maximum dimensions from config with actual dimensions
@@ -60,27 +61,10 @@ class ARCLEState(ArcEnvState):
         grid_dim: Actual grid dimensions [height, width]
         target_dim: Target grid dimensions [height, width]
         max_grid_dim: Maximum grid dimensions from config [height, width]
-        step_count: Number of steps taken in current episode
-        terminated: Whether episode has ended (submit or max steps)
         similarity_score: Current similarity to target grid [0.0, 1.0]
     """
 
-    # # Base environment state fields (compatible with ArcEnvState)
-    # done: chex.Array  # bool scalar
-    # step: int
-    # task_data: ParsedTaskData
-    # active_train_pair_idx: jnp.ndarray  # int32 scalar
-    # working_grid: jnp.ndarray  # Shape: (max_grid_h, max_grid_w)
-    # working_grid_mask: jnp.ndarray  # Shape: (max_grid_h, max_grid_w), bool
-    # program: jnp.ndarray  # Shape: (max_program_length, max_action_params)
-    # program_length: jnp.ndarray  # int32 scalar
-    # active_agents: jnp.ndarray  # Shape: (max_agents,), bool
-    # cumulative_rewards: jnp.ndarray  # Shape: (max_agents,), float32
-
-    # # ARCLE-specific state fields
-    # grid: jnp.ndarray  # (max_grid_h, max_grid_w) int32 - current working grid
-    # input_grid: jnp.ndarray  # (max_grid_h, max_grid_w) int32 - original input
-    # target_grid: jnp.ndarray  # (max_grid_h, max_grid_w) int32 - target output
+    # ARC-specific fields
     selected: jnp.ndarray  # (max_grid_h, max_grid_w) bool - selection mask
     clipboard: jnp.ndarray  # (max_grid_h, max_grid_w) int32 - clipboard data
 
@@ -90,9 +74,27 @@ class ARCLEState(ArcEnvState):
     max_grid_dim: jnp.ndarray  # (2,) int32 - max [h, w] from config
 
     # Episode state
-    step_count: jnp.ndarray  # int32 scalar
-    terminated: jnp.ndarray  # bool scalar
     similarity_score: jnp.ndarray  # float32 scalar
+
+    @property
+    def grid(self) -> chex.Array:
+        """Alias for working_grid for script compatibility."""
+        return self.working_grid
+
+    @property
+    def terminated(self) -> chex.Array:
+        """Alias for done for script compatibility."""
+        return self.done
+
+    @property
+    def input_grid(self) -> chex.Array:
+        """Get input grid from task data."""
+        return self.task_data.input_grids_examples[self.active_train_pair_idx]
+
+    @property
+    def target_grid(self) -> chex.Array:
+        """Get target grid from task data."""
+        return self.task_data.output_grids_examples[self.active_train_pair_idx]
 
     def __post_init__(self) -> None:
         """Validate ARCLE state structure and consistency."""
@@ -127,28 +129,17 @@ class ARCLEState(ArcEnvState):
             num_agents = self.active_agents.shape[0]
             chex.assert_shape(self.cumulative_rewards, (num_agents,))
 
-            # Validate ARCLE-specific grid arrays
-            chex.assert_rank(self.grid, 2)
-            chex.assert_rank(self.input_grid, 2)
-            chex.assert_rank(self.target_grid, 2)
+            # Validate ARC-specific grid arrays
             chex.assert_rank(self.selected, 2)
             chex.assert_rank(self.clipboard, 2)
 
-            chex.assert_type(self.grid, jnp.integer)
-            chex.assert_type(self.input_grid, jnp.integer)
-            chex.assert_type(self.target_grid, jnp.integer)
             chex.assert_type(self.selected, jnp.bool_)
             chex.assert_type(self.clipboard, jnp.integer)
 
-            # Validate grid arrays have consistent shapes
-            grid_shape = self.grid.shape
-            chex.assert_shape(self.input_grid, grid_shape)
-            chex.assert_shape(self.target_grid, grid_shape)
+            # Validate grid arrays have consistent shapes with working_grid
+            grid_shape = self.working_grid.shape
             chex.assert_shape(self.selected, grid_shape)
             chex.assert_shape(self.clipboard, grid_shape)
-
-            # Ensure grid and working_grid are consistent
-            chex.assert_shape(self.working_grid, grid_shape)
 
             # Validate metadata arrays
             chex.assert_rank(self.grid_dim, 1)
@@ -163,10 +154,6 @@ class ARCLEState(ArcEnvState):
             chex.assert_type(self.max_grid_dim, jnp.int32)
 
             # Validate episode state scalars
-            chex.assert_type(self.step_count, jnp.int32)
-            chex.assert_shape(self.step_count, ())
-            chex.assert_type(self.terminated, jnp.bool_)
-            chex.assert_shape(self.terminated, ())
             chex.assert_type(self.similarity_score, jnp.float32)
             chex.assert_shape(self.similarity_score, ())
 
@@ -175,11 +162,11 @@ class ARCLEState(ArcEnvState):
             pass
 
 
-class ARCLEEnvironment(ArcMarlEnvBase):
+class ArcEnvironment(ArcMarlEnvBase):
     """
-    Single-agent ARCLE environment with JaxMARL compatibility.
+    Single-agent ARC environment with JaxMARL compatibility.
 
-    This environment implements the ARCLE design where an agent selects a region
+    This environment implements an ARC design where an agent selects a region
     of the grid and applies an operation to it. The goal is to transform the
     input grid to match the target output grid.
     """
@@ -193,11 +180,11 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         **kwargs,
     ):
         """
-        Initialize the ARCLE environment.
+        Initialize the ARC environment.
 
         Args:
             config: Configuration dictionary with environment parameters
-            num_agents: Number of agents (defaults to 1 for single-agent ARCLE)
+            num_agents: Number of agents (defaults to 1 for single-agent ARC)
             max_grid_size: Maximum grid dimensions (height, width)
             max_episode_steps: Maximum steps per episode
             **kwargs: Additional arguments for parent class
@@ -205,7 +192,13 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         # Load configuration
         self.config = config or {}
 
-        # ARCLE-specific configuration
+        # Override parameters from config if provided
+        if "max_grid_size" in self.config:
+            max_grid_size = tuple(self.config["max_grid_size"])
+        if "max_episode_steps" in self.config:
+            max_episode_steps = self.config["max_episode_steps"]
+
+        # ARC-specific configuration
         reward_config = self.config.get("reward", {})
         self.reward_on_submit_only = reward_config.get("reward_on_submit_only", True)
         self.similarity_threshold = reward_config.get("similarity_threshold", 0.95)
@@ -237,9 +230,7 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         # ARCLE action space: selection mask + operation ID
         action_space = Dict(
             {
-                "selection": Box(
-                    0.0, 1.0, (h, w), dtype=jnp.float32
-                ),  # Continuous selection mask
+                "selection": MultiBinary(h * w),
                 "operation": Discrete(35),  # ARCLE operations 0-34
             }
         )
@@ -250,14 +241,14 @@ class ARCLEEnvironment(ArcMarlEnvBase):
             grid_size * 4  # grid, input_grid, target_grid, clipboard
             + 10  # metadata (step, similarity, etc.)
         )
-        obs_space = Box(0.0, 10.0, (obs_size,), dtype=jnp.float32)
+        obs_space = Box(0.0, 10.0, shape=(obs_size,), dtype=jnp.float32)
 
         self.action_spaces = dict.fromkeys(self.agents, action_space)
         self.observation_spaces = dict.fromkeys(self.agents, obs_space)
 
     def reset(
         self, key: chex.PRNGKey, task_data: ParsedTaskData | None = None
-    ) -> tuple[dict[str, chex.Array], ArcEnvState]:
+    ) -> tuple[dict[str, chex.Array], ArcEnvironmentState]:
         """
         Reset the environment with a new ARC task.
 
@@ -304,8 +295,8 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         Returns:
             Tuple of (observations, next_state, rewards, dones, info)
         """
-        # Cast state to ARCLEState for ARCLE-specific operations
-        arcle_state = state  # type: ARCLEState
+        # Cast state to ArcEnvironmentState for ARC-specific operations
+        arc_state = state  # type: ArcEnvironmentState
 
         # Get agent action (single agent for now)
         agent_id = self.agents[0]
@@ -314,22 +305,22 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         # Convert continuous selection to boolean mask
         # Handle both dict and array-based action formats
         if isinstance(action, dict):
-            selection_probs = action["selection"]
+            selection = action["selection"]
             operation_id = action["operation"]
         else:
             # Fallback: assume action is a single array/tensor
             # For now, create dummy values - this should be updated based on actual action format
             h, w = self.max_grid_size
-            selection_probs = jnp.ones((h, w)) * 0.1  # Low selection probability
+            selection = jnp.zeros((h * w,), dtype=jnp.int32)  # Default to no selection
             operation_id = jnp.array(0, dtype=jnp.int32)  # Default to fill color 0
 
-        selection_mask = selection_probs > 0.5  # Threshold for binary selection
+        selection_mask = selection.reshape(self.max_grid_size).astype(jnp.bool_)
 
-        # Execute the ARCLE operation
-        new_state = self._execute_action(arcle_state, selection_mask, operation_id)
+        # Execute the ARC operation
+        new_state = self._execute_action(arc_state, selection_mask, operation_id)
 
         # Calculate reward
-        reward = self._calculate_reward(arcle_state, new_state, operation_id)
+        reward = self._calculate_reward(arc_state, new_state, operation_id)
 
         # Check if episode is done
         done = self._is_episode_done(new_state)
@@ -341,7 +332,6 @@ class ARCLEEnvironment(ArcMarlEnvBase):
             new_state,
             done=jnp.array(done),
             step=state.step + 1,
-            terminated=jnp.array(done),
         )
 
         # Get observations
@@ -369,30 +359,37 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         Returns:
             Dictionary mapping agent IDs to observations
         """
-        # Cast to ARCLEState to access ARCLE-specific fields
-        arcle_state = state  # type: ARCLEState
-        h, w = self.max_grid_size
+        # Cast to ArcEnvironmentState to access ARC-specific fields
+        arc_state = state  # type: ArcEnvironmentState
+        max_h, max_w = self.max_grid_size
 
-        # Flatten grid components
-        grid_flat = arcle_state.working_grid.flatten().astype(jnp.float32)
-        input_grid = arcle_state.task_data.input_grids_examples[
-            arcle_state.active_train_pair_idx
+        # Pad grids to max dimensions and flatten
+        working_grid_padded = self._pad_to_max_dims(arc_state.working_grid)
+        grid_flat = working_grid_padded.flatten().astype(jnp.float32)
+
+        input_grid = arc_state.task_data.input_grids_examples[
+            arc_state.active_train_pair_idx
         ]
-        input_grid_flat = input_grid.flatten().astype(jnp.float32)
-        target_grid = arcle_state.task_data.output_grids_examples[
-            arcle_state.active_train_pair_idx
+        input_grid_padded = self._pad_to_max_dims(input_grid)
+        input_grid_flat = input_grid_padded.flatten().astype(jnp.float32)
+
+        target_grid = arc_state.task_data.output_grids_examples[
+            arc_state.active_train_pair_idx
         ]
-        target_grid_flat = target_grid.flatten().astype(jnp.float32)
-        clipboard_flat = arcle_state.clipboard.flatten().astype(jnp.float32)
+        target_grid_padded = self._pad_to_max_dims(target_grid)
+        target_grid_flat = target_grid_padded.flatten().astype(jnp.float32)
+
+        clipboard_padded = self._pad_to_max_dims(arc_state.clipboard)
+        clipboard_flat = clipboard_padded.flatten().astype(jnp.float32)
 
         # Metadata - convert all values to float32 for JAX compatibility
         metadata = jnp.array(
             [
-                jnp.array(arcle_state.step, dtype=jnp.float32),  # step is Python int
-                arcle_state.similarity_score.astype(jnp.float32),
-                arcle_state.step_count.astype(jnp.float32),
-                arcle_state.active_train_pair_idx.astype(jnp.float32),
-                arcle_state.terminated.astype(jnp.float32),
+                jnp.array(arc_state.step, dtype=jnp.float32),  # step is Python int
+                arc_state.similarity_score.astype(jnp.float32),
+                arc_state.active_train_pair_idx.astype(jnp.float32),
+                arc_state.done.astype(jnp.float32),
+                0.0,
                 0.0,
                 0.0,
                 0.0,
@@ -410,15 +407,45 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         # Create observation dict for all agents
         return dict.fromkeys(self.agents, obs)
 
+    def _pad_to_max_dims(self, grid: chex.Array) -> chex.Array:
+        """
+        Pad a grid to max dimensions.
+
+        Args:
+            grid: Input grid to pad
+
+        Returns:
+            Grid padded to max dimensions
+        """
+        max_h, max_w = self.max_grid_size
+        current_h, current_w = grid.shape
+
+        # If already max size, return as is
+        if current_h == max_h and current_w == max_w:
+            return grid
+
+        # Pad with zeros to max dimensions
+        pad_h = max_h - current_h
+        pad_w = max_w - current_w
+
+        return jnp.pad(grid, ((0, pad_h), (0, pad_w)), mode='constant', constant_values=0)
+
     def _initialize_state(
         self, key: chex.PRNGKey, task_data: ParsedTaskData
-    ) -> ARCLEState:
-        """Initialize the ARCLE environment state from task data."""
-        h, w = self.max_grid_size
+    ) -> ArcEnvironmentState:
+        """Initialize the ARC environment state from task data."""
+        max_h, max_w = self.max_grid_size
 
         # Get first training pair as initial state
         input_grid = task_data.input_grids_examples[0]
         target_grid = task_data.output_grids_examples[0]
+
+        # Use actual grid dimensions, not max dimensions
+        actual_shape = input_grid.shape
+        if len(actual_shape) == 2:
+            h, w = actual_shape
+        else:
+            h, w = 0, 0
 
         # Calculate initial similarity between input and target
         initial_similarity = compute_grid_similarity(input_grid, target_grid)
@@ -426,7 +453,7 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         # Initialize grid dimensions (use full grid size for simplicity)
         grid_dim = jnp.array([h, w], dtype=jnp.int32)
         target_dim = jnp.array([h, w], dtype=jnp.int32)
-        max_grid_dim = jnp.array([h, w], dtype=jnp.int32)
+        max_grid_dim = jnp.array([max_h, max_w], dtype=jnp.int32)
 
         # Initialize base state fields
         empty_program = jnp.zeros(
@@ -435,61 +462,45 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         active_agents = jnp.ones(self.num_agents, dtype=jnp.bool_)
         cumulative_rewards = jnp.zeros(self.num_agents, dtype=jnp.float32)
 
-        return ARCLEState(
+        return ArcEnvironmentState(
             # Base state fields (ArcEnvState)
             done=jnp.array(False, dtype=jnp.bool_),
             step=0,
             task_data=task_data,
             active_train_pair_idx=jnp.array(0, dtype=jnp.int32),
-            working_grid=input_grid,  # This is our main working grid
-            working_grid_mask=task_data.input_masks_examples[0],
+            working_grid=self._pad_to_max_dims(input_grid),  # Pad to max dimensions
+            working_grid_mask=self._pad_to_max_dims(task_data.input_masks_examples[0]),
             program=empty_program,
             program_length=jnp.array(0, dtype=jnp.int32),
             active_agents=active_agents,
             cumulative_rewards=cumulative_rewards,
-            # ARCLE-specific fields
-            selected=jnp.zeros((h, w), dtype=jnp.bool_),
-            clipboard=jnp.zeros((h, w), dtype=jnp.int32),
+            # ARC-specific fields
+            selected=jnp.zeros((max_h, max_w), dtype=jnp.bool_),
+            clipboard=jnp.zeros((max_h, max_w), dtype=jnp.int32),
             # Grid metadata
             grid_dim=grid_dim,
             target_dim=target_dim,
             max_grid_dim=max_grid_dim,
             # Episode state
-            step_count=jnp.array(0, dtype=jnp.int32),
-            terminated=jnp.array(False, dtype=jnp.bool_),
             similarity_score=jnp.array(initial_similarity, dtype=jnp.float32),
         )
 
     def _execute_action(
-        self, state: ARCLEState, selection_mask: chex.Array, operation: chex.Array
-    ) -> ARCLEState:
-        """Execute an ARCLE action (selection + operation) on the current state."""
+        self, state: ArcEnvironmentState, selection_mask: chex.Array, operation: chex.Array
+    ) -> ArcEnvironmentState:
+        """Execute an ARC action (selection + operation) on the current state."""
         from dataclasses import replace
 
         # Create state with updated selection mask
         state_with_selection = replace(state, selected=selection_mask)
 
-        # Execute the operation using the ARCLE operations module
-        new_state = execute_arcle_operation(state_with_selection, operation)
+        # Execute the operation using the grid operations module
+        new_state = execute_grid_operation(state_with_selection, operation)
 
-        # Update step count and working grid (sync with grid)
-        new_step_count = state.step_count + 1
-
-        # Update similarity score
-        target_grid = new_state.task_data.output_grids_examples[
-            new_state.active_train_pair_idx
-        ]
-        similarity = compute_grid_similarity(new_state.working_grid, target_grid)
-
-        # Update state with new values
-        final_state = replace(
-            new_state, step_count=new_step_count, similarity_score=similarity
-        )
-
-        return final_state
+        return new_state
 
     def _calculate_reward(
-        self, old_state: ARCLEState, new_state: ARCLEState, operation: chex.Array
+        self, old_state: ArcEnvironmentState, new_state: ArcEnvironmentState, operation: chex.Array
     ) -> float:
         """Calculate reward for the current step."""
         # Base reward is 0
@@ -522,7 +533,7 @@ class ARCLEEnvironment(ArcMarlEnvBase):
 
         return reward
 
-    def _is_episode_done(self, state: ARCLEState) -> bool:
+    def _is_episode_done(self, state: ArcEnvironmentState) -> bool:
         """Check if the episode should terminate."""
         # Terminate if max steps reached
         max_steps_reached = state.step >= self.max_episode_steps
@@ -531,7 +542,7 @@ class ARCLEEnvironment(ArcMarlEnvBase):
         task_solved = state.similarity_score >= self.similarity_threshold
 
         # Terminate if explicitly terminated
-        explicitly_terminated = state.terminated
+        explicitly_terminated = state.done
 
         return max_steps_reached | task_solved | explicitly_terminated
 
@@ -553,9 +564,9 @@ class ARCLEEnvironment(ArcMarlEnvBase):
     @property
     def name(self) -> str:
         """Environment name."""
-        return "ARCLE"
+        return "ARC"
 
     @property
     def agent_classes(self) -> dict[str, str]:
         """Agent class mapping."""
-        return dict.fromkeys(self.agents, "arcle_agent")
+        return dict.fromkeys(self.agents, "arc_agent")

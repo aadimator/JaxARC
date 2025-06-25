@@ -1,7 +1,7 @@
 """
-ARCLE Operations Module - JAX-compatible operations for grid manipulation.
+Grid Operations Module - JAX-compatible operations for grid manipulation.
 
-This module implements the core ARCLE operations that transform grids based on
+This module implements core grid operations that transform grids based on
 selection masks and operation IDs. All operations are JAX-compiled for performance.
 
 Operations:
@@ -23,7 +23,7 @@ import jax
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
-    from .arcle_env import ARCLEState
+    from .arc_env import ArcEnvironmentState
 
 
 @jax.jit
@@ -49,6 +49,32 @@ def compute_grid_similarity(grid1: jnp.ndarray, grid2: jnp.ndarray) -> jnp.ndarr
 
 
 @jax.jit
+def _copy_grid_to_target_shape(source_grid: jnp.ndarray, target_shape_grid: jnp.ndarray) -> jnp.ndarray:
+    """
+    Copy source grid to a new grid with target shape, filling with zeros.
+
+    Args:
+        source_grid: Source grid to copy
+        target_shape_grid: Grid with the desired target shape
+
+    Returns:
+        New grid with target shape containing source grid data
+    """
+    # Create new grid with target shape, filled with zeros
+    new_grid = jnp.zeros_like(target_shape_grid)
+
+    # Use dynamic_update_slice to copy source to top-left corner
+    new_grid = jax.lax.dynamic_update_slice(
+        new_grid,
+        source_grid,
+        (0, 0)
+    )
+
+    return new_grid
+
+
+
+@jax.jit
 def apply_within_bounds(
     grid: jnp.ndarray, selection: jnp.ndarray, new_values: jnp.ndarray
 ) -> jnp.ndarray:
@@ -60,7 +86,7 @@ def apply_within_bounds(
 
 
 @jax.jit
-def fill_color(state: ARCLEState, selection: jnp.ndarray, color: int) -> ARCLEState:
+def fill_color(state: ArcEnvironmentState, selection: jnp.ndarray, color: int) -> ArcEnvironmentState:
     """Fill selected region with specified color."""
     new_grid = apply_within_bounds(state.working_grid, selection, color)
     return state.replace(working_grid=new_grid)
@@ -124,8 +150,8 @@ def simple_flood_fill(
 
 @jax.jit
 def flood_fill_color(
-    state: ARCLEState, selection: jnp.ndarray, color: int
-) -> ARCLEState:
+    state: ArcEnvironmentState, selection: jnp.ndarray, color: int
+) -> ArcEnvironmentState:
     """Flood fill from selected region with specified color."""
     new_grid = simple_flood_fill(state.working_grid, selection, color)
     return state.replace(working_grid=new_grid)
@@ -136,8 +162,8 @@ def flood_fill_color(
 
 @jax.jit
 def move_object(
-    state: ARCLEState, selection: jnp.ndarray, direction: int
-) -> ARCLEState:
+    state: ArcEnvironmentState, selection: jnp.ndarray, direction: int
+) -> ArcEnvironmentState:
     """Move selected object in specified direction (0=up, 1=down, 2=left, 3=right)."""
     # Extract selected object
     object_pixels = jnp.where(selection, state.working_grid, 0)
@@ -171,7 +197,7 @@ def move_object(
 
 
 @jax.jit
-def rotate_object(state: ARCLEState, selection: jnp.ndarray, angle: int) -> ARCLEState:
+def rotate_object(state: ArcEnvironmentState, selection: jnp.ndarray, angle: int) -> ArcEnvironmentState:
     """Rotate selected object (0=90°, 1=270°)."""
     # Extract selected object
     object_pixels = jnp.where(selection, state.working_grid, 0)
@@ -197,7 +223,7 @@ def rotate_object(state: ARCLEState, selection: jnp.ndarray, angle: int) -> ARCL
 
 
 @jax.jit
-def flip_object(state: ARCLEState, selection: jnp.ndarray, axis: int) -> ARCLEState:
+def flip_object(state: ArcEnvironmentState, selection: jnp.ndarray, axis: int) -> ArcEnvironmentState:
     """Flip selected object (0=horizontal, 1=vertical)."""
     # Extract selected object
     object_pixels = jnp.where(selection, state.working_grid, 0)
@@ -223,14 +249,14 @@ def flip_object(state: ARCLEState, selection: jnp.ndarray, axis: int) -> ARCLESt
 
 
 @jax.jit
-def copy_to_clipboard(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
+def copy_to_clipboard(state: ArcEnvironmentState, selection: jnp.ndarray) -> ArcEnvironmentState:
     """Copy selected region to clipboard."""
     new_clipboard = jnp.where(selection, state.working_grid, 0)
     return state.replace(clipboard=new_clipboard)
 
 
 @jax.jit
-def paste_from_clipboard(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
+def paste_from_clipboard(state: ArcEnvironmentState, selection: jnp.ndarray) -> ArcEnvironmentState:
     """Paste clipboard content to selected region."""
     # Only paste where clipboard has content and selection is active
     paste_mask = selection & (state.clipboard != 0)
@@ -239,7 +265,7 @@ def paste_from_clipboard(state: ARCLEState, selection: jnp.ndarray) -> ARCLEStat
 
 
 @jax.jit
-def cut_to_clipboard(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
+def cut_to_clipboard(state: ArcEnvironmentState, selection: jnp.ndarray) -> ArcEnvironmentState:
     """Cut selected region to clipboard (copy + clear)."""
     # Copy to clipboard
     new_clipboard = jnp.where(selection, state.working_grid, 0)
@@ -254,7 +280,7 @@ def cut_to_clipboard(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
 
 
 @jax.jit
-def clear_grid(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
+def clear_grid(state: ArcEnvironmentState, selection: jnp.ndarray) -> ArcEnvironmentState:
     """Clear the entire grid or selected region."""
     has_selection = jnp.sum(selection) > 0
 
@@ -269,14 +295,16 @@ def clear_grid(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
 
 
 @jax.jit
-def copy_input_grid(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
+def copy_input_grid(state: ArcEnvironmentState, selection: jnp.ndarray) -> ArcEnvironmentState:
     """Copy input grid to current grid."""
     input_grid = state.task_data.input_grids_examples[state.active_train_pair_idx]
-    return state.replace(working_grid=input_grid)
+    # Copy input grid to working grid shape
+    new_working_grid = _copy_grid_to_target_shape(input_grid, state.working_grid)
+    return state.replace(working_grid=new_working_grid)
 
 
 @jax.jit
-def resize_grid(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
+def resize_grid(state: ArcEnvironmentState, selection: jnp.ndarray) -> ArcEnvironmentState:
     """Resize grid (no-op for fixed-size implementation)."""
     # In fixed-size grid implementation, this is a no-op
     return state
@@ -286,17 +314,17 @@ def resize_grid(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
 
 
 @jax.jit
-def submit_solution(state: ARCLEState, selection: jnp.ndarray) -> ARCLEState:
+def submit_solution(state: ArcEnvironmentState, selection: jnp.ndarray) -> ArcEnvironmentState:
     """Submit current grid as solution."""
-    return state.replace(terminated=jnp.array(True, dtype=jnp.bool_))
+    return state.replace(done=jnp.array(True, dtype=jnp.bool_))
 
 
 # --- Main Operation Execution ---
 
 
 @jax.jit
-def execute_arcle_operation(state: ARCLEState, operation: jnp.ndarray) -> ARCLEState:
-    """Execute ARCLE operation based on operation ID."""
+def execute_grid_operation(state: ArcEnvironmentState, operation: jnp.ndarray) -> ArcEnvironmentState:
+    """Execute grid operation based on operation ID."""
     selection = state.selected
 
     # Define all operations

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 """
-ARCLE Environment Demo Script.
+ARC Environment Demo Script.
 
-This script demonstrates the functionality of the ARCLE environment,
-which implements the ARCLE approach with JAX optimizations.
+This script demonstrates the functionality of the ARC environment,
+which implements grid-based operations with JAX optimizations.
 
 Usage:
-    python -m scripts.demo_arcle_env
+    python -m scripts.demo_arc_env
 """
 
 from __future__ import annotations
@@ -22,12 +22,12 @@ import numpy as np
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
-from jaxarc.envs import ARCLEEnvironment
+from jaxarc.envs import ArcEnvironment
 from jaxarc.utils.visualization import log_grid_to_console
 
 
 def visualize_grids(
-    grid, input_grid, target_grid, title="ARCLE Environment State", save_path=None
+    grid, input_grid, target_grid, title="ARC Environment State", save_path=None
 ):
     """Visualize the current state of the environment grids."""
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -92,8 +92,8 @@ def create_selection_mask(h, w, region_type="square", center=None, size=3):
 
 
 def demo_operations(env, state, key):
-    """Demonstrate different ARCLE operations."""
-    h, w = state.grid_dim
+    """Demonstrate different ARC operations."""
+    h, w = state.working_grid.shape
 
     # List of operations to demonstrate
     demos = [
@@ -119,7 +119,7 @@ def demo_operations(env, state, key):
         {"op": 32, "mask_type": "square", "desc": "Reset grid"},
     ]
 
-    output_dir = Path("outputs/arcle_demo")
+    output_dir = Path("outputs/arc_demo")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Run demonstrations
@@ -151,9 +151,9 @@ def demo_operations(env, state, key):
         # Save visualization
         save_path = output_dir / f"op_{i + 1}_{demo['op']}.png"
         visualize_grids(
-            state.grid,
-            state.input_grid,
-            state.target_grid,
+            state.working_grid,
+            state.task_data.input_grids_examples[state.active_train_pair_idx],
+            state.task_data.output_grids_examples[state.active_train_pair_idx],
             title=f"Operation {i + 1}: {demo['desc']} (op_id={demo['op']})",
             save_path=save_path,
         )
@@ -170,15 +170,15 @@ def demo_operations(env, state, key):
 
 @hydra.main(config_path="../conf", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
-    """Run the ARCLE environment demo."""
-    logger.info("Starting ARCLE environment demo")
+    """Run the ARC environment demo."""
+    logger.info("Starting ARC environment demo")
     logger.info(f"JAX devices: {jax.devices()}")
 
-    # Create a basic ARCLE environment configuration if not available
+    # Create a basic ARC environment configuration if not available
     if hasattr(cfg, "environment") and hasattr(cfg.environment, "_target_"):
         env_config = OmegaConf.to_container(cfg.environment, resolve=True)
     else:
-        # Use default ARCLE config
+        # Use default ARC config
         env_config = {
             "max_grid_size": [10, 10],
             "max_episode_steps": 20,
@@ -187,7 +187,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Environment config: {env_config}")
 
     # Create environment
-    env = ARCLEEnvironment(env_config)
+    env = ArcEnvironment(env_config)
     logger.info(f"Created environment: {env}")
 
     # Initialize random key
@@ -199,25 +199,25 @@ def main(cfg: DictConfig) -> None:
     obs, state = env.reset(reset_key)
 
     # Log initial state
-    logger.info(f"Initial state: grid_dim={state.grid_dim}")
-    log_grid_to_console(state.grid, title="Initial Grid")
-    log_grid_to_console(state.target_grid, title="Target Grid")
+    logger.info(f"Initial state: grid_shape={state.working_grid.shape}")
+    log_grid_to_console(state.working_grid, title="Initial Grid")
+    log_grid_to_console(state.task_data.output_grids_examples[state.active_train_pair_idx], title="Target Grid")
 
     # Create output directory
-    output_dir = Path("outputs/arcle_demo")
+    output_dir = Path("outputs/arc_demo")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Save initial visualization
     visualize_grids(
-        state.grid,
-        state.input_grid,
-        state.target_grid,
+        state.working_grid,
+        state.task_data.input_grids_examples[state.active_train_pair_idx],
+        state.task_data.output_grids_examples[state.active_train_pair_idx],
         title="Initial State",
         save_path=output_dir / "initial_state.png",
     )
 
     # Demo operations
-    logger.info("Demonstrating ARCLE operations")
+    logger.info("Demonstrating ARC operations")
     state = demo_operations(env, state, key)
 
     # Demonstrate submit operation
@@ -238,9 +238,9 @@ def main(cfg: DictConfig) -> None:
 
     # Save final visualization
     visualize_grids(
-        state.grid,
-        state.input_grid,
-        state.target_grid,
+        state.working_grid,
+        state.task_data.input_grids_examples[state.active_train_pair_idx],
+        state.task_data.output_grids_examples[state.active_train_pair_idx],
         title=f"Final State (Similarity: {state.similarity_score:.4f})",
         save_path=output_dir / "final_state.png",
     )
@@ -249,8 +249,8 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    # Override to use ARCLE environment
+    # Override to use ARC environment
     import sys
 
-    sys.argv.extend(["environment=arcle_env"])
+    sys.argv.extend(["environment=arc_env"])
     main()
