@@ -73,9 +73,7 @@ def test_jit_compilation():
     print("🧪 Testing JIT compilation...")
 
     try:
-        env = ArcEnvironment(
-            num_agents=1, max_grid_size=(10, 10), max_episode_steps=50
-        )
+        env = ArcEnvironment(num_agents=1, max_grid_size=(10, 10), max_episode_steps=50)
 
         task_data = create_test_task_data()
 
@@ -351,9 +349,7 @@ def test_reproducibility():
     print("\n🧪 Testing reproducibility with PRNG keys...")
 
     try:
-        env = ArcEnvironment(
-            num_agents=1, max_grid_size=(10, 10), max_episode_steps=5
-        )
+        env = ArcEnvironment(num_agents=1, max_grid_size=(10, 10), max_episode_steps=5)
 
         task_data = create_test_task_data()
         agent_id = env.agents[0]
@@ -438,9 +434,7 @@ def test_stress_operations():
     print("\n🧪 Testing all ARC operations...")
 
     try:
-        env = ArcEnvironment(
-            num_agents=1, max_grid_size=(12, 12), max_episode_steps=50
-        )
+        env = ArcEnvironment(num_agents=1, max_grid_size=(12, 12), max_episode_steps=50)
 
         task_data = create_test_task_data((12, 12))
         agent_id = env.agents[0]

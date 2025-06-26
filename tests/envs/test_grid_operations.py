@@ -10,26 +10,28 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import pytest
-import chex
 
+from jaxarc.envs.arc_env import ArcEnvironmentState
 from jaxarc.envs.grid_operations import (
     compute_grid_similarity,
     execute_grid_operation,
 )
-from jaxarc.envs.arc_env import ArcEnvironmentState
 from jaxarc.types import ParsedTaskData
 
 
 @pytest.fixture
 def sample_grid():
     """Create a sample 5x5 grid for testing."""
-    grid = jnp.array([
-        [0, 1, 2, 0, 0],
-        [1, 1, 0, 0, 3],
-        [2, 0, 1, 1, 0],
-        [0, 0, 0, 2, 2],
-        [3, 3, 0, 0, 0]
-    ], dtype=jnp.int32)
+    grid = jnp.array(
+        [
+            [0, 1, 2, 0, 0],
+            [1, 1, 0, 0, 3],
+            [2, 0, 1, 1, 0],
+            [0, 0, 0, 2, 2],
+            [3, 3, 0, 0, 0],
+        ],
+        dtype=jnp.int32,
+    )
     return grid
 
 
@@ -102,6 +104,7 @@ class TestGridSimilarity:
 
     def test_similarity_jit_compilation(self):
         """Test that similarity function can be JIT compiled."""
+
         @jax.jit
         def jit_similarity(grid1, grid2):
             return compute_grid_similarity(grid1, grid2)
@@ -149,30 +152,38 @@ class TestFloodFillOperations:
     def test_flood_fill_operation(self, sample_state):
         """Test basic flood fill operation."""
         # Create a grid with connected region of same color
-        test_grid = jnp.array([
-            [1, 1, 0, 0, 0],
-            [1, 1, 0, 2, 2],
-            [0, 0, 0, 2, 2],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0]
-        ], dtype=jnp.int32)
+        test_grid = jnp.array(
+            [
+                [1, 1, 0, 0, 0],
+                [1, 1, 0, 2, 2],
+                [0, 0, 0, 2, 2],
+                [0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0],
+            ],
+            dtype=jnp.int32,
+        )
 
         state = sample_state.replace(
             working_grid=test_grid,
-            selected=sample_state.selected.at[0, 0].set(True)  # Select a cell with value 1
+            selected=sample_state.selected.at[0, 0].set(
+                True
+            ),  # Select a cell with value 1
         )
 
         # Flood fill with color 5 (operation 15)
         new_state = execute_grid_operation(state, jnp.array(15, dtype=jnp.int32))
 
         # All connected 1's should become 5's
-        expected_grid = jnp.array([
-            [5, 5, 0, 0, 0],
-            [5, 5, 0, 2, 2],
-            [0, 0, 0, 2, 2],
-            [0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0]
-        ], dtype=jnp.int32)
+        expected_grid = jnp.array(
+            [
+                [5, 5, 0, 0, 0],
+                [5, 5, 0, 2, 2],
+                [0, 0, 0, 2, 2],
+                [0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0],
+            ],
+            dtype=jnp.int32,
+        )
 
         assert jnp.array_equal(new_state.working_grid, expected_grid)
 
@@ -222,7 +233,7 @@ class TestTransformations:
 
         state = sample_state.replace(
             working_grid=test_grid,
-            selected=jnp.ones((5, 5), dtype=jnp.bool_)  # Select entire grid
+            selected=jnp.ones((5, 5), dtype=jnp.bool_),  # Select entire grid
         )
 
         # Rotate 90 degrees (operation 24)
@@ -239,7 +250,9 @@ class TestTransformations:
                 selected=jnp.ones_like(sample_state.selected, dtype=jnp.bool_)
             )
 
-            new_state = execute_grid_operation(state, jnp.array(flip_op, dtype=jnp.int32))
+            new_state = execute_grid_operation(
+                state, jnp.array(flip_op, dtype=jnp.int32)
+            )
 
             assert new_state is not None
             assert new_state.working_grid.shape == sample_state.working_grid.shape
@@ -274,7 +287,7 @@ class TestClipboardOperations:
 
         state = sample_state.replace(
             clipboard=clipboard_content,
-            selected=sample_state.selected.at[2:4, 2:4].set(True)
+            selected=sample_state.selected.at[2:4, 2:4].set(True),
         )
 
         # Paste operation (29)
@@ -306,7 +319,9 @@ class TestGridOperations:
         )
 
         # Copy input grid operation (32)
-        new_state = execute_grid_operation(modified_state, jnp.array(32, dtype=jnp.int32))
+        new_state = execute_grid_operation(
+            modified_state, jnp.array(32, dtype=jnp.int32)
+        )
 
         # Working grid should match input grid
         input_grid = sample_state.task_data.input_grids_examples[0]
@@ -330,6 +345,7 @@ class TestJAXCompatibility:
 
     def test_jit_compilation(self, sample_state):
         """Test that execute_grid_operation can be JIT compiled."""
+
         @jax.jit
         def jit_execute_operation(state, operation):
             return execute_grid_operation(state, operation)
@@ -342,6 +358,7 @@ class TestJAXCompatibility:
 
     def test_all_operations_jit_compatible(self, sample_state):
         """Test that all operations are JIT compatible."""
+
         @jax.jit
         def test_operation(state, op_id):
             return execute_grid_operation(state, op_id)
@@ -349,7 +366,9 @@ class TestJAXCompatibility:
         # Test each operation
         for op_id in range(35):
             try:
-                new_state = test_operation(sample_state, jnp.array(op_id, dtype=jnp.int32))
+                new_state = test_operation(
+                    sample_state, jnp.array(op_id, dtype=jnp.int32)
+                )
                 assert new_state is not None
             except Exception as e:
                 pytest.fail(f"Operation {op_id} failed with JIT compilation: {e}")
@@ -357,19 +376,22 @@ class TestJAXCompatibility:
     def test_operations_preserve_state_structure(self, sample_state):
         """Test that operations preserve the state dataclass structure."""
         for op_id in range(35):
-            new_state = execute_grid_operation(sample_state, jnp.array(op_id, dtype=jnp.int32))
+            new_state = execute_grid_operation(
+                sample_state, jnp.array(op_id, dtype=jnp.int32)
+            )
 
             # Check that the state is still a valid ArcEnvironmentState
             assert isinstance(new_state, ArcEnvironmentState)
 
             # Check that all required fields are present
-            assert hasattr(new_state, 'working_grid')
-            assert hasattr(new_state, 'similarity_score')
-            assert hasattr(new_state, 'done')
-            assert hasattr(new_state, 'step')
+            assert hasattr(new_state, "working_grid")
+            assert hasattr(new_state, "similarity_score")
+            assert hasattr(new_state, "done")
+            assert hasattr(new_state, "step")
 
     def test_vmap_compatibility_single_operation(self, sample_state):
         """Test basic vmap compatibility for operations."""
+
         def single_op(state, op_id):
             return execute_grid_operation(state, op_id)
 
@@ -396,7 +418,9 @@ class TestEdgeCases:
         valid_ops = [0, 34]
         for op_id in valid_ops:
             try:
-                new_state = execute_grid_operation(sample_state, jnp.array(op_id, dtype=jnp.int32))
+                new_state = execute_grid_operation(
+                    sample_state, jnp.array(op_id, dtype=jnp.int32)
+                )
                 assert new_state is not None
             except Exception as e:
                 pytest.fail(f"Valid operation {op_id} failed: {e}")

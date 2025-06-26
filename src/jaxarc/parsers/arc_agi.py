@@ -155,30 +155,85 @@ class ArcAgiParser(ArcDataParserBase):
         Raises:
             ValueError: If the task data format is invalid
         """
+        # Extract task ID and content
+        task_id, task_content = self._extract_task_id_and_content(raw_task_data)
+
+        # Process training and test pairs
+        train_input_grids, train_output_grids = self._process_training_pairs(
+            task_content
+        )
+        test_input_grids, test_output_grids = self._process_test_pairs(task_content)
+
+        # Pad arrays and create masks
+        padded_arrays = self._pad_and_create_masks(
+            train_input_grids, train_output_grids, test_input_grids, test_output_grids
+        )
+
+        # Log parsing statistics
+        self._log_parsing_stats(
+            train_input_grids,
+            train_output_grids,
+            test_input_grids,
+            test_output_grids,
+            task_id,
+        )
+
+        # Create ParsedTaskData structure with JAX-compatible task index
+        return ParsedTaskData(
+            input_grids_examples=padded_arrays["train_inputs"],
+            input_masks_examples=padded_arrays["train_input_masks"],
+            output_grids_examples=padded_arrays["train_outputs"],
+            output_masks_examples=padded_arrays["train_output_masks"],
+            num_train_pairs=len(train_input_grids),
+            test_input_grids=padded_arrays["test_inputs"],
+            test_input_masks=padded_arrays["test_input_masks"],
+            true_test_output_grids=padded_arrays["test_outputs"],
+            true_test_output_masks=padded_arrays["test_output_masks"],
+            num_test_pairs=len(test_input_grids),
+            task_index=create_jax_task_index(task_id),
+        )
+
+    def _extract_task_id_and_content(self, raw_task_data: Any) -> tuple[str, dict]:
+        """Extract task ID and content from raw task data.
+
+        Args:
+            raw_task_data: Raw task data dictionary
+
+        Returns:
+            Tuple of (task_id, task_content)
+
+        Raises:
+            ValueError: If the task data format is invalid
+        """
         if not isinstance(raw_task_data, dict):
             msg = f"Expected dict, got {type(raw_task_data)}"
             raise ValueError(msg)
 
-        # Extract task ID and content
         if len(raw_task_data) != 1:
             msg = f"Expected single task, got {len(raw_task_data)} tasks"
             raise ValueError(msg)
 
         task_id, task_content = next(iter(raw_task_data.items()))
+        return task_id, task_content
 
-        # Process training pairs
+    def _process_training_pairs(self, task_content: dict) -> tuple[list, list]:
+        """Process training pairs and convert them to JAX arrays.
+
+        Args:
+            task_content: Task content dictionary
+
+        Returns:
+            Tuple of (train_input_grids, train_output_grids)
+
+        Raises:
+            ValueError: If training data is invalid
+        """
         train_pairs_data = task_content.get("train", [])
-        test_pairs_data = task_content.get("test", [])
 
         if not train_pairs_data:
             msg = "Task must have at least one training pair"
             raise ValueError(msg)
 
-        if not test_pairs_data:
-            msg = "Task must have at least one test pair"
-            raise ValueError(msg)
-
-        # Convert training pairs to JAX arrays
         train_input_grids = []
         train_output_grids = []
 
@@ -197,7 +252,26 @@ class ArcAgiParser(ArcDataParserBase):
             train_input_grids.append(input_grid)
             train_output_grids.append(output_grid)
 
-        # Convert test pairs to JAX arrays
+        return train_input_grids, train_output_grids
+
+    def _process_test_pairs(self, task_content: dict) -> tuple[list, list]:
+        """Process test pairs and convert them to JAX arrays.
+
+        Args:
+            task_content: Task content dictionary
+
+        Returns:
+            Tuple of (test_input_grids, test_output_grids)
+
+        Raises:
+            ValueError: If test data is invalid
+        """
+        test_pairs_data = task_content.get("test", [])
+
+        if not test_pairs_data:
+            msg = "Task must have at least one test pair"
+            raise ValueError(msg)
+
         test_input_grids = []
         test_output_grids = []
 
@@ -221,6 +295,26 @@ class ArcAgiParser(ArcDataParserBase):
                 dummy_output = jnp.zeros_like(input_grid)
                 test_output_grids.append(dummy_output)
 
+        return test_input_grids, test_output_grids
+
+    def _pad_and_create_masks(
+        self,
+        train_input_grids: list,
+        train_output_grids: list,
+        test_input_grids: list,
+        test_output_grids: list,
+    ) -> dict:
+        """Pad arrays and create validity masks.
+
+        Args:
+            train_input_grids: List of training input grids
+            train_output_grids: List of training output grids
+            test_input_grids: List of test input grids
+            test_output_grids: List of test output grids
+
+        Returns:
+            Dictionary containing padded arrays and masks
+        """
         # Pad all arrays to maximum dimensions
         padded_train_inputs, train_input_masks = pad_array_sequence(
             train_input_grids,
@@ -254,7 +348,34 @@ class ArcAgiParser(ArcDataParserBase):
             fill_value=-1,
         )
 
-        # Log parsing statistics
+        return {
+            "train_inputs": padded_train_inputs,
+            "train_input_masks": train_input_masks,
+            "train_outputs": padded_train_outputs,
+            "train_output_masks": train_output_masks,
+            "test_inputs": padded_test_inputs,
+            "test_input_masks": test_input_masks,
+            "test_outputs": padded_test_outputs,
+            "test_output_masks": test_output_masks,
+        }
+
+    def _log_parsing_stats(
+        self,
+        train_input_grids: list,
+        train_output_grids: list,
+        test_input_grids: list,
+        test_output_grids: list,
+        task_id: str,
+    ) -> None:
+        """Log parsing statistics.
+
+        Args:
+            train_input_grids: List of training input grids
+            train_output_grids: List of training output grids
+            test_input_grids: List of test input grids
+            test_output_grids: List of test output grids
+            task_id: Task identifier
+        """
         max_train_dims = max(
             (grid.shape for grid in train_input_grids + train_output_grids),
             default=(0, 0),
@@ -269,22 +390,7 @@ class ArcAgiParser(ArcDataParserBase):
         )
 
         log_parsing_stats(
-            len(train_pairs_data), len(test_pairs_data), max_dims, task_id
-        )
-
-        # Create ParsedTaskData structure with JAX-compatible task index
-        return ParsedTaskData(
-            input_grids_examples=padded_train_inputs,
-            input_masks_examples=train_input_masks,
-            output_grids_examples=padded_train_outputs,
-            output_masks_examples=train_output_masks,
-            num_train_pairs=len(train_pairs_data),
-            test_input_grids=padded_test_inputs,
-            test_input_masks=test_input_masks,
-            true_test_output_grids=padded_test_outputs,
-            true_test_output_masks=test_output_masks,
-            num_test_pairs=len(test_pairs_data),
-            task_index=create_jax_task_index(task_id),
+            len(train_input_grids), len(test_input_grids), max_dims, task_id
         )
 
     def get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData:

@@ -201,7 +201,10 @@ def main(cfg: DictConfig) -> None:
     # Log initial state
     logger.info(f"Initial state: grid_shape={state.working_grid.shape}")
     log_grid_to_console(state.working_grid, title="Initial Grid")
-    log_grid_to_console(state.task_data.output_grids_examples[state.active_train_pair_idx], title="Target Grid")
+    log_grid_to_console(
+        state.task_data.output_grids_examples[state.active_train_pair_idx],
+        title="Target Grid",
+    )
 
     # Create output directory
     output_dir = Path("outputs/arc_demo")

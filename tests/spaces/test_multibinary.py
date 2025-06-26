@@ -1,10 +1,7 @@
-
 from __future__ import annotations
 
-import chex
 import jax
 import jax.numpy as jnp
-import pytest
 
 from jaxarc.spaces.multibinary import MultiBinary
 
