@@ -24,6 +24,7 @@ from jaxmarl.environments.spaces import Box, Dict, Discrete
 from ..base.base_env import ArcEnvState, ArcMarlEnvBase
 from ..spaces.multibinary import MultiBinary
 from ..types import ParsedTaskData
+from ..utils.grid_utils import pad_to_max_dims
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
 
@@ -302,28 +303,18 @@ class ArcEnvironment(ArcMarlEnvBase):
         agent_id = self.agents[0]
         action = actions[agent_id]
 
-        # Convert continuous selection to boolean mask
-        # Handle both dict and array-based action formats
-        if isinstance(action, dict):
-            selection = action["selection"]
-            operation_id = action["operation"]
-        else:
-            # Fallback: assume action is a single array/tensor
-            # For now, create dummy values - this should be updated based on actual action format
-            h, w = self.max_grid_size
-            selection = jnp.zeros((h * w,), dtype=jnp.int32)  # Default to no selection
-            operation_id = jnp.array(0, dtype=jnp.int32)  # Default to fill color 0
+        # Extract action components
+        selection_mask, operation_id = self._get_action_from_dict(action)
 
-        selection_mask = selection.reshape(self.max_grid_size).astype(jnp.bool_)
+        # Execute action and update state
+        new_state = self._execute_and_update_state(
+            arc_state, selection_mask, operation_id
+        )
 
-        # Execute the ARC operation
-        new_state = self._execute_action(arc_state, selection_mask, operation_id)
-
-        # Calculate reward
-        reward = self._calculate_reward(arc_state, new_state, operation_id)
-
-        # Check if episode is done
-        done = self._is_episode_done(new_state)
+        # Calculate reward and done status
+        reward, done = self._calculate_reward_and_done(
+            arc_state, new_state, operation_id
+        )
 
         # Update step counter and done status
         from dataclasses import replace
@@ -361,48 +352,15 @@ class ArcEnvironment(ArcMarlEnvBase):
         """
         # Cast to ArcEnvironmentState to access ARC-specific fields
         arc_state = state  # type: ArcEnvironmentState
-        max_h, max_w = self.max_grid_size
 
-        # Pad grids to max dimensions and flatten
-        working_grid_padded = self._pad_to_max_dims(arc_state.working_grid)
-        grid_flat = working_grid_padded.flatten().astype(jnp.float32)
+        # Get grid-based observations
+        grid_observations = self._get_grid_observations(arc_state)
 
-        input_grid = arc_state.task_data.input_grids_examples[
-            arc_state.active_train_pair_idx
-        ]
-        input_grid_padded = self._pad_to_max_dims(input_grid)
-        input_grid_flat = input_grid_padded.flatten().astype(jnp.float32)
-
-        target_grid = arc_state.task_data.output_grids_examples[
-            arc_state.active_train_pair_idx
-        ]
-        target_grid_padded = self._pad_to_max_dims(target_grid)
-        target_grid_flat = target_grid_padded.flatten().astype(jnp.float32)
-
-        clipboard_padded = self._pad_to_max_dims(arc_state.clipboard)
-        clipboard_flat = clipboard_padded.flatten().astype(jnp.float32)
-
-        # Metadata - convert all values to float32 for JAX compatibility
-        metadata = jnp.array(
-            [
-                jnp.array(arc_state.step, dtype=jnp.float32),  # step is Python int
-                arc_state.similarity_score.astype(jnp.float32),
-                arc_state.active_train_pair_idx.astype(jnp.float32),
-                arc_state.done.astype(jnp.float32),
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,  # padding for future use
-            ],
-            dtype=jnp.float32,
-        )
+        # Get metadata observations
+        metadata_observations = self._get_metadata_observation(arc_state)
 
         # Concatenate all observation components
-        obs = jnp.concatenate(
-            [grid_flat, input_grid_flat, target_grid_flat, clipboard_flat, metadata]
-        )
+        obs = jnp.concatenate([grid_observations, metadata_observations])
 
         # Create observation dict for all agents
         return dict.fromkeys(self.agents, obs)
@@ -418,27 +376,202 @@ class ArcEnvironment(ArcMarlEnvBase):
             Grid padded to max dimensions
         """
         max_h, max_w = self.max_grid_size
-        current_h, current_w = grid.shape
-
-        # If already max size, return as is
-        if current_h == max_h and current_w == max_w:
-            return grid
-
-        # Pad with zeros to max dimensions
-        pad_h = max_h - current_h
-        pad_w = max_w - current_w
-
-        return jnp.pad(grid, ((0, pad_h), (0, pad_w)), mode='constant', constant_values=0)
+        return pad_to_max_dims(grid, max_h, max_w, fill_value=0)
 
     def _initialize_state(
         self, key: chex.PRNGKey, task_data: ParsedTaskData
     ) -> ArcEnvironmentState:
         """Initialize the ARC environment state from task data."""
-        max_h, max_w = self.max_grid_size
+        # Get initial grids from task data
+        input_grid, target_grid = self._get_initial_grids(task_data)
 
+        # Calculate initial similarity
+        initial_similarity = self._calculate_initial_similarity(input_grid, target_grid)
+
+        # Create and return initial state
+        return self._create_initial_state(task_data, input_grid, initial_similarity)
+
+    def _get_action_from_dict(
+        self, action: dict | chex.Array
+    ) -> tuple[chex.Array, chex.Array]:
+        """
+        Extract selection mask and operation ID from action dictionary.
+
+        Args:
+            action: Action dictionary or array
+
+        Returns:
+            Tuple of (selection_mask, operation_id)
+        """
+        # Handle both dict and array-based action formats
+        if isinstance(action, dict):
+            selection = action["selection"]
+            operation_id = action["operation"]
+        else:
+            # Fallback: assume action is a single array/tensor
+            # For now, create dummy values - this should be updated based on actual action format
+            h, w = self.max_grid_size
+            selection = jnp.zeros((h * w,), dtype=jnp.int32)  # Default to no selection
+            operation_id = jnp.array(0, dtype=jnp.int32)  # Default to fill color 0
+
+        selection_mask = selection.reshape(self.max_grid_size).astype(jnp.bool_)
+        return selection_mask, operation_id
+
+    def _execute_and_update_state(
+        self,
+        state: ArcEnvironmentState,
+        selection_mask: chex.Array,
+        operation_id: chex.Array,
+    ) -> ArcEnvironmentState:
+        """
+        Execute the action and update the environment state.
+
+        Args:
+            state: Current environment state
+            selection_mask: Boolean mask for selection
+            operation_id: Operation ID to execute
+
+        Returns:
+            Updated environment state
+        """
+        # Update selection in state
+        state_with_selection = state.replace(selected=selection_mask)
+
+        # Execute the ARC operation
+        return self._execute_action(state_with_selection, selection_mask, operation_id)
+
+    def _calculate_reward_and_done(
+        self,
+        old_state: ArcEnvironmentState,
+        new_state: ArcEnvironmentState,
+        operation_id: chex.Array,
+    ) -> tuple[float, bool]:
+        """
+        Calculate reward and done status.
+
+        Args:
+            old_state: Previous environment state
+            new_state: New environment state after action
+            operation_id: Operation ID that was executed
+
+        Returns:
+            Tuple of (reward, done)
+        """
+        # Calculate reward
+        reward = self._calculate_reward(old_state, new_state, operation_id)
+
+        # Check if episode is done
+        done = self._is_episode_done(new_state)
+
+        return reward, done
+
+    def _get_grid_observations(self, state: ArcEnvironmentState) -> chex.Array:
+        """
+        Extract grid-based observations from state.
+
+        Args:
+            state: Current environment state
+
+        Returns:
+            Flattened grid observations
+        """
+        # Pad grids to max dimensions and flatten
+        working_grid_padded = self._pad_to_max_dims(state.working_grid)
+        grid_flat = working_grid_padded.flatten().astype(jnp.float32)
+
+        input_grid = state.task_data.input_grids_examples[state.active_train_pair_idx]
+        input_grid_padded = self._pad_to_max_dims(input_grid)
+        input_grid_flat = input_grid_padded.flatten().astype(jnp.float32)
+
+        target_grid = state.task_data.output_grids_examples[state.active_train_pair_idx]
+        target_grid_padded = self._pad_to_max_dims(target_grid)
+        target_grid_flat = target_grid_padded.flatten().astype(jnp.float32)
+
+        clipboard_padded = self._pad_to_max_dims(state.clipboard)
+        clipboard_flat = clipboard_padded.flatten().astype(jnp.float32)
+
+        # Concatenate all grid observations
+        return jnp.concatenate(
+            [grid_flat, input_grid_flat, target_grid_flat, clipboard_flat]
+        )
+
+    def _get_metadata_observation(self, state: ArcEnvironmentState) -> chex.Array:
+        """
+        Extract metadata observations from state.
+
+        Args:
+            state: Current environment state
+
+        Returns:
+            Metadata observation array
+        """
+        # Metadata - convert all values to float32 for JAX compatibility
+        return jnp.array(
+            [
+                jnp.array(state.step, dtype=jnp.float32),  # step is Python int
+                state.similarity_score.astype(jnp.float32),
+                state.active_train_pair_idx.astype(jnp.float32),
+                state.done.astype(jnp.float32),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,  # padding for future use
+            ],
+            dtype=jnp.float32,
+        )
+
+    def _get_initial_grids(
+        self, task_data: ParsedTaskData
+    ) -> tuple[chex.Array, chex.Array]:
+        """
+        Extract initial input and target grids from task data.
+
+        Args:
+            task_data: Parsed task data
+
+        Returns:
+            Tuple of (input_grid, target_grid)
+        """
         # Get first training pair as initial state
         input_grid = task_data.input_grids_examples[0]
         target_grid = task_data.output_grids_examples[0]
+        return input_grid, target_grid
+
+    def _calculate_initial_similarity(
+        self, input_grid: chex.Array, target_grid: chex.Array
+    ) -> float:
+        """
+        Calculate initial similarity between input and target grids.
+
+        Args:
+            input_grid: Input grid
+            target_grid: Target grid
+
+        Returns:
+            Initial similarity score
+        """
+        return compute_grid_similarity(input_grid, target_grid)
+
+    def _create_initial_state(
+        self,
+        task_data: ParsedTaskData,
+        input_grid: chex.Array,
+        initial_similarity: float,
+    ) -> ArcEnvironmentState:
+        """
+        Create the initial ArcEnvironmentState object.
+
+        Args:
+            task_data: Parsed task data
+            input_grid: Input grid
+            initial_similarity: Initial similarity score
+
+        Returns:
+            Initial environment state
+        """
+        max_h, max_w = self.max_grid_size
 
         # Use actual grid dimensions, not max dimensions
         actual_shape = input_grid.shape
@@ -446,9 +579,6 @@ class ArcEnvironment(ArcMarlEnvBase):
             h, w = actual_shape
         else:
             h, w = 0, 0
-
-        # Calculate initial similarity between input and target
-        initial_similarity = compute_grid_similarity(input_grid, target_grid)
 
         # Initialize grid dimensions (use full grid size for simplicity)
         grid_dim = jnp.array([h, w], dtype=jnp.int32)
@@ -486,7 +616,10 @@ class ArcEnvironment(ArcMarlEnvBase):
         )
 
     def _execute_action(
-        self, state: ArcEnvironmentState, selection_mask: chex.Array, operation: chex.Array
+        self,
+        state: ArcEnvironmentState,
+        selection_mask: chex.Array,
+        operation: chex.Array,
     ) -> ArcEnvironmentState:
         """Execute an ARC action (selection + operation) on the current state."""
         from dataclasses import replace
@@ -500,7 +633,10 @@ class ArcEnvironment(ArcMarlEnvBase):
         return new_state
 
     def _calculate_reward(
-        self, old_state: ArcEnvironmentState, new_state: ArcEnvironmentState, operation: chex.Array
+        self,
+        old_state: ArcEnvironmentState,
+        new_state: ArcEnvironmentState,
+        operation: chex.Array,
     ) -> float:
         """Calculate reward for the current step."""
         # Base reward is 0

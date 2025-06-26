@@ -46,6 +46,7 @@ ARC_COLOR_PALETTE: dict[int, str] = {
     10: "#FFFFFF",  # 10: white (for padding/invalid)
 }
 
+
 def _extract_grid_data(grid_input: jnp.ndarray | np.ndarray | Grid) -> np.ndarray:
     """Extract numpy array from various grid input types.
 

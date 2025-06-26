@@ -98,9 +98,9 @@ def test_environment_reset(arc_environment, sample_task_data):
     chex.assert_shape(agent_obs, arc_environment.observation_spaces["agent_0"].shape)
 
     # Check state structure
-    assert hasattr(state, 'done')
-    assert hasattr(state, 'step')
-    assert hasattr(state, 'working_grid')
+    assert hasattr(state, "done")
+    assert hasattr(state, "step")
+    assert hasattr(state, "working_grid")
     assert state.step == 0
     assert not state.done
 
@@ -178,7 +178,7 @@ def test_jit_compatibility(arc_environment, sample_task_data):
     obs, state = jit_reset(key)
 
     assert "agent_0" in obs
-    assert hasattr(state, 'working_grid')
+    assert hasattr(state, "working_grid")
 
     # Test JIT compatibility of step
     def step_fn(key, state, action):
@@ -215,7 +215,16 @@ def test_multiple_operations(arc_environment, sample_task_data):
     selection = selection.at[4:6, 4:6].set(1.0)  # Small 2x2 selection
 
     # Test various operations
-    operations_to_test = [0, 1, 2, 10, 20, 24, 28, 31]  # Sample of different operation types
+    operations_to_test = [
+        0,
+        1,
+        2,
+        10,
+        20,
+        24,
+        28,
+        31,
+    ]  # Sample of different operation types
 
     for op_id in operations_to_test:
         action = {

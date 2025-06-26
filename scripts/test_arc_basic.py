@@ -54,9 +54,7 @@ def test_environment_creation():
     print("🧪 Testing environment creation...")
 
     try:
-        env = ArcEnvironment(
-            num_agents=1, max_grid_size=(10, 10), max_episode_steps=50
-        )
+        env = ArcEnvironment(num_agents=1, max_grid_size=(10, 10), max_episode_steps=50)
         print("✅ Environment created successfully")
         print(f"   - Name: {env.name}")
         print(f"   - Agents: {env.agents}")
