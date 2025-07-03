@@ -11,7 +11,7 @@ from loguru import logger
 from omegaconf import DictConfig
 from pyprojroot import here
 
-from jaxarc.base import ArcDataParserBase
+from .base_parser import ArcDataParserBase
 from jaxarc.types import ParsedTaskData
 from jaxarc.utils.task_manager import create_jax_task_index
 

@@ -26,11 +26,9 @@ parser:
   description: "General ARC-AGI parser supporting both ARC-AGI-1 and ARC-AGI-2"
 
 # Grid Configuration
-max_grid_size: 30 # ARC grids are up to 30x30
 max_grid_height: 30 # Maximum height for JAX array padding
 max_grid_width: 30 # Maximum width for JAX array padding
 
 # Task Configuration for JAX Environment
 max_train_pairs: 10 # Maximum number of training pairs per task
 max_test_pairs: 3 # Maximum number of test pairs per task
-max_action_params: 10 # Maximum parameters for a single action

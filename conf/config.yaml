@@ -3,8 +3,21 @@ defaults:
   - dataset: arc_agi_2 # Which dataset to use
   - environment: arc_env # Which environment to use
 
+# Project paths
 paths:
   data_raw: "data/raw"
   data_processed: "data/processed"
   data_interim: "data/interim"
   data_external: "data/external"
+
+# Global settings
+seed: 42 # Global random seed
+debug: false # Global debug flag
+
+# Output directory for demo visualizations
+output_dir: "outputs/arc_demo"
+
+# Hydra configuration
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}

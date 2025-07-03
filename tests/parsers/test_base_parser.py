@@ -10,7 +10,7 @@ import jax
 import pytest
 from omegaconf import DictConfig
 
-from jaxarc.base import ArcDataParserBase
+from jaxarc.parsers import ArcDataParserBase
 from jaxarc.types import ParsedTaskData
 
 
