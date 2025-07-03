@@ -8,11 +8,12 @@ single-agent environments with grid operations.
 
 from __future__ import annotations
 
-from .arc_env import ArcEnvironment
+from .arc_base import ArcEnvState, ArcEnvironment
 from .grid_operations import execute_grid_operation
 
 __all__ = [
-    # ARC environment
+    # ARC environments
     "ArcEnvironment",
+    "ArcEnvState",
     "execute_grid_operation",
 ]

@@ -38,6 +38,7 @@ tasks through a structured hypothesis-proposal-consensus mechanism.
   - Use `loguru` for logging instead of default Python logging
   - Use `Hydra` for configuration management
   - Use `typer` for command-line interfaces
+  - Use `here()` to get the project root directory from `pyprojroot`
   - Follow the project's pre-allocation patterns for JAX compatibility
   - Try to have 100% test coverage for all new code.
   - Go step by step, and ensure each step is working before moving on to the

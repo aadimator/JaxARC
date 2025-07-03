@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from jaxarc.envs.arc_env import ArcEnvironmentState
+from jaxarc.envs.arc_base import ArcEnvState
 from jaxarc.envs.grid_operations import (
     compute_grid_similarity,
     execute_grid_operation,
@@ -55,22 +55,16 @@ def sample_state(sample_grid):
         task_index=jnp.array(0, dtype=jnp.int32),
     )
 
-    return ArcEnvironmentState(
-        done=jnp.array(False, dtype=jnp.bool_),
-        step=0,
+    return ArcEnvState(
         task_data=task_data,
-        active_train_pair_idx=jnp.array(0, dtype=jnp.int32),
         working_grid=sample_grid,
         working_grid_mask=jnp.ones((h, w), dtype=jnp.bool_),
-        program=jnp.zeros((10, 5), dtype=jnp.int32),
-        program_length=jnp.array(0, dtype=jnp.int32),
-        active_agents=jnp.ones(1, dtype=jnp.bool_),
-        cumulative_rewards=jnp.zeros(1, dtype=jnp.float32),
+        target_grid=sample_grid,  # Use same grid as target for testing
+        step_count=0,
+        episode_done=False,
+        current_example_idx=0,
         selected=jnp.zeros((h, w), dtype=jnp.bool_),
         clipboard=jnp.zeros((h, w), dtype=jnp.int32),
-        grid_dim=jnp.array([h, w], dtype=jnp.int32),
-        target_dim=jnp.array([h, w], dtype=jnp.int32),
-        max_grid_dim=jnp.array([h, w], dtype=jnp.int32),
         similarity_score=jnp.array(1.0, dtype=jnp.float32),
     )
 
@@ -337,7 +331,7 @@ class TestSubmitOperation:
         new_state = execute_grid_operation(sample_state, jnp.array(34, dtype=jnp.int32))
 
         # State should be marked as done
-        assert new_state.done == True
+        assert new_state.episode_done == True
 
 
 class TestJAXCompatibility:
@@ -380,14 +374,14 @@ class TestJAXCompatibility:
                 sample_state, jnp.array(op_id, dtype=jnp.int32)
             )
 
-            # Check that the state is still a valid ArcEnvironmentState
-            assert isinstance(new_state, ArcEnvironmentState)
+            # Check that the state is still a valid ArcEnvState
+            assert isinstance(new_state, ArcEnvState)
 
             # Check that all required fields are present
             assert hasattr(new_state, "working_grid")
             assert hasattr(new_state, "similarity_score")
-            assert hasattr(new_state, "done")
-            assert hasattr(new_state, "step")
+            assert hasattr(new_state, "episode_done")
+            assert hasattr(new_state, "step_count")
 
     def test_vmap_compatibility_single_operation(self, sample_state):
         """Test basic vmap compatibility for operations."""

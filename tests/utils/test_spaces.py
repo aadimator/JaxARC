@@ -3,7 +3,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from jaxarc.spaces.multibinary import MultiBinary
+from jaxarc.utils.spaces import MultiBinary
 
 
 class TestMultiBinary:

@@ -7,15 +7,12 @@ in the JaxARC environment.
 
 from __future__ import annotations
 
-import jax.numpy as jnp
 import chex
+import jax.numpy as jnp
 
 
 def pad_to_max_dims(
-    grid: chex.Array,
-    max_height: int,
-    max_width: int,
-    fill_value: int | float = 0
+    grid: chex.Array, max_height: int, max_width: int, fill_value: int | float = 0
 ) -> chex.Array:
     """
     Pad a grid to maximum dimensions.
@@ -45,14 +42,13 @@ def pad_to_max_dims(
 
     # Pad with fill_value to max dimensions
     return jnp.pad(
-        grid,
-        ((0, pad_h), (0, pad_w)),
-        mode='constant',
-        constant_values=fill_value
+        grid, ((0, pad_h), (0, pad_w)), mode="constant", constant_values=fill_value
     )
 
 
-def get_grid_bounds(grid: chex.Array, background_value: int = 0) -> tuple[int, int, int, int]:
+def get_grid_bounds(
+    grid: chex.Array, background_value: int = 0
+) -> tuple[int, int, int, int]:
     """
     Get the bounding box of non-background content in a grid.
 
@@ -100,4 +96,4 @@ def crop_grid_to_content(grid: chex.Array, background_value: int = 0) -> chex.Ar
         return jnp.array([[background_value]])
 
     # Crop to content bounds (inclusive)
-    return grid[min_row:max_row+1, min_col:max_col+1]
+    return grid[min_row : max_row + 1, min_col : max_col + 1]

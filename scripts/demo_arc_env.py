@@ -20,6 +20,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
+from pyprojroot import here
 from omegaconf import DictConfig, OmegaConf
 
 from jaxarc.envs import ArcEnvironment
@@ -130,64 +131,56 @@ def demo_operations(env, state, key):
             h, w, demo.get("mask_type", "square"), center=center
         )
 
-        # Create action
+        # Create action (single-agent format)
         action = {
-            "agent_0": {
-                "selection": jnp.array(mask.astype(np.float32)),
-                "operation": jnp.array(demo["op"]),
-            }
+            "selection": jnp.array(mask.astype(jnp.bool_)),
+            "operation": jnp.array(demo["op"]),
         }
 
         # Take action
         key, subkey = jax.random.split(key)
-        (obs, new_state, rewards, dones, _) = env.step(subkey, state, action)
+        (new_state, obs, reward, done, info) = env.step(state, action)
         state = new_state
 
         # Visualize result
         logger.info(f"Operation {i + 1}: {demo['desc']} (op_id={demo['op']})")
-        logger.info(f"Reward: {rewards['agent_0']}")
+        logger.info(f"Reward: {reward}")
         logger.info(f"Similarity score: {state.similarity_score}")
 
         # Save visualization
         save_path = output_dir / f"op_{i + 1}_{demo['op']}.png"
         visualize_grids(
             state.working_grid,
-            state.task_data.input_grids_examples[state.active_train_pair_idx],
-            state.task_data.output_grids_examples[state.active_train_pair_idx],
+            state.task_data.input_grids_examples[state.current_example_idx],
+            state.task_data.output_grids_examples[state.current_example_idx],
             title=f"Operation {i + 1}: {demo['desc']} (op_id={demo['op']})",
             save_path=save_path,
         )
 
         # Also log grid to console
-        log_grid_to_console(state.grid, title=f"Grid after {demo['desc']}")
+        log_grid_to_console(state.working_grid, mask=state.working_grid_mask, title=f"Grid after {demo['desc']}", show_numbers=False)
 
-        if dones["agent_0"]:
+        if done:
             logger.info("Episode terminated")
             break
 
     return state
 
 
-@hydra.main(config_path="../conf", config_name="config", version_base=None)
+@hydra.main(config_path=str(here("conf")), config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
     """Run the ARC environment demo."""
     logger.info("Starting ARC environment demo")
     logger.info(f"JAX devices: {jax.devices()}")
 
-    # Create a basic ARC environment configuration if not available
-    if hasattr(cfg, "environment") and hasattr(cfg.environment, "_target_"):
-        env_config = OmegaConf.to_container(cfg.environment, resolve=True)
-    else:
-        # Use default ARC config
-        env_config = {
-            "max_grid_size": [10, 10],
-            "max_episode_steps": 20,
-            "reward_on_submit_only": True,
-        }
-    logger.info(f"Environment config: {env_config}")
+    # Use separated configs from Hydra
+    env_config = cfg.environment
+    dataset_config = cfg.dataset
+    logger.info(f"Environment config: {OmegaConf.to_yaml(env_config)}")
+    logger.info(f"Dataset config: {OmegaConf.to_yaml(dataset_config)}")
 
-    # Create environment
-    env = ArcEnvironment(env_config)
+    # Create environment with both configs
+    env = ArcEnvironment(env_config, dataset_config)
     logger.info(f"Created environment: {env}")
 
     # Initialize random key
@@ -196,25 +189,27 @@ def main(cfg: DictConfig) -> None:
     # Reset environment
     logger.info("Resetting environment")
     key, reset_key = jax.random.split(key)
-    obs, state = env.reset(reset_key)
+    state, obs = env.reset(reset_key)
 
     # Log initial state
     logger.info(f"Initial state: grid_shape={state.working_grid.shape}")
-    log_grid_to_console(state.working_grid, title="Initial Grid")
+    log_grid_to_console(state.working_grid, mask=state.working_grid_mask, title="Initial Grid", show_numbers=False)
     log_grid_to_console(
-        state.task_data.output_grids_examples[state.active_train_pair_idx],
+        state.task_data.output_grids_examples[state.current_example_idx],
+        mask=state.task_data.output_masks_examples[state.current_example_idx],
         title="Target Grid",
+        show_numbers=False,
     )
 
     # Create output directory
-    output_dir = Path("outputs/arc_demo")
+    output_dir = Path(cfg.get("output_dir", "outputs/arc_demo"))
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Save initial visualization
     visualize_grids(
         state.working_grid,
-        state.task_data.input_grids_examples[state.active_train_pair_idx],
-        state.task_data.output_grids_examples[state.active_train_pair_idx],
+        state.task_data.input_grids_examples[state.current_example_idx],
+        state.task_data.output_grids_examples[state.current_example_idx],
         title="Initial State",
         save_path=output_dir / "initial_state.png",
     )
@@ -226,24 +221,22 @@ def main(cfg: DictConfig) -> None:
     # Demonstrate submit operation
     logger.info("Demonstrating submit operation")
     action = {
-        "agent_0": {
-            "selection": jnp.zeros_like(state.grid, dtype=jnp.float32),
-            "operation": jnp.array(34),  # Submit operation
-        }
+        "selection": jnp.zeros_like(state.working_grid, dtype=jnp.bool_),
+        "operation": jnp.array(34),  # Submit operation
     }
 
     key, subkey = jax.random.split(key)
-    (obs, state, rewards, dones, _) = env.step(subkey, state, action)
+    (state, obs, reward, done, info) = env.step(state, action)
 
-    logger.info(f"Submit reward: {rewards['agent_0']}")
+    logger.info(f"Submit reward: {reward}")
     logger.info(f"Final similarity score: {state.similarity_score}")
-    logger.info(f"Episode terminated: {dones['agent_0']}")
+    logger.info(f"Episode terminated: {done}")
 
     # Save final visualization
     visualize_grids(
         state.working_grid,
-        state.task_data.input_grids_examples[state.active_train_pair_idx],
-        state.task_data.output_grids_examples[state.active_train_pair_idx],
+        state.task_data.input_grids_examples[state.current_example_idx],
+        state.task_data.output_grids_examples[state.current_example_idx],
         title=f"Final State (Similarity: {state.similarity_score:.4f})",
         save_path=output_dir / "final_state.png",
     )
@@ -252,8 +245,4 @@ def main(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    # Override to use ARC environment
-    import sys
-
-    sys.argv.extend(["environment=arc_env"])
     main()
