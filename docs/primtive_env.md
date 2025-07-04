@@ -68,7 +68,7 @@ class ArcEnvState:
     step: int  # Python int compatible with JAX
 
     # Task state
-    task_data: ParsedTaskData
+    task_data: JaxArcTask
     active_train_pair_idx: jnp.ndarray
 
     # Grid state (simplified)

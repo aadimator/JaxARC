@@ -11,7 +11,7 @@ import pytest
 from omegaconf import DictConfig
 
 from jaxarc.parsers import ArcDataParserBase
-from jaxarc.types import ParsedTaskData
+from jaxarc.types import JaxArcTask
 
 
 class ConcreteParser(ArcDataParserBase):
@@ -29,12 +29,10 @@ class ConcreteParser(ArcDataParserBase):
     def load_task_file(self, task_file_path: str) -> Any:
         return self.load_task_file_mock(task_file_path)
 
-    def preprocess_task_data(
-        self, raw_task_data: Any, key: chex.PRNGKey
-    ) -> ParsedTaskData:
+    def preprocess_task_data(self, raw_task_data: Any, key: chex.PRNGKey) -> JaxArcTask:
         return self.preprocess_task_data_mock(raw_task_data, key)
 
-    def get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData:
+    def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         return self.get_random_task_mock(key)
 
 
@@ -294,8 +292,8 @@ class TestArcDataParserBase:
         raw_data = {"some": "raw_data"}
         key = jax.random.PRNGKey(0)
 
-        # Create a mock return value that matches the ParsedTaskData interface
-        mock_return = MagicMock(spec=ParsedTaskData)
+        # Create a mock return value that matches the JaxArcTask interface
+        mock_return = MagicMock(spec=JaxArcTask)
         parser.preprocess_task_data_mock.return_value = mock_return
 
         result = parser.preprocess_task_data(raw_data, key)
@@ -317,8 +315,8 @@ class TestArcDataParserBase:
         parser = ConcreteParser(cfg)
         key = jax.random.PRNGKey(42)
 
-        # Create a mock return value that matches the ParsedTaskData interface
-        mock_return = MagicMock(spec=ParsedTaskData)
+        # Create a mock return value that matches the JaxArcTask interface
+        mock_return = MagicMock(spec=JaxArcTask)
         parser.get_random_task_mock.return_value = mock_return
 
         result = parser.get_random_task(key)

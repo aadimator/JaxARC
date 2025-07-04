@@ -136,7 +136,7 @@ Speedup:          15,012x
 import jax
 import jax.numpy as jnp
 from jaxarc.envs.arcle_env import ARCLEEnvironment
-from jaxarc.types import ParsedTaskData
+from jaxarc.types import JaxArcTask
 
 # Create environment
 env = ARCLEEnvironment(num_agents=1, max_grid_size=(30, 30), max_episode_steps=100)

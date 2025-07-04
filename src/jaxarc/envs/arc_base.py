@@ -10,19 +10,20 @@ from __future__ import annotations
 
 import chex
 import jax.numpy as jnp
-from omegaconf import DictConfig, OmegaConf
 from loguru import logger
+from omegaconf import DictConfig, OmegaConf
 
 from ..parsers.arc_agi import ArcAgiParser
-from ..types import ParsedTaskData
+from ..types import JaxArcTask
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
 
 @chex.dataclass
 class ArcEnvState:
     """ARC environment state with full grid operations compatibility."""
+
     # Core ARC state
-    task_data: ParsedTaskData
+    task_data: JaxArcTask
     working_grid: jnp.ndarray  # Current grid being modified
     working_grid_mask: jnp.ndarray  # Valid cells mask
     target_grid: jnp.ndarray  # Goal grid for current example
@@ -30,7 +31,9 @@ class ArcEnvState:
     # Episode management
     step_count: int
     episode_done: bool
-    current_example_idx: int  # Which training example we're working on (maps to active_train_pair_idx)
+    current_example_idx: (
+        int  # Which training example we're working on (maps to active_train_pair_idx)
+    )
 
     # Grid operations fields
     selected: jnp.ndarray  # Selection mask for operations
@@ -84,22 +87,22 @@ class ArcEnvironment:
         self.dataset_config = dataset_config
 
         # Extract environment settings from env_config
-        self.max_episode_steps = env_config.get('max_episode_steps', 100)
+        self.max_episode_steps = env_config.get("max_episode_steps", 100)
 
         # Extract dataset settings from dataset_config
-        self.max_grid_height = dataset_config.get('max_grid_height', 30)
-        self.max_grid_width = dataset_config.get('max_grid_width', 30)
+        self.max_grid_height = dataset_config.get("max_grid_height", 30)
+        self.max_grid_width = dataset_config.get("max_grid_width", 30)
         self.max_grid_size = (self.max_grid_height, self.max_grid_width)
 
         # Reward settings from env_config
-        self.reward_on_submit_only = env_config.get('reward_on_submit_only', True)
-        self.step_penalty = env_config.get('step_penalty', -0.01)
-        self.success_bonus = env_config.get('success_bonus', 10.0)
+        self.reward_on_submit_only = env_config.get("reward_on_submit_only", True)
+        self.step_penalty = env_config.get("step_penalty", -0.01)
+        self.success_bonus = env_config.get("success_bonus", 10.0)
 
         # Debug settings from env_config
-        self.log_operations = env_config.get('log_operations', False)
+        self.log_operations = env_config.get("log_operations", False)
 
-        logger.info(f"Initializing ARC Environment with separated configs:")
+        logger.info("Initializing ARC Environment with separated configs:")
         logger.info(f"Environment config: {OmegaConf.to_yaml(self.env_config)}")
         logger.info(f"Dataset config keys: {list(self.dataset_config.keys())}")
         logger.info(f"Max grid size from dataset: {self.max_grid_size}")
@@ -113,7 +116,9 @@ class ArcEnvironment:
             logger.info("Creating mock task parser for demo purposes")
             self.task_parser = None
 
-    def reset(self, key: chex.PRNGKey, task_data: ParsedTaskData | None = None) -> tuple[ArcEnvState, jnp.ndarray]:
+    def reset(
+        self, key: chex.PRNGKey, task_data: JaxArcTask | None = None
+    ) -> tuple[ArcEnvState, jnp.ndarray]:
         """Reset with clean ARC environment state, optionally with specific task."""
         if task_data is None:
             if self.task_parser is not None:
@@ -152,13 +157,15 @@ class ArcEnvironment:
         observation = self._get_observation(state)
         return state, observation
 
-    def step(self, state: ArcEnvState, action: dict) -> tuple[ArcEnvState, jnp.ndarray, jnp.ndarray, jnp.ndarray, dict]:
+    def step(
+        self, state: ArcEnvState, action: dict
+    ) -> tuple[ArcEnvState, jnp.ndarray, jnp.ndarray, jnp.ndarray, dict]:
         """Execute single step with grid operation."""
         # Update selection in state
-        state = state.replace(selected=action['selection'])
+        state = state.replace(selected=action["selection"])
 
         # Execute operation using existing grid_operations
-        new_state = execute_grid_operation(state, action['operation'])
+        new_state = execute_grid_operation(state, action["operation"])
 
         # Update step count
         new_state = new_state.replace(step_count=state.step_count + 1)
@@ -175,9 +182,9 @@ class ArcEnvironment:
 
         # Create info dict (JAX-compatible)
         info = {
-            'success': new_state.similarity_score >= 1.0,
-            'similarity': new_state.similarity_score,
-            'step_count': new_state.step_count
+            "success": new_state.similarity_score >= 1.0,
+            "similarity": new_state.similarity_score,
+            "step_count": new_state.step_count,
         }
 
         return new_state, observation, reward, done, info
@@ -186,7 +193,9 @@ class ArcEnvironment:
         """Extract observation from state - simple version just returns working grid."""
         return state.working_grid
 
-    def _calculate_reward(self, old_state: ArcEnvState, new_state: ArcEnvState) -> jnp.ndarray:
+    def _calculate_reward(
+        self, old_state: ArcEnvState, new_state: ArcEnvState
+    ) -> jnp.ndarray:
         """Calculate reward based on similarity improvement and step penalty."""
         # Reward for similarity improvement
         similarity_improvement = new_state.similarity_score - old_state.similarity_score
@@ -195,7 +204,9 @@ class ArcEnvironment:
         step_penalty = self.step_penalty
 
         # Bonus for solving the task (JAX-compatible conditional)
-        success_bonus = jnp.where(new_state.similarity_score >= 1.0, self.success_bonus, 0.0)
+        success_bonus = jnp.where(
+            new_state.similarity_score >= 1.0, self.success_bonus, 0.0
+        )
 
         # Calculate full reward
         full_reward = similarity_improvement + step_penalty + success_bonus
@@ -204,7 +215,9 @@ class ArcEnvironment:
         submit_only_reward = jnp.array(step_penalty, dtype=jnp.float32)
 
         # Use JAX-compatible conditional logic
-        reward_on_submit_only_flag = jnp.array(self.reward_on_submit_only, dtype=jnp.bool_)
+        reward_on_submit_only_flag = jnp.array(
+            self.reward_on_submit_only, dtype=jnp.bool_
+        )
         should_use_submit_only = reward_on_submit_only_flag & ~new_state.episode_done
 
         return jnp.where(should_use_submit_only, submit_only_reward, full_reward)
@@ -223,9 +236,9 @@ class ArcEnvironment:
         # JAX-compatible boolean operations
         return task_solved | max_steps_reached | submitted
 
-    def _create_demo_task(self) -> ParsedTaskData:
+    def _create_demo_task(self) -> JaxArcTask:
         """Create a simple demo task for testing when no parser is available."""
-        from ..types import ParsedTaskData
+        from ..types import JaxArcTask
 
         # Create simple demo grids with white background for better visibility
         grid_shape = (8, 8)
@@ -244,13 +257,17 @@ class ArcEnvironment:
         padded_target = jnp.full(max_shape, -1, dtype=jnp.int32)
         padded_mask = jnp.zeros(max_shape, dtype=jnp.bool_)
 
-        padded_input = padded_input.at[:grid_shape[0], :grid_shape[1]].set(input_grid)
-        padded_target = padded_target.at[:grid_shape[0], :grid_shape[1]].set(target_grid)
-        padded_mask = padded_mask.at[:grid_shape[0], :grid_shape[1]].set(mask)
+        padded_input = padded_input.at[: grid_shape[0], : grid_shape[1]].set(input_grid)
+        padded_target = padded_target.at[: grid_shape[0], : grid_shape[1]].set(
+            target_grid
+        )
+        padded_mask = padded_mask.at[: grid_shape[0], : grid_shape[1]].set(mask)
 
-        logger.info("Created demo task: change blue 3x3 square to red 3x3 square (on white background)")
+        logger.info(
+            "Created demo task: change blue 3x3 square to red 3x3 square (on white background)"
+        )
 
-        return ParsedTaskData(
+        return JaxArcTask(
             input_grids_examples=jnp.expand_dims(padded_input, 0),
             output_grids_examples=jnp.expand_dims(padded_target, 0),
             input_masks_examples=jnp.expand_dims(padded_mask, 0),

@@ -87,7 +87,7 @@ def apply_within_bounds(
 
 
 @jax.jit
-def fill_color(state: "ArcEnvState", selection: jnp.ndarray, color: int) -> "ArcEnvState":
+def fill_color(state: ArcEnvState, selection: jnp.ndarray, color: int) -> ArcEnvState:
     """Fill selected region with specified color."""
     new_grid = apply_within_bounds(state.working_grid, selection, color)
     return state.replace(working_grid=new_grid)
@@ -148,7 +148,9 @@ def simple_flood_fill(
 
 
 @jax.jit
-def flood_fill_color(state: "ArcEnvState", selection: jnp.ndarray, color: int) -> "ArcEnvState":
+def flood_fill_color(
+    state: ArcEnvState, selection: jnp.ndarray, color: int
+) -> ArcEnvState:
     """Flood fill from selected region with specified color."""
     new_grid = simple_flood_fill(state.working_grid, selection, color)
     return state.replace(working_grid=new_grid)
@@ -158,7 +160,9 @@ def flood_fill_color(state: "ArcEnvState", selection: jnp.ndarray, color: int) -
 
 
 @jax.jit
-def move_object(state: "ArcEnvState", selection: jnp.ndarray, direction: int) -> "ArcEnvState":
+def move_object(
+    state: ArcEnvState, selection: jnp.ndarray, direction: int
+) -> ArcEnvState:
     """Move selected object in specified direction (0=up, 1=down, 2=left, 3=right)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -198,7 +202,9 @@ def move_object(state: "ArcEnvState", selection: jnp.ndarray, direction: int) ->
 
 
 @jax.jit
-def rotate_object(state: "ArcEnvState", selection: jnp.ndarray, angle: int) -> "ArcEnvState":
+def rotate_object(
+    state: ArcEnvState, selection: jnp.ndarray, angle: int
+) -> ArcEnvState:
     """Rotate selected region (0=90° clockwise, 1=90° counterclockwise)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -230,7 +236,7 @@ def rotate_object(state: "ArcEnvState", selection: jnp.ndarray, angle: int) -> "
 
 
 @jax.jit
-def flip_object(state: "ArcEnvState", selection: jnp.ndarray, axis: int) -> "ArcEnvState":
+def flip_object(state: ArcEnvState, selection: jnp.ndarray, axis: int) -> ArcEnvState:
     """Flip selected region (0=horizontal, 1=vertical)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -262,14 +268,14 @@ def flip_object(state: "ArcEnvState", selection: jnp.ndarray, axis: int) -> "Arc
 
 
 @jax.jit
-def copy_to_clipboard(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEnvState":
+def copy_to_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     """Copy selected region to clipboard."""
     new_clipboard = jnp.where(selection, state.working_grid, 0)
     return state.replace(clipboard=new_clipboard)
 
 
 @jax.jit
-def paste_from_clipboard(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEnvState":
+def paste_from_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     """Paste clipboard content to selected region."""
     # Only paste where clipboard has content and selection is active
     paste_mask = selection & (state.clipboard != 0)
@@ -278,7 +284,7 @@ def paste_from_clipboard(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEn
 
 
 @jax.jit
-def cut_to_clipboard(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEnvState":
+def cut_to_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     """Cut selected region to clipboard (copy + clear)."""
     # Copy to clipboard
     new_clipboard = jnp.where(selection, state.working_grid, 0)
@@ -293,7 +299,7 @@ def cut_to_clipboard(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEnvSta
 
 
 @jax.jit
-def clear_grid(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEnvState":
+def clear_grid(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     """Clear the entire grid or selected region."""
     has_selection = jnp.sum(selection) > 0
 
@@ -308,7 +314,7 @@ def clear_grid(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEnvState":
 
 
 @jax.jit
-def copy_input_grid(state: "ArcEnvState", _selection: jnp.ndarray) -> "ArcEnvState":
+def copy_input_grid(state: ArcEnvState, _selection: jnp.ndarray) -> ArcEnvState:
     """Copy input grid to current grid."""
     input_grid = state.task_data.input_grids_examples[state.current_example_idx]
     # Copy input grid to working grid shape
@@ -317,7 +323,7 @@ def copy_input_grid(state: "ArcEnvState", _selection: jnp.ndarray) -> "ArcEnvSta
 
 
 @jax.jit
-def resize_grid(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEnvState":
+def resize_grid(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     """Resize grid active area based on selection."""
     has_selection = jnp.sum(selection) > 0
 
@@ -357,7 +363,7 @@ def resize_grid(state: "ArcEnvState", selection: jnp.ndarray) -> "ArcEnvState":
 
 
 @jax.jit
-def submit_solution(state: "ArcEnvState", _selection: jnp.ndarray) -> "ArcEnvState":
+def submit_solution(state: ArcEnvState, _selection: jnp.ndarray) -> ArcEnvState:
     """Submit current grid as solution."""
     return state.replace(episode_done=True)
 
@@ -366,7 +372,7 @@ def submit_solution(state: "ArcEnvState", _selection: jnp.ndarray) -> "ArcEnvSta
 
 
 @jax.jit
-def execute_grid_operation(state: "ArcEnvState", operation: jnp.ndarray) -> "ArcEnvState":
+def execute_grid_operation(state: ArcEnvState, operation: jnp.ndarray) -> ArcEnvState:
     """Execute grid operation based on operation ID."""
     selection = state.selected
 

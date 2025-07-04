@@ -11,15 +11,15 @@ from loguru import logger
 from omegaconf import DictConfig
 from pyprojroot import here
 
-from .base_parser import ArcDataParserBase
-from jaxarc.types import ParsedTaskData
+from jaxarc.types import JaxArcTask
 from jaxarc.utils.task_manager import create_jax_task_index
 
+from .base_parser import ArcDataParserBase
 from .utils import convert_grid_to_jax, log_parsing_stats, pad_array_sequence
 
 
 class ArcAgiParser(ArcDataParserBase):
-    """Parses ARC-AGI task files into ParsedTaskData objects.
+    """Parses ARC-AGI task files into JaxArcTask objects.
 
     This parser supports ARC-AGI datasets downloaded from Kaggle, including:
     - ARC-AGI-1 (2024 dataset)
@@ -29,7 +29,7 @@ class ArcAgiParser(ArcDataParserBase):
     with this implementation. It handles challenge files (containing training
     pairs and test inputs) and optional solution files (containing test outputs).
 
-    The parser outputs JAX-compatible ParsedTaskData structures with padded
+    The parser outputs JAX-compatible JaxArcTask structures with padded
     arrays and boolean masks for efficient processing in the MARL environment.
     """
 
@@ -142,15 +142,15 @@ class ArcAgiParser(ArcDataParserBase):
         self,
         raw_task_data: Any,
         key: chex.PRNGKey,  # noqa: ARG002
-    ) -> ParsedTaskData:
-        """Convert raw task data into ParsedTaskData structure.
+    ) -> JaxArcTask:
+        """Convert raw task data into JaxArcTask structure.
 
         Args:
             raw_task_data: Raw task data dictionary
             key: JAX PRNG key (unused in this deterministic preprocessing)
 
         Returns:
-            ParsedTaskData: JAX-compatible task data with padded arrays
+            JaxArcTask: JAX-compatible task data with padded arrays
 
         Raises:
             ValueError: If the task data format is invalid
@@ -178,8 +178,8 @@ class ArcAgiParser(ArcDataParserBase):
             task_id,
         )
 
-        # Create ParsedTaskData structure with JAX-compatible task index
-        return ParsedTaskData(
+        # Create JaxArcTask structure with JAX-compatible task index
+        return JaxArcTask(
             input_grids_examples=padded_arrays["train_inputs"],
             input_masks_examples=padded_arrays["train_input_masks"],
             output_grids_examples=padded_arrays["train_outputs"],
@@ -393,14 +393,14 @@ class ArcAgiParser(ArcDataParserBase):
             len(train_input_grids), len(test_input_grids), max_dims, task_id
         )
 
-    def get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData:
+    def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         """Get a random task from the dataset.
 
         Args:
             key: JAX PRNG key for random selection
 
         Returns:
-            ParsedTaskData: A randomly selected and preprocessed task
+            JaxArcTask: A randomly selected and preprocessed task
 
         Raises:
             RuntimeError: If no tasks are available
@@ -419,14 +419,14 @@ class ArcAgiParser(ArcDataParserBase):
         # Preprocess and return
         return self.preprocess_task_data(task_data, key)
 
-    def get_task_by_id(self, task_id: str) -> ParsedTaskData:
+    def get_task_by_id(self, task_id: str) -> JaxArcTask:
         """Get a specific task by its ID.
 
         Args:
             task_id: ID of the task to retrieve
 
         Returns:
-            ParsedTaskData: The preprocessed task data
+            JaxArcTask: The preprocessed task data
 
         Raises:
             ValueError: If the task ID is not found

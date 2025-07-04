@@ -14,6 +14,8 @@ from typing import NewType
 import chex
 import jax.numpy as jnp
 
+from jaxarc.utils.task_manager import extract_task_id_from_index, create_jax_task_index
+
 
 @chex.dataclass
 class Grid:
@@ -53,28 +55,12 @@ class TaskPair:
 
 
 @chex.dataclass
-class ArcTask:
+class JaxArcTask:
     """
-    Represents a complete ARC task with training and test examples.
-
-    Attributes:
-        training_pairs: List of training input-output pairs
-        test_pairs: List of test input-output pairs (outputs may be unknown)
-        task_id: Optional identifier for the task
-    """
-
-    training_pairs: list[TaskPair]
-    test_pairs: list[TaskPair]
-    task_id: str | None = None
-
-
-@chex.dataclass
-class ParsedTaskData:
-    """
-    Parsed and padded ARC task data optimized for JAX processing.
+    JAX-compatible ARC task data with fixed-size arrays for efficient processing.
 
     This structure contains all task data with fixed-size arrays padded to
-    maximum dimensions for efficient batch processing.
+    maximum dimensions for efficient batch processing and JAX transformations.
 
     Attributes:
         # Training examples
@@ -177,6 +163,47 @@ class ParsedTaskData:
         except (AttributeError, TypeError):
             # Skip validation during JAX transformations
             pass
+
+    def get_train_input_grid(self, pair_idx: int) -> Grid:
+        """Get training input grid at given index."""
+        return Grid(
+            data=self.input_grids_examples[pair_idx],
+            mask=self.input_masks_examples[pair_idx],
+        )
+
+    def get_train_output_grid(self, pair_idx: int) -> Grid:
+        """Get training output grid at given index."""
+        return Grid(
+            data=self.output_grids_examples[pair_idx],
+            mask=self.output_masks_examples[pair_idx],
+        )
+
+    def get_test_input_grid(self, pair_idx: int) -> Grid:
+        """Get test input grid at given index."""
+        return Grid(
+            data=self.test_input_grids[pair_idx], mask=self.test_input_masks[pair_idx]
+        )
+
+    def get_test_output_grid(self, pair_idx: int) -> Grid:
+        """Get test output grid at given index."""
+        return Grid(
+            data=self.true_test_output_grids[pair_idx],
+            mask=self.true_test_output_masks[pair_idx],
+        )
+
+    def get_train_pair(self, pair_idx: int) -> TaskPair:
+        """Get training pair at given index."""
+        return TaskPair(
+            input_grid=self.get_train_input_grid(pair_idx),
+            output_grid=self.get_train_output_grid(pair_idx),
+        )
+
+    def get_test_pair(self, pair_idx: int) -> TaskPair:
+        """Get test pair at given index."""
+        return TaskPair(
+            input_grid=self.get_test_input_grid(pair_idx),
+            output_grid=self.get_test_output_grid(pair_idx),
+        )
 
 
 # Type Aliases for IDs

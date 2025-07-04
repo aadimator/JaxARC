@@ -7,9 +7,8 @@ import pytest
 
 from jaxarc.types import (
     ARCLEAction,
-    ArcTask,
     Grid,
-    ParsedTaskData,
+    JaxArcTask,
     TaskPair,
 )
 
@@ -74,52 +73,13 @@ def test_task_pair_creation():
     assert task_pair.input_grid is not task_pair.output_grid
 
 
-# Test ArcTask class
-def test_arc_task_creation():
-    """Tests the creation of an ArcTask object."""
-    input_grid = Grid(
-        data=jnp.array([[0, 1]], dtype=jnp.int32),
-        mask=jnp.ones((1, 2), dtype=jnp.bool_),
-    )
-    output_grid = Grid(
-        data=jnp.array([[1, 0]], dtype=jnp.int32),
-        mask=jnp.ones((1, 2), dtype=jnp.bool_),
-    )
-    task_pair = TaskPair(input_grid=input_grid, output_grid=output_grid)
-
-    arc_task = ArcTask(
-        training_pairs=[task_pair], test_pairs=[task_pair], task_id="test_task_001"
-    )
-
-    assert len(arc_task.training_pairs) == 1
-    assert len(arc_task.test_pairs) == 1
-    assert arc_task.task_id == "test_task_001"
-    assert isinstance(arc_task.training_pairs[0], TaskPair)
-    assert isinstance(arc_task.test_pairs[0], TaskPair)
-
-
-def test_arc_task_optional_id():
-    """Tests ArcTask creation with optional task_id."""
-    input_grid = Grid(
-        data=jnp.array([[0]], dtype=jnp.int32), mask=jnp.ones((1, 1), dtype=jnp.bool_)
-    )
-    output_grid = Grid(
-        data=jnp.array([[1]], dtype=jnp.int32), mask=jnp.ones((1, 1), dtype=jnp.bool_)
-    )
-    task_pair = TaskPair(input_grid=input_grid, output_grid=output_grid)
-
-    arc_task = ArcTask(training_pairs=[task_pair], test_pairs=[task_pair])
-
-    assert arc_task.task_id is None
-
-
-# Test ParsedTaskData class
-def test_parsed_task_data_creation():
-    """Tests the creation of a ParsedTaskData object."""
+# Test JaxArcTask class
+def test_jax_arc_task_creation():
+    """Tests the creation of a JaxArcTask object."""
     max_train_pairs, max_test_pairs = 3, 2
     grid_h, grid_w = 5, 5
 
-    parsed_data = ParsedTaskData(
+    parsed_data = JaxArcTask(
         input_grids_examples=jnp.zeros(
             (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
         ),
@@ -154,12 +114,12 @@ def test_parsed_task_data_creation():
     chex.assert_type(parsed_data.task_index, jnp.int32)
 
 
-def test_parsed_task_data_shape_validation():
-    """Tests ParsedTaskData shape validation during __post_init__."""
+def test_jax_arc_task_shape_validation():
+    """Tests JaxArcTask shape validation during __post_init__."""
     grid_h, grid_w = 5, 5
 
     # This should work - matching shapes
-    parsed_data = ParsedTaskData(
+    parsed_data = JaxArcTask(
         input_grids_examples=jnp.zeros((2, grid_h, grid_w), dtype=jnp.int32),
         input_masks_examples=jnp.ones((2, grid_h, grid_w), dtype=jnp.bool_),
         output_grids_examples=jnp.ones((2, grid_h, grid_w), dtype=jnp.int32),
@@ -176,11 +136,11 @@ def test_parsed_task_data_shape_validation():
     assert parsed_data.num_train_pairs == 2
 
 
-def test_parsed_task_data_count_validation():
-    """Tests validation of pair counts in ParsedTaskData."""
+def test_jax_arc_task_count_validation():
+    """Tests validation of pair counts in JaxArcTask."""
     grid_h, grid_w = 3, 3
 
-    parsed_data = ParsedTaskData(
+    parsed_data = JaxArcTask(
         input_grids_examples=jnp.zeros((3, grid_h, grid_w), dtype=jnp.int32),
         input_masks_examples=jnp.ones((3, grid_h, grid_w), dtype=jnp.bool_),
         output_grids_examples=jnp.ones((3, grid_h, grid_w), dtype=jnp.int32),
@@ -198,16 +158,16 @@ def test_parsed_task_data_count_validation():
     assert parsed_data.num_test_pairs == 1
 
 
-def test_parsed_task_data_pytree_compatibility():
-    """Tests that ParsedTaskData works with JAX transformations."""
+def test_jax_arc_task_pytree_compatibility():
+    """Tests that JaxArcTask works with JAX transformations."""
 
-    def transform_grids(parsed_data: ParsedTaskData) -> ParsedTaskData:
+    def transform_grids(parsed_data: JaxArcTask) -> JaxArcTask:
         return parsed_data.replace(
             input_grids_examples=parsed_data.input_grids_examples + 1
         )
 
     grid_h, grid_w = 3, 3
-    parsed_data = ParsedTaskData(
+    parsed_data = JaxArcTask(
         input_grids_examples=jnp.zeros((2, grid_h, grid_w), dtype=jnp.int32),
         input_masks_examples=jnp.ones((2, grid_h, grid_w), dtype=jnp.bool_),
         output_grids_examples=jnp.ones((2, grid_h, grid_w), dtype=jnp.int32),
@@ -269,3 +229,54 @@ def test_arcle_action_operation_bounds():
     )
 
     assert 0 <= action.operation <= 34
+
+
+def test_jax_arc_task_utility_methods():
+    """Tests the utility methods of JaxArcTask."""
+    grid_h, grid_w = 3, 3
+
+    # Create test data
+    train_input = jnp.array([[[0, 1, 2], [3, 4, 5], [6, 7, 8]]], dtype=jnp.int32)
+    train_output = jnp.array([[[1, 0, 2], [4, 3, 5], [7, 6, 8]]], dtype=jnp.int32)
+    test_input = jnp.array([[[9, 8, 7], [6, 5, 4], [3, 2, 1]]], dtype=jnp.int32)
+    test_output = jnp.array([[[8, 9, 7], [5, 6, 4], [2, 3, 1]]], dtype=jnp.int32)
+
+    jax_arc_task = JaxArcTask(
+        input_grids_examples=train_input,
+        input_masks_examples=jnp.ones((1, grid_h, grid_w), dtype=jnp.bool_),
+        output_grids_examples=train_output,
+        output_masks_examples=jnp.ones((1, grid_h, grid_w), dtype=jnp.bool_),
+        num_train_pairs=1,
+        test_input_grids=test_input,
+        test_input_masks=jnp.ones((1, grid_h, grid_w), dtype=jnp.bool_),
+        true_test_output_grids=test_output,
+        true_test_output_masks=jnp.ones((1, grid_h, grid_w), dtype=jnp.bool_),
+        num_test_pairs=1,
+        task_index=jnp.array(0, dtype=jnp.int32),
+    )
+
+    # Test get_train_input_grid
+    train_input_grid = jax_arc_task.get_train_input_grid(0)
+    chex.assert_trees_all_equal(train_input_grid.data, train_input[0])
+
+    # Test get_train_output_grid
+    train_output_grid = jax_arc_task.get_train_output_grid(0)
+    chex.assert_trees_all_equal(train_output_grid.data, train_output[0])
+
+    # Test get_test_input_grid
+    test_input_grid = jax_arc_task.get_test_input_grid(0)
+    chex.assert_trees_all_equal(test_input_grid.data, test_input[0])
+
+    # Test get_test_output_grid
+    test_output_grid = jax_arc_task.get_test_output_grid(0)
+    chex.assert_trees_all_equal(test_output_grid.data, test_output[0])
+
+    # Test get_train_pair
+    train_pair = jax_arc_task.get_train_pair(0)
+    chex.assert_trees_all_equal(train_pair.input_grid.data, train_input[0])
+    chex.assert_trees_all_equal(train_pair.output_grid.data, train_output[0])
+
+    # Test get_test_pair
+    test_pair = jax_arc_task.get_test_pair(0)
+    chex.assert_trees_all_equal(test_pair.input_grid.data, test_input[0])
+    chex.assert_trees_all_equal(test_pair.output_grid.data, test_output[0])
