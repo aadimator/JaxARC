@@ -4,16 +4,18 @@ Tests for ARC Base Environment.
 This module tests the ArcEnvironment and ArcEnvState components.
 """
 
-import pytest
+from __future__ import annotations
+
+import chex
 import jax
 import jax.numpy as jnp
-import chex
+import pytest
 from omegaconf import DictConfig
 from pyprojroot import here
 
 from jaxarc.envs.arc_base import ArcEnvironment, ArcEnvState
 from jaxarc.parsers.arc_agi import ArcAgiParser
-from jaxarc.types import ParsedTaskData
+from jaxarc.types import JaxArcTask
 
 
 class TestArcEnvState:
@@ -40,7 +42,7 @@ class TestArcEnvState:
             current_example_idx=0,
             selected=jnp.zeros((2, 2), dtype=jnp.bool_),
             clipboard=jnp.zeros((2, 2), dtype=jnp.int32),
-            similarity_score=jnp.array(0.0, dtype=jnp.float32)
+            similarity_score=jnp.array(0.0, dtype=jnp.float32),
         )
 
         # Verify state fields
@@ -55,7 +57,9 @@ class TestArcEnvState:
         task_data = self._create_dummy_task_data()
 
         working_grid = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
-        working_grid_mask = jnp.array([[True, True, True]], dtype=jnp.bool_)  # Wrong shape
+        working_grid_mask = jnp.array(
+            [[True, True, True]], dtype=jnp.bool_
+        )  # Wrong shape
         target_grid = jnp.array([[5, 6], [7, 8]], dtype=jnp.int32)
 
         # This should raise an error due to shape mismatch
@@ -70,12 +74,12 @@ class TestArcEnvState:
                 current_example_idx=0,
                 selected=jnp.zeros((2, 2), dtype=jnp.bool_),
                 clipboard=jnp.zeros((2, 2), dtype=jnp.int32),
-                similarity_score=jnp.array(0.0, dtype=jnp.float32)
+                similarity_score=jnp.array(0.0, dtype=jnp.float32),
             )
 
-    def _create_dummy_task_data(self) -> ParsedTaskData:
-        """Create dummy ParsedTaskData for testing."""
-        return ParsedTaskData(
+    def _create_dummy_task_data(self) -> JaxArcTask:
+        """Create dummy JaxArcTask for testing."""
+        return JaxArcTask(
             input_grids_examples=jnp.zeros((1, 2, 2), dtype=jnp.int32),
             input_masks_examples=jnp.ones((1, 2, 2), dtype=jnp.bool_),
             output_grids_examples=jnp.ones((1, 2, 2), dtype=jnp.int32),
@@ -95,39 +99,44 @@ class TestArcEnvironment:
 
     def _split_config(self, config):
         """Helper method to split config into environment and dataset parts."""
-        env_config = DictConfig({
-            'max_episode_steps': config.get('max_episode_steps', 50),
-            'reward_on_submit_only': config.get('reward_on_submit_only', True),
-            'step_penalty': config.get('step_penalty', -0.01),
-            'success_bonus': config.get('success_bonus', 10.0),
-            'mask_threshold': config.get('mask_threshold', 0.5),
-            'log_operations': config.get('log_operations', False),
-        })
+        env_config = DictConfig(
+            {
+                "max_episode_steps": config.get("max_episode_steps", 50),
+                "reward_on_submit_only": config.get("reward_on_submit_only", True),
+                "step_penalty": config.get("step_penalty", -0.01),
+                "success_bonus": config.get("success_bonus", 10.0),
+                "mask_threshold": config.get("mask_threshold", 0.5),
+                "log_operations": config.get("log_operations", False),
+            }
+        )
 
-        dataset_config = DictConfig({
-            'max_grid_height': config.get('max_grid_height', 10),
-            'max_grid_width': config.get('max_grid_width', 10),
-            'max_train_pairs': config.get('max_train_pairs', 5),
-            'max_test_pairs': config.get('max_test_pairs', 2),
-            'training': config.get('training', {'challenges': 'dummy_path', 'solutions': 'dummy_path'}),
-        })
+        dataset_config = DictConfig(
+            {
+                "max_grid_height": config.get("max_grid_height", 10),
+                "max_grid_width": config.get("max_grid_width", 10),
+                "max_train_pairs": config.get("max_train_pairs", 5),
+                "max_test_pairs": config.get("max_test_pairs", 2),
+                "training": config.get(
+                    "training", {"challenges": "dummy_path", "solutions": "dummy_path"}
+                ),
+            }
+        )
 
         return env_config, dataset_config
 
     def test_environment_creation(self):
         """Test basic environment instantiation."""
-        config = DictConfig({
-            'max_episode_steps': 50,
-            'max_grid_height': 10,
-            'max_grid_width': 10,
-            'max_train_pairs': 5,
-            'max_test_pairs': 2,
-            'max_action_params': 8,
-            'training': {
-                'challenges': 'dummy_path',
-                'solutions': 'dummy_path'
+        config = DictConfig(
+            {
+                "max_episode_steps": 50,
+                "max_grid_height": 10,
+                "max_grid_width": 10,
+                "max_train_pairs": 5,
+                "max_test_pairs": 2,
+                "max_action_params": 8,
+                "training": {"challenges": "dummy_path", "solutions": "dummy_path"},
             }
-        })
+        )
 
         # Split config and create environment
         env_config, dataset_config = self._split_config(config)
@@ -143,18 +152,17 @@ class TestArcEnvironment:
 
     def test_reset_with_provided_task_data(self):
         """Test reset functionality with provided task data."""
-        config = DictConfig({
-            'max_episode_steps': 50,
-            'max_grid_height': 10,
-            'max_grid_width': 10,
-            'max_train_pairs': 5,
-            'max_test_pairs': 2,
-            'max_action_params': 8,
-            'training': {
-                'challenges': 'dummy_path',
-                'solutions': 'dummy_path'
+        config = DictConfig(
+            {
+                "max_episode_steps": 50,
+                "max_grid_height": 10,
+                "max_grid_width": 10,
+                "max_train_pairs": 5,
+                "max_test_pairs": 2,
+                "max_action_params": 8,
+                "training": {"challenges": "dummy_path", "solutions": "dummy_path"},
             }
-        })
+        )
 
         # Split config and create environment
         env_config, dataset_config = self._split_config(config)
@@ -166,16 +174,22 @@ class TestArcEnvironment:
             pytest.skip("Skipping test due to missing data files")
 
         # Create dummy task data
-        task_data = ParsedTaskData(
+        task_data = JaxArcTask(
             input_grids_examples=jnp.array([[[1, 2], [3, 4]]], dtype=jnp.int32),
-            input_masks_examples=jnp.array([[[True, True], [True, True]]], dtype=jnp.bool_),
+            input_masks_examples=jnp.array(
+                [[[True, True], [True, True]]], dtype=jnp.bool_
+            ),
             output_grids_examples=jnp.array([[[5, 6], [7, 8]]], dtype=jnp.int32),
-            output_masks_examples=jnp.array([[[True, True], [True, True]]], dtype=jnp.bool_),
+            output_masks_examples=jnp.array(
+                [[[True, True], [True, True]]], dtype=jnp.bool_
+            ),
             num_train_pairs=1,
             test_input_grids=jnp.array([[[0, 0], [0, 0]]], dtype=jnp.int32),
             test_input_masks=jnp.array([[[True, True], [True, True]]], dtype=jnp.bool_),
             true_test_output_grids=jnp.array([[[1, 1], [1, 1]]], dtype=jnp.int32),
-            true_test_output_masks=jnp.array([[[True, True], [True, True]]], dtype=jnp.bool_),
+            true_test_output_masks=jnp.array(
+                [[[True, True], [True, True]]], dtype=jnp.bool_
+            ),
             num_test_pairs=1,
             task_index=jnp.array(0, dtype=jnp.int32),
         )
@@ -204,18 +218,17 @@ class TestArcEnvironment:
 
     def test_step_with_action(self):
         """Test step functionality with grid operations."""
-        config = DictConfig({
-            'max_episode_steps': 50,
-            'max_grid_height': 10,
-            'max_grid_width': 10,
-            'max_train_pairs': 5,
-            'max_test_pairs': 2,
-            'max_action_params': 8,
-            'training': {
-                'challenges': 'dummy_path',
-                'solutions': 'dummy_path'
+        config = DictConfig(
+            {
+                "max_episode_steps": 50,
+                "max_grid_height": 10,
+                "max_grid_width": 10,
+                "max_train_pairs": 5,
+                "max_test_pairs": 2,
+                "max_action_params": 8,
+                "training": {"challenges": "dummy_path", "solutions": "dummy_path"},
             }
-        })
+        )
 
         # Split config and create environment
         env_config, dataset_config = self._split_config(config)
@@ -226,16 +239,22 @@ class TestArcEnvironment:
             pytest.skip("Skipping test due to missing data files")
 
         # Create dummy task data
-        task_data = ParsedTaskData(
+        task_data = JaxArcTask(
             input_grids_examples=jnp.array([[[1, 2], [3, 4]]], dtype=jnp.int32),
-            input_masks_examples=jnp.array([[[True, True], [True, True]]], dtype=jnp.bool_),
+            input_masks_examples=jnp.array(
+                [[[True, True], [True, True]]], dtype=jnp.bool_
+            ),
             output_grids_examples=jnp.array([[[5, 6], [7, 8]]], dtype=jnp.int32),
-            output_masks_examples=jnp.array([[[True, True], [True, True]]], dtype=jnp.bool_),
+            output_masks_examples=jnp.array(
+                [[[True, True], [True, True]]], dtype=jnp.bool_
+            ),
             num_train_pairs=1,
             test_input_grids=jnp.array([[[0, 0], [0, 0]]], dtype=jnp.int32),
             test_input_masks=jnp.array([[[True, True], [True, True]]], dtype=jnp.bool_),
             true_test_output_grids=jnp.array([[[1, 1], [1, 1]]], dtype=jnp.int32),
-            true_test_output_masks=jnp.array([[[True, True], [True, True]]], dtype=jnp.bool_),
+            true_test_output_masks=jnp.array(
+                [[[True, True], [True, True]]], dtype=jnp.bool_
+            ),
             num_test_pairs=1,
             task_index=jnp.array(0, dtype=jnp.int32),
         )
@@ -249,8 +268,8 @@ class TestArcEnvironment:
         selection = selection.at[0, 0].set(True)
 
         action = {
-            'selection': selection,
-            'operation': jnp.array(2, dtype=jnp.int32)  # Fill with color 2
+            "selection": selection,
+            "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
         }
 
         # Execute step (no key parameter needed)
@@ -268,18 +287,17 @@ class TestArcEnvironment:
 
     def test_jax_step_compilation(self):
         """Test that step can be JIT compiled."""
-        config = DictConfig({
-            'max_episode_steps': 50,
-            'max_grid_height': 5,
-            'max_grid_width': 5,
-            'max_train_pairs': 5,
-            'max_test_pairs': 2,
-            'max_action_params': 8,
-            'training': {
-                'challenges': 'dummy_path',
-                'solutions': 'dummy_path'
+        config = DictConfig(
+            {
+                "max_episode_steps": 50,
+                "max_grid_height": 5,
+                "max_grid_width": 5,
+                "max_train_pairs": 5,
+                "max_test_pairs": 2,
+                "max_action_params": 8,
+                "training": {"challenges": "dummy_path", "solutions": "dummy_path"},
             }
-        })
+        )
 
         # Split config and create environment
         env_config, dataset_config = self._split_config(config)
@@ -290,7 +308,7 @@ class TestArcEnvironment:
             pytest.skip("Skipping test due to missing data files")
 
         # Create dummy task data
-        task_data = ParsedTaskData(
+        task_data = JaxArcTask(
             input_grids_examples=jnp.zeros((1, 5, 5), dtype=jnp.int32),
             input_masks_examples=jnp.ones((1, 5, 5), dtype=jnp.bool_),
             output_grids_examples=jnp.ones((1, 5, 5), dtype=jnp.int32),
@@ -310,7 +328,7 @@ class TestArcEnvironment:
 
         # Create a function that can be JIT compiled
         def step_fn(state, selection, operation):
-            action = {'selection': selection, 'operation': operation}
+            action = {"selection": selection, "operation": operation}
             return env.step(state, action)
 
         # This should compile without errors
@@ -319,7 +337,9 @@ class TestArcEnvironment:
         selection = jnp.zeros((5, 5), dtype=jnp.bool_)
         operation = jnp.array(1, dtype=jnp.int32)
 
-        new_state, observation, reward, done, info = jit_step(state, selection, operation)
+        new_state, observation, reward, done, info = jit_step(
+            state, selection, operation
+        )
 
         # Verify it still works
         assert isinstance(new_state, ArcEnvState)
@@ -327,18 +347,17 @@ class TestArcEnvironment:
 
     def test_jax_compilation(self):
         """Test that reset can be JIT compiled."""
-        config = DictConfig({
-            'max_episode_steps': 50,
-            'max_grid_height': 5,
-            'max_grid_width': 5,
-            'max_train_pairs': 5,
-            'max_test_pairs': 2,
-            'max_action_params': 8,
-            'training': {
-                'challenges': 'dummy_path',
-                'solutions': 'dummy_path'
+        config = DictConfig(
+            {
+                "max_episode_steps": 50,
+                "max_grid_height": 5,
+                "max_grid_width": 5,
+                "max_train_pairs": 5,
+                "max_test_pairs": 2,
+                "max_action_params": 8,
+                "training": {"challenges": "dummy_path", "solutions": "dummy_path"},
             }
-        })
+        )
 
         # Split config and create environment
         env_config, dataset_config = self._split_config(config)
@@ -349,7 +368,7 @@ class TestArcEnvironment:
             pytest.skip("Skipping test due to missing data files")
 
         # Create dummy task data
-        task_data = ParsedTaskData(
+        task_data = JaxArcTask(
             input_grids_examples=jnp.zeros((1, 5, 5), dtype=jnp.int32),
             input_masks_examples=jnp.ones((1, 5, 5), dtype=jnp.bool_),
             output_grids_examples=jnp.ones((1, 5, 5), dtype=jnp.int32),
@@ -379,9 +398,8 @@ class TestArcEnvironment:
 
     def test_with_real_config(self):
         """Test with real project configuration structure."""
+
         from hydra import compose, initialize_config_dir
-        from pathlib import Path
-        import os
 
         # Get config directory path
         config_dir = here() / "conf"
@@ -392,7 +410,9 @@ class TestArcEnvironment:
 
         try:
             # Initialize Hydra with the project's config directory
-            with initialize_config_dir(config_dir=str(config_dir.absolute()), version_base=None):
+            with initialize_config_dir(
+                config_dir=str(config_dir.absolute()), version_base=None
+            ):
                 # Load the actual project configuration
                 cfg = compose(config_name="config")
 
@@ -407,8 +427,11 @@ class TestArcEnvironment:
                     env = ArcEnvironment(env_cfg, dataset_cfg)
 
                     # If we get here, environment creation worked
-                    assert env.max_grid_size == (dataset_cfg.max_grid_height, dataset_cfg.max_grid_width)
-                    assert hasattr(env, 'task_parser')
+                    assert env.max_grid_size == (
+                        dataset_cfg.max_grid_height,
+                        dataset_cfg.max_grid_width,
+                    )
+                    assert hasattr(env, "task_parser")
                     assert isinstance(env.task_parser, ArcAgiParser)
 
                     # Try to test reset with random task if data is available
@@ -424,7 +447,9 @@ class TestArcEnvironment:
 
                     except (FileNotFoundError, RuntimeError):
                         # Data files not available, but environment creation worked
-                        pytest.skip("Real ARC data files not available, but config integration works")
+                        pytest.skip(
+                            "Real ARC data files not available, but config integration works"
+                        )
 
                 except (FileNotFoundError, RuntimeError):
                     # Expected if data files don't exist

@@ -12,7 +12,7 @@ import pytest
 from omegaconf import DictConfig
 
 from jaxarc.parsers.arc_agi import ArcAgiParser
-from jaxarc.types import ParsedTaskData
+from jaxarc.types import JaxArcTask
 
 
 @pytest.fixture
@@ -146,7 +146,7 @@ class TestArcAgiParser:
         key = jax.random.PRNGKey(42)
         parsed_data = parser.preprocess_task_data(sample_task_data, key)
 
-        assert isinstance(parsed_data, ParsedTaskData)
+        assert isinstance(parsed_data, JaxArcTask)
         assert parsed_data.task_index is not None
         assert parsed_data.num_train_pairs == 2
         assert parsed_data.num_test_pairs == 1
@@ -214,7 +214,7 @@ class TestArcAgiParser:
         key = jax.random.PRNGKey(42)
         parsed_data = parser.get_random_task(key)
 
-        assert isinstance(parsed_data, ParsedTaskData)
+        assert isinstance(parsed_data, JaxArcTask)
         assert parsed_data.task_index is not None
         assert parsed_data.num_train_pairs > 0
         assert parsed_data.num_test_pairs > 0
@@ -227,7 +227,7 @@ class TestArcAgiParser:
         task_id = task_ids[0]
         parsed_data = parser.get_task_by_id(task_id)
 
-        assert isinstance(parsed_data, ParsedTaskData)
+        assert isinstance(parsed_data, JaxArcTask)
         assert parsed_data.task_index is not None
 
     def test_get_task_by_invalid_id(self, parser):

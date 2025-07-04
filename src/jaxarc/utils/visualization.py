@@ -4,8 +4,7 @@ This module provides functionality to visualize ARC grids and tasks in different
 - Rich-based terminal visualization for logging and debugging
 - SVG-based image generation for documentation and analysis
 
-The module works with the core JaxARC data structures including Grid, TaskPair,
-ArcTask, and ParsedTaskData.
+The module works with the core JaxARC data structures including Grid, TaskPair, and JaxArcTask.
 """
 
 from __future__ import annotations
@@ -29,7 +28,7 @@ from rich.text import Text
 from jaxarc.utils.task_manager import extract_task_id_from_index
 
 if TYPE_CHECKING:
-    from jaxarc.types import Grid, ParsedTaskData
+    from jaxarc.types import Grid, JaxArcTask
 
 # ARC color palette - matches the provided color map
 ARC_COLOR_PALETTE: dict[int, str] = {
@@ -757,13 +756,13 @@ def draw_task_pair_svg(
 
 
 def visualize_parsed_task_data_rich(
-    task_data: ParsedTaskData,
+    task_data: JaxArcTask,
     show_test: bool = True,
     show_coordinates: bool = False,
     show_numbers: bool = False,
     double_width: bool = True,
 ) -> None:
-    """Visualize a ParsedTaskData object using Rich console output with enhanced layout and grouping.
+    """Visualize a JaxArcTask object using Rich console output with enhanced layout and grouping.
 
     Args:
         task_data: The parsed task data to visualize
@@ -1020,13 +1019,13 @@ def _draw_dotted_squircle(
 
 
 def draw_parsed_task_data_svg(
-    task_data: ParsedTaskData,
+    task_data: JaxArcTask,
     width: float = 30.0,
     height: float = 20.0,
     include_test: bool | str = False,
     border_colors: list[str] | None = None,
 ) -> drawsvg.Drawing:
-    """Draw a complete ParsedTaskData as an SVG with strict height and flexible width.
+    """Draw a complete JaxArcTask as an SVG with strict height and flexible width.
 
     Args:
         task_data: The parsed task data to visualize

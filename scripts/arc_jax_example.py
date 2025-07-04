@@ -32,7 +32,7 @@ import jax
 import jax.numpy as jnp
 
 from jaxarc.envs import ArcEnvironment
-from jaxarc.types import ParsedTaskData
+from jaxarc.types import JaxArcTask
 from jaxarc.utils.task_manager import create_jax_task_index
 
 
@@ -73,7 +73,7 @@ def create_sample_arc_task(grid_size=(12, 12), task_id="demo_task"):
     # Create masks (all valid)
     masks = jnp.ones((1, h, w), dtype=jnp.bool_)
 
-    return ParsedTaskData(
+    return JaxArcTask(
         input_grids_examples=input_grid,
         input_masks_examples=masks,
         output_grids_examples=output_grid,

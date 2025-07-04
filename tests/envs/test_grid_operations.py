@@ -16,7 +16,7 @@ from jaxarc.envs.grid_operations import (
     compute_grid_similarity,
     execute_grid_operation,
 )
-from jaxarc.types import ParsedTaskData
+from jaxarc.types import JaxArcTask
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def sample_state(sample_grid):
     h, w = sample_grid.shape
 
     # Create dummy task data
-    task_data = ParsedTaskData(
+    task_data = JaxArcTask(
         input_grids_examples=jnp.expand_dims(sample_grid, 0),
         input_masks_examples=jnp.ones((1, h, w), dtype=jnp.bool_),
         output_grids_examples=jnp.expand_dims(sample_grid, 0),

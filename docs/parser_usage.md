@@ -82,7 +82,6 @@ The parser converts JSON data into JAX-compatible data structures:
 
 - `Grid`: Represents 2D color grids as JAX arrays
 - `TaskPair`: Input-output grid pairs
-- `ArcTask`: Complete task with training and test pairs
 
 ### 5. Example Script
 

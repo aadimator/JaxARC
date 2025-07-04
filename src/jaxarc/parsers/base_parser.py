@@ -13,14 +13,14 @@ from typing import Any
 import chex
 from omegaconf import DictConfig
 
-from jaxarc.types import ParsedTaskData
+from jaxarc.types import JaxArcTask
 
 
 class ArcDataParserBase(ABC):
     """Abstract base class for all ARC data parsers.
 
     This class defines the standard interface for parsers that convert raw ARC
-    dataset files into JAX-compatible ParsedTaskData structures. Concrete
+    dataset files into JAX-compatible JaxArcTask structures. Concrete
     implementations should handle dataset-specific formats while maintaining
     a consistent API.
 
@@ -93,13 +93,11 @@ class ArcDataParserBase(ABC):
         """
 
     @abstractmethod
-    def preprocess_task_data(
-        self, raw_task_data: Any, key: chex.PRNGKey
-    ) -> ParsedTaskData:
-        """Convert raw task data into a JAX-compatible ParsedTaskData structure.
+    def preprocess_task_data(self, raw_task_data: Any, key: chex.PRNGKey) -> JaxArcTask:
+        """Convert raw task data into a JAX-compatible JaxArcTask structure.
 
         This method performs the core transformation from dataset-specific format
-        to the standardized ParsedTaskData pytree. It should handle:
+        to the standardized JaxArcTask pytree. It should handle:
         - Converting grids to JAX arrays with proper dtypes
         - Padding grids to maximum dimensions
         - Creating boolean masks for valid data regions
@@ -110,14 +108,14 @@ class ArcDataParserBase(ABC):
             key: JAX PRNG key for any stochastic preprocessing steps
 
         Returns:
-            ParsedTaskData: JAX-compatible task data with padded arrays and masks
+            JaxArcTask: JAX-compatible task data with padded arrays and masks
 
         Raises:
             ValueError: If the raw data format is invalid or incompatible
         """
 
     @abstractmethod
-    def get_random_task(self, key: chex.PRNGKey) -> ParsedTaskData:
+    def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         """Get a random task from the dataset.
 
         This method orchestrates the complete pipeline from task selection to
@@ -125,13 +123,13 @@ class ArcDataParserBase(ABC):
         1. Use the PRNG key to randomly select a task from the dataset
         2. Load the raw task data using load_task_file
         3. Preprocess it using preprocess_task_data
-        4. Return the final ParsedTaskData
+        4. Return the final JaxArcTask
 
         Args:
             key: JAX PRNG key for random task selection and preprocessing
 
         Returns:
-            ParsedTaskData: A randomly selected and preprocessed task
+            JaxArcTask: A randomly selected and preprocessed task
 
         Raises:
             RuntimeError: If no tasks are available or dataset is empty

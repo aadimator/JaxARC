@@ -20,8 +20,8 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
-from pyprojroot import here
 from omegaconf import DictConfig, OmegaConf
+from pyprojroot import here
 
 from jaxarc.envs import ArcEnvironment
 from jaxarc.utils.visualization import log_grid_to_console
@@ -158,7 +158,12 @@ def demo_operations(env, state, key):
         )
 
         # Also log grid to console
-        log_grid_to_console(state.working_grid, mask=state.working_grid_mask, title=f"Grid after {demo['desc']}", show_numbers=False)
+        log_grid_to_console(
+            state.working_grid,
+            mask=state.working_grid_mask,
+            title=f"Grid after {demo['desc']}",
+            show_numbers=False,
+        )
 
         if done:
             logger.info("Episode terminated")
@@ -193,7 +198,12 @@ def main(cfg: DictConfig) -> None:
 
     # Log initial state
     logger.info(f"Initial state: grid_shape={state.working_grid.shape}")
-    log_grid_to_console(state.working_grid, mask=state.working_grid_mask, title="Initial Grid", show_numbers=False)
+    log_grid_to_console(
+        state.working_grid,
+        mask=state.working_grid_mask,
+        title="Initial Grid",
+        show_numbers=False,
+    )
     log_grid_to_console(
         state.task_data.output_grids_examples[state.current_example_idx],
         mask=state.task_data.output_masks_examples[state.current_example_idx],
