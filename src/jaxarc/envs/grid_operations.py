@@ -277,9 +277,59 @@ def copy_to_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState
 @jax.jit
 def paste_from_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     """Paste clipboard content to selected region."""
-    # Only paste where clipboard has content and selection is active
-    paste_mask = selection & (state.clipboard != 0)
-    new_grid = jnp.where(paste_mask, state.clipboard, state.working_grid)
+    # Find the bounding boxes of clipboard content and selection
+    clipboard_mask = (state.clipboard != 0)
+
+    # Check if we have clipboard content and selection
+    has_clipboard = jnp.any(clipboard_mask)
+    has_selection = jnp.any(selection)
+    should_paste = has_clipboard & has_selection
+
+    # Create coordinate grids with integer type
+    rows = jnp.arange(state.working_grid.shape[0], dtype=jnp.int32)[:, None]
+    cols = jnp.arange(state.working_grid.shape[1], dtype=jnp.int32)[None, :]
+
+    # Find minimum coordinates using masking instead of jnp.where
+    # Use a large integer instead of inf to keep integer types
+    large_int = jnp.iinfo(jnp.int32).max
+
+    # For clipboard
+    clipboard_rows_masked = jnp.where(clipboard_mask, rows, large_int)
+    clipboard_cols_masked = jnp.where(clipboard_mask, cols, large_int)
+    clipboard_min_r = jnp.where(has_clipboard, jnp.min(clipboard_rows_masked), 0).astype(jnp.int32)
+    clipboard_min_c = jnp.where(has_clipboard, jnp.min(clipboard_cols_masked), 0).astype(jnp.int32)
+
+    # For selection
+    selection_rows_masked = jnp.where(selection, rows, large_int)
+    selection_cols_masked = jnp.where(selection, cols, large_int)
+    selection_min_r = jnp.where(has_selection, jnp.min(selection_rows_masked), 0).astype(jnp.int32)
+    selection_min_c = jnp.where(has_selection, jnp.min(selection_cols_masked), 0).astype(jnp.int32)
+
+    # Calculate the offset to align clipboard with selection
+    offset_r = (selection_min_r - clipboard_min_r).astype(jnp.int32)
+    offset_c = (selection_min_c - clipboard_min_c).astype(jnp.int32)
+
+    # Map each grid position back to clipboard position
+    clipboard_r = (rows - offset_r).astype(jnp.int32)
+    clipboard_c = (cols - offset_c).astype(jnp.int32)
+
+    # Check bounds for clipboard access
+    valid_r = (clipboard_r >= 0) & (clipboard_r < state.clipboard.shape[0])
+    valid_c = (clipboard_c >= 0) & (clipboard_c < state.clipboard.shape[1])
+    valid_bounds = valid_r & valid_c
+
+    # Get clipboard values, using 0 for out-of-bounds
+    clipboard_values = jnp.where(
+        valid_bounds,
+        state.clipboard[jnp.clip(clipboard_r, 0, state.clipboard.shape[0]-1),
+                       jnp.clip(clipboard_c, 0, state.clipboard.shape[1]-1)],
+        0
+    )
+
+    # Only paste if we should paste and where selected
+    paste_mask = should_paste & selection
+    new_grid = jnp.where(paste_mask, clipboard_values, state.working_grid)
+
     return state.replace(working_grid=new_grid)
 
 
