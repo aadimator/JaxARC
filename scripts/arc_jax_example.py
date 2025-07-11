@@ -1,149 +1,202 @@
 #!/usr/bin/env python3
 """
-JAX ARC Environment - Comprehensive Usage Example
+JAX ARC Environment - Comprehensive Usage Example (New Config-Based API)
 
 This example demonstrates the high-performance, JAX-compatible ARC environment
-for training agents on Abstract Reasoning Challenge (ARC) tasks.
+using the new config-based functional API for training agents on Abstract
+Reasoning Challenge (ARC) tasks.
 
 Key Features Demonstrated:
+- New config-based functional API (arc_reset, arc_step)
+- Typed configuration dataclasses with validation
+- Factory functions for easy configuration creation
 - JIT compilation for massive performance gains
 - Full JAX compatibility with transformations
 - Reproducible experiments with PRNG keys
 - All 35 ARC operations working correctly
-- Task management with integer indexing system
-- Grid-based ARC task solving
+- Multiple action formats (selection-operation, point, bbox)
 
 Performance Benefits:
 - 15,000x+ speedup from JIT compilation
+- Better JAX compatibility than class-based API
 - Fully differentiable operations
 - Compatible with JAX ecosystem (Optax, Flax, etc.)
 """
 
 from __future__ import annotations
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
 import time
 
 import jax
 import jax.numpy as jnp
 
-from jaxarc.envs import ArcEnvironment
-from jaxarc.types import JaxArcTask
-from jaxarc.utils.task_manager import create_jax_task_index
-
-
-def create_sample_arc_task(grid_size=(12, 12), task_id="demo_task"):
-    """
-    Create a sample ARC task for demonstration.
-
-    This task involves color transformation:
-    - Input: Blue squares (color 1) scattered on grid
-    - Output: Transform blue squares to red (color 2) and add yellow border (color 4)
-    """
-    h, w = grid_size
-
-    # Create input grid with blue squares
-    input_grid = jnp.zeros((1, h, w), dtype=jnp.int32)
-    input_grid = input_grid.at[0, 2:4, 2:4].set(1)  # Blue square
-    input_grid = input_grid.at[0, 6:8, 7:9].set(1)  # Another blue square
-    input_grid = input_grid.at[0, 8:10, 3:5].set(1)  # Third blue square
-
-    # Create target output: blue -> red, add yellow borders
-    output_grid = jnp.zeros((1, h, w), dtype=jnp.int32)
-    # Transform blue squares to red
-    output_grid = output_grid.at[0, 2:4, 2:4].set(2)  # Red square
-    output_grid = output_grid.at[0, 6:8, 7:9].set(2)  # Red square
-    output_grid = output_grid.at[0, 8:10, 3:5].set(2)  # Red square
-
-    # Add yellow borders around red squares
-    output_grid = output_grid.at[0, 1:5, 1:5].set(
-        jnp.where(output_grid[0, 1:5, 1:5] == 0, 4, output_grid[0, 1:5, 1:5])
-    )
-    output_grid = output_grid.at[0, 5:9, 6:10].set(
-        jnp.where(output_grid[0, 5:9, 6:10] == 0, 4, output_grid[0, 5:9, 6:10])
-    )
-    output_grid = output_grid.at[0, 7:11, 2:6].set(
-        jnp.where(output_grid[0, 7:11, 2:6] == 0, 4, output_grid[0, 7:11, 2:6])
-    )
-
-    # Create masks (all valid)
-    masks = jnp.ones((1, h, w), dtype=jnp.bool_)
-
-    return JaxArcTask(
-        input_grids_examples=input_grid,
-        input_masks_examples=masks,
-        output_grids_examples=output_grid,
-        output_masks_examples=masks,
-        num_train_pairs=1,
-        test_input_grids=input_grid,
-        test_input_masks=masks,
-        true_test_output_grids=output_grid,
-        true_test_output_masks=masks,
-        num_test_pairs=1,
-        task_index=create_jax_task_index(task_id),
-    )
+from jaxarc.envs import (
+    ActionConfig,
+    ArcEnvConfig,
+    GridConfig,
+    RewardConfig,
+    arc_reset,
+    arc_step,
+    create_bbox_config,
+    create_full_config,
+    create_point_config,
+    create_raw_config,
+    create_standard_config,
+    create_training_config,
+    get_config_summary,
+    validate_config,
+)
 
 
 def demonstrate_basic_usage():
-    """Demonstrate basic ARC environment usage."""
-    print("🔧 Basic ARC Environment Usage")
-    print("-" * 40)
+    """Demonstrate basic ARC environment usage with new config-based API."""
+    print("🔧 Basic ARC Environment Usage (New Config-Based API)")
+    print("-" * 50)
 
-    # Create environment
-    env = ArcEnvironment(num_agents=1, max_grid_size=(12, 12), max_episode_steps=20)
+    # Create configuration using factory function
+    config = create_standard_config(
+        max_episode_steps=20, success_bonus=10.0, log_operations=True
+    )
 
-    # Create sample task
-    task_data = create_sample_arc_task()
+    # Validate configuration
+    validate_config(config)
 
-    # Reset environment
+    # Reset environment using functional API
     key = jax.random.PRNGKey(42)
-    obs, state = env.reset(key, task_data)
+    state, obs = arc_reset(key, config)
 
-    print(f"✅ Environment created: {env.name}")
-    print(f"   - Agents: {env.agents}")
-    print(f"   - Grid shape: {state.grid.shape}")
+    print("✅ Configuration created and validated")
+    print(f"   - Max episode steps: {config.max_episode_steps}")
+    print(f"   - Action format: {config.action.action_format}")
+    print(f"   - Available operations: {config.action.num_operations}")
+    print(f"   - Grid shape: {state.working_grid.shape}")
     print(f"   - Initial similarity: {float(state.similarity_score):.3f}")
-    print(f"   - Observation shape: {obs[env.agents[0]].shape}")
+    print(f"   - Observation shape: {obs.shape}")
 
-    return env, task_data, obs, state
+    # Configuration summary
+    summary = get_config_summary(config)
+    print(f"   - Config summary: {summary[:100]}...")
+
+    return config, state, obs
+
+
+def demonstrate_configuration_types():
+    """Demonstrate different configuration types and presets."""
+    print("\n⚙️ Configuration Types Demonstration")
+    print("-" * 50)
+
+    # Different preset configurations
+    configs = {
+        "Raw": create_raw_config(max_episode_steps=25),
+        "Standard": create_standard_config(max_episode_steps=50),
+        "Full": create_full_config(max_episode_steps=100),
+        "Point": create_point_config(max_episode_steps=30),
+        "Bbox": create_bbox_config(max_episode_steps=40),
+    }
+
+    print("   Available configuration presets:")
+    for name, config in configs.items():
+        print(
+            f"   ✅ {name}: {config.action.num_operations} ops, "
+            f"{config.action.action_format} format, "
+            f"{config.max_episode_steps} max steps"
+        )
+
+    # Training configurations
+    training_configs = {
+        "Basic": create_training_config("basic"),
+        "Standard": create_training_config("standard"),
+        "Advanced": create_training_config("advanced"),
+        "Expert": create_training_config("expert"),
+    }
+
+    print("\n   Training configuration presets:")
+    for name, config in training_configs.items():
+        print(
+            f"   🎯 {name}: {config.max_episode_steps} steps, "
+            f"bonus={config.reward.success_bonus}"
+        )
+
+    return configs["Standard"]
+
+
+def demonstrate_custom_configuration():
+    """Demonstrate custom configuration creation."""
+    print("\n🛠️ Custom Configuration Creation")
+    print("-" * 50)
+
+    # Create custom configuration with typed dataclasses
+    custom_config = ArcEnvConfig(
+        max_episode_steps=75,
+        auto_reset=True,
+        log_operations=True,
+        strict_validation=True,
+        reward=RewardConfig(
+            reward_on_submit_only=False,
+            step_penalty=-0.005,
+            success_bonus=25.0,
+            similarity_weight=2.0,
+            progress_bonus=0.5,
+        ),
+        grid=GridConfig(
+            max_grid_height=20,
+            max_grid_width=20,
+            max_colors=8,
+            background_color=0,
+        ),
+        action=ActionConfig(
+            action_format="selection_operation",
+            selection_threshold=0.7,
+            num_operations=30,
+            validate_actions=True,
+            clip_invalid_actions=True,
+        ),
+    )
+
+    # Validate custom configuration
+    validate_config(custom_config)
+
+    print("   ✅ Custom configuration created with:")
+    print(
+        f"   - Custom grid size: {custom_config.grid.max_grid_height}x{custom_config.grid.max_grid_width}"
+    )
+    print(f"   - Custom colors: {custom_config.grid.max_colors}")
+    print(f"   - Custom success bonus: {custom_config.reward.success_bonus}")
+    print(f"   - Custom operations: {custom_config.action.num_operations}")
+
+    return custom_config
 
 
 def demonstrate_jit_compilation():
     """Demonstrate JIT compilation and performance benefits."""
     print("\n⚡ JIT Compilation Demonstration")
-    print("-" * 40)
+    print("-" * 50)
 
-    env = ArcEnvironment(max_grid_size=(15, 15))
-    task_data = create_sample_arc_task((15, 15))
-    agent_id = env.agents[0]
+    config = create_standard_config(max_episode_steps=10)
 
     # Regular (non-JIT) functions
-    def solve_step_normal(key, state, action):
-        actions = {agent_id: action}
-        return env.step_env(key, state, actions)
+    def solve_step_normal(key, action):
+        state, obs = arc_reset(key, config)
+        return arc_step(state, action, config)
 
     # JIT-compiled functions
     @jax.jit
-    def solve_step_jit(key, state, action):
-        actions = {agent_id: action}
-        return env.step_env(key, state, actions)
+    def solve_step_jit(key, action):
+        state, obs = arc_reset(key, config)
+        return arc_step(state, action, config)
 
     @jax.jit
     def reset_jit(key):
-        return env.reset(key, task_data)
+        return arc_reset(key, config)
 
     # Test both versions
     key = jax.random.PRNGKey(123)
-    obs, state = reset_jit(key)
+    state, obs = reset_jit(key)
 
     # Create test action
-    h, w = env.max_grid_size
-    selection = jnp.zeros((h, w), dtype=jnp.float32)
-    selection = selection.at[2:4, 2:4].set(1.0)  # Select blue square
+    h, w = state.working_grid.shape
+    selection = jnp.zeros((h, w), dtype=jnp.bool_)
+    selection = selection.at[2:4, 2:4].set(True)  # Select 2x2 area
     action = {
         "selection": selection,
         "operation": jnp.array(2, dtype=jnp.int32),  # Fill with red (color 2)
@@ -152,23 +205,21 @@ def demonstrate_jit_compilation():
     # Warmup JIT
     print("   Warming up JIT compilation...")
     key, step_key = jax.random.split(key)
-    _ = solve_step_jit(step_key, state, action)
+    _ = solve_step_jit(step_key, action)
 
     # Benchmark normal vs JIT
     print("   Benchmarking normal execution...")
     start_time = time.time()
     for i in range(100):
         key, step_key = jax.random.split(key)
-        obs, new_state, rewards, dones, infos = solve_step_normal(
-            step_key, state, action
-        )
+        state, obs, reward, done, info = solve_step_normal(step_key, action)
     normal_time = time.time() - start_time
 
     print("   Benchmarking JIT execution...")
     start_time = time.time()
     for i in range(100):
         key, step_key = jax.random.split(key)
-        obs, new_state, rewards, dones, infos = solve_step_jit(step_key, state, action)
+        state, obs, reward, done, info = solve_step_jit(step_key, action)
     jit_time = time.time() - start_time
 
     speedup = normal_time / jit_time if jit_time > 0 else float("inf")
@@ -177,94 +228,143 @@ def demonstrate_jit_compilation():
     print(f"   - Normal time: {normal_time:.4f}s")
     print(f"   - JIT time: {jit_time:.4f}s")
     print(f"   - Speedup: {speedup:.1f}x")
-    print(f"   - Final similarity: {float(new_state.similarity_score):.3f}")
+    print(f"   - Final similarity: {float(info['similarity']):.3f}")
 
 
 def demonstrate_all_operations():
-    """Demonstrate all 35 ARC operations."""
+    """Demonstrate all ARC operations with different configurations."""
     print("\n🎯 ARC Operations Demonstration")
-    print("-" * 40)
+    print("-" * 50)
 
-    env = ArcEnvironment(max_grid_size=(10, 10))
-    task_data = create_sample_arc_task((10, 10))
-    agent_id = env.agents[0]
-
-    @jax.jit
-    def test_operation(key, op_id):
-        obs, state = env.reset(key, task_data)
-
-        # Select center region
-        h, w = env.max_grid_size
-        selection = jnp.zeros((h, w), dtype=jnp.float32)
-        selection = selection.at[3:7, 3:7].set(1.0)
-
-        action = {"selection": selection, "operation": op_id}
-        actions = {agent_id: action}
-
-        obs, new_state, rewards, dones, infos = env.step_env(key, state, actions)
-        return new_state.similarity_score, new_state.terminated
-
-    # Test operation categories
-    operation_categories = {
-        "Fill Colors (0-9)": list(range(10)),
-        "Flood Fill (10-19)": list(range(10, 20)),
-        "Move Object (20-23)": [20, 21, 22, 23],
-        "Rotate Object (24-25)": [24, 25],
-        "Flip Object (26-27)": [26, 27],
-        "Clipboard Ops (28-30)": [28, 29, 30],
-        "Grid Ops (31-33)": [31, 32, 33],
-        "Submit (34)": [34],
+    # Test different configurations
+    configs_to_test = {
+        "Raw (15 ops)": create_raw_config(),
+        "Standard (35 ops)": create_standard_config(),
+        "Full (35 ops)": create_full_config(),
     }
 
-    print("   Testing operation categories:")
-    for category, ops in operation_categories.items():
-        success_count = 0
-        for op_id in ops:
-            try:
-                key = jax.random.PRNGKey(op_id)
-                similarity, terminated = test_operation(
-                    key, jnp.array(op_id, dtype=jnp.int32)
-                )
-                success_count += 1
+    for config_name, config in configs_to_test.items():
+        print(f"\n   Testing {config_name}:")
 
-                if op_id == 34:  # Submit operation
-                    assert terminated, "Submit should terminate episode"
+        @jax.jit
+        def test_operation(key, op_id):
+            state, obs = arc_reset(key, config)
 
-            except Exception as e:
-                print(f"     ❌ Operation {op_id} failed: {str(e)[:50]}...")
+            # Select center region
+            h, w = state.working_grid.shape
+            selection = jnp.zeros((h, w), dtype=jnp.bool_)
+            selection = selection.at[h // 4 : 3 * h // 4, w // 4 : 3 * w // 4].set(True)
 
-        success_rate = (success_count / len(ops)) * 100
-        print(f"   ✅ {category}: {success_count}/{len(ops)} ({success_rate:.0f}%)")
+            action = {"selection": selection, "operation": op_id}
 
-    print("   📊 Overall: All operations working correctly!")
+            state, obs, reward, done, info = arc_step(state, action, config)
+            return info["similarity"], done
+
+        # Test operation categories based on config
+        max_ops = config.action.num_operations
+        operation_categories = {
+            "Fill Colors": list(range(min(10, max_ops))),
+            "Flood Fill": list(range(10, min(20, max_ops))),
+            "Object Ops": list(range(20, min(30, max_ops))),
+            "Grid Ops": list(range(30, min(35, max_ops))),
+        }
+
+        for category, ops in operation_categories.items():
+            if not ops:
+                continue
+
+            success_count = 0
+            for op_id in ops:
+                try:
+                    key = jax.random.PRNGKey(op_id)
+                    similarity, terminated = test_operation(
+                        key, jnp.array(op_id, dtype=jnp.int32)
+                    )
+                    success_count += 1
+
+                    if op_id == 34:  # Submit operation
+                        assert terminated, "Submit should terminate episode"
+
+                except Exception as e:
+                    print(f"     ❌ Operation {op_id} failed: {str(e)[:50]}...")
+
+            success_rate = (success_count / len(ops)) * 100 if ops else 0
+            print(
+                f"     ✅ {category}: {success_count}/{len(ops)} ({success_rate:.0f}%)"
+            )
+
+
+def demonstrate_action_formats():
+    """Demonstrate different action formats."""
+    print("\n📝 Action Formats Demonstration")
+    print("-" * 50)
+
+    # 1. Selection-Operation format (default)
+    print("   1. Selection-Operation Format:")
+    config = create_standard_config(max_episode_steps=5)
+    key = jax.random.PRNGKey(456)
+    state, obs = arc_reset(key, config)
+
+    selection = jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
+    selection = selection.at[5:10, 5:10].set(True)  # Select 5x5 area
+    action = {
+        "selection": selection,
+        "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
+    }
+    state, obs, reward, done, info = arc_step(state, action, config)
+    print(f"     ✅ Reward: {reward:.3f}, Similarity: {info['similarity']:.3f}")
+
+    # 2. Point-based format
+    print("   2. Point-Based Format:")
+    point_config = create_point_config(max_episode_steps=5)
+    state, obs = arc_reset(key, point_config)
+
+    point_action = {
+        "point": (7, 8),  # Select single point at (7, 8)
+        "operation": jnp.array(3, dtype=jnp.int32),  # Fill with color 3
+    }
+    state, obs, reward, done, info = arc_step(state, point_action, point_config)
+    print(f"     ✅ Reward: {reward:.3f}, Similarity: {info['similarity']:.3f}")
+
+    # 3. Bounding box format
+    print("   3. Bounding Box Format:")
+    bbox_config = create_bbox_config(max_episode_steps=5)
+    state, obs = arc_reset(key, bbox_config)
+
+    bbox_action = {
+        "bbox": (3, 3, 8, 8),  # Select rectangular region
+        "operation": jnp.array(4, dtype=jnp.int32),  # Fill with color 4
+    }
+    state, obs, reward, done, info = arc_step(state, bbox_action, bbox_config)
+    print(f"     ✅ Reward: {reward:.3f}, Similarity: {info['similarity']:.3f}")
 
 
 def demonstrate_reproducibility():
     """Demonstrate reproducible experiments with PRNG keys."""
     print("\n🔁 Reproducibility Demonstration")
-    print("-" * 40)
+    print("-" * 50)
 
-    env = ArcEnvironment(max_grid_size=(8, 8))
-    task_data = create_sample_arc_task((8, 8))
-    agent_id = env.agents[0]
+    config = create_standard_config(max_episode_steps=5)
 
     @jax.jit
     def single_step_test(seed):
         """Simple single-step test for reproducibility."""
         key = jax.random.PRNGKey(seed)
-        obs, state = env.reset(key, task_data)
+        state, obs = arc_reset(key, config)
 
         # Single action
         key, step_key = jax.random.split(key)
-        selection = jnp.ones((8, 8), dtype=jnp.float32) * 0.1
+        h, w = state.working_grid.shape
+        selection = jnp.zeros((h, w), dtype=jnp.bool_)
+        selection = selection.at[h // 4 : 3 * h // 4, w // 4 : 3 * w // 4].set(True)
+
         action = {
             "selection": selection,
             "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
         }
-        actions = {agent_id: action}
-        obs, new_state, rewards, dones, infos = env.step_env(step_key, state, actions)
+        state, obs, reward, done, info = arc_step(state, action, config)
 
-        return rewards[agent_id], new_state.similarity_score, new_state.step
+        return reward, info["similarity"], state.step
 
     # Run multiple times with same seed
     seed = 42
@@ -300,102 +400,189 @@ def demonstrate_reproducibility():
     )
 
 
-def demonstrate_advanced_solving():
-    """Demonstrate solving the sample ARC task step by step."""
-    print("\n🧩 Advanced Task Solving Demonstration")
-    print("-" * 40)
+def demonstrate_batch_processing():
+    """Demonstrate batch processing with vmap."""
+    print("\n📦 Batch Processing Demonstration")
+    print("-" * 50)
 
-    env = ArcEnvironment(max_grid_size=(12, 12))
-    task_data = create_sample_arc_task()
-    agent_id = env.agents[0]
+    config = create_standard_config(max_episode_steps=3)
+
+    def single_episode(key):
+        """Process single episode."""
+        state, obs = arc_reset(key, config)
+
+        # Take one action
+        h, w = state.working_grid.shape
+        selection = jnp.zeros((h, w), dtype=jnp.bool_)
+        selection = selection.at[h // 3 : 2 * h // 3, w // 3 : 2 * w // 3].set(True)
+
+        action = {
+            "selection": selection,
+            "operation": jnp.array(1, dtype=jnp.int32),
+        }
+
+        state, obs, reward, done, info = arc_step(state, action, config)
+        return reward, info["similarity"]
+
+    # Process multiple episodes in parallel
+    batch_size = 8
+    key = jax.random.PRNGKey(999)
+    keys = jax.random.split(key, batch_size)
+
+    # Sequential processing
+    start_time = time.time()
+    sequential_results = [single_episode(k) for k in keys]
+    sequential_time = time.time() - start_time
+
+    # Batch processing with vmap
+    start_time = time.time()
+    batch_results = jax.vmap(single_episode)(keys)
+    batch_time = time.time() - start_time
+
+    batch_rewards, batch_similarities = batch_results
+
+    print("   ✅ Batch processing results:")
+    print(f"   - Batch size: {batch_size}")
+    print(f"   - Sequential time: {sequential_time:.4f}s")
+    print(f"   - Batch time: {batch_time:.4f}s")
+    print(f"   - Speedup: {sequential_time / batch_time:.1f}x")
+    print(f"   - Mean reward: {float(jnp.mean(batch_rewards)):.3f}")
+    print(f"   - Mean similarity: {float(jnp.mean(batch_similarities)):.3f}")
+
+
+def demonstrate_advanced_solving():
+    """Demonstrate advanced task solving with the new API."""
+    print("\n🧩 Advanced Task Solving Demonstration")
+    print("-" * 50)
+
+    config = create_standard_config(max_episode_steps=10)
 
     @jax.jit
-    def solve_step_by_step(key):
-        """Solve task step by step with JIT compilation."""
-        obs, state = env.reset(key, task_data)
+    def solve_task_sequence(key):
+        """Solve task with sequence of operations."""
+        state, obs = arc_reset(key, config)
         initial_similarity = state.similarity_score
 
-        # Step 1: Transform blue squares (color 1) to red (color 2)
-        key, step_key = jax.random.split(key)
-        selection_1 = (state.grid == 1).astype(jnp.float32)  # Select all blue pixels
+        # Step 1: Fill some area with color 1
+        h, w = state.working_grid.shape
+        selection_1 = jnp.zeros((h, w), dtype=jnp.bool_)
+        selection_1 = selection_1.at[2 : h // 2, 2 : w // 2].set(True)
+
         action_1 = {
             "selection": selection_1,
-            "operation": jnp.array(2, dtype=jnp.int32),  # Fill with red
+            "operation": jnp.array(1, dtype=jnp.int32),  # Fill with color 1
         }
-        actions = {agent_id: action_1}
-        obs, state, rewards, dones, infos = env.step_env(step_key, state, actions)
-        step1_similarity = state.similarity_score
+        state, obs, reward_1, done_1, info_1 = arc_step(state, action_1, config)
+        step1_similarity = info_1["similarity"]
 
-        # Step 2: Submit solution
-        key, step_key = jax.random.split(key)
+        # Step 2: Fill another area with color 2
+        selection_2 = jnp.zeros((h, w), dtype=jnp.bool_)
+        selection_2 = selection_2.at[h // 2 : h - 2, w // 2 : w - 2].set(True)
+
+        action_2 = {
+            "selection": selection_2,
+            "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
+        }
+        state, obs, reward_2, done_2, info_2 = arc_step(state, action_2, config)
+        step2_similarity = info_2["similarity"]
+
+        # Step 3: Submit solution
         action_submit = {
-            "selection": jnp.zeros_like(state.grid, dtype=jnp.float32),
+            "selection": jnp.zeros((h, w), dtype=jnp.bool_),
             "operation": jnp.array(34, dtype=jnp.int32),  # Submit
         }
-        actions = {agent_id: action_submit}
-        obs, final_state, rewards, dones, infos = env.step_env(step_key, state, actions)
+        state, obs, final_reward, done, info_final = arc_step(
+            state, action_submit, config
+        )
 
         return (
             initial_similarity,
             step1_similarity,
-            final_state.similarity_score,
-            final_state.terminated,
-            rewards[agent_id],
+            step2_similarity,
+            info_final["similarity"],
+            done,
+            final_reward,
         )
 
     # Solve the task
     key = jax.random.PRNGKey(789)
-    initial_sim, step1_sim, final_sim, terminated, final_reward = solve_step_by_step(
-        key
+    (initial_sim, step1_sim, step2_sim, final_sim, terminated, final_reward) = (
+        solve_task_sequence(key)
     )
 
     print("   Step-by-step solving (JIT compiled):")
     print(f"   0. Initial state: similarity = {float(initial_sim):.3f}")
-    print(f"   1. Transform blue to red: similarity = {float(step1_sim):.3f}")
-    print(f"   2. Submit solution: similarity = {float(final_sim):.3f}")
+    print(f"   1. Fill area with color 1: similarity = {float(step1_sim):.3f}")
+    print(f"   2. Fill area with color 2: similarity = {float(step2_sim):.3f}")
+    print(f"   3. Submit solution: similarity = {float(final_sim):.3f}")
     print(f"   ✅ Task completed: terminated = {bool(terminated)}")
     print(f"   🏆 Final reward: {float(final_reward):.3f}")
-    print(f"   📈 Improvement: {float(step1_sim - initial_sim):.3f}")
+    print(f"   📈 Total improvement: {float(final_sim - initial_sim):.3f}")
 
 
 def main():
-    """Run comprehensive ARCLE JAX demonstration."""
-    print("🚀 JAX ARC Environment - Comprehensive Demo")
-    print("=" * 60)
-    print("This demo showcases the high-performance, JAX-compatible")
-    print("ARC environment for Abstract Reasoning Challenge tasks.")
-    print("=" * 60)
+    """Run comprehensive config-based ARC demonstration."""
+    print("🚀 JAX ARC Environment - Config-Based API Demo")
+    print("=" * 70)
+    print("This demo showcases the new config-based functional API for")
+    print("high-performance, JAX-compatible ARC environment training.")
+    print("=" * 70)
 
     try:
         # 1. Basic Usage
-        env, task_data, obs, state = demonstrate_basic_usage()
+        config, state, obs = demonstrate_basic_usage()
 
-        # 2. JIT Compilation Performance
+        # 2. Configuration Types
+        demonstrate_configuration_types()
+
+        # 3. Custom Configuration
+        demonstrate_custom_configuration()
+
+        # 4. JIT Compilation Performance
         demonstrate_jit_compilation()
 
-        # 3. All Operations
+        # 5. All Operations
         demonstrate_all_operations()
 
-        # 4. Reproducibility
+        # 6. Action Formats
+        demonstrate_action_formats()
+
+        # 7. Reproducibility
         demonstrate_reproducibility()
 
-        # 5. Advanced Task Solving
+        # 8. Batch Processing
+        demonstrate_batch_processing()
+
+        # 9. Advanced Task Solving
         demonstrate_advanced_solving()
 
-        print("\n" + "=" * 60)
+        print("\n" + "=" * 70)
         print("🎉 DEMONSTRATION COMPLETE!")
-        print("\n🏆 Key Achievements:")
-        print("   ✅ Full JAX compatibility with JIT compilation")
+        print("\n🏆 Key New Features:")
+        print("   ✅ Config-based functional API (arc_reset, arc_step)")
+        print("   ✅ Typed configuration dataclasses with validation")
+        print("   ✅ Factory functions for easy configuration creation")
+        print("   ✅ Multiple action formats (selection, point, bbox)")
+        print("   ✅ Enhanced JAX compatibility and performance")
+        print("   ✅ Comprehensive configuration management")
         print("   ⚡ 15,000x+ performance speedup from JIT")
-        print("   🎯 All 35 ARC operations working correctly")
+        print("   🎯 All operations working with improved reliability")
         print("   🔁 Complete reproducibility with PRNG keys")
-        print("   🧩 Ready for ARC task training and research")
+        print("   📦 Native batch processing support")
 
-        print("\n📚 Next Steps:")
+        print("\n📚 Migration Benefits:")
+        print("   • Better type safety and IDE support")
+        print("   • Easier configuration management")
+        print("   • Improved JAX transformation compatibility")
+        print("   • More flexible and composable architecture")
+        print("   • Enhanced debugging and validation")
+
+        print("\n🚀 Next Steps:")
         print("   • Integrate with your favorite JAX ML library (Flax, Haiku)")
         print("   • Use with JAX optimizers (Optax) for agent training")
         print("   • Scale to thousands of parallel environments")
-        print("   • Apply JAX transformations (grad, vmap, pmap)")
+        print("   • Apply advanced JAX transformations (grad, vmap, pmap)")
+        print("   • Leverage Hydra for configuration management")
 
         return True
 
@@ -409,4 +596,6 @@ def main():
 
 if __name__ == "__main__":
     success = main()
+    import sys
+
     sys.exit(0 if success else 1)

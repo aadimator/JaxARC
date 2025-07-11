@@ -2,9 +2,7 @@
 # Complete environment configuration with all available operations
 # Uses full action set: fill colors, flood fill, movement, rotation, flipping, clipboard, grid, and submit
 
-defaults:
-  - reward: standard
-  - action: full
+# Uses standard reward configuration and full action set
 
 # Environment target class (for backward compatibility)
 _target_: jaxarc.envs.ArcEnvironment

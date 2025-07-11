@@ -278,7 +278,7 @@ def copy_to_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState
 def paste_from_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     """Paste clipboard content to selected region."""
     # Find the bounding boxes of clipboard content and selection
-    clipboard_mask = (state.clipboard != 0)
+    clipboard_mask = state.clipboard != 0
 
     # Check if we have clipboard content and selection
     has_clipboard = jnp.any(clipboard_mask)
@@ -296,14 +296,22 @@ def paste_from_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvSt
     # For clipboard
     clipboard_rows_masked = jnp.where(clipboard_mask, rows, large_int)
     clipboard_cols_masked = jnp.where(clipboard_mask, cols, large_int)
-    clipboard_min_r = jnp.where(has_clipboard, jnp.min(clipboard_rows_masked), 0).astype(jnp.int32)
-    clipboard_min_c = jnp.where(has_clipboard, jnp.min(clipboard_cols_masked), 0).astype(jnp.int32)
+    clipboard_min_r = jnp.where(
+        has_clipboard, jnp.min(clipboard_rows_masked), 0
+    ).astype(jnp.int32)
+    clipboard_min_c = jnp.where(
+        has_clipboard, jnp.min(clipboard_cols_masked), 0
+    ).astype(jnp.int32)
 
     # For selection
     selection_rows_masked = jnp.where(selection, rows, large_int)
     selection_cols_masked = jnp.where(selection, cols, large_int)
-    selection_min_r = jnp.where(has_selection, jnp.min(selection_rows_masked), 0).astype(jnp.int32)
-    selection_min_c = jnp.where(has_selection, jnp.min(selection_cols_masked), 0).astype(jnp.int32)
+    selection_min_r = jnp.where(
+        has_selection, jnp.min(selection_rows_masked), 0
+    ).astype(jnp.int32)
+    selection_min_c = jnp.where(
+        has_selection, jnp.min(selection_cols_masked), 0
+    ).astype(jnp.int32)
 
     # Calculate the offset to align clipboard with selection
     offset_r = (selection_min_r - clipboard_min_r).astype(jnp.int32)
@@ -321,9 +329,11 @@ def paste_from_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvSt
     # Get clipboard values, using 0 for out-of-bounds
     clipboard_values = jnp.where(
         valid_bounds,
-        state.clipboard[jnp.clip(clipboard_r, 0, state.clipboard.shape[0]-1),
-                       jnp.clip(clipboard_c, 0, state.clipboard.shape[1]-1)],
-        0
+        state.clipboard[
+            jnp.clip(clipboard_r, 0, state.clipboard.shape[0] - 1),
+            jnp.clip(clipboard_c, 0, state.clipboard.shape[1] - 1),
+        ],
+        0,
     )
 
     # Only paste if we should paste and where selected

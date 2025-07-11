@@ -5,7 +5,8 @@
 # Dataset Information
 dataset_name: "Mini-ARC"
 dataset_year: 2024
-description: "Mini ARC dataset with smaller grids for testing and experimentation"
+description:
+  "Mini ARC dataset with smaller grids for testing and experimentation"
 
 default_split: "training" # Default split to use
 

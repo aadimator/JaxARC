@@ -7,28 +7,27 @@ Hydra integration, functional API, and factory functions.
 
 from __future__ import annotations
 
+import chex
 import jax
 import jax.numpy as jnp
 import pytest
-import chex
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from jaxarc.envs import (
-    ArcEnvConfig,
-    RewardConfig,
-    GridConfig,
     ActionConfig,
+    ArcEnvConfig,
+    GridConfig,
+    RewardConfig,
     arc_reset,
     arc_step,
-    create_raw_config,
-    create_standard_config,
-    create_full_config,
-    create_point_config,
     create_bbox_config,
-    create_restricted_config,
     create_config_from_hydra,
-    create_training_config,
     create_evaluation_config,
+    create_point_config,
+    create_raw_config,
+    create_restricted_config,
+    create_standard_config,
+    create_training_config,
     get_preset_config,
 )
 from jaxarc.envs.functional import ArcEnvState
@@ -51,11 +50,13 @@ class TestConfigClasses:
 
     def test_reward_config_from_hydra(self):
         """Test RewardConfig creation from Hydra config."""
-        hydra_config = OmegaConf.create({
-            "reward_on_submit_only": False,
-            "step_penalty": -0.02,
-            "success_bonus": 15.0,
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "reward_on_submit_only": False,
+                "step_penalty": -0.02,
+                "success_bonus": 15.0,
+            }
+        )
 
         config = RewardConfig.from_hydra(hydra_config)
         assert config.reward_on_submit_only is False
@@ -107,22 +108,24 @@ class TestConfigClasses:
 
     def test_arc_env_config_from_hydra(self):
         """Test ArcEnvConfig creation from Hydra config."""
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 150,
-            "log_operations": True,
-            "reward": {
-                "success_bonus": 20.0,
-                "step_penalty": -0.05,
-            },
-            "grid": {
-                "max_grid_height": 25,
-                "max_colors": 8,
-            },
-            "action": {
-                "action_format": "point",
-                "num_operations": 20,
-            },
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 150,
+                "log_operations": True,
+                "reward": {
+                    "success_bonus": 20.0,
+                    "step_penalty": -0.05,
+                },
+                "grid": {
+                    "max_grid_height": 25,
+                    "max_colors": 8,
+                },
+                "action": {
+                    "action_format": "point",
+                    "num_operations": 20,
+                },
+            }
+        )
 
         config = ArcEnvConfig.from_hydra(hydra_config)
 
@@ -148,6 +151,7 @@ class TestConfigClasses:
 
         # Test round-trip conversion
         from jaxarc.envs.config import config_from_dict
+
         restored_config = config_from_dict(config_dict)
         assert restored_config.max_episode_steps == 80
         assert restored_config.reward.success_bonus == 7.5
@@ -249,10 +253,12 @@ class TestFactoryFunctions:
         """Test config creation from Hydra with base config."""
         base_config = create_standard_config(max_episode_steps=100)
 
-        hydra_override = OmegaConf.create({
-            "max_episode_steps": 150,
-            "reward": {"success_bonus": 20.0},
-        })
+        hydra_override = OmegaConf.create(
+            {
+                "max_episode_steps": 150,
+                "reward": {"success_bonus": 20.0},
+            }
+        )
 
         merged_config = create_config_from_hydra(hydra_override, base_config)
 
@@ -291,12 +297,14 @@ class TestFunctionalAPI:
 
     def test_arc_reset_with_hydra_config(self):
         """Test arc_reset with Hydra DictConfig."""
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 15,
-            "reward": {"success_bonus": 12.0},
-            "grid": {"max_grid_height": 20},
-            "action": {"num_operations": 30},
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 15,
+                "reward": {"success_bonus": 12.0},
+                "grid": {"max_grid_height": 20},
+                "action": {"num_operations": 30},
+            }
+        )
 
         state, obs = arc_reset(self.key, hydra_config)
 
@@ -320,7 +328,7 @@ class TestFunctionalAPI:
         assert isinstance(new_state, ArcEnvState)
         chex.assert_rank(new_obs, 2)
         chex.assert_rank(reward, 0)  # Scalar
-        chex.assert_rank(done, 0)    # Scalar
+        chex.assert_rank(done, 0)  # Scalar
         assert isinstance(info, dict)
 
         # Check state progression
@@ -373,14 +381,19 @@ class TestFunctionalAPI:
 
         # Missing operation field
         with pytest.raises(ValueError, match="must contain 'operation'"):
-            arc_step(state, {"selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_)}, self.config)
+            arc_step(
+                state,
+                {"selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_)},
+                self.config,
+            )
 
         # Invalid selection shape
         with pytest.raises(ValueError, match="doesn't match grid shape"):
-            arc_step(state, {
-                "selection": jnp.ones((5, 5), dtype=jnp.bool_),
-                "operation": 0
-            }, self.config)
+            arc_step(
+                state,
+                {"selection": jnp.ones((5, 5), dtype=jnp.bool_), "operation": 0},
+                self.config,
+            )
 
     def test_arc_step_operation_clipping(self):
         """Test operation clipping for invalid operations."""
@@ -495,7 +508,9 @@ class TestFunctionalAPI:
         }
 
         jitted_step_static = jax.jit(arc_step, static_argnums=(2,))
-        new_state, new_obs, reward, done, info = jitted_step_static(state, action, self.config)
+        new_state, new_obs, reward, done, info = jitted_step_static(
+            state, action, self.config
+        )
         assert isinstance(new_state, ArcEnvState)
         assert new_state.step_count == 1
 
@@ -505,15 +520,19 @@ class TestHydraIntegration:
 
     def test_hydra_config_override(self):
         """Test Hydra config overrides."""
-        base_hydra = OmegaConf.create({
-            "max_episode_steps": 100,
-            "reward": {"success_bonus": 10.0},
-        })
+        base_hydra = OmegaConf.create(
+            {
+                "max_episode_steps": 100,
+                "reward": {"success_bonus": 10.0},
+            }
+        )
 
-        override_hydra = OmegaConf.create({
-            "max_episode_steps": 200,
-            "reward": {"step_penalty": -0.02},
-        })
+        override_hydra = OmegaConf.create(
+            {
+                "max_episode_steps": 200,
+                "reward": {"step_penalty": -0.02},
+            }
+        )
 
         # Test merge functionality
         merged = OmegaConf.merge(base_hydra, override_hydra)
@@ -525,26 +544,28 @@ class TestHydraIntegration:
 
     def test_nested_hydra_config(self):
         """Test deeply nested Hydra configuration."""
-        complex_hydra = OmegaConf.create({
-            "max_episode_steps": 150,
-            "log_operations": True,
-            "reward": {
-                "reward_on_submit_only": False,
-                "step_penalty": -0.01,
-                "success_bonus": 15.0,
-                "progress_bonus": 0.5,
-            },
-            "grid": {
-                "max_grid_height": 25,
-                "max_grid_width": 25,
-                "max_colors": 8,
-            },
-            "action": {
-                "action_format": "bbox",
-                "selection_threshold": 0.7,
-                "num_operations": 30,
-            },
-        })
+        complex_hydra = OmegaConf.create(
+            {
+                "max_episode_steps": 150,
+                "log_operations": True,
+                "reward": {
+                    "reward_on_submit_only": False,
+                    "step_penalty": -0.01,
+                    "success_bonus": 15.0,
+                    "progress_bonus": 0.5,
+                },
+                "grid": {
+                    "max_grid_height": 25,
+                    "max_grid_width": 25,
+                    "max_colors": 8,
+                },
+                "action": {
+                    "action_format": "bbox",
+                    "selection_threshold": 0.7,
+                    "num_operations": 30,
+                },
+            }
+        )
 
         config = ArcEnvConfig.from_hydra(complex_hydra)
 
@@ -617,8 +638,9 @@ class TestParserIntegration:
         # Create a mock parser
         class MockParser:
             def get_random_task(self, key):
-                from jaxarc.envs.functional import _create_demo_task
                 from jaxarc.envs.config import ArcEnvConfig
+                from jaxarc.envs.functional import _create_demo_task
+
                 config = ArcEnvConfig()
                 return _create_demo_task(config)
 
@@ -638,16 +660,19 @@ class TestParserIntegration:
         # Create a mock parser
         class MockParser:
             def get_random_task(self, key):
-                from jaxarc.envs.functional import _create_demo_task
                 from jaxarc.envs.config import ArcEnvConfig
+                from jaxarc.envs.functional import _create_demo_task
+
                 config = ArcEnvConfig()
                 return _create_demo_task(config)
 
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 50,
-            "reward": {"success_bonus": 15.0},
-            "grid": {"max_grid_height": 25},
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 50,
+                "reward": {"success_bonus": 15.0},
+                "grid": {"max_grid_height": 25},
+            }
+        )
 
         parser = MockParser()
         config = create_config_from_hydra(hydra_config, parser=parser)
@@ -662,8 +687,9 @@ class TestParserIntegration:
         # Create a mock parser that returns a specific task
         class MockParser:
             def get_random_task(self, key):
-                from jaxarc.envs.functional import _create_demo_task
                 from jaxarc.envs.config import ArcEnvConfig
+                from jaxarc.envs.functional import _create_demo_task
+
                 config = ArcEnvConfig()
                 return _create_demo_task(config)
 
@@ -684,8 +710,9 @@ class TestParserIntegration:
         from jaxarc.envs.factory import create_config_with_task_sampler
 
         def mock_task_sampler(key, dataset_config):
-            from jaxarc.envs.functional import _create_demo_task
             from jaxarc.envs.config import ArcEnvConfig
+            from jaxarc.envs.functional import _create_demo_task
+
             config = ArcEnvConfig()
             return _create_demo_task(config)
 

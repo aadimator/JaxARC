@@ -9,12 +9,14 @@ Usage:
     python examples/test_config_environments.py
 """
 
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
-from omegaconf import OmegaConf
 from loguru import logger
+from omegaconf import OmegaConf
 
-from jaxarc.envs.factory import create_config_from_hydra, create_complete_hydra_config
+from jaxarc.envs.factory import create_config_from_hydra
 from jaxarc.envs.functional import arc_reset, arc_step
 from jaxarc.types import ARCLEOperationType
 
@@ -23,29 +25,31 @@ def test_raw_environment():
     """Test raw environment with minimal action set."""
     logger.info("Testing Raw Environment (minimal actions)")
 
-    config = OmegaConf.create({
-        "environment": {
-            "max_episode_steps": 50,
-            "log_operations": False,
-            "reward": {
-                "reward_on_submit_only": True,
-                "step_penalty": -0.01,
-                "success_bonus": 10.0,
-                "similarity_weight": 1.0,
-                "progress_bonus": 0.1,
-                "invalid_action_penalty": -0.5
-            },
-            "action": {
-                "action_format": "selection_operation",
-                "selection_threshold": 0.5,
-                "allow_partial_selection": True,
-                "num_operations": 35,
-                "allowed_operations": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34],
-                "validate_actions": True,
-                "clip_invalid_actions": False
+    config = OmegaConf.create(
+        {
+            "environment": {
+                "max_episode_steps": 50,
+                "log_operations": False,
+                "reward": {
+                    "reward_on_submit_only": True,
+                    "step_penalty": -0.01,
+                    "success_bonus": 10.0,
+                    "similarity_weight": 1.0,
+                    "progress_bonus": 0.1,
+                    "invalid_action_penalty": -0.5,
+                },
+                "action": {
+                    "action_format": "selection_operation",
+                    "selection_threshold": 0.5,
+                    "allow_partial_selection": True,
+                    "num_operations": 35,
+                    "allowed_operations": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34],
+                    "validate_actions": True,
+                    "clip_invalid_actions": False,
+                },
             }
         }
-    })
+    )
 
     env_config = create_config_from_hydra(config.environment)
 
@@ -53,7 +57,7 @@ def test_raw_environment():
     key = jax.random.PRNGKey(42)
     state, obs = arc_reset(key, env_config)
 
-    logger.info(f"Raw environment created successfully")
+    logger.info("Raw environment created successfully")
     logger.info(f"Grid shape: {state.working_grid.shape}")
     logger.info(f"Allowed operations: {env_config.action.allowed_operations}")
 
@@ -63,7 +67,7 @@ def test_raw_environment():
 
     action = {
         "selection": selection,
-        "operation": jnp.array(ARCLEOperationType.FILL_1, dtype=jnp.int32)
+        "operation": jnp.array(ARCLEOperationType.FILL_1, dtype=jnp.int32),
     }
 
     state, obs, reward, done, info = arc_step(state, action, env_config)
@@ -76,29 +80,59 @@ def test_standard_environment():
     """Test standard environment with extended action set."""
     logger.info("Testing Standard Environment (extended actions)")
 
-    config = OmegaConf.create({
-        "environment": {
-            "max_episode_steps": 100,
-            "log_operations": False,
-            "reward": {
-                "reward_on_submit_only": True,
-                "step_penalty": -0.01,
-                "success_bonus": 10.0,
-                "similarity_weight": 1.0,
-                "progress_bonus": 0.1,
-                "invalid_action_penalty": -0.5
-            },
-            "action": {
-                "action_format": "selection_operation",
-                "selection_threshold": 0.5,
-                "allow_partial_selection": True,
-                "num_operations": 35,
-                "allowed_operations": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 28, 29, 30, 31, 32, 33, 34],
-                "validate_actions": True,
-                "clip_invalid_actions": False
+    config = OmegaConf.create(
+        {
+            "environment": {
+                "max_episode_steps": 100,
+                "log_operations": False,
+                "reward": {
+                    "reward_on_submit_only": True,
+                    "step_penalty": -0.01,
+                    "success_bonus": 10.0,
+                    "similarity_weight": 1.0,
+                    "progress_bonus": 0.1,
+                    "invalid_action_penalty": -0.5,
+                },
+                "action": {
+                    "action_format": "selection_operation",
+                    "selection_threshold": 0.5,
+                    "allow_partial_selection": True,
+                    "num_operations": 35,
+                    "allowed_operations": [
+                        0,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        28,
+                        29,
+                        30,
+                        31,
+                        32,
+                        33,
+                        34,
+                    ],
+                    "validate_actions": True,
+                    "clip_invalid_actions": False,
+                },
             }
         }
-    })
+    )
 
     env_config = create_config_from_hydra(config.environment)
 
@@ -106,9 +140,11 @@ def test_standard_environment():
     key = jax.random.PRNGKey(123)
     state, obs = arc_reset(key, env_config)
 
-    logger.info(f"Standard environment created successfully")
+    logger.info("Standard environment created successfully")
     logger.info(f"Grid shape: {state.working_grid.shape}")
-    logger.info(f"Number of allowed operations: {len(env_config.action.allowed_operations)}")
+    logger.info(
+        f"Number of allowed operations: {len(env_config.action.allowed_operations)}"
+    )
 
     # Test flood fill operation (not available in raw)
     selection = jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
@@ -116,7 +152,7 @@ def test_standard_environment():
 
     action = {
         "selection": selection,
-        "operation": jnp.array(ARCLEOperationType.FLOOD_FILL_2, dtype=jnp.int32)
+        "operation": jnp.array(ARCLEOperationType.FLOOD_FILL_2, dtype=jnp.int32),
     }
 
     state, obs, reward, done, info = arc_step(state, action, env_config)
@@ -129,29 +165,31 @@ def test_full_environment():
     """Test full environment with all actions including object operations."""
     logger.info("Testing Full Environment (all actions)")
 
-    config = OmegaConf.create({
-        "environment": {
-            "max_episode_steps": 200,
-            "log_operations": False,
-            "reward": {
-                "reward_on_submit_only": True,
-                "step_penalty": -0.01,
-                "success_bonus": 10.0,
-                "similarity_weight": 1.0,
-                "progress_bonus": 0.1,
-                "invalid_action_penalty": -0.5
-            },
-            "action": {
-                "action_format": "selection_operation",
-                "selection_threshold": 0.5,
-                "allow_partial_selection": True,
-                "num_operations": 35,
-                "allowed_operations": list(range(35)),  # All operations 0-34
-                "validate_actions": True,
-                "clip_invalid_actions": False
+    config = OmegaConf.create(
+        {
+            "environment": {
+                "max_episode_steps": 200,
+                "log_operations": False,
+                "reward": {
+                    "reward_on_submit_only": True,
+                    "step_penalty": -0.01,
+                    "success_bonus": 10.0,
+                    "similarity_weight": 1.0,
+                    "progress_bonus": 0.1,
+                    "invalid_action_penalty": -0.5,
+                },
+                "action": {
+                    "action_format": "selection_operation",
+                    "selection_threshold": 0.5,
+                    "allow_partial_selection": True,
+                    "num_operations": 35,
+                    "allowed_operations": list(range(35)),  # All operations 0-34
+                    "validate_actions": True,
+                    "clip_invalid_actions": False,
+                },
             }
         }
-    })
+    )
 
     env_config = create_config_from_hydra(config.environment)
 
@@ -159,9 +197,11 @@ def test_full_environment():
     key = jax.random.PRNGKey(456)
     state, obs = arc_reset(key, env_config)
 
-    logger.info(f"Full environment created successfully")
+    logger.info("Full environment created successfully")
     logger.info(f"Grid shape: {state.working_grid.shape}")
-    logger.info(f"Number of allowed operations: {len(env_config.action.allowed_operations)}")
+    logger.info(
+        f"Number of allowed operations: {len(env_config.action.allowed_operations)}"
+    )
 
     # Test movement operation (only available in full)
     selection = jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
@@ -169,7 +209,7 @@ def test_full_environment():
 
     action = {
         "selection": selection,
-        "operation": jnp.array(ARCLEOperationType.MOVE_UP, dtype=jnp.int32)
+        "operation": jnp.array(ARCLEOperationType.MOVE_UP, dtype=jnp.int32),
     }
 
     state, obs, reward, done, info = arc_step(state, action, env_config)
@@ -182,29 +222,59 @@ def test_training_rewards():
     """Test training-specific reward configuration."""
     logger.info("Testing Training Rewards Configuration")
 
-    config = OmegaConf.create({
-        "environment": {
-            "max_episode_steps": 75,
-            "log_operations": False,
-            "reward": {
-                "reward_on_submit_only": False,  # Dense rewards
-                "step_penalty": -0.005,
-                "success_bonus": 20.0,
-                "similarity_weight": 2.0,
-                "progress_bonus": 0.5,
-                "invalid_action_penalty": -0.1
-            },
-            "action": {
-                "action_format": "selection_operation",
-                "selection_threshold": 0.5,
-                "allow_partial_selection": True,
-                "num_operations": 35,
-                "allowed_operations": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 28, 29, 30, 31, 32, 33, 34],
-                "validate_actions": True,
-                "clip_invalid_actions": False
+    config = OmegaConf.create(
+        {
+            "environment": {
+                "max_episode_steps": 75,
+                "log_operations": False,
+                "reward": {
+                    "reward_on_submit_only": False,  # Dense rewards
+                    "step_penalty": -0.005,
+                    "success_bonus": 20.0,
+                    "similarity_weight": 2.0,
+                    "progress_bonus": 0.5,
+                    "invalid_action_penalty": -0.1,
+                },
+                "action": {
+                    "action_format": "selection_operation",
+                    "selection_threshold": 0.5,
+                    "allow_partial_selection": True,
+                    "num_operations": 35,
+                    "allowed_operations": [
+                        0,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16,
+                        17,
+                        18,
+                        19,
+                        28,
+                        29,
+                        30,
+                        31,
+                        32,
+                        33,
+                        34,
+                    ],
+                    "validate_actions": True,
+                    "clip_invalid_actions": False,
+                },
             }
         }
-    })
+    )
 
     env_config = create_config_from_hydra(config.environment)
 
@@ -212,7 +282,7 @@ def test_training_rewards():
     key = jax.random.PRNGKey(789)
     state, obs = arc_reset(key, env_config)
 
-    logger.info(f"Training rewards environment created successfully")
+    logger.info("Training rewards environment created successfully")
     logger.info(f"Dense rewards enabled: {not env_config.reward.reward_on_submit_only}")
     logger.info(f"Step penalty: {env_config.reward.step_penalty}")
     logger.info(f"Success bonus: {env_config.reward.success_bonus}")
@@ -223,7 +293,7 @@ def test_training_rewards():
 
     action = {
         "selection": selection,
-        "operation": jnp.array(ARCLEOperationType.FILL_3, dtype=jnp.int32)
+        "operation": jnp.array(ARCLEOperationType.FILL_3, dtype=jnp.int32),
     }
 
     state, obs, reward, done, info = arc_step(state, action, env_config)
@@ -236,29 +306,31 @@ def test_point_actions():
     """Test point-based action configuration."""
     logger.info("Testing Point-Based Actions")
 
-    config = OmegaConf.create({
-        "environment": {
-            "max_episode_steps": 100,
-            "log_operations": False,
-            "reward": {
-                "reward_on_submit_only": True,
-                "step_penalty": -0.01,
-                "success_bonus": 10.0,
-                "similarity_weight": 1.0,
-                "progress_bonus": 0.1,
-                "invalid_action_penalty": -0.5
-            },
-            "action": {
-                "action_format": "point",
-                "selection_threshold": 0.5,
-                "allow_partial_selection": False,
-                "num_operations": 35,
-                "allowed_operations": list(range(35)),
-                "validate_actions": True,
-                "clip_invalid_actions": True
+    config = OmegaConf.create(
+        {
+            "environment": {
+                "max_episode_steps": 100,
+                "log_operations": False,
+                "reward": {
+                    "reward_on_submit_only": True,
+                    "step_penalty": -0.01,
+                    "success_bonus": 10.0,
+                    "similarity_weight": 1.0,
+                    "progress_bonus": 0.1,
+                    "invalid_action_penalty": -0.5,
+                },
+                "action": {
+                    "action_format": "point",
+                    "selection_threshold": 0.5,
+                    "allow_partial_selection": False,
+                    "num_operations": 35,
+                    "allowed_operations": list(range(35)),
+                    "validate_actions": True,
+                    "clip_invalid_actions": True,
+                },
             }
         }
-    })
+    )
 
     env_config = create_config_from_hydra(config.environment)
 
@@ -266,13 +338,13 @@ def test_point_actions():
     key = jax.random.PRNGKey(101)
     state, obs = arc_reset(key, env_config)
 
-    logger.info(f"Point-based actions environment created successfully")
+    logger.info("Point-based actions environment created successfully")
     logger.info(f"Action format: {env_config.action.action_format}")
 
     # Test point action
     action = {
         "point": (2, 3),
-        "operation": jnp.array(ARCLEOperationType.FILL_5, dtype=jnp.int32)
+        "operation": jnp.array(ARCLEOperationType.FILL_5, dtype=jnp.int32),
     }
 
     state, obs, reward, done, info = arc_step(state, action, env_config)
@@ -287,17 +359,21 @@ def test_config_validation():
 
     # Test that invalid operation IDs are rejected during config creation
     try:
-        config = OmegaConf.create({
-            "environment": {
-                "action": {
-                    "allowed_operations": [0, 1, 2, 999]  # Invalid operation ID
+        config = OmegaConf.create(
+            {
+                "environment": {
+                    "action": {
+                        "allowed_operations": [0, 1, 2, 999]  # Invalid operation ID
+                    }
                 }
             }
-        })
+        )
 
         # This should fail during config creation due to invalid operation ID
         env_config = create_config_from_hydra(config.environment)
-        logger.error("Expected validation error for invalid operation ID 999, but config was created successfully")
+        logger.error(
+            "Expected validation error for invalid operation ID 999, but config was created successfully"
+        )
         return False
 
     except Exception as e:
@@ -305,13 +381,15 @@ def test_config_validation():
 
     # Test that valid configuration works
     try:
-        valid_config = OmegaConf.create({
-            "environment": {
-                "action": {
-                    "allowed_operations": [0, 1, 2, 34]  # Valid operation IDs
+        valid_config = OmegaConf.create(
+            {
+                "environment": {
+                    "action": {
+                        "allowed_operations": [0, 1, 2, 34]  # Valid operation IDs
+                    }
                 }
             }
-        })
+        )
 
         env_config = create_config_from_hydra(valid_config.environment)
         logger.info("✓ Valid configuration accepted successfully")
@@ -346,7 +424,7 @@ def test_operation_mapping():
         (31, "CLEAR"),
         (32, "COPY_INPUT"),
         (33, "RESIZE"),
-        (34, "SUBMIT")
+        (34, "SUBMIT"),
     ]
 
     for op_id, op_name in operation_tests:
@@ -354,7 +432,9 @@ def test_operation_mapping():
         if op_id == arcle_op_value:
             logger.info(f"✓ Operation {op_id} correctly maps to {op_name}")
         else:
-            logger.error(f"✗ Operation {op_id} does not map to {op_name} (got {arcle_op_value})")
+            logger.error(
+                f"✗ Operation {op_id} does not map to {op_name} (got {arcle_op_value})"
+            )
             return False
 
     return True
@@ -377,9 +457,9 @@ def main():
     results = []
     for test_name, test_func in tests:
         try:
-            logger.info(f"\n{'='*50}")
+            logger.info(f"\n{'=' * 50}")
             logger.info(f"Running: {test_name}")
-            logger.info(f"{'='*50}")
+            logger.info(f"{'=' * 50}")
 
             result = test_func()
             results.append((test_name, result))
@@ -394,9 +474,9 @@ def main():
             results.append((test_name, False))
 
     # Summary
-    logger.info(f"\n{'='*50}")
+    logger.info(f"\n{'=' * 50}")
     logger.info("TEST SUMMARY")
-    logger.info(f"{'='*50}")
+    logger.info(f"{'=' * 50}")
 
     passed = sum(1 for _, result in results if result)
     total = len(results)
@@ -410,9 +490,10 @@ def main():
     if passed == total:
         logger.info("🎉 All tests passed! Configuration system is working correctly.")
         return True
-    else:
-        logger.error(f"❌ {total - passed} tests failed. Please check the configuration system.")
-        return False
+    logger.error(
+        f"❌ {total - passed} tests failed. Please check the configuration system."
+    )
+    return False
 
 
 if __name__ == "__main__":
