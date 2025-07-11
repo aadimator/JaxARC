@@ -1,0 +1,53 @@
+# Full Action Configuration
+# This configuration defines the complete action space for ARC tasks
+# Includes all operations: fill colors, flood fill, movement, rotation, flipping, clipboard, grid, and submit
+
+# Action Format
+action_format: "selection_operation" # Use selection + operation format
+
+# Selection Settings
+selection_threshold: 0.5 # Threshold for converting continuous selections to boolean
+allow_partial_selection: true # Allow partial grid selections
+
+# Operation Settings
+num_operations: 35 # Full set of operations (0-34)
+allowed_operations: # All available operations using ARCLEOperationType IDs
+  - 0 # FILL_0 (black)
+  - 1 # FILL_1 (blue)
+  - 2 # FILL_2 (red)
+  - 3 # FILL_3 (green)
+  - 4 # FILL_4 (yellow)
+  - 5 # FILL_5 (gray)
+  - 6 # FILL_6 (magenta)
+  - 7 # FILL_7 (orange)
+  - 8 # FILL_8 (light blue)
+  - 9 # FILL_9 (brown)
+  - 10 # FLOOD_FILL_0
+  - 11 # FLOOD_FILL_1
+  - 12 # FLOOD_FILL_2
+  - 13 # FLOOD_FILL_3
+  - 14 # FLOOD_FILL_4
+  - 15 # FLOOD_FILL_5
+  - 16 # FLOOD_FILL_6
+  - 17 # FLOOD_FILL_7
+  - 18 # FLOOD_FILL_8
+  - 19 # FLOOD_FILL_9
+  - 20 # MOVE_UP
+  - 21 # MOVE_DOWN
+  - 22 # MOVE_LEFT
+  - 23 # MOVE_RIGHT
+  - 24 # ROTATE_C (clockwise)
+  - 25 # ROTATE_CC (counter-clockwise)
+  - 26 # FLIP_HORIZONTAL
+  - 27 # FLIP_VERTICAL
+  - 28 # COPY
+  - 29 # PASTE
+  - 30 # CUT
+  - 31 # CLEAR
+  - 32 # COPY_INPUT
+  - 33 # RESIZE
+  - 34 # SUBMIT
+
+# Validation Settings
+validate_actions: true # Validate actions before execution
+clip_invalid_actions: false # Raise error for invalid actions

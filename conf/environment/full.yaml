@@ -1,15 +1,16 @@
-# ARC Environment Configuration
-# Clean structured configuration using composition of sub-configs
+# Full Environment Configuration
+# Complete environment configuration with all available operations
+# Uses full action set: fill colors, flood fill, movement, rotation, flipping, clipboard, grid, and submit
 
 defaults:
   - reward: standard
-  - action: standard
+  - action: full
 
 # Environment target class (for backward compatibility)
 _target_: jaxarc.envs.ArcEnvironment
 
 # Episode Settings
-max_episode_steps: 100 # Maximum steps per episode
+max_episode_steps: 200 # Longer episodes for full action set
 auto_reset: true # Automatically reset environment after episode ends
 
 # Logging and Debugging
@@ -19,7 +20,7 @@ log_rewards: false # Log reward calculations
 
 # Environment Behavior
 strict_validation: true # Strict validation of actions and states
-allow_invalid_actions: false # Whether to allow invalid actions (vs raising errors)
+allow_invalid_actions: false # No invalid actions allowed
 
 # Legacy Settings (for backward compatibility with existing code)
 similarity_threshold: 1.0 # Threshold for considering task solved
