@@ -1,0 +1,30 @@
+# Raw/Minimal Action Configuration
+# This configuration defines the most basic action space for ARC tasks
+# Only includes: Fill colors (0-9), Resize grid, and Submit actions
+
+# Action Format
+action_format: "selection_operation" # Use selection + operation format
+
+# Selection Settings
+selection_threshold: 0.5 # Threshold for converting continuous selections to boolean
+allow_partial_selection: true # Allow partial grid selections
+
+# Operation Settings
+num_operations: 35 # Maximum operation ID + 1 (to allow operation 34)
+allowed_operations: # Only basic operations using ARCLEOperationType IDs
+  - 0 # FILL_0 (black)
+  - 1 # FILL_1 (blue)
+  - 2 # FILL_2 (red)
+  - 3 # FILL_3 (green)
+  - 4 # FILL_4 (yellow)
+  - 5 # FILL_5 (gray)
+  - 6 # FILL_6 (magenta)
+  - 7 # FILL_7 (orange)
+  - 8 # FILL_8 (light blue)
+  - 9 # FILL_9 (brown)
+  - 33 # RESIZE
+  - 34 # SUBMIT
+
+# Validation Settings
+validate_actions: true # Validate actions before execution
+clip_invalid_actions: false # Raise error for invalid actions

@@ -1,0 +1,10 @@
+# Evaluation Reward Configuration
+# This configuration defines reward structure optimized for agent evaluation
+
+# Core Reward Settings
+reward_on_submit_only: true # Only reward on final submission for realistic evaluation
+step_penalty: -0.01 # Standard step penalty to encourage efficient solutions
+success_bonus: 10.0 # Standard bonus for successful completion
+similarity_weight: 1.0 # Standard similarity weight for consistent evaluation
+progress_bonus: 0.0 # No progress bonus during evaluation - only final results matter
+invalid_action_penalty: -1.0 # Higher penalty for invalid actions during evaluation

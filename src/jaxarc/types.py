@@ -270,8 +270,8 @@ class ARCLEOperationType:
     MOVE_RIGHT = 23
 
     # Rotate operations (24-25)
-    ROTATE_90 = 24
-    ROTATE_270 = 25
+    ROTATE_C = 24 # Clockwise
+    ROTATE_CC = 25 # Counter-clockwise
 
     # Flip operations (26-27)
     FLIP_HORIZONTAL = 26

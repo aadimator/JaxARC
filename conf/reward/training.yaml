@@ -1,0 +1,10 @@
+# Training Reward Configuration
+# This configuration defines reward structure optimized for training agents
+
+# Core Reward Settings
+reward_on_submit_only: false # Provide rewards at each step for better learning signal
+step_penalty: -0.005 # Smaller step penalty to encourage exploration
+success_bonus: 20.0 # Higher bonus for successful completion during training
+similarity_weight: 2.0 # Higher weight for similarity to provide dense rewards
+progress_bonus: 0.5 # Larger bonus for making progress to guide learning
+invalid_action_penalty: -0.1 # Smaller penalty for invalid actions during exploration

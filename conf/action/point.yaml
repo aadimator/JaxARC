@@ -1,0 +1,21 @@
+# Point-Based Action Configuration
+# This configuration defines point-based action space for ARC tasks
+# Actions consist of selecting a single point and applying an operation
+
+# Action Format
+action_format: "point" # Use point-based actions (row, col) + operation
+
+# Selection Settings
+selection_threshold: 0.5 # Not applicable for point actions but kept for consistency
+allow_partial_selection: false # Point actions are always single-cell selections
+
+# Operation Settings
+num_operations: 50 # Number of available operations
+allowed_operations: null # Allow all operations (null means no restriction)
+
+# Validation Settings
+validate_actions: true # Validate point coordinates and operations
+clip_invalid_actions: true # Clip invalid coordinates to grid bounds
+
+# Point-specific Settings
+allow_out_of_bounds: false # Whether to allow points outside grid bounds

@@ -26,8 +26,13 @@ parser:
   description: "General ARC-AGI parser supporting both ARC-AGI-1 and ARC-AGI-2"
 
 # Grid Configuration
-max_grid_height: 30 # Maximum height for JAX array padding
-max_grid_width: 30 # Maximum width for JAX array padding
+grid:
+  max_grid_height: 30 # Maximum height for JAX array padding
+  max_grid_width: 30 # Maximum width for JAX array padding
+  min_grid_height: 1 # Minimum height for valid grids
+  min_grid_width: 1 # Minimum width for valid grids
+  max_colors: 10 # Maximum number of colors (ARC uses 0-9)
+  background_color: 0 # Default background color (black in ARC)
 
 # Task Configuration for JAX Environment
 max_train_pairs: 10 # Maximum number of training pairs per task

@@ -1,0 +1,26 @@
+# Training Environment Configuration
+# Optimized configuration for training ARC agents
+# Uses training-specific sub-configurations for better learning signals
+
+defaults:
+  - reward: training
+  - action: standard
+
+# Environment target class (for backward compatibility)
+_target_: jaxarc.envs.ArcEnvironment
+
+# Episode Settings - Optimized for Training
+max_episode_steps: 75 # Shorter episodes for faster training iterations
+auto_reset: true # Automatically reset environment after episode ends
+
+# Logging and Debugging - Enhanced for Training
+log_operations: true # Log operations for debugging training
+log_grid_changes: true # Log detailed grid changes to understand agent behavior
+log_rewards: true # Log reward calculations for training analysis
+
+# Environment Behavior - More Permissive for Training
+strict_validation: false # Less strict validation to allow exploration
+allow_invalid_actions: true # Allow invalid actions for exploration (with penalties)
+
+# Legacy Settings (for backward compatibility with existing code)
+similarity_threshold: 1.0 # Threshold for considering task solved
