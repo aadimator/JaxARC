@@ -15,10 +15,9 @@ import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
 
-from ..types import JaxArcTask, ARCLEAction
-from .config import ArcEnvConfig, ActionConfig, DatasetConfig
+from ..types import ARCLEAction, JaxArcTask
+from .config import ArcEnvConfig
 from .grid_operations import compute_grid_similarity, execute_grid_operation
-
 
 # Type aliases for cleaner signatures
 ConfigType = Union[ArcEnvConfig, DictConfig]
@@ -107,7 +106,9 @@ def _validate_and_transform_action(
         if isinstance(selection, jnp.ndarray):
             # Continuous selection - validate shape and values
             if selection.shape != grid_shape:
-                raise ValueError(f"Selection shape {selection.shape} doesn't match grid shape {grid_shape}")
+                raise ValueError(
+                    f"Selection shape {selection.shape} doesn't match grid shape {grid_shape}"
+                )
 
             # Convert to boolean selection if needed
             if config.action.action_format == "selection_operation":
@@ -127,7 +128,9 @@ def _validate_and_transform_action(
             operation = jnp.array(operation, dtype=jnp.int32)
 
         if not isinstance(operation, jnp.ndarray):
-            raise ValueError(f"Operation must be int or jnp.ndarray, got {type(operation)}")
+            raise ValueError(
+                f"Operation must be int or jnp.ndarray, got {type(operation)}"
+            )
 
         # Validate operation range (JAX-compatible)
         if config.action.validate_actions:
@@ -154,7 +157,9 @@ def _validate_and_transform_action(
     raise ValueError(f"Action must be dict or ARCLEAction, got {type(action)}")
 
 
-def _transform_point_action(action: Dict[str, Any], grid_shape: Tuple[int, int]) -> Dict[str, Any]:
+def _transform_point_action(
+    action: Dict[str, Any], grid_shape: Tuple[int, int]
+) -> Dict[str, Any]:
     """Transform point-based action to selection-operation format."""
     if "point" not in action:
         raise ValueError("Point action must contain 'point' field")
@@ -175,7 +180,9 @@ def _transform_point_action(action: Dict[str, Any], grid_shape: Tuple[int, int])
     }
 
 
-def _transform_bbox_action(action: Dict[str, Any], grid_shape: Tuple[int, int]) -> Dict[str, Any]:
+def _transform_bbox_action(
+    action: Dict[str, Any], grid_shape: Tuple[int, int]
+) -> Dict[str, Any]:
     """Transform bbox-based action to selection-operation format."""
     if "bbox" not in action:
         raise ValueError("Bbox action must contain 'bbox' field")
@@ -192,7 +199,7 @@ def _transform_bbox_action(action: Dict[str, Any], grid_shape: Tuple[int, int]) 
 
     # Create selection mask for bbox region
     selection = jnp.zeros(grid_shape, dtype=jnp.bool_)
-    selection = selection.at[row1:row2+1, col1:col2+1].set(True)
+    selection = selection.at[row1 : row2 + 1, col1 : col2 + 1].set(True)
 
     return {
         "selection": selection,
@@ -262,8 +269,10 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
     """Create a simple demo task for testing when no task sampler is available."""
     from ..types import JaxArcTask
 
-    logger.warning("No task sampler provided - creating demo task. "
-                  "For real training, provide a task_sampler in config or task_data directly.")
+    logger.warning(
+        "No task sampler provided - creating demo task. "
+        "For real training, provide a task_sampler in config or task_data directly."
+    )
 
     # Create simple demo grids using dataset-appropriate size
     demo_height = min(8, config.grid.max_grid_height)
@@ -281,14 +290,24 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
         start_col = (demo_width - pattern_size) // 2
 
         # Use color 1 if available, otherwise background + 1
-        pattern_color = 1 if config.grid.max_colors > 1 else (bg_color + 1) % config.grid.max_colors
-        input_grid = input_grid.at[start_row:start_row+pattern_size, start_col:start_col+pattern_size].set(pattern_color)
+        pattern_color = (
+            1 if config.grid.max_colors > 1 else (bg_color + 1) % config.grid.max_colors
+        )
+        input_grid = input_grid.at[
+            start_row : start_row + pattern_size, start_col : start_col + pattern_size
+        ].set(pattern_color)
 
     # Target: change pattern to different color
     target_grid = input_grid.copy()
     if pattern_size > 0:
-        target_color = 2 if config.grid.max_colors > 2 else (pattern_color + 1) % config.grid.max_colors
-        target_grid = target_grid.at[start_row:start_row+pattern_size, start_col:start_col+pattern_size].set(target_color)
+        target_color = (
+            2
+            if config.grid.max_colors > 2
+            else (pattern_color + 1) % config.grid.max_colors
+        )
+        target_grid = target_grid.at[
+            start_row : start_row + pattern_size, start_col : start_col + pattern_size
+        ].set(target_color)
 
     # Create masks
     mask = jnp.ones(grid_shape, dtype=jnp.bool_)
@@ -299,9 +318,9 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
     padded_target = jnp.full(max_shape, -1, dtype=jnp.int32)
     padded_mask = jnp.zeros(max_shape, dtype=jnp.bool_)
 
-    padded_input = padded_input.at[:grid_shape[0], :grid_shape[1]].set(input_grid)
-    padded_target = padded_target.at[:grid_shape[0], :grid_shape[1]].set(target_grid)
-    padded_mask = padded_mask.at[:grid_shape[0], :grid_shape[1]].set(mask)
+    padded_input = padded_input.at[: grid_shape[0], : grid_shape[1]].set(input_grid)
+    padded_target = padded_target.at[: grid_shape[0], : grid_shape[1]].set(target_grid)
+    padded_mask = padded_mask.at[: grid_shape[0], : grid_shape[1]].set(mask)
 
     return JaxArcTask(
         input_grids_examples=jnp.expand_dims(padded_input, 0),
@@ -345,7 +364,9 @@ def arc_reset(
             try:
                 task_data = typed_config.parser.get_random_task(key)
                 if typed_config.log_operations:
-                    logger.info(f"Sampled task from {typed_config.dataset.dataset_name}")
+                    logger.info(
+                        f"Sampled task from {typed_config.dataset.dataset_name}"
+                    )
             except Exception as e:
                 logger.warning(f"Parser failed: {e}. Falling back to demo task.")
                 task_data = _create_demo_task(typed_config)
@@ -379,7 +400,12 @@ def arc_reset(
     observation = _get_observation(state, typed_config)
 
     if typed_config.log_operations:
-        logger.info(f"Reset ARC environment with similarity: {initial_similarity:.3f}")
+        jax.debug.callback(
+            lambda x: logger.info(
+                f"Reset ARC environment with similarity: {float(x):.3f}"
+            ),
+            initial_similarity,
+        )
 
     return state, observation
 
@@ -412,7 +438,9 @@ def arc_step(
     elif typed_config.action.action_format == "bbox":
         validated_action = _transform_bbox_action(action, grid_shape)
     else:  # "selection_operation"
-        validated_action = _validate_and_transform_action(action, typed_config, grid_shape)
+        validated_action = _validate_and_transform_action(
+            action, typed_config, grid_shape
+        )
 
     # Update selection in state
     state = state.replace(selected=validated_action["selection"])
@@ -445,18 +473,30 @@ def arc_step(
 
     # Optional logging
     if typed_config.log_operations:
-        logger.info(
-            f"Step {new_state.step_count}: op={validated_action['operation']}, "
-            f"sim={new_state.similarity_score:.3f}, reward={reward:.3f}"
+        jax.debug.callback(
+            lambda step, op, sim, rew: logger.info(
+                f"Step {int(step)}: op={int(op)}, sim={float(sim):.3f}, reward={float(rew):.3f}"
+            ),
+            new_state.step_count,
+            validated_action["operation"],
+            new_state.similarity_score,
+            reward,
         )
 
     if typed_config.log_rewards:
-        logger.info(f"Reward: {reward:.3f} (improvement: {info['similarity_improvement']:.3f})")
+        jax.debug.callback(
+            lambda rew, imp: logger.info(
+                f"Reward: {float(rew):.3f} (improvement: {float(imp):.3f})"
+            ),
+            reward,
+            info["similarity_improvement"],
+        )
 
     return new_state, observation, reward, done, info
 
 
 # Convenience functions for common use cases
+
 
 def arc_reset_with_hydra(
     key: chex.PRNGKey,

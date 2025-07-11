@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Basic test script for ARC environment functionality.
+Basic test script for ARC environment functionality with new config-based API.
 
-This script tests the core functionality of the ARC environment to ensure
-it works correctly despite any type checking issues.
+This script tests the core functionality of the new config-based ARC environment
+to ensure it works correctly with the functional API.
 """
 
 from __future__ import annotations
@@ -16,77 +16,74 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 import jax
 import jax.numpy as jnp
 
-from jaxarc.envs import ArcEnvironment
-from jaxarc.types import JaxArcTask
-from jaxarc.utils.task_manager import create_jax_task_index
+from jaxarc.envs import (
+    arc_reset,
+    arc_step,
+    create_point_config,
+    create_raw_config,
+    create_standard_config,
+    get_config_summary,
+    validate_config,
+)
 
 
-def create_dummy_task_data(grid_size=(10, 10)):
-    """Create a simple dummy task for testing."""
-    h, w = grid_size
-
-    # Create simple input and output grids
-    input_grid = jnp.zeros((1, h, w), dtype=jnp.int32)
-    input_grid = input_grid.at[0, 2:4, 2:4].set(1)  # Small square of color 1
-
-    output_grid = jnp.zeros((1, h, w), dtype=jnp.int32)
-    output_grid = output_grid.at[0, 2:4, 2:4].set(2)  # Same square but color 2
-
-    masks = jnp.ones((1, h, w), dtype=jnp.bool_)
-
-    return JaxArcTask(
-        input_grids_examples=input_grid,
-        input_masks_examples=masks,
-        output_grids_examples=output_grid,
-        output_masks_examples=masks,
-        num_train_pairs=1,
-        test_input_grids=input_grid,
-        test_input_masks=masks,
-        true_test_output_grids=output_grid,
-        true_test_output_masks=masks,
-        num_test_pairs=1,
-        task_index=create_jax_task_index("test_task_001"),
-    )
-
-
-def test_environment_creation():
-    """Test that we can create an ARC environment."""
-    print("🧪 Testing environment creation...")
+def test_config_creation():
+    """Test that we can create different configurations."""
+    print("🧪 Testing configuration creation...")
 
     try:
-        env = ArcEnvironment(num_agents=1, max_grid_size=(10, 10), max_episode_steps=50)
-        print("✅ Environment created successfully")
-        print(f"   - Name: {env.name}")
-        print(f"   - Agents: {env.agents}")
-        print(f"   - Action spaces: {list(env.action_spaces.keys())}")
-        print(f"   - Observation spaces: {list(env.observation_spaces.keys())}")
-        return env
+        # Test standard config
+        config = create_standard_config(
+            max_episode_steps=50, success_bonus=10.0, log_operations=True
+        )
+        print("✅ Standard config created successfully")
+        print(f"   - Max episodes: {config.max_episode_steps}")
+        print(f"   - Action format: {config.action.action_format}")
+        print(f"   - Operations: {config.action.num_operations}")
+        print(f"   - Success bonus: {config.reward.success_bonus}")
+
+        # Test raw config
+        raw_config = create_raw_config(max_episode_steps=25)
+        print("✅ Raw config created successfully")
+        print(f"   - Max episodes: {raw_config.max_episode_steps}")
+        print(f"   - Operations: {raw_config.action.num_operations}")
+
+        # Test point config
+        point_config = create_point_config(max_episode_steps=30)
+        print("✅ Point config created successfully")
+        print(f"   - Action format: {point_config.action.action_format}")
+
+        # Validate configurations
+        validate_config(config)
+        validate_config(raw_config)
+        validate_config(point_config)
+        print("✅ All configurations validated successfully")
+
+        return config
+
     except Exception as e:
-        print(f"❌ Environment creation failed: {e}")
+        print(f"❌ Configuration creation failed: {e}")
         raise
 
 
-def test_environment_reset(env):
-    """Test environment reset functionality."""
+def test_environment_reset(config):
+    """Test environment reset functionality with new API."""
     print("\n🧪 Testing environment reset...")
 
     try:
-        # Create test task
-        task_data = create_dummy_task_data((10, 10))
-
-        # Reset environment
+        # Reset environment using functional API
         key = jax.random.PRNGKey(42)
-        obs, state = env.reset(key, task_data)
+        state, obs = arc_reset(key, config)
 
         print("✅ Environment reset successful")
-        print(f"   - Observation keys: {list(obs.keys())}")
-        print(f"   - Observation shape: {obs[env.agents[0]].shape}")
+        print(f"   - Observation shape: {obs.shape}")
         print(f"   - State type: {type(state).__name__}")
-        print(f"   - Initial step: {state.step}")
-        print(f"   - Grid shape: {state.grid.shape}")
+        print(f"   - Initial step: {state.step_count}")
+        print(f"   - Grid shape: {state.working_grid.shape}")
         print(f"   - Similarity score: {float(state.similarity_score):.3f}")
+        print(f"   - Task available: {state.task_data is not None}")
 
-        return obs, state
+        return state, obs
 
     except Exception as e:
         print(f"❌ Environment reset failed: {e}")
@@ -96,44 +93,40 @@ def test_environment_reset(env):
         raise
 
 
-def test_environment_step(env, initial_obs, initial_state):
-    """Test environment step functionality."""
+def test_environment_step(config, initial_state):
+    """Test environment step functionality with new API."""
     print("\n🧪 Testing environment step...")
 
     try:
-        key = jax.random.PRNGKey(123)
-
         # Create a simple action
-        agent_id = env.agents[0]
-        h, w = env.max_grid_size
+        h, w = initial_state.working_grid.shape
 
-        # Create selection mask (select the center area)
-        selection = jnp.zeros((h, w), dtype=jnp.float32)
-        selection = selection.at[2:4, 2:4].set(1.0)  # Select where the square is
+        # Create selection mask (select a small area)
+        selection = jnp.zeros((h, w), dtype=jnp.bool_)
+        selection = selection.at[2:4, 2:4].set(True)  # Select 2x2 area
 
         action = {
             "selection": selection,
             "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
         }
-        actions = {agent_id: action}
 
-        # Take a step
-        obs, new_state, rewards, dones, infos = env.step_env(
-            key, initial_state, actions
-        )
+        # Take a step using functional API
+        new_state, new_obs, reward, done, info = arc_step(initial_state, action, config)
 
         print("✅ Environment step successful")
-        print(f"   - New step: {new_state.step}")
-        print(f"   - Reward: {rewards[agent_id]:.3f}")
-        print(f"   - Done: {dones[agent_id]}")
+        print(f"   - New step: {new_state.step_count}")
+        print(f"   - Reward: {reward:.3f}")
+        print(f"   - Done: {done}")
         print(f"   - New similarity: {float(new_state.similarity_score):.3f}")
-        print(f"   - Info: {infos[agent_id]}")
+        print(f"   - Info keys: {list(info.keys())}")
 
         # Check if the grid was modified
-        grid_changed = not jnp.array_equal(initial_state.grid, new_state.grid)
+        grid_changed = not jnp.array_equal(
+            initial_state.working_grid, new_state.working_grid
+        )
         print(f"   - Grid modified: {grid_changed}")
 
-        return obs, new_state, rewards, dones, infos
+        return new_state, new_obs, reward, done, info
 
     except Exception as e:
         print(f"❌ Environment step failed: {e}")
@@ -143,44 +136,44 @@ def test_environment_step(env, initial_obs, initial_state):
         raise
 
 
-def test_multiple_steps(env):
-    """Test multiple environment steps."""
+def test_multiple_steps(config):
+    """Test multiple environment steps with new API."""
     print("\n🧪 Testing multiple steps...")
 
     try:
         # Reset environment
-        task_data = create_dummy_task_data((10, 10))
         key = jax.random.PRNGKey(456)
-        obs, state = env.reset(key, task_data)
+        state, obs = arc_reset(key, config)
 
-        agent_id = env.agents[0]
-        h, w = env.max_grid_size
+        h, w = state.working_grid.shape
 
         # Take several steps with different actions
         for step_num in range(3):
             key, step_key = jax.random.split(key)
 
-            # Random selection mask
-            selection = jax.random.uniform(step_key, (h, w))
-            selection = (selection > 0.8).astype(jnp.float32)  # Sparse selection
+            # Create random selection mask
+            selection_key, _ = jax.random.split(step_key)
+            selection_probs = jax.random.uniform(selection_key, (h, w))
+            selection = selection_probs > 0.8  # Sparse selection
 
+            # Use different operations
+            op_id = step_num % min(
+                10, config.action.num_operations
+            )  # Stay within available ops
             action = {
                 "selection": selection,
-                "operation": jnp.array(
-                    step_num % 3, dtype=jnp.int32
-                ),  # Cycle through operations
+                "operation": jnp.array(op_id, dtype=jnp.int32),
             }
-            actions = {agent_id: action}
 
-            obs, state, rewards, dones, infos = env.step_env(step_key, state, actions)
+            state, obs, reward, done, info = arc_step(state, action, config)
 
             print(
-                f"   Step {step_num + 1}: reward={rewards[agent_id]:.3f}, "
+                f"   Step {step_num + 1}: reward={reward:.3f}, "
                 f"similarity={float(state.similarity_score):.3f}, "
-                f"done={dones[agent_id]}"
+                f"done={done}"
             )
 
-            if dones[agent_id]:
+            if done:
                 print("   Episode terminated early")
                 break
 
@@ -194,33 +187,30 @@ def test_multiple_steps(env):
         raise
 
 
-def test_submit_action(env):
+def test_submit_action(config):
     """Test the submit action (operation 34)."""
     print("\n🧪 Testing submit action...")
 
     try:
         # Reset environment
-        task_data = create_dummy_task_data((10, 10))
         key = jax.random.PRNGKey(789)
-        obs, state = env.reset(key, task_data)
+        state, obs = arc_reset(key, config)
 
-        agent_id = env.agents[0]
-        h, w = env.max_grid_size
+        h, w = state.working_grid.shape
 
         # Create submit action
-        selection = jnp.zeros((h, w), dtype=jnp.float32)  # Empty selection for submit
+        selection = jnp.zeros((h, w), dtype=jnp.bool_)  # Empty selection for submit
         action = {
             "selection": selection,
             "operation": jnp.array(34, dtype=jnp.int32),  # Submit operation
         }
-        actions = {agent_id: action}
 
-        obs, new_state, rewards, dones, infos = env.step_env(key, state, actions)
+        new_state, new_obs, reward, done, info = arc_step(state, action, config)
 
         print("✅ Submit action successful")
-        print(f"   - Terminated: {bool(new_state.terminated)}")
-        print(f"   - Done: {dones[agent_id]}")
-        print(f"   - Final reward: {rewards[agent_id]:.3f}")
+        print(f"   - Terminated: {done}")
+        print(f"   - Final reward: {reward:.3f}")
+        print(f"   - Final similarity: {info.get('similarity', 'N/A')}")
 
     except Exception as e:
         print(f"❌ Submit action test failed: {e}")
@@ -230,32 +220,141 @@ def test_submit_action(env):
         raise
 
 
-def main():
-    """Run all tests."""
-    print("🚀 Starting ARC Environment Basic Tests")
-    print("=" * 50)
+def test_point_actions():
+    """Test point-based actions."""
+    print("\n🧪 Testing point-based actions...")
 
     try:
-        # Test 1: Environment creation
-        env = test_environment_creation()
+        # Create point config
+        config = create_point_config(max_episode_steps=20)
 
-        # Test 2: Environment reset
-        obs, state = test_environment_reset(env)
+        # Reset environment
+        key = jax.random.PRNGKey(999)
+        state, obs = arc_reset(key, config)
 
-        # Test 3: Single step
-        test_environment_step(env, obs, state)
+        # Create point action
+        action = {
+            "point": (3, 4),  # Point at row 3, col 4
+            "operation": jnp.array(1, dtype=jnp.int32),  # Fill with color 1
+        }
 
-        # Test 4: Multiple steps
-        test_multiple_steps(env)
+        new_state, new_obs, reward, done, info = arc_step(state, action, config)
 
-        # Test 5: Submit action
-        test_submit_action(env)
-
-        print("\n" + "=" * 50)
-        print("🎉 All tests passed! ARC environment is working correctly.")
+        print("✅ Point action successful")
+        print(f"   - Reward: {reward:.3f}")
+        print(
+            f"   - Grid changed: {not jnp.array_equal(state.working_grid, new_state.working_grid)}"
+        )
 
     except Exception as e:
-        print("\n" + "=" * 50)
+        print(f"❌ Point action test failed: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
+
+
+def test_jax_compatibility(config):
+    """Test JAX transformations with new API."""
+    print("\n🧪 Testing JAX compatibility...")
+
+    try:
+        # Test JIT compilation
+        @jax.jit
+        def jitted_reset(key):
+            return arc_reset(key, config)
+
+        @jax.jit
+        def jitted_step(state, action):
+            return arc_step(state, action, config)
+
+        # Use JIT-compiled functions
+        key = jax.random.PRNGKey(111)
+        state, obs = jitted_reset(key)
+
+        h, w = state.working_grid.shape
+        selection = jnp.zeros((h, w), dtype=jnp.bool_).at[1:3, 1:3].set(True)
+        action = {
+            "selection": selection,
+            "operation": jnp.array(1, dtype=jnp.int32),
+        }
+
+        new_state, new_obs, reward, done, info = jitted_step(state, action)
+
+        print("✅ JIT compilation successful")
+        print(f"   - JIT reset worked: {state.step_count == 0}")
+        print(f"   - JIT step worked: {new_state.step_count == 1}")
+
+        # Test vmap
+        def single_episode(key):
+            state, obs = arc_reset(key, config)
+            return state.similarity_score
+
+        keys = jax.random.split(key, 3)
+        batch_similarities = jax.vmap(single_episode)(keys)
+
+        print("✅ vmap successful")
+        print(f"   - Batch similarities: {batch_similarities}")
+
+    except Exception as e:
+        print(f"❌ JAX compatibility test failed: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
+
+
+def test_config_summary(config):
+    """Test configuration summary functionality."""
+    print("\n🧪 Testing configuration summary...")
+
+    try:
+        summary = get_config_summary(config)
+        print("✅ Configuration summary generated")
+        print(f"   Summary preview: {summary[:100]}...")
+
+    except Exception as e:
+        print(f"❌ Configuration summary test failed: {e}")
+        raise
+
+
+def main():
+    """Run all tests."""
+    print("🚀 Starting ARC Environment Basic Tests (New Config-Based API)")
+    print("=" * 60)
+
+    try:
+        # Test 1: Configuration creation
+        config = test_config_creation()
+
+        # Test 2: Environment reset
+        state, obs = test_environment_reset(config)
+
+        # Test 3: Single step
+        test_environment_step(config, state)
+
+        # Test 4: Multiple steps
+        test_multiple_steps(config)
+
+        # Test 5: Submit action
+        test_submit_action(config)
+
+        # Test 6: Point actions
+        test_point_actions()
+
+        # Test 7: JAX compatibility
+        test_jax_compatibility(config)
+
+        # Test 8: Configuration summary
+        test_config_summary(config)
+
+        print("\n" + "=" * 60)
+        print(
+            "🎉 All tests passed! New config-based ARC environment is working correctly."
+        )
+
+    except Exception as e:
+        print("\n" + "=" * 60)
         print(f"💥 Tests failed with error: {e}")
         return False
 

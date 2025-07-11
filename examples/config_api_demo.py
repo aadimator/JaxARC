@@ -6,27 +6,28 @@ This example demonstrates the new config-based architecture for JaxARC,
 showing how to use typed configurations, functional API, and Hydra integration.
 """
 
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
-from omegaconf import OmegaConf
 from loguru import logger
+from omegaconf import OmegaConf
 
 from jaxarc.envs import (
+    ActionConfig,
     # Config classes
     ArcEnvConfig,
-    RewardConfig,
     GridConfig,
-    ActionConfig,
+    RewardConfig,
     # Functional API
     arc_reset,
     arc_step,
+    create_bbox_config,
+    create_point_config,
     # Factory functions
     create_standard_config,
-    create_point_config,
-    create_bbox_config,
     create_training_config,
     get_preset_config,
-    create_config_from_hydra,
 )
 
 
@@ -56,13 +57,17 @@ def demo_basic_usage():
     for step in range(3):
         # Create a simple action (fill selection with color 1)
         action = {
-            "selection": jnp.zeros_like(state.working_grid, dtype=jnp.bool_).at[2:5, 2:5].set(True),
+            "selection": jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
+            .at[2:5, 2:5]
+            .set(True),
             "operation": jnp.array(1, dtype=jnp.int32),  # Fill with color 1
         }
 
         state, observation, reward, done, info = arc_step(state, action, config)
 
-        logger.info(f"Step {step + 1}: reward={reward:.3f}, similarity={info['similarity']:.3f}")
+        logger.info(
+            f"Step {step + 1}: reward={reward:.3f}, similarity={info['similarity']:.3f}"
+        )
 
         if done:
             logger.info("Episode terminated!")
@@ -74,23 +79,25 @@ def demo_hydra_integration():
     logger.info("\n=== Hydra Integration Demo ===")
 
     # Create a Hydra-style configuration
-    hydra_config = OmegaConf.create({
-        "max_episode_steps": 75,
-        "log_operations": True,
-        "reward": {
-            "reward_on_submit_only": True,
-            "step_penalty": -0.02,
-            "success_bonus": 20.0,
-        },
-        "grid": {
-            "max_grid_height": 25,
-            "max_grid_width": 25,
-        },
-        "action": {
-            "action_format": "selection_operation",
-            "num_operations": 30,
-        },
-    })
+    hydra_config = OmegaConf.create(
+        {
+            "max_episode_steps": 75,
+            "log_operations": True,
+            "reward": {
+                "reward_on_submit_only": True,
+                "step_penalty": -0.02,
+                "success_bonus": 20.0,
+            },
+            "grid": {
+                "max_grid_height": 25,
+                "max_grid_width": 25,
+            },
+            "action": {
+                "action_format": "selection_operation",
+                "num_operations": 30,
+            },
+        }
+    )
 
     # Convert to typed config
     config = ArcEnvConfig.from_hydra(hydra_config)
@@ -116,8 +123,10 @@ def demo_action_formats():
     state, obs = arc_reset(key, config)
 
     action = {
-        "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),  # Select entire grid
-        "operation": jnp.array(2, dtype=jnp.int32),      # Fill with color 2
+        "selection": jnp.ones_like(
+            state.working_grid, dtype=jnp.bool_
+        ),  # Select entire grid
+        "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
     }
     state, obs, reward, done, info = arc_step(state, action, config)
     logger.info(f"  Reward: {reward:.3f}")
@@ -200,18 +209,22 @@ def demo_preset_configs():
 
     for preset_name in presets:
         config = get_preset_config(preset_name, max_episode_steps=30)
-        logger.info(f"{preset_name.capitalize()} config: "
-                   f"action_format={config.action.action_format}, "
-                   f"validation={config.strict_validation}")
+        logger.info(
+            f"{preset_name.capitalize()} config: "
+            f"action_format={config.action.action_format}, "
+            f"validation={config.strict_validation}"
+        )
 
     # Training presets for curriculum learning
     training_levels = ["basic", "standard", "advanced", "expert"]
 
     for level in training_levels:
         config = create_training_config(level, max_episode_steps=25)
-        logger.info(f"{level.capitalize()} training: "
-                   f"max_steps={config.max_episode_steps}, "
-                   f"reward_on_submit={config.reward.reward_on_submit_only}")
+        logger.info(
+            f"{level.capitalize()} training: "
+            f"max_steps={config.max_episode_steps}, "
+            f"reward_on_submit={config.reward.reward_on_submit_only}"
+        )
 
 
 def demo_manual_config_creation():

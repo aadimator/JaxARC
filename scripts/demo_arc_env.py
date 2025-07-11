@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 """
-ARC Environment Demo Script.
+ARC Environment Demo Script - New Config-Based API
 
-This script demonstrates the functionality of the ARC environment,
-which implements grid-based operations with JAX optimizations.
+This script demonstrates the functionality of the new config-based ARC environment,
+which implements grid-based operations with enhanced JAX compatibility.
 
 Usage:
     python -m scripts.demo_arc_env
+    python -m scripts.demo_arc_env environment=full
+    python -m scripts.demo_arc_env environment=raw dataset=mini_arc
 """
 
 from __future__ import annotations
@@ -20,10 +22,18 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pyprojroot import here
 
-from jaxarc.envs import ArcEnvironment
+from jaxarc.envs import (
+    arc_reset,
+    arc_step,
+    create_config_from_hydra,
+    create_standard_config,
+    get_config_summary,
+    validate_config,
+)
+from jaxarc.parsers import ArcAgiParser
 from jaxarc.utils.visualization import log_grid_to_console
 
 
@@ -92,8 +102,8 @@ def create_selection_mask(h, w, region_type="square", center=None, size=3):
     return mask
 
 
-def demo_operations(env, state, key):
-    """Demonstrate different ARC operations."""
+def demo_operations(state, config, key):
+    """Demonstrate different ARC operations using the new functional API."""
     h, w = state.working_grid.shape
 
     # List of operations to demonstrate
@@ -101,13 +111,13 @@ def demo_operations(env, state, key):
         # Fill operations
         {"op": 2, "mask_type": "square", "desc": "Fill square with color 2"},
         {"op": 5, "mask_type": "column", "desc": "Fill column with color 5"},
-        # Flood fill
+        # Flood fill (if available in config)
         {"op": 11, "mask_type": "point", "desc": "Flood fill with color 1"},
-        # Object operations
+        # Object operations (if available in config)
         {"op": 20, "mask_type": "square", "desc": "Move object up"},
         {"op": 24, "mask_type": "square", "desc": "Rotate object 90°"},
         {"op": 26, "mask_type": "square", "desc": "Flip object horizontally"},
-        # Clipboard operations
+        # Clipboard operations (if available in config)
         {"op": 29, "mask_type": "square", "desc": "Copy to clipboard"},
         {
             "op": 30,
@@ -123,6 +133,10 @@ def demo_operations(env, state, key):
     output_dir = Path("outputs/arc_demo")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Filter operations based on available operations in config
+    available_ops = config.action.num_operations
+    demos = [demo for demo in demos if demo["op"] < available_ops]
+
     # Run demonstrations
     for i, demo in enumerate(demos):
         # Create selection mask
@@ -131,21 +145,21 @@ def demo_operations(env, state, key):
             h, w, demo.get("mask_type", "square"), center=center
         )
 
-        # Create action (single-agent format)
+        # Create action using new API
         action = {
-            "selection": jnp.array(mask.astype(jnp.bool_)),
-            "operation": jnp.array(demo["op"]),
+            "selection": jnp.array(mask, dtype=jnp.bool_),
+            "operation": jnp.array(demo["op"], dtype=jnp.int32),
         }
 
-        # Take action
+        # Take action using functional API
         key, subkey = jax.random.split(key)
-        (new_state, obs, reward, done, info) = env.step(state, action)
-        state = new_state
+        state, obs, reward, done, info = arc_step(state, action, config)
 
         # Visualize result
         logger.info(f"Operation {i + 1}: {demo['desc']} (op_id={demo['op']})")
-        logger.info(f"Reward: {reward}")
-        logger.info(f"Similarity score: {state.similarity_score}")
+        logger.info(f"Reward: {reward:.4f}")
+        logger.info(f"Similarity score: {info['similarity']:.4f}")
+        logger.info(f"Step count: {info['step_count']}")
 
         # Save visualization
         save_path = output_dir / f"op_{i + 1}_{demo['op']}.png"
@@ -172,32 +186,106 @@ def demo_operations(env, state, key):
     return state
 
 
+def demonstrate_jax_compatibility(config):
+    """Demonstrate JAX transformations with the new config-based API."""
+    logger.info("=== JAX Compatibility Demo ===")
+
+    # JIT compilation with static config
+    @jax.jit
+    def jitted_reset(key):
+        return arc_reset(key, config)
+
+    @jax.jit
+    def jitted_step(state, action):
+        return arc_step(state, action, config)
+
+    # Use JIT-compiled functions
+    key = jax.random.PRNGKey(789)
+    state, obs = jitted_reset(key)
+    logger.info(f"JIT reset successful - similarity: {state.similarity_score:.3f}")
+
+    action = {
+        "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
+        "operation": jnp.array(5, dtype=jnp.int32),
+    }
+
+    state, obs, reward, done, info = jitted_step(state, action)
+    logger.info(f"JIT step successful - reward: {reward:.3f}")
+
+    # Batch processing with vmap
+    def single_episode(key):
+        state, obs = arc_reset(key, config)
+        action = {
+            "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
+            "operation": jnp.array(1, dtype=jnp.int32),
+        }
+        state, obs, reward, done, info = arc_step(state, action, config)
+        return reward
+
+    # Process multiple episodes in parallel
+    keys = jax.random.split(key, 5)
+    batch_rewards = jax.vmap(single_episode)(keys)
+    logger.info(f"Batch processing successful - rewards: {batch_rewards}")
+
+
 @hydra.main(config_path=str(here("conf")), config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
-    """Run the ARC environment demo."""
-    logger.info("Starting ARC environment demo")
+    """Run the ARC environment demo with new config-based API."""
+    logger.info("Starting ARC environment demo with config-based API")
     logger.info(f"JAX devices: {jax.devices()}")
 
-    # Use separated configs from Hydra
-    env_config = cfg.environment
-    dataset_config = cfg.dataset
-    logger.info(f"Environment config: {OmegaConf.to_yaml(env_config)}")
-    logger.info(f"Dataset config: {OmegaConf.to_yaml(dataset_config)}")
+    # Create configuration using new API
+    try:
+        # Option 1: Create from Hydra config
+        config = create_config_from_hydra(cfg)
+        logger.info("✅ Created config from Hydra configuration")
 
-    # Create environment with both configs
-    env = ArcEnvironment(env_config, dataset_config)
-    logger.info(f"Created environment: {env}")
+        # Validate configuration
+        validate_config(config)
+        logger.info("✅ Configuration validation passed")
+
+        # Log configuration summary
+        config_summary = get_config_summary(config)
+        logger.info(f"Configuration summary:\n{config_summary}")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to create configuration: {e}")
+        # Fallback to standard configuration
+        config = create_standard_config()
+        logger.info("🔄 Using fallback standard configuration")
+
+    # Create parser if using dataset
+    parser = None
+    if hasattr(cfg, "dataset") and cfg.dataset:
+        try:
+            parser = ArcAgiParser(cfg.dataset)
+            logger.info(f"✅ Created parser with dataset: {cfg.dataset}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not create parser: {e}")
+            logger.info("Using demo task instead")
 
     # Initialize random key
     key = jax.random.PRNGKey(int(time.time()))
 
-    # Reset environment
-    logger.info("Resetting environment")
+    # Reset environment using new functional API
+    logger.info("Resetting environment with new functional API")
     key, reset_key = jax.random.split(key)
-    state, obs = env.reset(reset_key)
+
+    try:
+        if parser:
+            state, obs = arc_reset(reset_key, config, parser=parser)
+        else:
+            state, obs = arc_reset(reset_key, config)
+        logger.info("✅ Environment reset successful")
+    except Exception as e:
+        logger.error(f"❌ Reset failed: {e}")
+        return
 
     # Log initial state
     logger.info(f"Initial state: grid_shape={state.working_grid.shape}")
+    logger.info(f"Action format: {config.action.action_format}")
+    logger.info(f"Available operations: {config.action.num_operations}")
+
     log_grid_to_console(
         state.working_grid,
         mask=state.working_grid_mask,
@@ -225,33 +313,50 @@ def main(cfg: DictConfig) -> None:
     )
 
     # Demo operations
-    logger.info("Demonstrating ARC operations")
-    state = demo_operations(env, state, key)
+    logger.info("Demonstrating ARC operations with new API")
+    try:
+        state = demo_operations(state, config, key)
+        logger.info("✅ Operations demo completed successfully")
+    except Exception as e:
+        logger.error(f"❌ Operations demo failed: {e}")
+        return
+
+    # Demonstrate JAX compatibility
+    try:
+        demonstrate_jax_compatibility(config)
+        logger.info("✅ JAX compatibility demo completed successfully")
+    except Exception as e:
+        logger.error(f"❌ JAX compatibility demo failed: {e}")
 
     # Demonstrate submit operation
     logger.info("Demonstrating submit operation")
-    action = {
-        "selection": jnp.zeros_like(state.working_grid, dtype=jnp.bool_),
-        "operation": jnp.array(34),  # Submit operation
-    }
+    try:
+        action = {
+            "selection": jnp.zeros_like(state.working_grid, dtype=jnp.bool_),
+            "operation": jnp.array(34, dtype=jnp.int32),  # Submit operation
+        }
 
-    key, subkey = jax.random.split(key)
-    (state, obs, reward, done, info) = env.step(state, action)
+        key, subkey = jax.random.split(key)
+        state, obs, reward, done, info = arc_step(state, action, config)
 
-    logger.info(f"Submit reward: {reward}")
-    logger.info(f"Final similarity score: {state.similarity_score}")
-    logger.info(f"Episode terminated: {done}")
+        logger.info(f"Submit reward: {reward:.4f}")
+        logger.info(f"Final similarity score: {info['similarity']:.4f}")
+        logger.info(f"Episode terminated: {done}")
+        logger.info(f"Total steps: {info['step_count']}")
 
-    # Save final visualization
-    visualize_grids(
-        state.working_grid,
-        state.task_data.input_grids_examples[state.current_example_idx],
-        state.task_data.output_grids_examples[state.current_example_idx],
-        title=f"Final State (Similarity: {state.similarity_score:.4f})",
-        save_path=output_dir / "final_state.png",
-    )
+        # Save final visualization
+        visualize_grids(
+            state.working_grid,
+            state.task_data.input_grids_examples[state.current_example_idx],
+            state.task_data.output_grids_examples[state.current_example_idx],
+            title=f"Final State (Similarity: {info['similarity']:.4f})",
+            save_path=output_dir / "final_state.png",
+        )
 
-    logger.info(f"Demo complete. Visualizations saved to {output_dir}")
+        logger.info(f"✅ Demo complete! Visualizations saved to {output_dir}")
+
+    except Exception as e:
+        logger.error(f"❌ Submit operation failed: {e}")
 
 
 if __name__ == "__main__":

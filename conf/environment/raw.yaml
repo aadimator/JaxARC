@@ -2,9 +2,7 @@
 # Minimal environment configuration with only basic operations
 # Uses raw action set: fill colors (0-9), resize grid, and submit
 
-defaults:
-  - reward: standard
-  - action: raw
+# Uses standard reward configuration and raw action set
 
 # Environment target class (for backward compatibility)
 _target_: jaxarc.envs.ArcEnvironment

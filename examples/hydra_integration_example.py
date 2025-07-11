@@ -15,11 +15,13 @@ Run with:
     python examples/hydra_integration_example.py environment.max_episode_steps=50
 """
 
+from __future__ import annotations
+
 import hydra
 import jax
 import jax.numpy as jnp
-from omegaconf import DictConfig
 from loguru import logger
+from omegaconf import DictConfig
 
 from jaxarc.envs.factory import create_complete_hydra_config
 from jaxarc.envs.functional import arc_reset, arc_step
@@ -51,7 +53,7 @@ def main(cfg: DictConfig) -> None:
     key, reset_key = jax.random.split(key)
     state, obs = arc_reset(reset_key, env_config)
 
-    logger.info(f"Environment reset successfully!")
+    logger.info("Environment reset successfully!")
     logger.info(f"Task has {state.task_data.num_train_pairs} training pairs")
     logger.info(f"Task has {state.task_data.num_test_pairs} test pairs")
     logger.info(f"Initial similarity score: {state.similarity_score:.3f}")
@@ -109,19 +111,22 @@ def test_different_configurations():
     This function demonstrates programmatic usage.
     """
     from omegaconf import OmegaConf
+
     from jaxarc.envs.factory import create_config_from_hydra
 
     logger.info("Testing different configuration scenarios...")
 
     # Scenario 1: Basic configuration with demo task
-    basic_config = OmegaConf.create({
-        "environment": {
-            "max_episode_steps": 20,
-            "log_operations": True,
-            "reward": {"success_bonus": 5.0},
-            "grid": {"max_grid_height": 10, "max_grid_width": 10},
+    basic_config = OmegaConf.create(
+        {
+            "environment": {
+                "max_episode_steps": 20,
+                "log_operations": True,
+                "reward": {"success_bonus": 5.0},
+                "grid": {"max_grid_height": 10, "max_grid_width": 10},
+            }
         }
-    })
+    )
 
     env_config = create_config_from_hydra(basic_config.environment)
     key = jax.random.PRNGKey(123)
@@ -130,13 +135,15 @@ def test_different_configurations():
     logger.info(f"Basic config test - Initial similarity: {state.similarity_score:.3f}")
 
     # Scenario 2: Configuration with different action format
-    point_config = OmegaConf.create({
-        "environment": {
-            "max_episode_steps": 15,
-            "action": {"action_format": "point"},
-            "reward": {"step_penalty": -0.05},
+    point_config = OmegaConf.create(
+        {
+            "environment": {
+                "max_episode_steps": 15,
+                "action": {"action_format": "point"},
+                "reward": {"step_penalty": -0.05},
+            }
         }
-    })
+    )
 
     env_config = create_config_from_hydra(point_config.environment)
     key = jax.random.PRNGKey(456)

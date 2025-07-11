@@ -9,30 +9,27 @@ This example demonstrates advanced features including:
 - Task filtering and customization
 """
 
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
-from omegaconf import OmegaConf
 from loguru import logger
+from omegaconf import OmegaConf
 
 from jaxarc.envs import (
-    # Config classes
     ArcEnvConfig,
-    DatasetConfig,
-    # Functional API
     arc_reset,
     arc_step,
-    # Factory functions
-    create_raw_config,
-    create_dataset_config,
-    create_config_with_task_sampler,
+    attach_sampler_to_config,
     auto_create_sampler_for_config,
     # Task sampling
     create_arc_agi_sampler,
-    create_static_sampler,
-    create_size_filtered_sampler,
     create_complexity_filtered_sampler,
-    attach_sampler_to_config,
-    ArcAgiTaskSampler,
+    create_dataset_config,
+    # Factory functions
+    create_raw_config,
+    create_size_filtered_sampler,
+    create_static_sampler,
 )
 
 
@@ -53,14 +50,18 @@ def demo_dataset_aware_configs():
                 max_episode_steps=50,
             )
 
-            logger.info(f"  Grid size: {config.grid.max_grid_height}x{config.grid.max_grid_width}")
+            logger.info(
+                f"  Grid size: {config.grid.max_grid_height}x{config.grid.max_grid_width}"
+            )
             logger.info(f"  Max colors: {config.grid.max_colors}")
             logger.info(f"  Action format: {config.action.action_format}")
             logger.info(f"  Dataset config: {config.dataset.dataset_name}")
 
             # Show how dataset overrides work
             if config.dataset.dataset_max_grid_height:
-                logger.info(f"  Dataset override: max_height={config.dataset.dataset_max_grid_height}")
+                logger.info(
+                    f"  Dataset override: max_height={config.dataset.dataset_max_grid_height}"
+                )
 
         except Exception as e:
             logger.warning(f"  Could not create config for {dataset_name}: {e}")
@@ -92,7 +93,7 @@ def demo_action_restrictions():
 
     try:
         new_state, obs, reward, done, info = arc_step(state, invalid_action, raw_config)
-        logger.info(f"  Invalid operation handled (clipped to valid range)")
+        logger.info("  Invalid operation handled (clipped to valid range)")
     except Exception as e:
         logger.info(f"  Invalid operation rejected: {e}")
 
@@ -111,7 +112,6 @@ def demo_task_sampling_basic():
     logger.info("\n=== Basic Task Sampling Demo ===")
 
     # Create a demo task for static sampling
-    from jaxarc.types import JaxArcTask
 
     demo_task = _create_simple_demo_task()
 
@@ -158,10 +158,12 @@ def demo_task_sampling_with_parser():
         key = jax.random.PRNGKey(456)
         try:
             state, obs = arc_reset(key, config_with_sampler)
-            logger.info(f"  Real task sampled successfully!")
+            logger.info("  Real task sampled successfully!")
             logger.info(f"  Grid shape: {obs.shape}")
             logger.info(f"  Similarity: {state.similarity_score:.3f}")
-            logger.info(f"  Task has {state.task_data.num_train_pairs} training examples")
+            logger.info(
+                f"  Task has {state.task_data.num_train_pairs} training examples"
+            )
 
         except Exception as e:
             logger.warning(f"  Task sampling failed (likely no data available): {e}")
@@ -211,7 +213,7 @@ def demo_task_filtering():
 
     try:
         state, obs = arc_reset(key, config_with_complexity)
-        logger.info(f"  Complexity filtering successful")
+        logger.info("  Complexity filtering successful")
         logger.info(f"  Training examples: {state.task_data.num_train_pairs}")
     except Exception as e:
         logger.warning(f"  Complexity filtering failed: {e}")
@@ -222,32 +224,36 @@ def demo_hydra_integration_advanced():
     logger.info("\n=== Advanced Hydra Integration Demo ===")
 
     # Create comprehensive Hydra config
-    hydra_config = OmegaConf.create({
-        "max_episode_steps": 100,
-        "log_operations": True,
-        "reward": {
-            "reward_on_submit_only": True,
-            "success_bonus": 15.0,
-        },
-        "action": {
-            "action_format": "point",
-            "allowed_operations": [0, 1, 2, 3, 4, 34],  # Limited operations
-        },
-        "dataset": {
-            "dataset_name": "mini-arc",
-            "task_split": "train",
-            "dataset_max_grid_height": 8,
-            "dataset_max_grid_width": 8,
-            "shuffle_tasks": True,
+    hydra_config = OmegaConf.create(
+        {
+            "max_episode_steps": 100,
+            "log_operations": True,
+            "reward": {
+                "reward_on_submit_only": True,
+                "success_bonus": 15.0,
+            },
+            "action": {
+                "action_format": "point",
+                "allowed_operations": [0, 1, 2, 3, 4, 34],  # Limited operations
+            },
+            "dataset": {
+                "dataset_name": "mini-arc",
+                "task_split": "train",
+                "dataset_max_grid_height": 8,
+                "dataset_max_grid_width": 8,
+                "shuffle_tasks": True,
+            },
         }
-    })
+    )
 
     # Convert to typed config
     config = ArcEnvConfig.from_hydra(hydra_config)
 
-    logger.info(f"  Hydra config converted successfully")
+    logger.info("  Hydra config converted successfully")
     logger.info(f"  Dataset: {config.dataset.dataset_name}")
-    logger.info(f"  Grid size override: {config.grid.max_grid_height}x{config.grid.max_grid_width}")
+    logger.info(
+        f"  Grid size override: {config.grid.max_grid_height}x{config.grid.max_grid_width}"
+    )
     logger.info(f"  Action restrictions: {config.action.allowed_operations}")
 
     # Auto-attach appropriate sampler
@@ -257,7 +263,7 @@ def demo_hydra_integration_advanced():
     key = jax.random.PRNGKey(999)
     try:
         state, obs = arc_reset(key, config_with_sampler)
-        logger.info(f"  Environment initialized with Hydra config")
+        logger.info("  Environment initialized with Hydra config")
         logger.info(f"  Actual grid shape: {obs.shape}")
     except Exception as e:
         logger.warning(f"  Environment initialization failed: {e}")
@@ -286,14 +292,16 @@ def demo_curriculum_learning():
         config = auto_create_sampler_for_config(config)
 
         logger.info(f"  Dataset: {config.dataset.dataset_name}")
-        logger.info(f"  Max grid size: {config.grid.max_grid_height}x{config.grid.max_grid_width}")
+        logger.info(
+            f"  Max grid size: {config.grid.max_grid_height}x{config.grid.max_grid_width}"
+        )
         logger.info(f"  Action format: {config.action.action_format}")
 
         # Test the configuration
         key = jax.random.PRNGKey(100 + hash(stage_name) % 900)
         try:
             state, obs = arc_reset(key, config)
-            logger.info(f"  ✓ Stage configured successfully")
+            logger.info("  ✓ Stage configured successfully")
         except Exception as e:
             logger.warning(f"  ✗ Stage configuration failed: {e}")
 
@@ -321,6 +329,7 @@ def demo_performance_comparison():
         try:
             # Time reset
             import time
+
             start = time.time()
 
             state, obs = arc_reset(key, config)
@@ -337,10 +346,12 @@ def demo_performance_comparison():
             new_state, obs, reward, done, info = arc_step(state, action, config)
             step_time = time.time() - start
 
-            logger.info(f"  Reset time: {reset_time*1000:.2f}ms")
-            logger.info(f"  Step time: {step_time*1000:.2f}ms")
+            logger.info(f"  Reset time: {reset_time * 1000:.2f}ms")
+            logger.info(f"  Step time: {step_time * 1000:.2f}ms")
             logger.info(f"  Grid shape: {obs.shape}")
-            logger.info(f"  Allowed ops: {len(config.action.allowed_operations) if config.action.allowed_operations else 'all'}")
+            logger.info(
+                f"  Allowed ops: {len(config.action.allowed_operations) if config.action.allowed_operations else 'all'}"
+            )
 
         except Exception as e:
             logger.warning(f"  Failed: {e}")
@@ -370,9 +381,9 @@ def _create_simple_demo_task():
     padded_target = jnp.full(max_shape, -1, dtype=jnp.int32)
     padded_mask = jnp.zeros(max_shape, dtype=jnp.bool_)
 
-    padded_input = padded_input.at[:grid_shape[0], :grid_shape[1]].set(input_grid)
-    padded_target = padded_target.at[:grid_shape[0], :grid_shape[1]].set(target_grid)
-    padded_mask = padded_mask.at[:grid_shape[0], :grid_shape[1]].set(mask)
+    padded_input = padded_input.at[: grid_shape[0], : grid_shape[1]].set(input_grid)
+    padded_target = padded_target.at[: grid_shape[0], : grid_shape[1]].set(target_grid)
+    padded_mask = padded_mask.at[: grid_shape[0], : grid_shape[1]].set(mask)
 
     return JaxArcTask(
         input_grids_examples=jnp.expand_dims(padded_input, 0),
@@ -406,8 +417,12 @@ def main():
 
         logger.info("\n🎉 All advanced demos completed successfully!")
         logger.info("\nKey takeaways:")
-        logger.info("- Dataset configs automatically adjust grid sizes and action formats")
-        logger.info("- Action restrictions enable curriculum learning (raw → standard → full)")
+        logger.info(
+            "- Dataset configs automatically adjust grid sizes and action formats"
+        )
+        logger.info(
+            "- Action restrictions enable curriculum learning (raw → standard → full)"
+        )
         logger.info("- Task samplers integrate seamlessly with existing parsers")
         logger.info("- Filtering enables fine-grained control over task difficulty")
         logger.info("- Hydra integration supports complex multi-dataset configurations")

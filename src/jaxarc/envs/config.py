@@ -7,11 +7,10 @@ with Hydra while ensuring JAX compatibility and type safety.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Union, Optional, Callable
 from dataclasses import field
+from typing import Any, Dict, Optional
 
 import chex
-import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -36,10 +35,12 @@ class RewardConfig:
             logger.warning(f"Step penalty should be negative, got {self.step_penalty}")
 
         if self.success_bonus < 0:
-            logger.warning(f"Success bonus should be positive, got {self.success_bonus}")
+            logger.warning(
+                f"Success bonus should be positive, got {self.success_bonus}"
+            )
 
     @classmethod
-    def from_hydra(cls, cfg: DictConfig) -> "RewardConfig":
+    def from_hydra(cls, cfg: DictConfig) -> RewardConfig:
         """Create reward config from Hydra DictConfig."""
         return cls(
             reward_on_submit_only=cfg.get("reward_on_submit_only", True),
@@ -75,10 +76,12 @@ class DatasetConfig:
         """Validate dataset configuration."""
         valid_splits = ["train", "eval", "test", "all"]
         if self.task_split not in valid_splits:
-            raise ValueError(f"task_split must be one of {valid_splits}, got {self.task_split}")
+            raise ValueError(
+                f"task_split must be one of {valid_splits}, got {self.task_split}"
+            )
 
     @classmethod
-    def from_hydra(cls, cfg: DictConfig) -> "DatasetConfig":
+    def from_hydra(cls, cfg: DictConfig) -> DatasetConfig:
         """Create dataset config from Hydra DictConfig."""
         return cls(
             dataset_name=cfg.get("dataset_name", "arc-agi-1"),
@@ -93,13 +96,17 @@ class DatasetConfig:
             shuffle_tasks=cfg.get("shuffle_tasks", True),
         )
 
-    def get_effective_grid_config(self, base_grid_config: "GridConfig") -> "GridConfig":
+    def get_effective_grid_config(self, base_grid_config: GridConfig) -> GridConfig:
         """Get effective grid config with dataset overrides applied."""
         return GridConfig(
-            max_grid_height=self.dataset_max_grid_height or base_grid_config.max_grid_height,
-            max_grid_width=self.dataset_max_grid_width or base_grid_config.max_grid_width,
-            min_grid_height=self.dataset_min_grid_height or base_grid_config.min_grid_height,
-            min_grid_width=self.dataset_min_grid_width or base_grid_config.min_grid_width,
+            max_grid_height=self.dataset_max_grid_height
+            or base_grid_config.max_grid_height,
+            max_grid_width=self.dataset_max_grid_width
+            or base_grid_config.max_grid_width,
+            min_grid_height=self.dataset_min_grid_height
+            or base_grid_config.min_grid_height,
+            min_grid_width=self.dataset_min_grid_width
+            or base_grid_config.min_grid_width,
             max_colors=self.dataset_max_colors or base_grid_config.max_colors,
             background_color=base_grid_config.background_color,
         )
@@ -122,10 +129,14 @@ class GridConfig:
     def __post_init__(self) -> None:
         """Validate grid configuration."""
         if self.max_grid_height < self.min_grid_height:
-            raise ValueError(f"max_grid_height ({self.max_grid_height}) < min_grid_height ({self.min_grid_height})")
+            raise ValueError(
+                f"max_grid_height ({self.max_grid_height}) < min_grid_height ({self.min_grid_height})"
+            )
 
         if self.max_grid_width < self.min_grid_width:
-            raise ValueError(f"max_grid_width ({self.max_grid_width}) < min_grid_width ({self.min_grid_width})")
+            raise ValueError(
+                f"max_grid_width ({self.max_grid_width}) < min_grid_width ({self.min_grid_width})"
+            )
 
         if self.max_colors < 2:
             raise ValueError(f"max_colors must be at least 2, got {self.max_colors}")
@@ -136,7 +147,7 @@ class GridConfig:
         return (self.max_grid_height, self.max_grid_width)
 
     @classmethod
-    def from_hydra(cls, cfg: DictConfig) -> "GridConfig":
+    def from_hydra(cls, cfg: DictConfig) -> GridConfig:
         """Create grid config from Hydra DictConfig."""
         return cls(
             max_grid_height=cfg.get("max_grid_height", 30),
@@ -161,7 +172,9 @@ class ActionConfig:
 
     # Operation parameters
     num_operations: int = 35  # Total number of operations (0-34)
-    allowed_operations: Optional[list[int]] = None  # Specific operations allowed (None = all)
+    allowed_operations: Optional[list[int]] = (
+        None  # Specific operations allowed (None = all)
+    )
 
     # Validation settings
     validate_actions: bool = True
@@ -173,19 +186,25 @@ class ActionConfig:
             raise ValueError(f"Invalid action_format: {self.action_format}")
 
         if not 0.0 <= self.selection_threshold <= 1.0:
-            raise ValueError(f"selection_threshold must be in [0, 1], got {self.selection_threshold}")
+            raise ValueError(
+                f"selection_threshold must be in [0, 1], got {self.selection_threshold}"
+            )
 
         if self.num_operations < 1:
-            raise ValueError(f"num_operations must be positive, got {self.num_operations}")
+            raise ValueError(
+                f"num_operations must be positive, got {self.num_operations}"
+            )
 
         if self.allowed_operations is not None:
             if not all(0 <= op < self.num_operations for op in self.allowed_operations):
-                raise ValueError(f"allowed_operations must be in range [0, {self.num_operations})")
+                raise ValueError(
+                    f"allowed_operations must be in range [0, {self.num_operations})"
+                )
             if len(set(self.allowed_operations)) != len(self.allowed_operations):
                 raise ValueError("allowed_operations must not contain duplicates")
 
     @classmethod
-    def from_hydra(cls, cfg: DictConfig) -> "ActionConfig":
+    def from_hydra(cls, cfg: DictConfig) -> ActionConfig:
         """Create action config from Hydra DictConfig."""
         allowed_ops = cfg.get("allowed_operations")
         if allowed_ops is not None and not isinstance(allowed_ops, list):
@@ -231,7 +250,9 @@ class ArcEnvConfig:
     def __post_init__(self) -> None:
         """Validate environment configuration."""
         if self.max_episode_steps < 1:
-            raise ValueError(f"max_episode_steps must be positive, got {self.max_episode_steps}")
+            raise ValueError(
+                f"max_episode_steps must be positive, got {self.max_episode_steps}"
+            )
 
         # Validate sub-configs are properly typed (frozen dataclass can't mutate)
         if not isinstance(self.reward, RewardConfig):
@@ -247,7 +268,7 @@ class ArcEnvConfig:
             raise TypeError(f"dataset must be DatasetConfig, got {type(self.dataset)}")
 
     @classmethod
-    def from_hydra(cls, cfg: DictConfig, parser: Optional[Any] = None) -> "ArcEnvConfig":
+    def from_hydra(cls, cfg: DictConfig, parser: Optional[Any] = None) -> ArcEnvConfig:
         """Create complete environment config from Hydra DictConfig.
 
         Args:
@@ -330,13 +351,12 @@ class ArcEnvConfig:
 
 # Utility functions for config conversion and validation
 
+
 def validate_config(config: ArcEnvConfig) -> None:
     """Validate configuration consistency."""
     # Check reward config consistency
     if config.reward.reward_on_submit_only and config.reward.progress_bonus != 0.0:
-        logger.warning(
-            "progress_bonus is ignored when reward_on_submit_only=True"
-        )
+        logger.warning("progress_bonus is ignored when reward_on_submit_only=True")
 
     # Check grid config consistency
     if config.grid.max_colors <= config.grid.background_color:
@@ -345,7 +365,10 @@ def validate_config(config: ArcEnvConfig) -> None:
         )
 
     # Check action config consistency
-    if config.action.action_format != "selection_operation" and config.action.allow_partial_selection:
+    if (
+        config.action.action_format != "selection_operation"
+        and config.action.allow_partial_selection
+    ):
         logger.warning(
             f"allow_partial_selection is ignored for action_format='{config.action.action_format}'"
         )

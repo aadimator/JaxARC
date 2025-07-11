@@ -1,6 +1,8 @@
 # JaxARC Configuration Usage Guide
 
-This guide explains how to use the new structured configuration system in JaxARC, which provides a clean and flexible way to configure environments, rewards, actions, and datasets.
+This guide explains how to use the new structured configuration system in
+JaxARC, which provides a clean and flexible way to configure environments,
+rewards, actions, and datasets.
 
 ## Overview
 
@@ -34,6 +36,7 @@ conf/
 ## Environment Types
 
 ### Raw Environment
+
 Minimal action set with only basic fill colors, resize, and submit operations:
 
 ```bash
@@ -41,11 +44,13 @@ python script.py environment=raw
 ```
 
 **Actions available:**
+
 - Fill colors 0-9 (operations 0-9)
 - Resize grid (operation 33)
 - Submit solution (operation 34)
 
 ### Standard Environment
+
 Standard action set excluding object-based operations:
 
 ```bash
@@ -53,6 +58,7 @@ python script.py environment=arc_env  # or just use default
 ```
 
 **Actions available:**
+
 - Fill colors 0-9 (operations 0-9)
 - Flood fill colors 0-9 (operations 10-19)
 - Clipboard operations: copy, paste, cut (operations 28-30)
@@ -60,6 +66,7 @@ python script.py environment=arc_env  # or just use default
 - Submit solution (operation 34)
 
 ### Full Environment
+
 Complete action set including all object-based operations:
 
 ```bash
@@ -67,12 +74,14 @@ python script.py environment=full
 ```
 
 **Actions available:**
+
 - All standard actions plus:
 - Movement: up, down, left, right (operations 20-23)
 - Rotation: clockwise, counter-clockwise (operations 24-25)
 - Flipping: horizontal, vertical (operations 26-27)
 
 ### Training Environment
+
 Optimized for training with dense rewards and exploration-friendly settings:
 
 ```bash
@@ -80,12 +89,14 @@ python script.py environment=training
 ```
 
 **Features:**
+
 - Dense rewards (reward at each step)
 - Smaller penalties for invalid actions
 - Longer episodes for exploration
 - Detailed logging enabled
 
 ### Evaluation Environment
+
 Optimized for evaluation with strict validation:
 
 ```bash
@@ -93,6 +104,7 @@ python script.py environment=evaluation
 ```
 
 **Features:**
+
 - Sparse rewards (only on submit)
 - Strict validation
 - No exploration allowances
@@ -101,6 +113,7 @@ python script.py environment=evaluation
 ## Reward Configurations
 
 ### Standard Rewards
+
 Balanced reward structure for general use:
 
 ```yaml
@@ -113,53 +126,126 @@ invalid_action_penalty: -0.5
 ```
 
 ### Training Rewards
+
 Dense rewards for better learning signals:
 
 ```yaml
-reward_on_submit_only: false  # Dense rewards
-step_penalty: -0.005          # Smaller penalty
-success_bonus: 20.0           # Higher bonus
-similarity_weight: 2.0        # Higher similarity weight
-progress_bonus: 0.5           # Larger progress bonus
-invalid_action_penalty: -0.1  # Smaller penalty for exploration
+reward_on_submit_only: false # Dense rewards
+step_penalty: -0.005 # Smaller penalty
+success_bonus: 20.0 # Higher bonus
+similarity_weight: 2.0 # Higher similarity weight
+progress_bonus: 0.5 # Larger progress bonus
+invalid_action_penalty: -0.1 # Smaller penalty for exploration
 ```
 
 ### Evaluation Rewards
+
 Sparse rewards for realistic evaluation:
 
 ```yaml
-reward_on_submit_only: true   # Only final reward
-step_penalty: -0.01           # Standard penalty
-success_bonus: 10.0           # Standard bonus
-similarity_weight: 1.0        # Standard weight
-progress_bonus: 0.0           # No progress bonus
-invalid_action_penalty: -1.0  # Higher penalty for mistakes
+reward_on_submit_only: true # Only final reward
+step_penalty: -0.01 # Standard penalty
+success_bonus: 10.0 # Standard bonus
+similarity_weight: 1.0 # Standard weight
+progress_bonus: 0.0 # No progress bonus
+invalid_action_penalty: -1.0 # Higher penalty for mistakes
 ```
 
 ## Action Configurations
 
 ### Raw Actions (Operation IDs 0-9, 33-34)
+
 ```yaml
 allowed_operations: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34]
 ```
 
 ### Standard Actions (Operation IDs 0-19, 28-34)
+
 ```yaml
-allowed_operations: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 28, 29, 30, 31, 32, 33, 34]
+allowed_operations:
+  [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+  ]
 ```
 
 ### Full Actions (All Operation IDs 0-34)
+
 ```yaml
-allowed_operations: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
+allowed_operations:
+  [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+  ]
 ```
 
 ### Point-Based Actions
+
 ```yaml
 action_format: "point"
 clip_invalid_actions: true
 ```
 
 ### Bounding Box Actions
+
 ```yaml
 action_format: "bbox"
 clip_invalid_actions: true
@@ -185,7 +271,7 @@ grid:
 # mini_arc.yaml
 dataset_name: "Mini-ARC"
 grid:
-  max_grid_height: 10  # Smaller for testing
+  max_grid_height: 10 # Smaller for testing
   max_grid_width: 10
   min_grid_height: 1
   min_grid_width: 1
@@ -203,15 +289,16 @@ from omegaconf import DictConfig
 from jaxarc.envs.factory import create_complete_hydra_config
 from jaxarc.envs.functional import arc_reset, arc_step
 
+
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg: DictConfig):
     # Create config with parser integration
     env_config = create_complete_hydra_config(cfg)
-    
+
     # Use functional API
     key = jax.random.PRNGKey(42)
     state, obs = arc_reset(key, env_config)
-    
+
     # Take action
     action = {"selection": selection_mask, "operation": operation_id}
     state, obs, reward, done, info = arc_step(state, action, env_config)
@@ -224,20 +311,22 @@ from jaxarc.envs.factory import create_config_from_hydra
 from omegaconf import OmegaConf
 
 # Create config programmatically
-config = OmegaConf.create({
-    "environment": {
-        "max_episode_steps": 100,
-        "reward": {
-            "reward_on_submit_only": False,
-            "step_penalty": -0.01,
-            "success_bonus": 10.0
-        },
-        "action": {
-            "action_format": "selection_operation",
-            "allowed_operations": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34]
+config = OmegaConf.create(
+    {
+        "environment": {
+            "max_episode_steps": 100,
+            "reward": {
+                "reward_on_submit_only": False,
+                "step_penalty": -0.01,
+                "success_bonus": 10.0,
+            },
+            "action": {
+                "action_format": "selection_operation",
+                "allowed_operations": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34],
+            },
         }
     }
-})
+)
 
 env_config = create_config_from_hydra(config.environment)
 ```
@@ -275,6 +364,7 @@ python script.py environment.action.validate_actions=false
 ## Migration from Old System
 
 ### Before (Task Sampler)
+
 ```python
 # Old approach
 from jaxarc.envs.task_sampling import create_arc_agi_sampler
@@ -285,6 +375,7 @@ config = create_config_with_task_sampler(base_config, sampler)
 ```
 
 ### After (Parser Integration)
+
 ```python
 # New approach - automatic with Hydra
 env_config = create_complete_hydra_config(hydra_cfg)
@@ -299,21 +390,28 @@ config = create_config_with_parser(base_config, parser)
 
 ## Best Practices
 
-1. **Use appropriate environment types**: raw for simple experiments, standard for most use cases, full for complex tasks
-2. **Match rewards to use case**: training rewards for learning, evaluation rewards for assessment
-3. **Leverage dataset grid configs**: let datasets define their own grid constraints
-4. **Use Hydra overrides**: modify specific settings without creating new config files
+1. **Use appropriate environment types**: raw for simple experiments, standard
+   for most use cases, full for complex tasks
+2. **Match rewards to use case**: training rewards for learning, evaluation
+   rewards for assessment
+3. **Leverage dataset grid configs**: let datasets define their own grid
+   constraints
+4. **Use Hydra overrides**: modify specific settings without creating new config
+   files
 5. **Test with mini_arc**: use smaller dataset for rapid iteration
 
 ## Example Scripts
 
-See `examples/hydra_integration_example.py` for a complete example of using the new config system with different environment types and datasets.
+See `examples/hydra_integration_example.py` for a complete example of using the
+new config system with different environment types and datasets.
 
 ## Configuration Reference
 
 For complete configuration options, see:
+
 - `src/jaxarc/envs/config.py` - Configuration dataclasses
 - `src/jaxarc/types.py` - ARCLEOperationType for operation IDs
 - `conf/` directory - All configuration files
 
-The new system provides maximum flexibility while maintaining clean separation of concerns and leveraging existing Hydra infrastructure.
+The new system provides maximum flexibility while maintaining clean separation
+of concerns and leveraging existing Hydra infrastructure.

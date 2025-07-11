@@ -14,8 +14,6 @@ from typing import NewType
 import chex
 import jax.numpy as jnp
 
-from jaxarc.utils.task_manager import extract_task_id_from_index, create_jax_task_index
-
 
 @chex.dataclass
 class Grid:
@@ -270,8 +268,8 @@ class ARCLEOperationType:
     MOVE_RIGHT = 23
 
     # Rotate operations (24-25)
-    ROTATE_C = 24 # Clockwise
-    ROTATE_CC = 25 # Counter-clockwise
+    ROTATE_C = 24  # Clockwise
+    ROTATE_CC = 25  # Counter-clockwise
 
     # Flip operations (26-27)
     FLIP_HORIZONTAL = 26

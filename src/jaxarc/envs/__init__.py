@@ -3,50 +3,71 @@ JaxARC environments module.
 
 This module provides reinforcement learning environments for solving
 ARC (Abstraction and Reasoning Corpus) tasks using JAX-compatible
-single-agent environments with grid operations.
+environments with both functional and class-based APIs.
 """
 
 from __future__ import annotations
 
-from .arc_base import ArcEnvironment, ArcEnvState
-from .grid_operations import execute_grid_operation
+# Core environment classes
+from .environment import ArcEnvironment
+from .functional import ArcEnvState
 
-# New config-based API
-from .config import ArcEnvConfig, RewardConfig, GridConfig, ActionConfig, DatasetConfig
-from .functional import arc_reset, arc_step, arc_reset_with_hydra, arc_step_with_hydra
-from .factory import (
-    create_raw_config,
-    create_standard_config,
-    create_full_config,
-    create_point_config,
-    create_bbox_config,
-    create_restricted_config,
-    create_config_from_hydra,
-    create_training_config,
-    create_evaluation_config,
-    create_dataset_config,
-    create_config_with_task_sampler,
-    create_config_with_parser,
-    create_config_with_hydra_parser,
-    create_complete_hydra_config,
-    get_preset_config,
-    CONFIG_PRESETS,
-    TRAINING_PRESETS,
-    DATASET_PRESETS,
+# Configuration system
+from .config import (
+    ActionConfig,
+    ArcEnvConfig,
+    DatasetConfig,
+    GridConfig,
+    RewardConfig,
+    config_from_dict,
+    get_config_summary,
+    merge_configs,
+    validate_config,
 )
 
+# Factory functions for creating configurations
+from .factory import (
+    CONFIG_PRESETS,
+    DATASET_PRESETS,
+    TRAINING_PRESETS,
+    create_bbox_config,
+    create_complete_hydra_config,
+    create_config_from_hydra,
+    create_config_with_hydra_parser,
+    create_config_with_parser,
+    create_config_with_task_sampler,
+    create_dataset_config,
+    create_evaluation_config,
+    create_full_config,
+    create_point_config,
+    create_raw_config,
+    create_restricted_config,
+    create_standard_config,
+    create_training_config,
+    get_preset_config,
+)
+
+# Functional API
+from .functional import arc_reset, arc_reset_with_hydra, arc_step, arc_step_with_hydra
+
+# Grid operations
+from .grid_operations import execute_grid_operation
 
 __all__ = [
-    # Legacy ARC environments
+    # Core environment classes
     "ArcEnvironment",
     "ArcEnvState",
-    "execute_grid_operation",
-    # Config classes
+    # Configuration classes
     "ArcEnvConfig",
     "RewardConfig",
     "GridConfig",
     "ActionConfig",
     "DatasetConfig",
+    # Config utilities
+    "validate_config",
+    "get_config_summary",
+    "config_from_dict",
+    "merge_configs",
     # Functional API
     "arc_reset",
     "arc_step",
@@ -71,4 +92,6 @@ __all__ = [
     "CONFIG_PRESETS",
     "TRAINING_PRESETS",
     "DATASET_PRESETS",
+    # Grid operations
+    "execute_grid_operation",
 ]

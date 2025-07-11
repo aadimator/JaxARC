@@ -1,9 +1,5 @@
 # ARC Environment Configuration
-# Clean structured configuration using composition of sub-configs
-
-defaults:
-  - reward: standard
-  - action: standard
+# Clean structured configuration
 
 # Environment target class (for backward compatibility)
 _target_: jaxarc.envs.ArcEnvironment

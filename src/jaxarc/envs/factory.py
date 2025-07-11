@@ -7,13 +7,13 @@ of ARC environment configurations with sensible defaults and Hydra integration.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Callable
-
-from omegaconf import DictConfig, OmegaConf
-from loguru import logger
 import warnings
+from typing import Any, Callable, Optional
 
-from .config import ArcEnvConfig, RewardConfig, GridConfig, ActionConfig, DatasetConfig
+from loguru import logger
+from omegaconf import DictConfig, OmegaConf
+
+from .config import ActionConfig, ArcEnvConfig, DatasetConfig, GridConfig, RewardConfig
 
 
 def create_raw_config(
@@ -62,7 +62,20 @@ def create_raw_config(
         selection_threshold=0.5,
         allow_partial_selection=True,
         num_operations=35,
-        allowed_operations=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34],  # Fill colors + resize + submit
+        allowed_operations=[
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            33,
+            34,
+        ],  # Fill colors + resize + submit
         validate_actions=False,
         clip_invalid_actions=True,
     )
@@ -91,6 +104,7 @@ def create_raw_config(
         config_dict = config.to_dict()
         config_dict.update(kwargs)
         from .config import config_from_dict
+
         config = config_from_dict(config_dict)
 
     return config
@@ -173,6 +187,7 @@ def create_standard_config(
         config_dict = config.to_dict()
         config_dict.update(kwargs)
         from .config import config_from_dict
+
         config = config_from_dict(config_dict)
 
     return config
@@ -247,6 +262,7 @@ def create_full_config(
         config_dict = config.to_dict()
         config_dict.update(kwargs)
         from .config import config_from_dict
+
         config = config_from_dict(config_dict)
 
     return config
@@ -298,6 +314,7 @@ def create_point_config(
         config_dict = config.to_dict()
         config_dict.update(kwargs)
         from .config import config_from_dict
+
         config = config_from_dict(config_dict)
 
     return config
@@ -349,6 +366,7 @@ def create_bbox_config(
         config_dict = config.to_dict()
         config_dict.update(kwargs)
         from .config import config_from_dict
+
         config = config_from_dict(config_dict)
 
     return config
@@ -393,9 +411,9 @@ def create_restricted_config(
     reward_config = RewardConfig(
         reward_on_submit_only=True,
         step_penalty=-0.02,  # Higher penalty to encourage efficiency
-        success_bonus=15.0,   # Higher bonus for success
+        success_bonus=15.0,  # Higher bonus for success
         similarity_weight=1.0,
-        progress_bonus=0.0,   # No intermediate rewards
+        progress_bonus=0.0,  # No intermediate rewards
         invalid_action_penalty=-0.5,
     )
 
@@ -417,6 +435,7 @@ def create_restricted_config(
         config_dict = config.to_dict()
         config_dict.update(kwargs)
         from .config import config_from_dict
+
         config = config_from_dict(config_dict)
 
     return config
@@ -443,6 +462,7 @@ def create_config_from_hydra(
 
     # Merge base config with Hydra config
     from .config import merge_configs
+
     merged_config = merge_configs(base_config, hydra_config)
 
     # Add parser if provided
@@ -472,9 +492,9 @@ def create_training_config(
         return create_restricted_config(
             max_episode_steps=max_steps,
             allowed_operations=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 34],  # Fill + submit
-            **kwargs
+            **kwargs,
         )
-    elif curriculum_level == "standard":
+    if curriculum_level == "standard":
         # Extract conflicting parameters from kwargs
         max_steps = kwargs.pop("max_episode_steps", 100)
         return create_standard_config(
@@ -482,16 +502,13 @@ def create_training_config(
             reward_on_submit_only=True,
             step_penalty=-0.01,
             success_bonus=10.0,
-            **kwargs
+            **kwargs,
         )
-    elif curriculum_level == "advanced":
+    if curriculum_level == "advanced":
         # Extract max_episode_steps from kwargs to avoid conflict
         max_steps = kwargs.pop("max_episode_steps", 150)
-        return create_full_config(
-            max_episode_steps=max_steps,
-            **kwargs
-        )
-    elif curriculum_level == "expert":
+        return create_full_config(max_episode_steps=max_steps, **kwargs)
+    if curriculum_level == "expert":
         # Extract conflicting parameters from kwargs
         max_steps = kwargs.pop("max_episode_steps", 200)
         return create_standard_config(
@@ -499,10 +516,9 @@ def create_training_config(
             reward_on_submit_only=False,
             step_penalty=-0.005,
             success_bonus=20.0,
-            **kwargs
+            **kwargs,
         )
-    else:
-        raise ValueError(f"Unknown curriculum level: {curriculum_level}")
+    raise ValueError(f"Unknown curriculum level: {curriculum_level}")
 
 
 def create_evaluation_config(
@@ -564,6 +580,7 @@ def create_evaluation_config(
         config_dict = config.to_dict()
         config_dict.update(kwargs)
         from .config import config_from_dict
+
         config = config_from_dict(config_dict)
 
     return config
@@ -640,16 +657,15 @@ def create_dataset_config(
     }
 
     if dataset_name not in dataset_configs:
-        logger.warning(f"Unknown dataset '{dataset_name}', using default ARC-AGI-1 settings")
+        logger.warning(
+            f"Unknown dataset '{dataset_name}', using default ARC-AGI-1 settings"
+        )
         dataset_settings = dataset_configs["arc-agi-1"]
     else:
         dataset_settings = dataset_configs[dataset_name]
 
     # Create base config with dataset-specific settings
-    base_config = create_standard_config(
-        dataset_name=dataset_name,
-        **kwargs
-    )
+    base_config = create_standard_config(dataset_name=dataset_name, **kwargs)
 
     # Override with dataset-specific settings
     dataset_config = DatasetConfig(
@@ -704,13 +720,16 @@ def get_preset_config(preset_name: str, **kwargs: Any) -> ArcEnvConfig:
     """
     if preset_name in CONFIG_PRESETS:
         return CONFIG_PRESETS[preset_name](**kwargs)
-    elif preset_name in TRAINING_PRESETS:
+    if preset_name in TRAINING_PRESETS:
         return TRAINING_PRESETS[preset_name](**kwargs)
-    elif preset_name in DATASET_PRESETS:
+    if preset_name in DATASET_PRESETS:
         return DATASET_PRESETS[preset_name](**kwargs)
-    else:
-        available = list(CONFIG_PRESETS.keys()) + list(TRAINING_PRESETS.keys()) + list(DATASET_PRESETS.keys())
-        raise ValueError(f"Unknown preset '{preset_name}'. Available presets: {available}")
+    available = (
+        list(CONFIG_PRESETS.keys())
+        + list(TRAINING_PRESETS.keys())
+        + list(DATASET_PRESETS.keys())
+    )
+    raise ValueError(f"Unknown preset '{preset_name}'. Available presets: {available}")
 
 
 def create_config_with_parser(
@@ -767,10 +786,12 @@ def create_config_with_hydra_parser(
     parser_config = dataset_cfg.get("parser", {})
     if parser_config and "_target_" in parser_config:
         # Create parser config for instantiation
-        parser_cfg = OmegaConf.create({
-            **dataset_cfg,  # Include dataset settings
-            **parser_config,  # Include parser-specific settings
-        })
+        parser_cfg = OmegaConf.create(
+            {
+                **dataset_cfg,  # Include dataset settings
+                **parser_config,  # Include parser-specific settings
+            }
+        )
         parser = instantiate(parser_cfg)
     else:
         logger.warning("No parser configuration found in dataset config")
@@ -813,9 +834,11 @@ def create_complete_hydra_config(
     if "parser" in dataset_cfg and "_target_" in dataset_cfg.parser:
         try:
             # Create parser configuration with dataset settings
-            parser_cfg = OmegaConf.create({
-                **dataset_cfg,  # Include all dataset settings
-            })
+            parser_cfg = OmegaConf.create(
+                {
+                    **dataset_cfg,  # Include all dataset settings
+                }
+            )
             parser = instantiate(parser_cfg.parser, cfg=parser_cfg)
             logger.info(f"Instantiated parser: {parser.__class__.__name__}")
         except Exception as e:
@@ -835,12 +858,22 @@ def create_complete_hydra_config(
         # Extract grid settings from dataset config
         grid_cfg = dataset_cfg.grid
         updated_grid = GridConfig(
-            max_grid_height=grid_cfg.get("max_grid_height", base_config.grid.max_grid_height),
-            max_grid_width=grid_cfg.get("max_grid_width", base_config.grid.max_grid_width),
-            min_grid_height=grid_cfg.get("min_grid_height", base_config.grid.min_grid_height),
-            min_grid_width=grid_cfg.get("min_grid_width", base_config.grid.min_grid_width),
+            max_grid_height=grid_cfg.get(
+                "max_grid_height", base_config.grid.max_grid_height
+            ),
+            max_grid_width=grid_cfg.get(
+                "max_grid_width", base_config.grid.max_grid_width
+            ),
+            min_grid_height=grid_cfg.get(
+                "min_grid_height", base_config.grid.min_grid_height
+            ),
+            min_grid_width=grid_cfg.get(
+                "min_grid_width", base_config.grid.min_grid_width
+            ),
             max_colors=grid_cfg.get("max_colors", base_config.grid.max_colors),
-            background_color=grid_cfg.get("background_color", base_config.grid.background_color),
+            background_color=grid_cfg.get(
+                "background_color", base_config.grid.background_color
+            ),
         )
 
         base_config = ArcEnvConfig(
@@ -861,9 +894,8 @@ def create_complete_hydra_config(
     # Attach parser to configuration
     if parser is not None:
         return create_config_with_parser(base_config, parser)
-    else:
-        logger.warning("No parser available - environment will use demo tasks")
-        return base_config
+    logger.warning("No parser available - environment will use demo tasks")
+    return base_config
 
 
 def create_config_with_task_sampler(
@@ -882,7 +914,11 @@ def create_config_with_task_sampler(
 
     Deprecated: Use create_config_with_parser instead
     """
-    warnings.warn("create_config_with_task_sampler is deprecated. Use create_config_with_parser instead.", DeprecationWarning, stacklevel=2)
+    warnings.warn(
+        "create_config_with_task_sampler is deprecated. Use create_config_with_parser instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
     # For backward compatibility, wrap the task_sampler in a simple parser-like object
     class TaskSamplerWrapper:
