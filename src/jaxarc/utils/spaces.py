@@ -3,8 +3,19 @@ from __future__ import annotations
 import chex
 import jax
 import jax.numpy as jnp
-from jaxmarl.environments.spaces import Space
+# from jaxmarl.environments.spaces import Space
 
+
+class Space(object):
+    """
+    Minimal jittable class for abstract jaxmarl space.
+    """
+
+    def sample(self, rng: chex.PRNGKey) -> chex.Array:
+        raise NotImplementedError
+
+    def contains(self, x: jnp.int_) -> bool:
+        raise NotImplementedError
 
 class MultiBinary(Space):
     """
