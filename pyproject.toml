@@ -55,7 +55,11 @@ scripts.test = "pytest {args}"
 minversion = "6.0"
 addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
 xfail_strict = true
-filterwarnings = ["error", "ignore::DeprecationWarning:jaxopt.*"]
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning:jaxopt.*",
+  "ignore:.*unzip2 was deprecated.*:DeprecationWarning",
+]
 log_cli_level = "INFO"
 testpaths = ["tests"]
 

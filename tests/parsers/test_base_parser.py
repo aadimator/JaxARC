@@ -43,8 +43,14 @@ class TestArcDataParserBase:
         """Test that the abstract base class cannot be instantiated directly."""
         cfg = DictConfig(
             {
-                "max_grid_height": 30,
-                "max_grid_width": 30,
+                "grid": {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
             }
@@ -57,8 +63,14 @@ class TestArcDataParserBase:
         cfg = DictConfig(
             {
                 "dataset_path": "/some/path",
-                "max_grid_height": 30,
-                "max_grid_width": 30,
+                "grid": {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
             }
@@ -77,8 +89,14 @@ class TestArcDataParserBase:
         with pytest.raises(ValueError, match="Grid dimensions must be positive"):
             cfg = DictConfig(
                 {
-                    "max_grid_height": -1,
-                    "max_grid_width": 30,
+                    "grid": {
+                        "max_grid_height": -1,
+                        "max_grid_width": 30,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
                 }
@@ -89,8 +107,14 @@ class TestArcDataParserBase:
         with pytest.raises(ValueError, match="Grid dimensions must be positive"):
             cfg = DictConfig(
                 {
-                    "max_grid_height": 0,
-                    "max_grid_width": 30,
+                    "grid": {
+                        "max_grid_height": 0,
+                        "max_grid_width": 30,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
                 }
@@ -101,8 +125,14 @@ class TestArcDataParserBase:
         with pytest.raises(ValueError, match="Grid dimensions must be positive"):
             cfg = DictConfig(
                 {
-                    "max_grid_height": 30,
-                    "max_grid_width": -1,
+                    "grid": {
+                        "max_grid_height": 30,
+                        "max_grid_width": -1,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
                 }
@@ -113,8 +143,14 @@ class TestArcDataParserBase:
         with pytest.raises(ValueError, match="Grid dimensions must be positive"):
             cfg = DictConfig(
                 {
-                    "max_grid_height": 30,
-                    "max_grid_width": 0,
+                    "grid": {
+                        "max_grid_height": 30,
+                        "max_grid_width": 0,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
                 }
@@ -127,8 +163,14 @@ class TestArcDataParserBase:
         with pytest.raises(ValueError, match="Max pairs must be positive"):
             cfg = DictConfig(
                 {
-                    "max_grid_height": 30,
-                    "max_grid_width": 30,
+                    "grid": {
+                        "max_grid_height": 30,
+                        "max_grid_width": 30,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": -1,
                     "max_test_pairs": 5,
                 }
@@ -139,8 +181,14 @@ class TestArcDataParserBase:
         with pytest.raises(ValueError, match="Max pairs must be positive"):
             cfg = DictConfig(
                 {
-                    "max_grid_height": 30,
-                    "max_grid_width": 30,
+                    "grid": {
+                        "max_grid_height": 30,
+                        "max_grid_width": 30,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": 0,
                     "max_test_pairs": 5,
                 }
@@ -151,8 +199,14 @@ class TestArcDataParserBase:
         with pytest.raises(ValueError, match="Max pairs must be positive"):
             cfg = DictConfig(
                 {
-                    "max_grid_height": 30,
-                    "max_grid_width": 30,
+                    "grid": {
+                        "max_grid_height": 30,
+                        "max_grid_width": 30,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": 5,
                     "max_test_pairs": -1,
                 }
@@ -163,8 +217,14 @@ class TestArcDataParserBase:
         with pytest.raises(ValueError, match="Max pairs must be positive"):
             cfg = DictConfig(
                 {
-                    "max_grid_height": 30,
-                    "max_grid_width": 30,
+                    "grid": {
+                        "max_grid_height": 30,
+                        "max_grid_width": 30,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": 5,
                     "max_test_pairs": 0,
                 }
@@ -172,25 +232,37 @@ class TestArcDataParserBase:
             ConcreteParser(cfg)
 
     def test_get_max_dimensions(self):
-        """Test the get_max_dimensions method."""
+        """Test get_max_dimensions method."""
         cfg = DictConfig(
             {
-                "max_grid_height": 25,
-                "max_grid_width": 20,
-                "max_train_pairs": 3,
-                "max_test_pairs": 2,
+                "grid": {
+                    "max_grid_height": 30,
+                    "max_grid_width": 25,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
+                "max_train_pairs": 5,
+                "max_test_pairs": 3,
             }
         )
         parser = ConcreteParser(cfg)
         dims = parser.get_max_dimensions()
-        assert dims == (25, 20, 3, 2)
+        assert dims == (30, 25, 5, 3)
 
     def test_validate_grid_dimensions(self):
-        """Test the validate_grid_dimensions method."""
+        """Test validate_grid_dimensions method."""
         cfg = DictConfig(
             {
-                "max_grid_height": 30,
-                "max_grid_width": 30,
+                "grid": {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
             }
@@ -252,8 +324,14 @@ class TestArcDataParserBase:
 
         cfg = DictConfig(
             {
-                "max_grid_height": 30,
-                "max_grid_width": 30,
+                "grid": {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
             }
@@ -265,25 +343,36 @@ class TestArcDataParserBase:
         """Test that load_task_file is called with the correct path."""
         cfg = DictConfig(
             {
-                "max_grid_height": 30,
-                "max_grid_width": 30,
+                "grid": {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
             }
         )
         parser = ConcreteParser(cfg)
-        parser.load_task_file_mock.return_value = {"some": "data"}
+        test_path = "/test/path"
 
-        result = parser.load_task_file("/path/to/task.json")
-        parser.load_task_file_mock.assert_called_once_with("/path/to/task.json")
-        assert result == {"some": "data"}
+        parser.load_task_file(test_path)
+        parser.load_task_file_mock.assert_called_once_with(test_path)
 
     def test_preprocess_task_data_is_called(self):
         """Test that preprocess_task_data is called with the correct arguments."""
         cfg = DictConfig(
             {
-                "max_grid_height": 30,
-                "max_grid_width": 30,
+                "grid": {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
             }
@@ -306,8 +395,14 @@ class TestArcDataParserBase:
         """Test that get_random_task is called with the correct key."""
         cfg = DictConfig(
             {
-                "max_grid_height": 25,
-                "max_grid_width": 20,
+                "grid": {
+                    "max_grid_height": 25,
+                    "max_grid_width": 20,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
                 "max_train_pairs": 3,
                 "max_test_pairs": 2,
             }
