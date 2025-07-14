@@ -87,8 +87,14 @@ def parser(parser_config):
     """Create ArcAgiParser instance."""
     # Add max dimensions to the config
     config_with_dims = parser_config.copy()
-    config_with_dims["max_grid_height"] = 30
-    config_with_dims["max_grid_width"] = 30
+    config_with_dims["grid"] = {
+        "max_grid_height": 30,
+        "max_grid_width": 30,
+        "min_grid_height": 1,
+        "min_grid_width": 1,
+        "max_colors": 10,
+        "background_color": 0
+    }
     config_with_dims["max_train_pairs"] = 5
     config_with_dims["max_test_pairs"] = 5
 
@@ -102,8 +108,14 @@ class TestArcAgiParser:
         """Test parser initializes correctly."""
         # Add max dimensions to the config
         config_with_dims = parser_config.copy()
-        config_with_dims["max_grid_height"] = 30
-        config_with_dims["max_grid_width"] = 30
+        config_with_dims["grid"] = {
+            "max_grid_height": 30,
+            "max_grid_width": 30,
+            "min_grid_height": 1,
+            "min_grid_width": 1,
+            "max_colors": 10,
+            "background_color": 0
+        }
         config_with_dims["max_train_pairs"] = 5
         config_with_dims["max_test_pairs"] = 5
 
@@ -185,8 +197,14 @@ class TestArcAgiParser:
         """Test that preprocessing validates grid dimensions."""
         # Create parser with small max dimensions
         config_with_dims = parser_config.copy()
-        config_with_dims["max_grid_height"] = 2
-        config_with_dims["max_grid_width"] = 2
+        config_with_dims["grid"] = {
+            "max_grid_height": 2,
+            "max_grid_width": 2,
+            "min_grid_height": 1,
+            "min_grid_width": 1,
+            "max_colors": 10,
+            "background_color": 0
+        }
         config_with_dims["max_train_pairs"] = 5
         config_with_dims["max_test_pairs"] = 5
 
@@ -254,8 +272,14 @@ class TestArcAgiParser:
                 "training": {
                     "challenges": str(temp_challenges_file),
                 },
-                "max_grid_height": 30,
-                "max_grid_width": 30,
+                "grid": {
+                    "max_grid_height": 30,
+                    "max_grid_width": 30,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0
+                },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
             }
@@ -331,8 +355,14 @@ class TestArcAgiParser:
     def test_different_grid_sizes(self, parser_config):
         """Test handling of different grid sizes within max limits."""
         config_with_dims = parser_config.copy()
-        config_with_dims["max_grid_height"] = 10
-        config_with_dims["max_grid_width"] = 10
+        config_with_dims["grid"] = {
+            "max_grid_height": 10,
+            "max_grid_width": 10,
+            "min_grid_height": 1,
+            "min_grid_width": 1,
+            "max_colors": 10,
+            "background_color": 0
+        }
         config_with_dims["max_train_pairs"] = 3
         config_with_dims["max_test_pairs"] = 2
 
@@ -411,8 +441,14 @@ class TestArcAgiParser:
                         "challenges": challenges_path,
                         "solutions": solutions_path,
                     },
-                    "max_grid_height": 10,
-                    "max_grid_width": 10,
+                    "grid": {
+                        "max_grid_height": 10,
+                        "max_grid_width": 10,
+                        "min_grid_height": 1,
+                        "min_grid_width": 1,
+                        "max_colors": 10,
+                        "background_color": 0
+                    },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
                 }
