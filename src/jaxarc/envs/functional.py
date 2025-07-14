@@ -16,6 +16,7 @@ from loguru import logger
 from omegaconf import DictConfig
 
 from ..types import ARCLEAction, JaxArcTask
+from .actions import get_action_handler
 from .config import ArcEnvConfig
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
@@ -275,8 +276,9 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
     )
 
     # Create simple demo grids using dataset-appropriate size
-    demo_height = min(8, config.grid.max_grid_height)
-    demo_width = min(8, config.grid.max_grid_width)
+    # Use full configured grid size for proper testing, with reasonable upper bounds
+    demo_height = min(30, config.grid.max_grid_height)
+    demo_width = min(30, config.grid.max_grid_width)
     grid_shape = (demo_height, demo_width)
 
     # Use dataset background color
@@ -429,18 +431,72 @@ def arc_step(
     # Ensure we have a typed config
     typed_config = _ensure_config(config)
 
-    # Transform action to standard format
-    grid_shape = state.working_grid.shape
+    # Validate action format
+    if not isinstance(action, dict):
+        raise ValueError("Action must be a dictionary")
 
-    # Handle different action formats
-    if typed_config.action.action_format == "point":
-        validated_action = _transform_point_action(action, grid_shape)
-    elif typed_config.action.action_format == "bbox":
-        validated_action = _transform_bbox_action(action, grid_shape)
-    else:  # "selection_operation"
-        validated_action = _validate_and_transform_action(
-            action, typed_config, grid_shape
-        )
+    if "operation" not in action:
+        raise ValueError("Action must contain 'operation' field")
+
+    # Check for selection field (either direct or format-specific)
+    has_selection = "selection" in action
+    has_format_specific = (
+        (typed_config.action.action_format == "point" and "point" in action) or
+        (typed_config.action.action_format == "bbox" and "bbox" in action)
+    )
+
+    if not has_selection and not has_format_specific:
+        raise ValueError("Action must contain 'selection' field")
+
+    # Handle action transformation using new handler system
+    if isinstance(action, dict) and "selection" in action and "operation" in action:
+        # Check if action is already in standardized format (selection mask + operation)
+        if (isinstance(action["selection"], jnp.ndarray) and
+            len(action["selection"].shape) == 2 and
+            action["selection"].shape == state.working_grid_mask.shape):
+            # Already standardized format from environment class
+            validated_action = action
+        else:
+            # Validate selection shape if it's a 2D array
+            if (isinstance(action["selection"], jnp.ndarray) and
+                len(action["selection"].shape) == 2 and
+                action["selection"].shape != state.working_grid_mask.shape):
+                raise ValueError(f"Selection shape {action['selection'].shape} doesn't match grid shape {state.working_grid_mask.shape}")
+
+            # Transform using appropriate handler
+            handler = get_action_handler(typed_config.action.action_format)
+            selection_mask = handler(action["selection"], state.working_grid_mask)
+            validated_action = {
+                "selection": selection_mask,
+                "operation": action["operation"]
+            }
+    else:
+        # Legacy action format - transform using appropriate handler
+        handler = get_action_handler(typed_config.action.action_format)
+        if typed_config.action.action_format == "point":
+            if isinstance(action, dict) and "point" in action:
+                action_data = jnp.array(action["point"])
+                operation = action["operation"]
+            else:
+                raise ValueError("Point action must be dict with 'point' and 'operation' keys")
+        elif typed_config.action.action_format == "bbox":
+            if isinstance(action, dict) and "bbox" in action:
+                action_data = jnp.array(action["bbox"])
+                operation = action["operation"]
+            else:
+                raise ValueError("Bbox action must be dict with 'bbox' and 'operation' keys")
+        else:  # mask or selection_operation
+            if isinstance(action, dict) and "selection" in action:
+                action_data = action["selection"].flatten()
+                operation = action["operation"]
+            else:
+                raise ValueError("Selection action must be dict with 'selection' and 'operation' keys")
+
+        selection_mask = handler(action_data, state.working_grid_mask)
+        validated_action = {
+            "selection": selection_mask,
+            "operation": operation
+        }
 
     # Update selection in state
     state = state.replace(selected=validated_action["selection"])

@@ -50,6 +50,9 @@ from .factory import (
 # Functional API
 from .functional import arc_reset, arc_reset_with_hydra, arc_step, arc_step_with_hydra
 
+# Action handlers
+from .actions import get_action_handler, point_handler, bbox_handler, mask_handler
+
 # Grid operations
 from .grid_operations import execute_grid_operation
 
@@ -92,6 +95,11 @@ __all__ = [
     "CONFIG_PRESETS",
     "TRAINING_PRESETS",
     "DATASET_PRESETS",
+    # Action handlers
+    "get_action_handler",
+    "point_handler",
+    "bbox_handler",
+    "mask_handler",
     # Grid operations
     "execute_grid_operation",
 ]

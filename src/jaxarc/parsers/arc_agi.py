@@ -249,6 +249,10 @@ class ArcAgiParser(ArcDataParserBase):
             self.validate_grid_dimensions(*input_grid.shape)
             self.validate_grid_dimensions(*output_grid.shape)
 
+            # Validate color values
+            self._validate_grid_colors(input_grid)
+            self._validate_grid_colors(output_grid)
+
             train_input_grids.append(input_grid)
             train_output_grids.append(output_grid)
 
@@ -282,6 +286,7 @@ class ArcAgiParser(ArcDataParserBase):
 
             input_grid = convert_grid_to_jax(pair["input"])
             self.validate_grid_dimensions(*input_grid.shape)
+            self._validate_grid_colors(input_grid)
             test_input_grids.append(input_grid)
 
             # For test pairs, output might be None (challenge files)
@@ -289,6 +294,7 @@ class ArcAgiParser(ArcDataParserBase):
             if "output" in pair and pair["output"] is not None:
                 output_grid = convert_grid_to_jax(pair["output"])
                 self.validate_grid_dimensions(*output_grid.shape)
+                self._validate_grid_colors(output_grid)
                 test_output_grids.append(output_grid)
             else:
                 # Create dummy output grid (will be masked as invalid)
@@ -392,6 +398,28 @@ class ArcAgiParser(ArcDataParserBase):
         log_parsing_stats(
             len(train_input_grids), len(test_input_grids), max_dims, task_id
         )
+
+    def _validate_grid_colors(self, grid: jnp.ndarray) -> None:
+        """Validate that all colors in a grid are within the allowed range.
+
+        Args:
+            grid: JAX array representing the grid to validate
+
+        Raises:
+            ValueError: If any color value is outside the valid range
+        """
+        # Get unique color values in the grid
+        unique_colors = jnp.unique(grid)
+
+        # Check each color value
+        for color in unique_colors:
+            # Convert to Python int for validation
+            color_val = int(color)
+            try:
+                self.validate_color_value(color_val)
+            except ValueError as e:
+                msg = f"Invalid color in grid: {e}"
+                raise ValueError(msg) from e
 
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         """Get a random task from the dataset.
