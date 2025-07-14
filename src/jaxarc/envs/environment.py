@@ -10,6 +10,7 @@ import chex
 import jax.numpy as jnp
 from loguru import logger
 
+from jaxarc.envs.actions import get_action_handler
 from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.envs.functional import ArcEnvState, arc_reset, arc_step
 from jaxarc.types import JaxArcTask
@@ -43,7 +44,11 @@ class ArcEnvironment:
         self.config = config
         self._state: Optional[ArcEnvState] = None
 
+        # Get the action handler for this environment's action format
+        self.action_handler = get_action_handler(config.action.action_format)
+
         logger.info(f"ArcEnvironment initialized with config: {self.config}")
+        logger.info(f"Using {config.action.action_format} action format")
 
     def reset(
         self,
@@ -70,6 +75,7 @@ class ArcEnvironment:
 
         Args:
             action: Action to take (format depends on config.action.action_format)
+                   Expected format: {"selection": action_data, "operation": operation_id}
 
         Returns:
             Tuple of (next_state, observation, reward, info)
@@ -80,7 +86,16 @@ class ArcEnvironment:
         if self._state is None:
             raise RuntimeError("Environment must be reset before stepping")
 
-        self._state, obs, reward, info = arc_step(self._state, action, self.config)
+        # Convert action to mask using the configured handler
+        action_mask = self.action_handler(action["selection"], self._state.working_grid_mask)
+
+        # Create standardized action dict for downstream processing
+        standardized_action = {
+            "selection": action_mask,
+            "operation": action["operation"]
+        }
+
+        self._state, obs, reward, done, info = arc_step(self._state, standardized_action, self.config)
         return self._state, obs, reward, info
 
     @property

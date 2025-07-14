@@ -32,6 +32,10 @@ class ArcDataParserBase(ABC):
         cfg: Hydra configuration object containing parser-specific settings
         max_grid_height: Maximum height for grid padding
         max_grid_width: Maximum width for grid padding
+        min_grid_height: Minimum height for valid grids
+        min_grid_width: Minimum width for valid grids
+        max_colors: Maximum number of colors in the ARC color palette
+        background_color: Default background color value
         max_train_pairs: Maximum number of training pairs per task
         max_test_pairs: Maximum number of test pairs per task
     """
@@ -50,26 +54,54 @@ class ArcDataParserBase(ABC):
             ValueError: If any of the maximum dimensions are non-positive
             KeyError: If required configuration fields are missing
         """
-        # Extract maximum dimensions from configuration
+        # Extract configuration settings
         try:
-            max_grid_height = cfg.max_grid_height
-            max_grid_width = cfg.max_grid_width
+            # Grid configuration
+            max_grid_height = cfg.grid.max_grid_height
+            max_grid_width = cfg.grid.max_grid_width
+            min_grid_height = cfg.grid.min_grid_height
+            min_grid_width = cfg.grid.min_grid_width
+            max_colors = cfg.grid.max_colors
+            background_color = cfg.grid.background_color
+
+            # Task configuration
             max_train_pairs = cfg.max_train_pairs
             max_test_pairs = cfg.max_test_pairs
         except (AttributeError, KeyError) as e:
             msg = f"Missing required configuration field: {e}"
             raise KeyError(msg) from e
 
+        # Validate grid dimensions
         if max_grid_height <= 0 or max_grid_width <= 0:
             msg = f"Grid dimensions must be positive, got {max_grid_height}x{max_grid_width}"
             raise ValueError(msg)
+        if min_grid_height <= 0 or min_grid_width <= 0:
+            msg = f"Minimum grid dimensions must be positive, got {min_grid_height}x{min_grid_width}"
+            raise ValueError(msg)
+        if min_grid_height > max_grid_height or min_grid_width > max_grid_width:
+            msg = f"Minimum dimensions ({min_grid_height}x{min_grid_width}) cannot exceed maximum ({max_grid_height}x{max_grid_width})"
+            raise ValueError(msg)
+
+        # Validate task configuration
         if max_train_pairs <= 0 or max_test_pairs <= 0:
             msg = f"Max pairs must be positive, got train={max_train_pairs}, test={max_test_pairs}"
+            raise ValueError(msg)
+
+        # Validate color configuration
+        if max_colors <= 0:
+            msg = f"Max colors must be positive, got {max_colors}"
+            raise ValueError(msg)
+        if background_color < 0 or background_color >= max_colors:
+            msg = f"Background color ({background_color}) must be in range [0, {max_colors})"
             raise ValueError(msg)
 
         self.cfg = cfg
         self.max_grid_height = max_grid_height
         self.max_grid_width = max_grid_width
+        self.min_grid_height = min_grid_height
+        self.min_grid_width = min_grid_width
+        self.max_colors = max_colors
+        self.background_color = background_color
         self.max_train_pairs = max_train_pairs
         self.max_test_pairs = max_test_pairs
 
@@ -149,19 +181,53 @@ class ArcDataParserBase(ABC):
             self.max_test_pairs,
         )
 
+    def get_grid_config(self) -> dict[str, int]:
+        """Get the grid configuration settings.
+
+        Returns:
+            Dictionary containing grid configuration values
+        """
+        return {
+            "max_grid_height": self.max_grid_height,
+            "max_grid_width": self.max_grid_width,
+            "min_grid_height": self.min_grid_height,
+            "min_grid_width": self.min_grid_width,
+            "max_colors": self.max_colors,
+            "background_color": self.background_color,
+        }
+
     def validate_grid_dimensions(self, height: int, width: int) -> None:
-        """Validate that grid dimensions are within the configured maximums.
+        """Validate that grid dimensions are within the configured bounds.
 
         Args:
             height: Grid height to validate
             width: Grid width to validate
 
         Raises:
-            ValueError: If dimensions exceed the configured maximums
+            ValueError: If dimensions are outside the configured bounds
         """
+        if height < self.min_grid_height or width < self.min_grid_width:
+            msg = (
+                f"Grid dimensions ({height}x{width}) are below minimum "
+                f"({self.min_grid_height}x{self.min_grid_width})"
+            )
+            raise ValueError(msg)
         if height > self.max_grid_height or width > self.max_grid_width:
             msg = (
                 f"Grid dimensions ({height}x{width}) exceed maximum "
                 f"({self.max_grid_height}x{self.max_grid_width})"
             )
+            raise ValueError(msg)
+
+    def validate_color_value(self, color: int) -> None:
+        """Validate that a color value is within the allowed range.
+
+        Args:
+            color: Color value to validate
+
+        Raises:
+            ValueError: If color is outside the valid range
+        """
+        if color < 0 or color >= self.max_colors:
+            msg = f"Color value ({color}) must be in range [0, {self.max_colors})"
             raise ValueError(msg)

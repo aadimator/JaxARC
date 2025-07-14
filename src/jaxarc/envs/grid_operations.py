@@ -219,6 +219,9 @@ def rotate_object(
     # Clear original positions
     cleared_grid = jnp.where(effective_selection, 0, state.working_grid)
 
+    # Get original grid shape
+    orig_height, orig_width = state.working_grid.shape
+
     # Rotate selected region
     def rotate_clockwise():
         return jnp.rot90(selected_region, k=-1)  # k=-1 for clockwise
@@ -227,8 +230,24 @@ def rotate_object(
         return jnp.rot90(selected_region, k=1)  # k=1 for counterclockwise
 
     rotated_region = jax.lax.switch(angle, [rotate_clockwise, rotate_counterclockwise])
+
+    # Handle dimension mismatch by ensuring rotated region matches original dimensions
+    rotated_height, rotated_width = rotated_region.shape
+
+    # Create a new array with the original dimensions, filled with zeros
+    final_rotated_region = jnp.zeros((orig_height, orig_width), dtype=rotated_region.dtype)
+
+    # Calculate how much we can copy from the rotated region
+    copy_height = min(rotated_height, orig_height)
+    copy_width = min(rotated_width, orig_width)
+
+    # Copy the overlapping part
+    final_rotated_region = final_rotated_region.at[:copy_height, :copy_width].set(
+        rotated_region[:copy_height, :copy_width]
+    )
+
     # Combine with cleared grid
-    new_grid = jnp.where(rotated_region != 0, rotated_region, cleared_grid)
+    new_grid = jnp.where(final_rotated_region != 0, final_rotated_region, cleared_grid)
     return state.replace(working_grid=new_grid)
 
 
