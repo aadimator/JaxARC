@@ -5,10 +5,12 @@ This module tests the specialized action handlers that convert different
 action formats (point, bbox, mask) to standardized 30x30 boolean masks.
 """
 
+from __future__ import annotations
+
+import chex
 import jax
 import jax.numpy as jnp
 import pytest
-import chex
 
 from jaxarc.envs.actions import (
     bbox_handler,
@@ -80,6 +82,7 @@ class TestPointHandler:
 
     def test_jit_compilation(self):
         """Test that handler works with JIT compilation."""
+
         @jax.jit
         def jitted_point_handler(action_data, working_mask):
             return point_handler(action_data, working_mask)
@@ -170,6 +173,7 @@ class TestBboxHandler:
 
     def test_jit_compilation(self):
         """Test that handler works with JIT compilation."""
+
         @jax.jit
         def jitted_bbox_handler(action_data, working_mask):
             return bbox_handler(action_data, working_mask)
@@ -236,7 +240,9 @@ class TestMaskHandler:
         """Test conversion of different numeric types to boolean."""
         # Test with float data
         grid_size = 12 * 8  # 96 elements
-        action_data = jnp.array([0.0, 1.0, 0.5, -1.0] * (grid_size // 4))  # grid_size elements
+        action_data = jnp.array(
+            [0.0, 1.0, 0.5, -1.0] * (grid_size // 4)
+        )  # grid_size elements
         working_mask = jnp.ones((12, 8), dtype=jnp.bool_)
 
         result = mask_handler(action_data, working_mask)
@@ -247,6 +253,7 @@ class TestMaskHandler:
 
     def test_jit_compilation(self):
         """Test that handler works with JIT compilation."""
+
         @jax.jit
         def jitted_mask_handler(action_data, working_mask):
             return mask_handler(action_data, working_mask)
@@ -279,19 +286,14 @@ class TestActionHandlerFactory:
         handler = get_action_handler("mask")
         assert handler == mask_handler
 
-    def test_selection_operation_handler_selection(self):
-        """Test getting mask handler for selection_operation format."""
-        handler = get_action_handler("selection_operation")
-        assert handler == mask_handler
-
     def test_unknown_format_error(self):
         """Test error for unknown action format."""
-        with pytest.raises(ValueError, match="Unknown action format"):
+        with pytest.raises(ValueError, match="Unknown selection format"):
             get_action_handler("unknown_format")
 
     def test_handler_jit_compatibility(self):
         """Test that all handlers work with JIT compilation."""
-        formats = ["point", "bbox", "mask", "selection_operation"]
+        formats = ["point", "bbox", "mask"]
 
         for format_name in formats:
             handler = get_action_handler(format_name)
@@ -328,7 +330,9 @@ class TestValidationFunctions:
 
         # Invalid data (too few elements)
         action_data = jnp.array([5])
-        with pytest.raises(ValueError, match="Point action requires at least 2 elements"):
+        with pytest.raises(
+            ValueError, match="Point action requires at least 2 elements"
+        ):
             validate_action_data(action_data, "point")
 
     def test_validate_bbox_action_data(self):
@@ -339,7 +343,9 @@ class TestValidationFunctions:
 
         # Invalid data (too few elements)
         action_data = jnp.array([1, 2, 3])
-        with pytest.raises(ValueError, match="Bbox action requires at least 4 elements"):
+        with pytest.raises(
+            ValueError, match="Bbox action requires at least 4 elements"
+        ):
             validate_action_data(action_data, "bbox")
 
     def test_validate_mask_action_data(self):
@@ -351,13 +357,15 @@ class TestValidationFunctions:
 
         # Invalid data (too few elements)
         action_data = jnp.ones(200)
-        with pytest.raises(ValueError, match="Mask action requires at least 300 elements"):
+        with pytest.raises(
+            ValueError, match="Mask action requires at least 300 elements"
+        ):
             validate_action_data(action_data, "mask", grid_shape)
 
     def test_validate_unknown_format(self):
         """Test validation with unknown format."""
         action_data = jnp.array([1, 2])
-        with pytest.raises(ValueError, match="Unknown action format"):
+        with pytest.raises(ValueError, match="Unknown selection format"):
             validate_action_data(action_data, "unknown")
 
 
@@ -384,7 +392,9 @@ class TestCreateTestActionData:
     def test_create_mask_data(self):
         """Test creating mask action data."""
         grid_shape = (15, 12)
-        data = create_test_action_data("mask", grid_shape=grid_shape, start_row=3, start_col=4, size=2)
+        data = create_test_action_data(
+            "mask", grid_shape=grid_shape, start_row=3, start_col=4, size=2
+        )
 
         # Reshape and check
         mask = data.reshape(grid_shape)
@@ -394,7 +404,7 @@ class TestCreateTestActionData:
 
     def test_create_data_unknown_format(self):
         """Test error for unknown format."""
-        with pytest.raises(ValueError, match="Unknown action format"):
+        with pytest.raises(ValueError, match="Unknown selection format"):
             create_test_action_data("unknown")
 
 

@@ -235,7 +235,9 @@ def rotate_object(
     rotated_height, rotated_width = rotated_region.shape
 
     # Create a new array with the original dimensions, filled with zeros
-    final_rotated_region = jnp.zeros((orig_height, orig_width), dtype=rotated_region.dtype)
+    final_rotated_region = jnp.zeros(
+        (orig_height, orig_width), dtype=rotated_region.dtype
+    )
 
     # Calculate how much we can copy from the rotated region
     copy_height = min(rotated_height, orig_height)

@@ -139,7 +139,7 @@ def test_different_configurations():
         {
             "environment": {
                 "max_episode_steps": 15,
-                "action": {"action_format": "point"},
+                "action": {"selection_format": "point"},
                 "reward": {"step_penalty": -0.05},
             }
         }

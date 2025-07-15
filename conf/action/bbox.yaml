@@ -3,7 +3,7 @@
 # Actions consist of selecting a rectangular region and applying an operation
 
 # Action Format
-action_format: "bbox" # Use bbox-based actions (row1, col1, row2, col2) + operation
+selection_format: "bbox" # Use bbox-based actions (row1, col1, row2, col2) + operation
 
 # Selection Settings
 selection_threshold: 0.5 # Not applicable for bbox actions but kept for consistency

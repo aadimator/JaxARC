@@ -39,7 +39,7 @@ def test_raw_environment():
                     "invalid_action_penalty": -0.5,
                 },
                 "action": {
-                    "action_format": "selection_operation",
+                    "selection_format": "mask",
                     "selection_threshold": 0.5,
                     "allow_partial_selection": True,
                     "num_operations": 35,
@@ -94,7 +94,7 @@ def test_standard_environment():
                     "invalid_action_penalty": -0.5,
                 },
                 "action": {
-                    "action_format": "selection_operation",
+                    "selection_format": "mask",
                     "selection_threshold": 0.5,
                     "allow_partial_selection": True,
                     "num_operations": 35,
@@ -179,7 +179,7 @@ def test_full_environment():
                     "invalid_action_penalty": -0.5,
                 },
                 "action": {
-                    "action_format": "selection_operation",
+                    "selection_format": "mask",
                     "selection_threshold": 0.5,
                     "allow_partial_selection": True,
                     "num_operations": 35,
@@ -236,7 +236,7 @@ def test_training_rewards():
                     "invalid_action_penalty": -0.1,
                 },
                 "action": {
-                    "action_format": "selection_operation",
+                    "selection_format": "mask",
                     "selection_threshold": 0.5,
                     "allow_partial_selection": True,
                     "num_operations": 35,
@@ -320,7 +320,7 @@ def test_point_actions():
                     "invalid_action_penalty": -0.5,
                 },
                 "action": {
-                    "action_format": "point",
+                    "selection_format": "point",
                     "selection_threshold": 0.5,
                     "allow_partial_selection": False,
                     "num_operations": 35,
@@ -339,7 +339,7 @@ def test_point_actions():
     state, obs = arc_reset(key, env_config)
 
     logger.info("Point-based actions environment created successfully")
-    logger.info(f"Action format: {env_config.action.action_format}")
+    logger.info(f"Selection format: {env_config.action.selection_format}")
 
     # Test point action
     action = {

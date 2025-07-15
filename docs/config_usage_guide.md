@@ -240,14 +240,14 @@ allowed_operations:
 ### Point-Based Actions
 
 ```yaml
-action_format: "point"
+selection_format: "point"
 clip_invalid_actions: true
 ```
 
 ### Bounding Box Actions
 
 ```yaml
-action_format: "bbox"
+selection_format: "bbox"
 clip_invalid_actions: true
 ```
 
@@ -321,7 +321,7 @@ config = OmegaConf.create(
                 "success_bonus": 10.0,
             },
             "action": {
-                "action_format": "selection_operation",
+                "selection_format": "mask",
                 "allowed_operations": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34],
             },
         }

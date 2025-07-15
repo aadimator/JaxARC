@@ -115,8 +115,14 @@ class TestOperationNames:
         assert isinstance(all_ids, list)
 
         # Should contain all expected operation IDs
-        expected_ids = list(range(0, 10)) + list(range(10, 20)) + list(range(20, 24)) + \
-                       list(range(24, 28)) + list(range(28, 32)) + list(range(32, 35))
+        expected_ids = (
+            list(range(10))
+            + list(range(10, 20))
+            + list(range(20, 24))
+            + list(range(24, 28))
+            + list(range(28, 32))
+            + list(range(32, 35))
+        )
 
         assert sorted(all_ids) == sorted(expected_ids)
 
@@ -131,11 +137,18 @@ class TestOperationNames:
         assert isinstance(categories, dict)
 
         # Should have all expected categories
-        expected_categories = ["fill", "flood_fill", "movement", "transformation", "editing", "special"]
+        expected_categories = [
+            "fill",
+            "flood_fill",
+            "movement",
+            "transformation",
+            "editing",
+            "special",
+        ]
         assert sorted(categories.keys()) == sorted(expected_categories)
 
         # Test each category
-        assert categories["fill"] == list(range(0, 10))
+        assert categories["fill"] == list(range(10))
         assert categories["flood_fill"] == list(range(10, 20))
         assert categories["movement"] == list(range(20, 24))
         assert categories["transformation"] == list(range(24, 28))
@@ -145,17 +158,22 @@ class TestOperationNames:
     def test_operation_names_completeness(self):
         """Test that OPERATION_NAMES contains all expected operations."""
         # Test that all fill operations are present
-        for i in range(0, 10):
+        for i in range(10):
             assert i in OPERATION_NAMES
             assert f"Fill {i}" in OPERATION_NAMES[i]
 
         # Test that all flood fill operations are present
         for i in range(10, 20):
             assert i in OPERATION_NAMES
-            assert f"Flood Fill {i-10}" in OPERATION_NAMES[i]
+            assert f"Flood Fill {i - 10}" in OPERATION_NAMES[i]
 
         # Test movement operations
-        movement_ops = {20: "Move Up", 21: "Move Down", 22: "Move Left", 23: "Move Right"}
+        movement_ops = {
+            20: "Move Up",
+            21: "Move Down",
+            22: "Move Left",
+            23: "Move Right",
+        }
         for op_id, name in movement_ops.items():
             assert op_id in OPERATION_NAMES
             assert OPERATION_NAMES[op_id] == name
@@ -212,7 +230,9 @@ class TestOperationNames:
         for i, set1 in enumerate(category_sets):
             for j, set2 in enumerate(category_sets):
                 if i != j:
-                    assert set1.isdisjoint(set2), f"Categories {i} and {j} have overlapping operations"
+                    assert set1.isdisjoint(set2), (
+                        f"Categories {i} and {j} have overlapping operations"
+                    )
 
     def test_edge_cases(self):
         """Test edge cases and boundary conditions."""

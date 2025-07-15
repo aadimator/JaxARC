@@ -54,7 +54,7 @@ def demo_dataset_aware_configs():
                 f"  Grid size: {config.grid.max_grid_height}x{config.grid.max_grid_width}"
             )
             logger.info(f"  Max colors: {config.grid.max_colors}")
-            logger.info(f"  Action format: {config.action.action_format}")
+            logger.info(f"  Selection format: {config.action.selection_format}")
             logger.info(f"  Dataset config: {config.dataset.dataset_name}")
 
             # Show how dataset overrides work
@@ -233,7 +233,7 @@ def demo_hydra_integration_advanced():
                 "success_bonus": 15.0,
             },
             "action": {
-                "action_format": "point",
+                "selection_format": "point",
                 "allowed_operations": [0, 1, 2, 3, 4, 34],  # Limited operations
             },
             "dataset": {
@@ -295,7 +295,7 @@ def demo_curriculum_learning():
         logger.info(
             f"  Max grid size: {config.grid.max_grid_height}x{config.grid.max_grid_width}"
         )
-        logger.info(f"  Action format: {config.action.action_format}")
+        logger.info(f"  Selection format: {config.action.selection_format}")
 
         # Test the configuration
         key = jax.random.PRNGKey(100 + hash(stage_name) % 900)

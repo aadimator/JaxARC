@@ -1,17 +1,22 @@
 # Migration Guide: Class-Based to Config-Based API
 
-This guide helps you migrate from JaxARC's old class-based API to the new config-based functional API. The new system provides better JAX compatibility, type safety, and easier configuration management.
+This guide helps you migrate from JaxARC's old class-based API to the new
+config-based functional API. The new system provides better JAX compatibility,
+type safety, and easier configuration management.
 
 ## 🔄 Overview of Changes
 
 ### What's New
-- **Functional API**: Pure functions (`arc_reset`, `arc_step`) instead of class methods
+
+- **Functional API**: Pure functions (`arc_reset`, `arc_step`) instead of class
+  methods
 - **Typed Configurations**: Frozen dataclasses with validation
 - **Factory Functions**: Easy configuration creation with presets
 - **Hydra Integration**: Seamless configuration management
 - **Better JAX Compatibility**: Improved JIT compilation and transformations
 
 ### What's Deprecated (but still works)
+
 - **Class-based API**: `ArcEnvironment` class methods
 - **Manual configuration**: Direct dictionary-based configs
 - **Separate configs**: Environment and dataset configs passed separately
@@ -31,6 +36,7 @@ This guide helps you migrate from JaxARC's old class-based API to the new config
 ### Basic Environment Usage
 
 #### Old Way (Class-Based)
+
 ```python
 from jaxarc.envs import ArcEnvironment
 
@@ -41,7 +47,7 @@ env_config = {
     "reward": {
         "success_bonus": 10.0,
         "step_penalty": -0.01,
-    }
+    },
 }
 
 dataset_config = {
@@ -60,15 +66,13 @@ state, obs, reward, done, info = env.step(state, action)
 ```
 
 #### New Way (Config-Based)
+
 ```python
 from jaxarc.envs import arc_reset, arc_step, create_standard_config
 
 # Create configuration using factory function
 config = create_standard_config(
-    max_episode_steps=100,
-    success_bonus=10.0,
-    step_penalty=-0.01,
-    log_operations=True
+    max_episode_steps=100, success_bonus=10.0, step_penalty=-0.01, log_operations=True
 )
 
 # Use functional API
@@ -80,6 +84,7 @@ state, obs, reward, done, info = arc_step(state, action, config)
 ### JAX Transformations
 
 #### Old Way
+
 ```python
 # JIT compilation was limited
 @jax.jit
@@ -89,11 +94,13 @@ def step_fn(state, action):
 ```
 
 #### New Way
+
 ```python
 # Clean JIT compilation with static config
 @jax.jit
 def step_fn(state, action, config):
     return arc_step(state, action, config)
+
 
 # Or with static_argnums
 jitted_step = jax.jit(arc_step, static_argnums=(2,))
@@ -102,6 +109,7 @@ jitted_step = jax.jit(arc_step, static_argnums=(2,))
 ### Custom Configuration
 
 #### Old Way
+
 ```python
 # Manual dictionary creation
 config = {
@@ -116,13 +124,14 @@ config = {
         "max_grid_width": 25,
     },
     "action": {
-        "action_format": "point",
+        "selection_format": "point",
         "num_operations": 20,
-    }
+    },
 }
 ```
 
 #### New Way
+
 ```python
 from jaxarc.envs import ArcEnvConfig, RewardConfig, GridConfig, ActionConfig
 
@@ -139,7 +148,7 @@ config = ArcEnvConfig(
         max_grid_width=25,
     ),
     action=ActionConfig(
-        action_format="point",
+        selection_format="point",
         num_operations=20,
     ),
 )
@@ -148,6 +157,7 @@ config = ArcEnvConfig(
 ### Hydra Integration
 
 #### Old Way
+
 ```python
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg: DictConfig) -> None:
@@ -156,6 +166,7 @@ def main(cfg: DictConfig) -> None:
 ```
 
 #### New Way
+
 ```python
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg: DictConfig) -> None:
@@ -167,19 +178,25 @@ def main(cfg: DictConfig) -> None:
 ## 🚀 Step-by-Step Migration
 
 ### Step 1: Update Imports
+
 ```python
 # Old imports
 from jaxarc.envs import ArcEnvironment
 
 # New imports
 from jaxarc.envs import (
-    arc_reset, arc_step,
+    arc_reset,
+    arc_step,
     create_standard_config,
-    ArcEnvConfig, RewardConfig, GridConfig, ActionConfig
+    ArcEnvConfig,
+    RewardConfig,
+    GridConfig,
+    ActionConfig,
 )
 ```
 
 ### Step 2: Replace Environment Creation
+
 ```python
 # Old: Class instantiation
 env = ArcEnvironment(env_config, dataset_config)
@@ -189,6 +206,7 @@ config = create_standard_config(**your_parameters)
 ```
 
 ### Step 3: Replace Reset Calls
+
 ```python
 # Old
 state, obs = env.reset(key)
@@ -198,6 +216,7 @@ state, obs = arc_reset(key, config)
 ```
 
 ### Step 4: Replace Step Calls
+
 ```python
 # Old
 state, obs, reward, done, info = env.step(state, action)
@@ -207,11 +226,13 @@ state, obs, reward, done, info = arc_step(state, action, config)
 ```
 
 ### Step 5: Update JAX Transformations
+
 ```python
 # Old: Limited JIT support
 @jax.jit
 def training_step(state, action):
     return env.step(state, action)
+
 
 # New: Full JIT support
 @jax.jit
@@ -222,11 +243,11 @@ def training_step(state, action, config):
 ## 🔧 Common Migration Patterns
 
 ### Pattern 1: Simple Environment Setup
+
 ```python
 # OLD
 env = ArcEnvironment(
-    {"max_episode_steps": 100},
-    {"max_grid_height": 30, "max_grid_width": 30}
+    {"max_episode_steps": 100}, {"max_grid_height": 30, "max_grid_width": 30}
 )
 
 # NEW
@@ -234,6 +255,7 @@ config = create_standard_config(max_episode_steps=100)
 ```
 
 ### Pattern 2: Custom Reward Configuration
+
 ```python
 # OLD
 env_config = {
@@ -253,15 +275,17 @@ config = create_standard_config(
 ```
 
 ### Pattern 3: Different Action Formats
+
 ```python
 # OLD
-env_config = {"action": {"action_format": "point"}}
+env_config = {"action": {"selection_format": "point"}}
 
 # NEW
 config = create_point_config()
 ```
 
 ### Pattern 4: Training Loop
+
 ```python
 # OLD
 def training_loop():
@@ -271,6 +295,7 @@ def training_loop():
         while not done:
             action = policy(obs)
             state, obs, reward, done, info = env.step(state, action)
+
 
 # NEW
 def training_loop():
@@ -286,13 +311,13 @@ def training_loop():
 
 ### Choosing the Right Configuration
 
-| Old Configuration | New Factory Function | Use Case |
-|------------------|---------------------|----------|
-| Minimal operations | `create_raw_config()` | Basic testing |
-| Standard setup | `create_standard_config()` | Regular training |
-| All operations | `create_full_config()` | Advanced research |
-| Point actions | `create_point_config()` | Single-point operations |
-| Box actions | `create_bbox_config()` | Rectangular selections |
+| Old Configuration  | New Factory Function       | Use Case                |
+| ------------------ | -------------------------- | ----------------------- |
+| Minimal operations | `create_raw_config()`      | Basic testing           |
+| Standard setup     | `create_standard_config()` | Regular training        |
+| All operations     | `create_full_config()`     | Advanced research       |
+| Point actions      | `create_point_config()`    | Single-point operations |
+| Box actions        | `create_bbox_config()`     | Rectangular selections  |
 
 ### Configuration Mapping
 
@@ -310,12 +335,14 @@ config = create_raw_config(max_episode_steps=50)
 ## 🧪 Testing Migration
 
 ### Update Test Files
+
 ```python
 # OLD
 def test_environment():
     env = ArcEnvironment(env_config, dataset_config)
     state, obs = env.reset(key)
     assert state.working_grid.shape == (30, 30)
+
 
 # NEW
 def test_environment():
@@ -325,17 +352,18 @@ def test_environment():
 ```
 
 ### Verify Behavior
+
 ```python
 # Create test to ensure identical behavior
 def test_migration_compatibility():
     # Old way
     old_env = ArcEnvironment(env_config, dataset_config)
     old_state, old_obs = old_env.reset(key)
-    
+
     # New way
     new_config = create_standard_config()
     new_state, new_obs = arc_reset(key, new_config)
-    
+
     # Verify identical results
     assert jnp.array_equal(old_state.working_grid, new_state.working_grid)
     assert jnp.array_equal(old_obs, new_obs)
@@ -346,6 +374,7 @@ def test_migration_compatibility():
 ### Common Issues and Solutions
 
 #### Issue: "Config is not hashable for JIT"
+
 ```python
 # Problem: Using mutable config
 config = {"max_episode_steps": 100}  # Dict is not hashable
@@ -355,15 +384,20 @@ config = create_standard_config(max_episode_steps=100)  # Frozen dataclass
 ```
 
 #### Issue: "Selection shape mismatch"
+
 ```python
 # Problem: Wrong selection shape
 action = {"selection": jnp.ones((10, 10)), "operation": 1}
 
 # Solution: Match grid shape
-action = {"selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_), "operation": 1}
+action = {
+    "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
+    "operation": 1,
+}
 ```
 
 #### Issue: "Invalid operation ID"
+
 ```python
 # Problem: Operation ID out of range
 action = {"selection": selection, "operation": 50}  # > 34
@@ -373,12 +407,14 @@ action = {"selection": selection, "operation": 1}  # 0-34 range
 ```
 
 #### Issue: "Missing parser argument"
+
 ```python
 # Problem: No parser specified
 state, obs = arc_reset(key, config)  # No task data
 
 # Solution: Provide parser or use demo task
 from jaxarc.parsers import ArcAgiParser
+
 parser = ArcAgiParser(dataset_config)
 state, obs = arc_reset(key, config, parser=parser)
 ```
@@ -393,6 +429,7 @@ state, obs = arc_reset(key, config, parser=parser)
 ## 📚 Advanced Migration Topics
 
 ### Batch Processing Migration
+
 ```python
 # OLD: Limited batch support
 def process_batch(keys, actions):
@@ -403,22 +440,24 @@ def process_batch(keys, actions):
         results.append(result)
     return results
 
+
 # NEW: Native vmap support
 def process_batch(keys, actions):
     def single_episode(key, action):
         state, obs = arc_reset(key, config)
         return arc_step(state, action, config)
-    
+
     return jax.vmap(single_episode)(keys, actions)
 ```
 
 ### Custom Configuration Classes
+
 ```python
 # Create your own configuration
 @dataclass(frozen=True)
 class MyCustomConfig:
     my_param: int = 42
-    
+
     def to_arc_config(self) -> ArcEnvConfig:
         return create_standard_config(
             max_episode_steps=self.my_param * 2,
@@ -440,36 +479,38 @@ class MyCustomConfig:
 - [ ] Performance benchmarks maintained or improved
 
 ### Validation Script
+
 ```python
 def validate_migration():
     """Script to validate successful migration."""
-    
+
     # Test basic functionality
     config = create_standard_config()
     key = jax.random.PRNGKey(42)
     state, obs = arc_reset(key, config)
-    
+
     action = {
         "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
         "operation": jnp.array(1),
     }
-    
+
     state, obs, reward, done, info = arc_step(state, action, config)
-    
+
     # Test JAX compatibility
     @jax.jit
     def test_jit(state, action, config):
         return arc_step(state, action, config)
-    
+
     result = test_jit(state, action, config)
-    
+
     print("✅ Migration validation successful!")
     return True
 ```
 
 ## 🎓 Best Practices After Migration
 
-1. **Use factory functions**: Prefer `create_standard_config()` over manual creation
+1. **Use factory functions**: Prefer `create_standard_config()` over manual
+   creation
 2. **Validate configurations**: Use `validate_config()` in development
 3. **Static configs for JIT**: Mark configs as static for JAX transformations
 4. **Type hints**: Use proper type hints for better IDE support
@@ -490,6 +531,8 @@ If you encounter issues during migration:
 1. Check the [troubleshooting section](#troubleshooting) above
 2. Review the [examples](../examples/) for reference implementations
 3. Open an issue on [GitHub](https://github.com/aadimator/JaxARC/issues)
-4. Start a discussion on [GitHub Discussions](https://github.com/aadimator/JaxARC/discussions)
+4. Start a discussion on
+   [GitHub Discussions](https://github.com/aadimator/JaxARC/discussions)
 
-Remember: Both APIs coexist, so you can migrate gradually without breaking existing code!
+Remember: Both APIs coexist, so you can migrate gradually without breaking
+existing code!

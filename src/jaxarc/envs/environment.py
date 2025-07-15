@@ -4,6 +4,8 @@ This module provides a simple class-based interface that wraps the functional AP
 without any backward compatibility bloat.
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, Optional, Tuple
 
 import chex
@@ -13,8 +15,8 @@ from loguru import logger
 from jaxarc.envs.actions import get_action_handler
 from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.envs.functional import ArcEnvState, arc_reset, arc_step
-from jaxarc.utils.visualization import _clear_output_directory
 from jaxarc.types import JaxArcTask
+from jaxarc.utils.visualization import _clear_output_directory
 
 
 class ArcEnvironment:
@@ -45,16 +47,14 @@ class ArcEnvironment:
         self.config = config
         self._state: Optional[ArcEnvState] = None
 
-        # Get the action handler for this environment's action format
-        self.action_handler = get_action_handler(config.action.action_format)
+        # Get the action handler for this environment's selection format
+        self.action_handler = get_action_handler(config.action.selection_format)
 
         logger.info(f"ArcEnvironment initialized with config: {self.config}")
-        logger.info(f"Using {config.action.action_format} action format")
+        logger.info(f"Using {config.action.selection_format} selection format")
 
     def reset(
-        self,
-        key: chex.PRNGKey,
-        task_data: Optional[JaxArcTask] = None
+        self, key: chex.PRNGKey, task_data: Optional[JaxArcTask] = None
     ) -> Tuple[ArcEnvState, jnp.ndarray]:
         """Reset environment to initial state.
 
@@ -73,14 +73,15 @@ class ArcEnvironment:
         return self._state, obs
 
     def step(
-        self,
-        action: Any
+        self, action: Any
     ) -> Tuple[ArcEnvState, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
         """Step environment with given action.
 
         Args:
-            action: Action to take (format depends on config.action.action_format)
-                   Expected format: {"selection": action_data, "operation": operation_id}
+            action: Action to take (format depends on config.action.selection_format)
+                   For point: {"point": [row, col], "operation": operation_id}
+                   For bbox: {"bbox": [r1, c1, r2, c2], "operation": operation_id}
+                   For mask: {"mask": mask_array, "operation": operation_id}
 
         Returns:
             Tuple of (next_state, observation, reward, info)
@@ -91,16 +92,10 @@ class ArcEnvironment:
         if self._state is None:
             raise RuntimeError("Environment must be reset before stepping")
 
-        # Convert action to mask using the configured handler
-        action_mask = self.action_handler(action["selection"], self._state.working_grid_mask)
-
-        # Create standardized action dict for downstream processing
-        standardized_action = {
-            "selection": action_mask,
-            "operation": action["operation"]
-        }
-
-        self._state, obs, reward, done, info = arc_step(self._state, standardized_action, self.config)
+        # Delegate action processing to arc_step which handles all formats
+        self._state, obs, reward, done, info = arc_step(
+            self._state, action, self.config
+        )
         return self._state, obs, reward, info
 
     def _clear_visualization_directory(self) -> None:
@@ -111,7 +106,9 @@ class ArcEnvironment:
         """
         try:
             _clear_output_directory(self.config.debug.rl_steps_output_dir)
-            logger.debug(f"Cleared visualization directory: {self.config.debug.rl_steps_output_dir}")
+            logger.debug(
+                f"Cleared visualization directory: {self.config.debug.rl_steps_output_dir}"
+            )
         except Exception as e:
             logger.warning(f"Failed to clear visualization directory: {e}")
 
@@ -128,34 +125,49 @@ class ArcEnvironment:
     def get_observation_space_info(self) -> Dict[str, Any]:
         """Get observation space information."""
         return {
-            "grid_shape": (self.config.grid.max_grid_height, self.config.grid.max_grid_width),
+            "grid_shape": (
+                self.config.grid.max_grid_height,
+                self.config.grid.max_grid_width,
+            ),
             "max_colors": self.config.grid.max_colors,
-            "action_format": self.config.action.action_format,
+            "selection_format": self.config.action.selection_format,
         }
 
     def get_action_space_info(self) -> Dict[str, Any]:
         """Get action space information."""
-        if self.config.action.action_format == "selection_operation":
+        if self.config.action.selection_format == "mask":
             return {
                 "type": "dict",
                 "selection_shape": (4,),  # [x1, y1, x2, y2]
-                "selection_bounds": (0, max(self.config.grid.max_grid_height, self.config.grid.max_grid_width)),
+                "selection_bounds": (
+                    0,
+                    max(
+                        self.config.grid.max_grid_height,
+                        self.config.grid.max_grid_width,
+                    ),
+                ),
                 "operation_range": (0, self.config.action.num_operations),
             }
-        elif self.config.action.action_format == "point":
+        if self.config.action.selection_format == "point":
             return {
                 "type": "array",
                 "shape": (3,),  # [x, y, operation]
-                "bounds": (0, max(
-                    self.config.grid.max_grid_height,
-                    self.config.grid.max_grid_width,
-                    self.config.action.num_operations
-                )),
+                "bounds": (
+                    0,
+                    max(
+                        self.config.grid.max_grid_height,
+                        self.config.grid.max_grid_width,
+                        self.config.action.num_operations,
+                    ),
+                ),
             }
-        else:  # bbox
-            return {
-                "type": "dict",
-                "bbox_shape": (4,),  # [x1, y1, x2, y2]
-                "bbox_bounds": (0, max(self.config.grid.max_grid_height, self.config.grid.max_grid_width)),
-                "operation_range": (0, self.config.action.num_operations),
-            }
+        # bbox
+        return {
+            "type": "dict",
+            "bbox_shape": (4,),  # [x1, y1, x2, y2]
+            "bbox_bounds": (
+                0,
+                max(self.config.grid.max_grid_height, self.config.grid.max_grid_width),
+            ),
+            "operation_range": (0, self.config.action.num_operations),
+        }

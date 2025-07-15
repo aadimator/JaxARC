@@ -20,7 +20,6 @@ OPERATION_NAMES = {
     7: "Fill 7",
     8: "Fill 8",
     9: "Fill 9",
-
     # Flood fill operations (10-19)
     10: "Flood Fill 0",
     11: "Flood Fill 1",
@@ -32,25 +31,21 @@ OPERATION_NAMES = {
     17: "Flood Fill 7",
     18: "Flood Fill 8",
     19: "Flood Fill 9",
-
     # Movement operations (20-23)
     20: "Move Up",
     21: "Move Down",
     22: "Move Left",
     23: "Move Right",
-
     # Transformation operations (24-27)
     24: "Rotate CW",
     25: "Rotate CCW",
     26: "Flip H",
     27: "Flip V",
-
     # Editing operations (28-31)
     28: "Copy",
     29: "Paste",
     30: "Cut",
     31: "Clear",
-
     # Special operations (32-34)
     32: "Copy Input",
     33: "Resize",
@@ -120,7 +115,7 @@ def get_operations_by_category() -> dict[str, list[int]]:
         Dictionary mapping category names to lists of operation IDs
     """
     return {
-        "fill": list(range(0, 10)),
+        "fill": list(range(10)),
         "flood_fill": list(range(10, 20)),
         "movement": list(range(20, 24)),
         "transformation": list(range(24, 28)),

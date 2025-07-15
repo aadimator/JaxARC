@@ -3,7 +3,7 @@
 # Actions consist of selecting a single point and applying an operation
 
 # Action Format
-action_format: "point" # Use point-based actions (row, col) + operation
+selection_format: "point" # Use point-based actions (row, col) + operation
 
 # Selection Settings
 selection_threshold: 0.5 # Not applicable for point actions but kept for consistency

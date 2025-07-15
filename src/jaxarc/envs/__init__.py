@@ -8,9 +8,8 @@ environments with both functional and class-based APIs.
 
 from __future__ import annotations
 
-# Core environment classes
-from .environment import ArcEnvironment
-from .functional import ArcEnvState
+# Action handlers
+from .actions import bbox_handler, get_action_handler, mask_handler, point_handler
 
 # Configuration system
 from .config import (
@@ -24,6 +23,9 @@ from .config import (
     merge_configs,
     validate_config,
 )
+
+# Core environment classes
+from .environment import ArcEnvironment
 
 # Factory functions for creating configurations
 from .factory import (
@@ -48,10 +50,13 @@ from .factory import (
 )
 
 # Functional API
-from .functional import arc_reset, arc_reset_with_hydra, arc_step, arc_step_with_hydra
-
-# Action handlers
-from .actions import get_action_handler, point_handler, bbox_handler, mask_handler
+from .functional import (
+    ArcEnvState,
+    arc_reset,
+    arc_reset_with_hydra,
+    arc_step,
+    arc_step_with_hydra,
+)
 
 # Grid operations
 from .grid_operations import execute_grid_operation

@@ -57,7 +57,7 @@ config = ArcEnvConfig(
     log_operations=True,
     reward=RewardConfig(success_bonus=15.0),
     grid=GridConfig(max_grid_height=25),
-    action=ActionConfig(action_format="point"),
+    action=ActionConfig(selection_format="point"),
 )
 ```
 
@@ -96,7 +96,7 @@ Defines action space and validation:
 
 ```python
 action_config = ActionConfig(
-    action_format="selection_operation",  # "selection_operation", "point", "bbox"
+    selection_format="mask",  # "mask", "point", "bbox"
     selection_threshold=0.5,  # Threshold for continuous->discrete
     num_operations=35,  # Number of available operations
     validate_actions=True,  # Enable action validation
@@ -159,7 +159,7 @@ hydra_config = OmegaConf.create(
     {
         "max_episode_steps": 100,
         "reward": {"success_bonus": 15.0},
-        "action": {"action_format": "point"},
+        "action": {"selection_format": "point"},
     }
 )
 
@@ -185,7 +185,7 @@ env:
     max_grid_height: 30
     max_grid_width: 30
   action:
-    action_format: "selection_operation"
+    selection_format: "mask"
     num_operations: 35
 ```
 
@@ -338,7 +338,7 @@ custom_config = ArcEnvConfig(
         max_colors=8,
     ),
     action=ActionConfig(
-        action_format="bbox",
+        selection_format="bbox",
         selection_threshold=0.7,
     ),
 )
