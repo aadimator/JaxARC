@@ -21,7 +21,9 @@ from loguru import logger
 
 
 @jax.jit
-def point_handler(action_data: jnp.ndarray, working_grid_mask: jnp.ndarray) -> jnp.ndarray:
+def point_handler(
+    action_data: jnp.ndarray, working_grid_mask: jnp.ndarray
+) -> jnp.ndarray:
     """Convert point coordinates to selection mask.
 
     Args:
@@ -47,7 +49,9 @@ def point_handler(action_data: jnp.ndarray, working_grid_mask: jnp.ndarray) -> j
 
 
 @jax.jit
-def bbox_handler(action_data: jnp.ndarray, working_grid_mask: jnp.ndarray) -> jnp.ndarray:
+def bbox_handler(
+    action_data: jnp.ndarray, working_grid_mask: jnp.ndarray
+) -> jnp.ndarray:
     """Convert bounding box coordinates to selection mask.
 
     Args:
@@ -73,18 +77,24 @@ def bbox_handler(action_data: jnp.ndarray, working_grid_mask: jnp.ndarray) -> jn
     # Create coordinate meshes
     rows = jnp.arange(grid_height)
     cols = jnp.arange(grid_width)
-    row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing='ij')
+    row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
 
     # Create bbox mask (inclusive bounds)
-    mask = ((row_mesh >= min_r) & (row_mesh <= max_r) &
-            (col_mesh >= min_c) & (col_mesh <= max_c))
+    mask = (
+        (row_mesh >= min_r)
+        & (row_mesh <= max_r)
+        & (col_mesh >= min_c)
+        & (col_mesh <= max_c)
+    )
 
     # Constrain to working grid area
     return mask & working_grid_mask
 
 
 @jax.jit
-def mask_handler(action_data: jnp.ndarray, working_grid_mask: jnp.ndarray) -> jnp.ndarray:
+def mask_handler(
+    action_data: jnp.ndarray, working_grid_mask: jnp.ndarray
+) -> jnp.ndarray:
     """Pass through mask data with validation.
 
     Args:
@@ -99,98 +109,116 @@ def mask_handler(action_data: jnp.ndarray, working_grid_mask: jnp.ndarray) -> jn
     expected_size = grid_height * grid_width
 
     # Take first expected_size elements and reshape to grid
-    mask = action_data[:expected_size].reshape((grid_height, grid_width)).astype(jnp.bool_)
+    mask = (
+        action_data[:expected_size].reshape((grid_height, grid_width)).astype(jnp.bool_)
+    )
 
     # Constrain to working grid area
     return mask & working_grid_mask
 
 
-def get_action_handler(action_format: str):
+def get_action_handler(selection_format: str):
     """Factory function to get appropriate action handler.
 
     Args:
-        action_format: Format string ("point", "bbox", "mask", "selection_operation")
+        selection_format: Format string ("point", "bbox", "mask")
 
     Returns:
         JAX-compiled handler function
 
     Raises:
-        ValueError: If action_format is not recognized
+        ValueError: If selection_format is not recognized
     """
-    if action_format == "point":
-        logger.debug("Using point action handler")
+    if selection_format == "point":
+        logger.debug("Using point operation action handler")
         return point_handler
-    elif action_format == "bbox":
-        logger.debug("Using bbox action handler")
+    if selection_format == "bbox":
+        logger.debug("Using bbox operation action handler")
         return bbox_handler
-    elif action_format in ("mask", "selection_operation"):
-        logger.debug(f"Using mask action handler for format: {action_format}")
+    if selection_format == "mask":
+        logger.debug(
+            f"Using mask operation action handler for format: {selection_format}"
+        )
         return mask_handler
-    else:
-        raise ValueError(f"Unknown action format: {action_format}")
+    raise ValueError(f"Unknown selection format: {selection_format}")
 
 
 # Utility functions for testing and debugging
 
-def validate_action_data(action_data: jnp.ndarray, action_format: str, grid_shape: tuple = None) -> None:
+
+def validate_action_data(
+    action_data: jnp.ndarray, selection_format: str, grid_shape: tuple = None
+) -> None:
     """Validate action data format and shape.
 
     Args:
         action_data: Action data array
-        action_format: Expected format
+        selection_format: Expected format
         grid_shape: Expected grid shape for mask validation (height, width)
 
     Raises:
         ValueError: If data doesn't match expected format
     """
-    if action_format == "point":
+    if selection_format == "point":
         if action_data.size < 2:
-            raise ValueError(f"Point action requires at least 2 elements, got {action_data.size}")
-    elif action_format == "bbox":
+            raise ValueError(
+                f"Point action requires at least 2 elements, got {action_data.size}"
+            )
+    elif selection_format == "bbox":
         if action_data.size < 4:
-            raise ValueError(f"Bbox action requires at least 4 elements, got {action_data.size}")
-    elif action_format in ("mask", "selection_operation"):
+            raise ValueError(
+                f"Bbox action requires at least 4 elements, got {action_data.size}"
+            )
+    elif selection_format == "mask":
         if grid_shape is not None:
             expected_size = grid_shape[0] * grid_shape[1]
             if action_data.size < expected_size:
-                raise ValueError(f"Mask action requires at least {expected_size} elements for grid shape {grid_shape}, got {action_data.size}")
-        else:
-            # If no grid shape provided, just check for reasonable minimum
-            if action_data.size < 9:  # At least 3x3 grid
-                raise ValueError(f"Mask action requires at least 9 elements, got {action_data.size}")
+                raise ValueError(
+                    f"Mask action requires at least {expected_size} elements for grid shape {grid_shape}, got {action_data.size}"
+                )
+        # If no grid shape provided, just check for reasonable minimum
+        elif action_data.size < 9:  # At least 3x3 grid
+            raise ValueError(
+                f"Mask action requires at least 9 elements, got {action_data.size}"
+            )
     else:
-        raise ValueError(f"Unknown action format: {action_format}")
+        raise ValueError(f"Unknown selection format: {selection_format}")
 
 
-def create_test_action_data(action_format: str, grid_shape: tuple = (30, 30), **kwargs) -> jnp.ndarray:
+def create_test_action_data(
+    selection_format: str, grid_shape: tuple = (30, 30), **kwargs
+) -> jnp.ndarray:
     """Create test action data for given format.
 
     Args:
-        action_format: Format to create data for
+        selection_format: Format to create data for
         grid_shape: Grid shape (height, width) for mask formats
         **kwargs: Format-specific parameters
 
     Returns:
         Action data array suitable for the format
     """
-    if action_format == "point":
+    if selection_format == "point":
         row = kwargs.get("row", 5)
         col = kwargs.get("col", 10)
         return jnp.array([row, col])
-    elif action_format == "bbox":
+    if selection_format == "bbox":
         r1 = kwargs.get("r1", 2)
         c1 = kwargs.get("c1", 3)
         r2 = kwargs.get("r2", 4)
         c2 = kwargs.get("c2", 5)
         return jnp.array([r1, c1, r2, c2])
-    elif action_format in ("mask", "selection_operation"):
+    if selection_format == "mask":
         # Create a simple test mask with some selected cells
         grid_height, grid_width = grid_shape
         mask = jnp.zeros((grid_height, grid_width), dtype=jnp.bool_)
         start_row = kwargs.get("start_row", min(5, grid_height - 1))
         start_col = kwargs.get("start_col", min(5, grid_width - 1))
-        size = kwargs.get("size", min(3, grid_height - start_row, grid_width - start_col))
-        mask = mask.at[start_row:start_row+size, start_col:start_col+size].set(True)
+        size = kwargs.get(
+            "size", min(3, grid_height - start_row, grid_width - start_col)
+        )
+        mask = mask.at[start_row : start_row + size, start_col : start_col + size].set(
+            True
+        )
         return mask.flatten()
-    else:
-        raise ValueError(f"Unknown action format: {action_format}")
+    raise ValueError(f"Unknown selection format: {selection_format}")

@@ -8,12 +8,15 @@ This example demonstrates the new enhanced visualization capabilities including:
 - Different action formats and their visualizations
 """
 
-import tempfile
-from pathlib import Path
+from __future__ import annotations
 
-import jax
+import tempfile
+
 import jax.numpy as jnp
 import jax.random as jr
+from loguru import logger
+from rich.console import Console
+
 from jaxarc.envs import ArcEnvironment
 from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.types import Grid
@@ -30,8 +33,6 @@ from jaxarc.utils.visualization import (
     save_svg_drawing,
     visualize_grid_rich,
 )
-from loguru import logger
-from rich.console import Console
 
 
 def demo_grid_type_support():
@@ -40,17 +41,11 @@ def demo_grid_type_support():
     console.print("\n[bold blue]Demo 1: Grid Type Support[/bold blue]")
 
     # Create a Grid object
-    data = jnp.array([
-        [0, 1, 2],
-        [3, 4, 5],
-        [0, 1, 2]
-    ], dtype=jnp.int32)
+    data = jnp.array([[0, 1, 2], [3, 4, 5], [0, 1, 2]], dtype=jnp.int32)
 
-    mask = jnp.array([
-        [True, True, True],
-        [True, True, False],
-        [True, False, False]
-    ], dtype=jnp.bool_)
+    mask = jnp.array(
+        [[True, True, True], [True, True, False], [True, False, False]], dtype=jnp.bool_
+    )
 
     grid = Grid(data=data, mask=mask)
 
@@ -103,37 +98,37 @@ def demo_rl_step_visualization():
     console.print("\n[bold blue]Demo 3: Enhanced RL Step Visualization[/bold blue]")
 
     # Create before and after grids
-    before_data = jnp.array([
-        [0, 0, 1, 0],
-        [0, 1, 1, 0],
-        [1, 1, 2, 2],
-        [0, 2, 2, 0]
-    ], dtype=jnp.int32)
+    before_data = jnp.array(
+        [[0, 0, 1, 0], [0, 1, 1, 0], [1, 1, 2, 2], [0, 2, 2, 0]], dtype=jnp.int32
+    )
 
-    after_data = jnp.array([
-        [0, 0, 3, 0],
-        [0, 3, 3, 0],
-        [3, 3, 2, 2],
-        [0, 2, 2, 0]
-    ], dtype=jnp.int32)
+    after_data = jnp.array(
+        [[0, 0, 3, 0], [0, 3, 3, 0], [3, 3, 2, 2], [0, 2, 2, 0]], dtype=jnp.int32
+    )
 
-    mask = jnp.array([
-        [True, True, True, True],
-        [True, True, True, True],
-        [True, True, True, True],
-        [True, True, True, True]
-    ], dtype=jnp.bool_)
+    mask = jnp.array(
+        [
+            [True, True, True, True],
+            [True, True, True, True],
+            [True, True, True, True],
+            [True, True, True, True],
+        ],
+        dtype=jnp.bool_,
+    )
 
     before_grid = Grid(data=before_data, mask=mask)
     after_grid = Grid(data=after_data, mask=mask)
 
     # Create a selection mask (bbox selection)
-    selection_mask = jnp.array([
-        [False, False, True, False],
-        [False, True, True, False],
-        [True, True, False, False],
-        [False, False, False, False]
-    ], dtype=jnp.bool_)
+    selection_mask = jnp.array(
+        [
+            [False, False, True, False],
+            [False, True, True, False],
+            [True, True, False, False],
+            [False, False, False, False],
+        ],
+        dtype=jnp.bool_,
+    )
 
     # Generate RL step visualization
     console.print("\n[green]Generating RL step visualization...[/green]")
@@ -143,7 +138,7 @@ def demo_rl_step_visualization():
         selection_mask=selection_mask,
         operation_id=3,  # Fill 3
         step_number=1,
-        label="Demo Episode"
+        label="Demo Episode",
     )
 
     # Save the visualization
@@ -161,22 +156,17 @@ def demo_different_action_formats():
     console.print("\n[bold blue]Demo 4: Different Action Formats[/bold blue]")
 
     # Create a simple grid
-    data = jnp.array([
-        [0, 1, 2],
-        [3, 4, 5],
-        [6, 7, 8]
-    ], dtype=jnp.int32)
+    data = jnp.array([[0, 1, 2], [3, 4, 5], [6, 7, 8]], dtype=jnp.int32)
 
     mask = jnp.ones((3, 3), dtype=jnp.bool_)
     grid = Grid(data=data, mask=mask)
 
     # Point selection
     console.print("\n[green]Point selection visualization:[/green]")
-    point_selection = jnp.array([
-        [False, True, False],
-        [False, False, False],
-        [False, False, False]
-    ], dtype=jnp.bool_)
+    point_selection = jnp.array(
+        [[False, True, False], [False, False, False], [False, False, False]],
+        dtype=jnp.bool_,
+    )
 
     point_svg = draw_rl_step_svg(
         before_grid=grid,
@@ -184,16 +174,15 @@ def demo_different_action_formats():
         selection_mask=point_selection,
         operation_id=20,  # Move Up
         step_number=1,
-        label="Point Selection"
+        label="Point Selection",
     )
 
     # Bbox selection
     console.print("\n[green]Bbox selection visualization:[/green]")
-    bbox_selection = jnp.array([
-        [True, True, False],
-        [True, True, False],
-        [False, False, False]
-    ], dtype=jnp.bool_)
+    bbox_selection = jnp.array(
+        [[True, True, False], [True, True, False], [False, False, False]],
+        dtype=jnp.bool_,
+    )
 
     bbox_svg = draw_rl_step_svg(
         before_grid=grid,
@@ -201,7 +190,7 @@ def demo_different_action_formats():
         selection_mask=bbox_selection,
         operation_id=24,  # Rotate CW
         step_number=2,
-        label="Bbox Selection"
+        label="Bbox Selection",
     )
 
     # Save visualizations
@@ -223,12 +212,14 @@ def demo_environment_integration():
 
     # Create environment with visualization enabled
     config = ArcEnvConfig.from_hydra(
-        get_config(overrides=[
-            "debug.log_rl_steps=true",
-            "debug.rl_steps_output_dir=outputs/enhanced_demo",
-            "debug.clear_output_dir=true",
-            "action.action_format=point"
-        ])
+        get_config(
+            overrides=[
+                "debug.log_rl_steps=true",
+                "debug.rl_steps_output_dir=outputs/enhanced_demo",
+                "debug.clear_output_dir=true",
+                "action.selection_format=point",
+            ]
+        )
     )
 
     env = ArcEnvironment(config)
@@ -246,7 +237,7 @@ def demo_environment_integration():
         row, col = jr.randint(action_key, shape=(2,), minval=0, maxval=5)
         action = {
             "selection": jnp.array([row, col]),
-            "operation": jr.randint(action_key, shape=(), minval=0, maxval=10)
+            "operation": jr.randint(action_key, shape=(), minval=0, maxval=10),
         }
 
         state, obs, reward, info = env.step(action)
@@ -255,7 +246,9 @@ def demo_environment_integration():
             console.print(f"Episode finished early at step {i + 1}")
             break
 
-    console.print(f"Episode completed! Visualizations saved to: {config.debug.rl_steps_output_dir}")
+    console.print(
+        f"Episode completed! Visualizations saved to: {config.debug.rl_steps_output_dir}"
+    )
     console.print("Check the directory for step_*.svg files")
 
 

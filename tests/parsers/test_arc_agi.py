@@ -93,7 +93,7 @@ def parser(parser_config):
         "min_grid_height": 1,
         "min_grid_width": 1,
         "max_colors": 10,
-        "background_color": 0
+        "background_color": 0,
     }
     config_with_dims["max_train_pairs"] = 5
     config_with_dims["max_test_pairs"] = 5
@@ -114,7 +114,7 @@ class TestArcAgiParser:
             "min_grid_height": 1,
             "min_grid_width": 1,
             "max_colors": 10,
-            "background_color": 0
+            "background_color": 0,
         }
         config_with_dims["max_train_pairs"] = 5
         config_with_dims["max_test_pairs"] = 5
@@ -203,7 +203,7 @@ class TestArcAgiParser:
             "min_grid_height": 1,
             "min_grid_width": 1,
             "max_colors": 10,
-            "background_color": 0
+            "background_color": 0,
         }
         config_with_dims["max_train_pairs"] = 5
         config_with_dims["max_test_pairs"] = 5
@@ -278,7 +278,7 @@ class TestArcAgiParser:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
@@ -361,7 +361,7 @@ class TestArcAgiParser:
             "min_grid_height": 1,
             "min_grid_width": 1,
             "max_colors": 10,
-            "background_color": 0
+            "background_color": 0,
         }
         config_with_dims["max_train_pairs"] = 3
         config_with_dims["max_test_pairs"] = 2
@@ -447,7 +447,7 @@ class TestArcAgiParser:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,

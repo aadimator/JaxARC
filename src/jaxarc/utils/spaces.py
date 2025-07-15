@@ -3,10 +3,11 @@ from __future__ import annotations
 import chex
 import jax
 import jax.numpy as jnp
+
 # from jaxmarl.environments.spaces import Space
 
 
-class Space(object):
+class Space:
     """
     Minimal jittable class for abstract jaxmarl space.
     """
@@ -16,6 +17,7 @@ class Space(object):
 
     def contains(self, x: jnp.int_) -> bool:
         raise NotImplementedError
+
 
 class MultiBinary(Space):
     """

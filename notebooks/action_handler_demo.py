@@ -27,36 +27,37 @@
 # ## Setup and Imports
 
 # %%
+from __future__ import annotations
+
+import time
+
 import jax
 import jax.numpy as jnp
-import numpy as np
-from pathlib import Path
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.gridspec import GridSpec
+import numpy as np
 import seaborn as sns
-import time
-from io import StringIO
+from matplotlib import patches
+from matplotlib.gridspec import GridSpec
+
+from jaxarc.envs.actions import get_action_handler
 
 # JaxARC imports
-from jaxarc.envs.config import ArcEnvConfig, ActionConfig
+from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.envs.environment import ArcEnvironment
-from jaxarc.envs.functional import arc_reset, arc_step
-from jaxarc.envs.actions import get_action_handler, create_test_action_data
 from jaxarc.utils.visualization import (
+    ARC_COLOR_PALETTE,
     draw_grid_svg,
     draw_task_pair_svg,
     save_svg_drawing,
-    ARC_COLOR_PALETTE
 )
 
 # Configure matplotlib for high-quality output
-plt.rcParams['figure.dpi'] = 150
-plt.rcParams['savefig.dpi'] = 300
-plt.rcParams['savefig.bbox'] = 'tight'
-plt.rcParams['font.size'] = 12
-plt.rcParams['axes.titlesize'] = 14
-plt.rcParams['axes.labelsize'] = 12
+plt.rcParams["figure.dpi"] = 150
+plt.rcParams["savefig.dpi"] = 300
+plt.rcParams["savefig.bbox"] = "tight"
+plt.rcParams["font.size"] = 12
+plt.rcParams["axes.titlesize"] = 14
+plt.rcParams["axes.labelsize"] = 12
 
 # Set up seaborn style
 sns.set_style("whitegrid")
@@ -70,7 +71,7 @@ print("🎨 JaxARC Action Handler Demo - SVG Visualization Setup Complete! 🚀"
 # %%
 from hydra import compose, initialize_config_dir
 from pyprojroot import here
-from jaxarc.utils.config import get_config
+
 from jaxarc.parsers import ArcAgiParser
 
 # Get config directory
@@ -112,6 +113,7 @@ print("✅ All environments initialized successfully!")
 # %% [markdown]
 # ## SVG Grid Visualization Utilities
 
+
 # %%
 def svg_to_matplotlib(svg_drawing, ax, title="", show_title=True):
     """Convert SVG drawing to matplotlib display."""
@@ -120,56 +122,72 @@ def svg_to_matplotlib(svg_drawing, ax, title="", show_title=True):
 
     # For now, we'll create a placeholder representation
     # In a real implementation, you might use cairosvg or similar
-    ax.text(0.5, 0.5, f"SVG Grid\n{title}",
-            ha='center', va='center', fontsize=12,
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.7))
+    ax.text(
+        0.5,
+        0.5,
+        f"SVG Grid\n{title}",
+        ha="center",
+        va="center",
+        fontsize=12,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.7),
+    )
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
-    ax.axis('off')
+    ax.axis("off")
 
     if show_title and title:
-        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_title(title, fontsize=14, fontweight="bold")
 
-def create_grid_matplotlib(grid_data, selection_mask=None, title="Grid", ax=None, colormap='tab10'):
+
+def create_grid_matplotlib(
+    grid_data, selection_mask=None, title="Grid", ax=None, colormap="tab10"
+):
     """Create a matplotlib visualization of a grid with optional selection overlay."""
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 8))
 
     # Create color mapping based on ARC palette
-    colors = [ARC_COLOR_PALETTE.get(i, '#FFFFFF') for i in range(11)]
+    colors = [ARC_COLOR_PALETTE.get(i, "#FFFFFF") for i in range(11)]
 
     # Display the grid
-    im = ax.imshow(grid_data, cmap=plt.cm.get_cmap('tab10', 10), vmin=0, vmax=9)
+    im = ax.imshow(grid_data, cmap=plt.cm.get_cmap("tab10", 10), vmin=0, vmax=9)
 
     # Add selection overlay if provided
     if selection_mask is not None:
         # Create red overlay for selected cells
         overlay = np.zeros_like(grid_data, dtype=float)
         overlay[selection_mask] = 1.0
-        ax.imshow(overlay, cmap='Reds', alpha=0.4, vmin=0, vmax=1)
+        ax.imshow(overlay, cmap="Reds", alpha=0.4, vmin=0, vmax=1)
 
         # Add selection border
         for i in range(grid_data.shape[0]):
             for j in range(grid_data.shape[1]):
                 if selection_mask[i, j]:
-                    rect = patches.Rectangle((j-0.5, i-0.5), 1, 1,
-                                           linewidth=2, edgecolor='red',
-                                           facecolor='none', alpha=0.8)
+                    rect = patches.Rectangle(
+                        (j - 0.5, i - 0.5),
+                        1,
+                        1,
+                        linewidth=2,
+                        edgecolor="red",
+                        facecolor="none",
+                        alpha=0.8,
+                    )
                     ax.add_patch(rect)
 
     # Styling
-    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
     ax.set_xticks(range(grid_data.shape[1]))
     ax.set_yticks(range(grid_data.shape[0]))
-    ax.grid(True, alpha=0.3, color='gray', linewidth=0.5)
+    ax.grid(True, alpha=0.3, color="gray", linewidth=0.5)
 
     # Add grid lines
     for i in range(grid_data.shape[0] + 1):
-        ax.axhline(i - 0.5, color='black', linewidth=0.5, alpha=0.7)
+        ax.axhline(i - 0.5, color="black", linewidth=0.5, alpha=0.7)
     for j in range(grid_data.shape[1] + 1):
-        ax.axvline(j - 0.5, color='black', linewidth=0.5, alpha=0.7)
+        ax.axvline(j - 0.5, color="black", linewidth=0.5, alpha=0.7)
 
     return ax
+
 
 def create_action_demonstration_figure(env, initial_state, action_format, demo_actions):
     """Create a comprehensive figure showing action demonstrations."""
@@ -180,12 +198,18 @@ def create_action_demonstration_figure(env, initial_state, action_format, demo_a
     gs = GridSpec(3, n_actions + 2, figure=fig, hspace=0.3, wspace=0.3)
 
     # Title
-    fig.suptitle(f'{action_format.upper()} Action Format Demonstration',
-                 fontsize=20, fontweight='bold', y=0.95)
+    fig.suptitle(
+        f"{action_format.upper()} Action Format Demonstration",
+        fontsize=20,
+        fontweight="bold",
+        y=0.95,
+    )
 
     # Initial state (column 0)
     ax_initial = fig.add_subplot(gs[0, 0])
-    create_grid_matplotlib(initial_state.working_grid, title="Initial Grid", ax=ax_initial)
+    create_grid_matplotlib(
+        initial_state.working_grid, title="Initial Grid", ax=ax_initial
+    )
 
     # Target state (column 0, row 1)
     ax_target = fig.add_subplot(gs[1, 0])
@@ -193,14 +217,23 @@ def create_action_demonstration_figure(env, initial_state, action_format, demo_a
 
     # Stats (column 0, row 2)
     ax_stats = fig.add_subplot(gs[2, 0])
-    ax_stats.text(0.1, 0.7, f"Action Format: {action_format}", fontsize=12, fontweight='bold')
-    ax_stats.text(0.1, 0.5, f"Grid Shape: {initial_state.working_grid.shape}", fontsize=11)
-    ax_stats.text(0.1, 0.3, f"Initial Similarity: {initial_state.similarity_score:.3f}", fontsize=11)
+    ax_stats.text(
+        0.1, 0.7, f"Action Format: {action_format}", fontsize=12, fontweight="bold"
+    )
+    ax_stats.text(
+        0.1, 0.5, f"Grid Shape: {initial_state.working_grid.shape}", fontsize=11
+    )
+    ax_stats.text(
+        0.1,
+        0.3,
+        f"Initial Similarity: {initial_state.similarity_score:.3f}",
+        fontsize=11,
+    )
     ax_stats.text(0.1, 0.1, f"Step Count: {initial_state.step_count}", fontsize=11)
     ax_stats.set_xlim(0, 1)
     ax_stats.set_ylim(0, 1)
-    ax_stats.axis('off')
-    ax_stats.set_title("Environment Info", fontsize=12, fontweight='bold')
+    ax_stats.axis("off")
+    ax_stats.set_title("Environment Info", fontsize=12, fontweight="bold")
 
     current_state = initial_state
     results = []
@@ -215,27 +248,37 @@ def create_action_demonstration_figure(env, initial_state, action_format, demo_a
 
             # Grid after action (row 0)
             ax_grid = fig.add_subplot(gs[0, col])
-            create_grid_matplotlib(next_state.working_grid, next_state.selected,
-                                 title=f"Step {i+1}: {description[:20]}...", ax=ax_grid)
+            create_grid_matplotlib(
+                next_state.working_grid,
+                next_state.selected,
+                title=f"Step {i + 1}: {description[:20]}...",
+                ax=ax_grid,
+            )
 
             # Difference from target (row 1)
             ax_diff = fig.add_subplot(gs[1, col])
             diff = np.abs(next_state.working_grid - initial_state.target_grid)
-            im_diff = ax_diff.imshow(diff, cmap='Reds', vmin=0, vmax=9)
-            ax_diff.set_title(f"Difference from Target", fontsize=12)
+            im_diff = ax_diff.imshow(diff, cmap="Reds", vmin=0, vmax=9)
+            ax_diff.set_title("Difference from Target", fontsize=12)
             ax_diff.set_xticks([])
             ax_diff.set_yticks([])
 
             # Action results (row 2)
             ax_results = fig.add_subplot(gs[2, col])
             ax_results.text(0.1, 0.8, f"Reward: {reward:.3f}", fontsize=11)
-            ax_results.text(0.1, 0.6, f"Similarity: {next_state.similarity_score:.3f}", fontsize=11)
-            ax_results.text(0.1, 0.4, f"Selected: {jnp.sum(next_state.selected)}", fontsize=11)
-            ax_results.text(0.1, 0.2, f"Action: {action['selection'][:4]}...", fontsize=10)
+            ax_results.text(
+                0.1, 0.6, f"Similarity: {next_state.similarity_score:.3f}", fontsize=11
+            )
+            ax_results.text(
+                0.1, 0.4, f"Selected: {jnp.sum(next_state.selected)}", fontsize=11
+            )
+            ax_results.text(
+                0.1, 0.2, f"Action: {action['selection'][:4]}...", fontsize=10
+            )
             ax_results.set_xlim(0, 1)
             ax_results.set_ylim(0, 1)
-            ax_results.axis('off')
-            ax_results.set_title("Action Results", fontsize=12, fontweight='bold')
+            ax_results.axis("off")
+            ax_results.set_title("Action Results", fontsize=12, fontweight="bold")
 
             current_state = next_state
             results.append((next_state, reward, jnp.sum(next_state.selected)))
@@ -243,13 +286,20 @@ def create_action_demonstration_figure(env, initial_state, action_format, demo_a
         except Exception as e:
             # Error handling
             ax_error = fig.add_subplot(gs[:, col])
-            ax_error.text(0.5, 0.5, f"Error:\n{str(e)}", ha='center', va='center',
-                         fontsize=12, color='red',
-                         bbox=dict(boxstyle="round,pad=0.5", facecolor="mistyrose"))
+            ax_error.text(
+                0.5,
+                0.5,
+                f"Error:\n{e!s}",
+                ha="center",
+                va="center",
+                fontsize=12,
+                color="red",
+                bbox=dict(boxstyle="round,pad=0.5", facecolor="mistyrose"),
+            )
             ax_error.set_xlim(0, 1)
             ax_error.set_ylim(0, 1)
-            ax_error.axis('off')
-            ax_error.set_title(f"Step {i+1}: Error", fontsize=12, color='red')
+            ax_error.axis("off")
+            ax_error.set_title(f"Step {i + 1}: Error", fontsize=12, color="red")
 
             results.append((None, 0, 0))
 
@@ -260,20 +310,36 @@ def create_action_demonstration_figure(env, initial_state, action_format, demo_a
 
         # Create before/after comparison
         before_after = np.hstack([initial_state.working_grid, final_state.working_grid])
-        ax_final.imshow(before_after, cmap=plt.cm.get_cmap('tab10', 10), vmin=0, vmax=9)
-        ax_final.axvline(initial_state.working_grid.shape[1] - 0.5, color='white', linewidth=3)
-        ax_final.set_title("Before → After", fontsize=14, fontweight='bold')
+        ax_final.imshow(before_after, cmap=plt.cm.get_cmap("tab10", 10), vmin=0, vmax=9)
+        ax_final.axvline(
+            initial_state.working_grid.shape[1] - 0.5, color="white", linewidth=3
+        )
+        ax_final.set_title("Before → After", fontsize=14, fontweight="bold")
         ax_final.set_xticks([])
         ax_final.set_yticks([])
 
         # Add labels
-        ax_final.text(initial_state.working_grid.shape[1]//2, -2, "Before",
-                     ha='center', fontsize=12, fontweight='bold')
-        ax_final.text(initial_state.working_grid.shape[1] + initial_state.working_grid.shape[1]//2, -2,
-                     "After", ha='center', fontsize=12, fontweight='bold')
+        ax_final.text(
+            initial_state.working_grid.shape[1] // 2,
+            -2,
+            "Before",
+            ha="center",
+            fontsize=12,
+            fontweight="bold",
+        )
+        ax_final.text(
+            initial_state.working_grid.shape[1]
+            + initial_state.working_grid.shape[1] // 2,
+            -2,
+            "After",
+            ha="center",
+            fontsize=12,
+            fontweight="bold",
+        )
 
     plt.tight_layout()
     return fig, results
+
 
 # %% [markdown]
 # ## Point Action Format Demonstration
@@ -284,10 +350,22 @@ print("=" * 50)
 
 # Define point actions
 point_demo_actions = [
-    ({"selection": jnp.array([5, 5]), "operation": jnp.array(1)}, "Fill cell (5,5) with blue"),
-    ({"selection": jnp.array([5, 6]), "operation": jnp.array(2)}, "Fill cell (5,6) with red"),
-    ({"selection": jnp.array([6, 5]), "operation": jnp.array(3)}, "Fill cell (6,5) with green"),
-    ({"selection": jnp.array([6, 6]), "operation": jnp.array(4)}, "Fill cell (6,6) with yellow"),
+    (
+        {"point": jnp.array([5, 5]), "operation": jnp.array(1)},
+        "Fill cell (5,5) with blue",
+    ),
+    (
+        {"point": jnp.array([5, 6]), "operation": jnp.array(2)},
+        "Fill cell (5,6) with red",
+    ),
+    (
+        {"selection": jnp.array([6, 5]), "operation": jnp.array(3)},
+        "Fill cell (6,5) with green",
+    ),
+    (
+        {"selection": jnp.array([6, 6]), "operation": jnp.array(4)},
+        "Fill cell (6,6) with yellow",
+    ),
 ]
 
 # Create demonstration figure
@@ -296,8 +374,8 @@ fig_point, point_results = create_action_demonstration_figure(
 )
 
 # Save the figure
-fig_point.savefig(output_dir / "point_action_demo.png", dpi=300, bbox_inches='tight')
-fig_point.savefig(output_dir / "point_action_demo.svg", bbox_inches='tight')
+fig_point.savefig(output_dir / "point_action_demo.png", dpi=300, bbox_inches="tight")
+fig_point.savefig(output_dir / "point_action_demo.svg", bbox_inches="tight")
 
 plt.show()
 
@@ -305,7 +383,9 @@ plt.show()
 print("\n📊 Point Action Results:")
 for i, (state, reward, selected) in enumerate(point_results):
     if state is not None:
-        print(f"  Step {i+1}: Reward={reward:.3f}, Selected={selected}, Similarity={state.similarity_score:.3f}")
+        print(
+            f"  Step {i + 1}: Reward={reward:.3f}, Selected={selected}, Similarity={state.similarity_score:.3f}"
+        )
 
 # %% [markdown]
 # ## Bbox Action Format Demonstration
@@ -316,9 +396,18 @@ print("=" * 50)
 
 # Define bbox actions
 bbox_demo_actions = [
-    ({"selection": jnp.array([3, 3, 5, 5]), "operation": jnp.array(1)}, "Fill 3x3 rectangle with blue"),
-    ({"selection": jnp.array([7, 7, 9, 9]), "operation": jnp.array(2)}, "Fill 3x3 rectangle with red"),
-    ({"selection": jnp.array([3, 7, 5, 9]), "operation": jnp.array(3)}, "Fill 3x3 rectangle with green"),
+    (
+        {"bbox": jnp.array([3, 3, 5, 5]), "operation": jnp.array(1)},
+        "Fill 3x3 rectangle with blue",
+    ),
+    (
+        {"bbox": jnp.array([7, 7, 9, 9]), "operation": jnp.array(2)},
+        "Fill 3x3 rectangle with red",
+    ),
+    (
+        {"selection": jnp.array([3, 7, 5, 9]), "operation": jnp.array(3)},
+        "Fill 3x3 rectangle with green",
+    ),
 ]
 
 # Create demonstration figure
@@ -327,8 +416,8 @@ fig_bbox, bbox_results = create_action_demonstration_figure(
 )
 
 # Save the figure
-fig_bbox.savefig(output_dir / "bbox_action_demo.png", dpi=300, bbox_inches='tight')
-fig_bbox.savefig(output_dir / "bbox_action_demo.svg", bbox_inches='tight')
+fig_bbox.savefig(output_dir / "bbox_action_demo.png", dpi=300, bbox_inches="tight")
+fig_bbox.savefig(output_dir / "bbox_action_demo.svg", bbox_inches="tight")
 
 plt.show()
 
@@ -336,7 +425,9 @@ plt.show()
 print("\n📊 Bbox Action Results:")
 for i, (state, reward, selected) in enumerate(bbox_results):
     if state is not None:
-        print(f"  Step {i+1}: Reward={reward:.3f}, Selected={selected}, Similarity={state.similarity_score:.3f}")
+        print(
+            f"  Step {i + 1}: Reward={reward:.3f}, Selected={selected}, Similarity={state.similarity_score:.3f}"
+        )
 
 # %% [markdown]
 # ## Mask Action Format Demonstration
@@ -345,12 +436,16 @@ for i, (state, reward, selected) in enumerate(bbox_results):
 print("\n🎯 Demonstrating Mask Action Format")
 print("=" * 50)
 
+
 # Helper functions for creating custom masks
 def create_circle_mask(center_row, center_col, radius, grid_shape):
     """Create a circular mask."""
-    rows, cols = jnp.meshgrid(jnp.arange(grid_shape[0]), jnp.arange(grid_shape[1]), indexing='ij')
-    distance = jnp.sqrt((rows - center_row)**2 + (cols - center_col)**2)
+    rows, cols = jnp.meshgrid(
+        jnp.arange(grid_shape[0]), jnp.arange(grid_shape[1]), indexing="ij"
+    )
+    distance = jnp.sqrt((rows - center_row) ** 2 + (cols - center_col) ** 2)
     return distance <= radius
+
 
 def create_line_mask(start_row, start_col, end_row, end_col, grid_shape):
     """Create a line mask."""
@@ -372,6 +467,7 @@ def create_line_mask(start_row, start_col, end_row, end_col, grid_shape):
 
     return mask
 
+
 def create_cross_mask(center_row, center_col, size, grid_shape):
     """Create a cross pattern mask."""
     mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
@@ -388,6 +484,7 @@ def create_cross_mask(center_row, center_col, size, grid_shape):
 
     return mask
 
+
 # Create masks for demonstration
 grid_shape = mask_state.working_grid.shape
 circle_mask = create_circle_mask(8, 8, 3, grid_shape)
@@ -396,9 +493,18 @@ cross_mask = create_cross_mask(10, 12, 4, grid_shape)
 
 # Define mask actions
 mask_demo_actions = [
-    ({"selection": circle_mask.flatten(), "operation": jnp.array(1)}, "Fill circular region with blue"),
-    ({"selection": line_mask.flatten(), "operation": jnp.array(2)}, "Fill diagonal line with red"),
-    ({"selection": cross_mask.flatten(), "operation": jnp.array(3)}, "Fill cross pattern with green"),
+    (
+        {"selection": circle_mask.flatten(), "operation": jnp.array(1)},
+        "Fill circular region with blue",
+    ),
+    (
+        {"selection": line_mask.flatten(), "operation": jnp.array(2)},
+        "Fill diagonal line with red",
+    ),
+    (
+        {"selection": cross_mask.flatten(), "operation": jnp.array(3)},
+        "Fill cross pattern with green",
+    ),
 ]
 
 # Create demonstration figure
@@ -407,8 +513,8 @@ fig_mask, mask_results = create_action_demonstration_figure(
 )
 
 # Save the figure
-fig_mask.savefig(output_dir / "mask_action_demo.png", dpi=300, bbox_inches='tight')
-fig_mask.savefig(output_dir / "mask_action_demo.svg", bbox_inches='tight')
+fig_mask.savefig(output_dir / "mask_action_demo.png", dpi=300, bbox_inches="tight")
+fig_mask.savefig(output_dir / "mask_action_demo.svg", bbox_inches="tight")
 
 plt.show()
 
@@ -416,7 +522,9 @@ plt.show()
 print("\n📊 Mask Action Results:")
 for i, (state, reward, selected) in enumerate(mask_results):
     if state is not None:
-        print(f"  Step {i+1}: Reward={reward:.3f}, Selected={selected}, Similarity={state.similarity_score:.3f}")
+        print(
+            f"  Step {i + 1}: Reward={reward:.3f}, Selected={selected}, Similarity={state.similarity_score:.3f}"
+        )
 
 # %% [markdown]
 # ## Performance Analysis and Comparison
@@ -424,6 +532,7 @@ for i, (state, reward, selected) in enumerate(mask_results):
 # %%
 print("\n⚡ Performance Analysis")
 print("=" * 50)
+
 
 # Performance testing
 def benchmark_action_handler(handler, action_data, working_mask, iterations=1000):
@@ -439,6 +548,7 @@ def benchmark_action_handler(handler, action_data, working_mask, iterations=1000
     end_time = time.time()
 
     return (end_time - start_time) / iterations, result
+
 
 # Test setup
 test_grid_shape = (20, 20)
@@ -456,62 +566,88 @@ bbox_data = jnp.array([5, 5, 15, 15])
 mask_data = jnp.ones(test_grid_shape[0] * test_grid_shape[1], dtype=jnp.bool_) * 0.3
 
 # Run benchmarks
-point_time, point_result = benchmark_action_handler(point_handler, point_data, working_mask, iterations)
-bbox_time, bbox_result = benchmark_action_handler(bbox_handler, bbox_data, working_mask, iterations)
-mask_time, mask_result = benchmark_action_handler(mask_handler, mask_data, working_mask, iterations)
+point_time, point_result = benchmark_action_handler(
+    point_handler, point_data, working_mask, iterations
+)
+bbox_time, bbox_result = benchmark_action_handler(
+    bbox_handler, bbox_data, working_mask, iterations
+)
+mask_time, mask_result = benchmark_action_handler(
+    mask_handler, mask_data, working_mask, iterations
+)
 
 # Create performance comparison figure
 fig_perf, axes = plt.subplots(2, 2, figsize=(16, 12))
-fig_perf.suptitle('Action Handler Performance Analysis', fontsize=16, fontweight='bold')
+fig_perf.suptitle("Action Handler Performance Analysis", fontsize=16, fontweight="bold")
 
 # Performance bar chart
 ax_perf = axes[0, 0]
-handlers = ['Point', 'Bbox', 'Mask']
-times = [point_time * 1000, bbox_time * 1000, mask_time * 1000]  # Convert to milliseconds
-colors = ['skyblue', 'lightgreen', 'lightcoral']
+handlers = ["Point", "Bbox", "Mask"]
+times = [
+    point_time * 1000,
+    bbox_time * 1000,
+    mask_time * 1000,
+]  # Convert to milliseconds
+colors = ["skyblue", "lightgreen", "lightcoral"]
 
-bars = ax_perf.bar(handlers, times, color=colors, alpha=0.7, edgecolor='black')
-ax_perf.set_ylabel('Time per call (ms)')
-ax_perf.set_title('Handler Performance Comparison')
+bars = ax_perf.bar(handlers, times, color=colors, alpha=0.7, edgecolor="black")
+ax_perf.set_ylabel("Time per call (ms)")
+ax_perf.set_title("Handler Performance Comparison")
 ax_perf.grid(True, alpha=0.3)
 
 # Add value labels on bars
 for bar, time_val in zip(bars, times):
     height = bar.get_height()
-    ax_perf.text(bar.get_x() + bar.get_width()/2., height + 0.001,
-                f'{time_val:.3f}ms', ha='center', va='bottom', fontweight='bold')
+    ax_perf.text(
+        bar.get_x() + bar.get_width() / 2.0,
+        height + 0.001,
+        f"{time_val:.3f}ms",
+        ha="center",
+        va="bottom",
+        fontweight="bold",
+    )
 
 # Selection results visualization
 results = [point_result, bbox_result, mask_result]
 selected_counts = [jnp.sum(result) for result in results]
 
 ax_sel = axes[0, 1]
-bars_sel = ax_sel.bar(handlers, selected_counts, color=colors, alpha=0.7, edgecolor='black')
-ax_sel.set_ylabel('Selected Cells')
-ax_sel.set_title('Selection Results')
+bars_sel = ax_sel.bar(
+    handlers, selected_counts, color=colors, alpha=0.7, edgecolor="black"
+)
+ax_sel.set_ylabel("Selected Cells")
+ax_sel.set_title("Selection Results")
 ax_sel.grid(True, alpha=0.3)
 
 for bar, count in zip(bars_sel, selected_counts):
     height = bar.get_height()
-    ax_sel.text(bar.get_x() + bar.get_width()/2., height + 5,
-                f'{int(count)}', ha='center', va='bottom', fontweight='bold')
+    ax_sel.text(
+        bar.get_x() + bar.get_width() / 2.0,
+        height + 5,
+        f"{int(count)}",
+        ha="center",
+        va="bottom",
+        fontweight="bold",
+    )
 
 # Visualize handler results
 ax_point = axes[1, 0]
-create_grid_matplotlib(point_result.astype(int), title="Point Handler Result", ax=ax_point)
+create_grid_matplotlib(
+    point_result.astype(int), title="Point Handler Result", ax=ax_point
+)
 
 ax_bbox = axes[1, 1]
 create_grid_matplotlib(bbox_result.astype(int), title="Bbox Handler Result", ax=ax_bbox)
 
 plt.tight_layout()
-fig_perf.savefig(output_dir / "performance_analysis.png", dpi=300, bbox_inches='tight')
-fig_perf.savefig(output_dir / "performance_analysis.svg", bbox_inches='tight')
+fig_perf.savefig(output_dir / "performance_analysis.png", dpi=300, bbox_inches="tight")
+fig_perf.savefig(output_dir / "performance_analysis.svg", bbox_inches="tight")
 plt.show()
 
 print(f"\n📊 Performance Results ({iterations} iterations):")
-print(f"  Point Handler: {point_time*1000:.3f}ms per call")
-print(f"  Bbox Handler:  {bbox_time*1000:.3f}ms per call")
-print(f"  Mask Handler:  {mask_time*1000:.3f}ms per call")
+print(f"  Point Handler: {point_time * 1000:.3f}ms per call")
+print(f"  Bbox Handler:  {bbox_time * 1000:.3f}ms per call")
+print(f"  Mask Handler:  {mask_time * 1000:.3f}ms per call")
 
 # %% [markdown]
 # ## Batch Processing Demonstration
@@ -526,48 +662,60 @@ grid_shape = (12, 12)
 working_masks = jnp.ones((batch_size,) + grid_shape, dtype=jnp.bool_)
 
 # Point batch processing
-point_batch = jnp.array([
-    [2, 2], [3, 8], [6, 4], [8, 9], [4, 6], [9, 3]
-])
+point_batch = jnp.array([[2, 2], [3, 8], [6, 4], [8, 9], [4, 6], [9, 3]])
 
 batch_point_handler = jax.vmap(point_handler, in_axes=(0, 0))
 point_batch_results = batch_point_handler(point_batch, working_masks)
 
 # Bbox batch processing
-bbox_batch = jnp.array([
-    [1, 1, 3, 3], [5, 5, 7, 7], [2, 6, 4, 8],
-    [6, 2, 8, 4], [8, 8, 10, 10], [4, 9, 6, 11]
-])
+bbox_batch = jnp.array(
+    [
+        [1, 1, 3, 3],
+        [5, 5, 7, 7],
+        [2, 6, 4, 8],
+        [6, 2, 8, 4],
+        [8, 8, 10, 10],
+        [4, 9, 6, 11],
+    ]
+)
 
 batch_bbox_handler = jax.vmap(bbox_handler, in_axes=(0, 0))
 bbox_batch_results = batch_bbox_handler(bbox_batch, working_masks)
 
 # Create batch processing visualization
 fig_batch, axes = plt.subplots(2, batch_size, figsize=(24, 8))
-fig_batch.suptitle('Batch Processing Results', fontsize=16, fontweight='bold')
+fig_batch.suptitle("Batch Processing Results", fontsize=16, fontweight="bold")
 
 # Point batch results
 for i in range(batch_size):
     ax = axes[0, i]
-    create_grid_matplotlib(point_batch_results[i].astype(int),
-                          title=f"Point {i+1}: {point_batch[i]}", ax=ax)
+    create_grid_matplotlib(
+        point_batch_results[i].astype(int),
+        title=f"Point {i + 1}: {point_batch[i]}",
+        ax=ax,
+    )
 
 # Bbox batch results
 for i in range(batch_size):
     ax = axes[1, i]
-    create_grid_matplotlib(bbox_batch_results[i].astype(int),
-                          title=f"Bbox {i+1}: {bbox_batch[i][:2]}-{bbox_batch[i][2:]}", ax=ax)
+    create_grid_matplotlib(
+        bbox_batch_results[i].astype(int),
+        title=f"Bbox {i + 1}: {bbox_batch[i][:2]}-{bbox_batch[i][2:]}",
+        ax=ax,
+    )
 
 plt.tight_layout()
-fig_batch.savefig(output_dir / "batch_processing_demo.png", dpi=300, bbox_inches='tight')
-fig_batch.savefig(output_dir / "batch_processing_demo.svg", bbox_inches='tight')
+fig_batch.savefig(
+    output_dir / "batch_processing_demo.png", dpi=300, bbox_inches="tight"
+)
+fig_batch.savefig(output_dir / "batch_processing_demo.svg", bbox_inches="tight")
 plt.show()
 
-print(f"\n📊 Batch Processing Results:")
+print("\n📊 Batch Processing Results:")
 print(f"  Point batch shape: {point_batch_results.shape}")
 print(f"  Bbox batch shape: {bbox_batch_results.shape}")
-print(f"  Point selections: {jnp.sum(point_batch_results, axis=(1,2))}")
-print(f"  Bbox selections: {jnp.sum(bbox_batch_results, axis=(1,2))}")
+print(f"  Point selections: {jnp.sum(point_batch_results, axis=(1, 2))}")
+print(f"  Bbox selections: {jnp.sum(bbox_batch_results, axis=(1, 2))}")
 
 # %% [markdown]
 # ## Summary and Comparison
@@ -580,73 +728,84 @@ print("=" * 50)
 fig_summary = plt.figure(figsize=(20, 16))
 gs = GridSpec(4, 4, figure=fig_summary, hspace=0.4, wspace=0.3)
 
-fig_summary.suptitle('JaxARC Action Handler System - Complete Overview',
-                     fontsize=20, fontweight='bold')
+fig_summary.suptitle(
+    "JaxARC Action Handler System - Complete Overview", fontsize=20, fontweight="bold"
+)
 
 # Action format comparison (top row)
-formats = ['Point', 'Bbox', 'Mask']
+formats = ["Point", "Bbox", "Mask"]
 sample_results = [
     point_results[-1][0] if point_results[-1][0] is not None else point_state,
     bbox_results[-1][0] if bbox_results[-1][0] is not None else bbox_state,
-    mask_results[-1][0] if mask_results[-1][0] is not None else mask_state
+    mask_results[-1][0] if mask_results[-1][0] is not None else mask_state,
 ]
 
 for i, (fmt, result) in enumerate(zip(formats, sample_results)):
     ax = fig_summary.add_subplot(gs[0, i])
-    create_grid_matplotlib(result.working_grid, result.selected,
-                          title=f"{fmt} Action Result", ax=ax)
+    create_grid_matplotlib(
+        result.working_grid, result.selected, title=f"{fmt} Action Result", ax=ax
+    )
 
 # Performance comparison (second row, left)
 ax_perf_summary = fig_summary.add_subplot(gs[1, :2])
-ax_perf_summary.bar(handlers, times, color=colors, alpha=0.7, edgecolor='black')
-ax_perf_summary.set_ylabel('Time per call (ms)')
-ax_perf_summary.set_title('Performance Comparison')
+ax_perf_summary.bar(handlers, times, color=colors, alpha=0.7, edgecolor="black")
+ax_perf_summary.set_ylabel("Time per call (ms)")
+ax_perf_summary.set_title("Performance Comparison")
 ax_perf_summary.grid(True, alpha=0.3)
 
 # Selection efficiency (second row, right)
 ax_sel_summary = fig_summary.add_subplot(gs[1, 2:])
 efficiency_data = {
-    'Point': [1, 1, 1, 1],  # Always selects 1 cell
-    'Bbox': [9, 9, 9],      # Selects rectangle area
-    'Mask': [jnp.sum(circle_mask), jnp.sum(line_mask), jnp.sum(cross_mask)]  # Variable
+    "Point": [1, 1, 1, 1],  # Always selects 1 cell
+    "Bbox": [9, 9, 9],  # Selects rectangle area
+    "Mask": [jnp.sum(circle_mask), jnp.sum(line_mask), jnp.sum(cross_mask)],  # Variable
 }
 
 x_pos = np.arange(len(formats))
 for i, fmt in enumerate(formats):
-    ax_sel_summary.bar(i, np.mean(efficiency_data[fmt]),
-                      color=colors[i], alpha=0.7, edgecolor='black')
+    ax_sel_summary.bar(
+        i, np.mean(efficiency_data[fmt]), color=colors[i], alpha=0.7, edgecolor="black"
+    )
 
 ax_sel_summary.set_xticks(x_pos)
 ax_sel_summary.set_xticklabels(formats)
-ax_sel_summary.set_ylabel('Average Selected Cells')
-ax_sel_summary.set_title('Selection Efficiency')
+ax_sel_summary.set_ylabel("Average Selected Cells")
+ax_sel_summary.set_title("Selection Efficiency")
 ax_sel_summary.grid(True, alpha=0.3)
 
 # Feature comparison table (bottom half)
 ax_table = fig_summary.add_subplot(gs[2:, :])
-ax_table.axis('off')
+ax_table.axis("off")
 
 # Create feature comparison data
-features = [
-    'Action Format', 'Precision', 'Flexibility', 'Performance', 'Use Case'
-]
-point_features = ['[row, col]', 'Single Cell', 'Low', 'Fast', 'Precise Selection']
-bbox_features = ['[r1,c1,r2,c2]', 'Rectangle', 'Medium', 'Fast', 'Region Selection']
-mask_features = ['Boolean Mask', 'Arbitrary', 'High', 'Fast', 'Complex Patterns']
+features = ["Action Format", "Precision", "Flexibility", "Performance", "Use Case"]
+point_features = ["[row, col]", "Single Cell", "Low", "Fast", "Precise Selection"]
+bbox_features = ["[r1,c1,r2,c2]", "Rectangle", "Medium", "Fast", "Region Selection"]
+mask_features = ["Boolean Mask", "Arbitrary", "High", "Fast", "Complex Patterns"]
 
 # Create table
 table_data = [
-    ['Feature', 'Point Actions', 'Bbox Actions', 'Mask Actions'],
-    ['Format', '[row, col]', '[r1,c1,r2,c2]', 'Boolean Mask'],
-    ['Precision', 'Single Cell', 'Rectangle', 'Arbitrary Shape'],
-    ['Flexibility', 'Low', 'Medium', 'High'],
-    ['Performance', f'{point_time*1000:.2f}ms', f'{bbox_time*1000:.2f}ms', f'{mask_time*1000:.2f}ms'],
-    ['Best Use Case', 'Precise Selection', 'Region Selection', 'Complex Patterns']
+    ["Feature", "Point Actions", "Bbox Actions", "Mask Actions"],
+    ["Format", "[row, col]", "[r1,c1,r2,c2]", "Boolean Mask"],
+    ["Precision", "Single Cell", "Rectangle", "Arbitrary Shape"],
+    ["Flexibility", "Low", "Medium", "High"],
+    [
+        "Performance",
+        f"{point_time * 1000:.2f}ms",
+        f"{bbox_time * 1000:.2f}ms",
+        f"{mask_time * 1000:.2f}ms",
+    ],
+    ["Best Use Case", "Precise Selection", "Region Selection", "Complex Patterns"],
 ]
 
 # Create table visualization
-table = ax_table.table(cellText=table_data[1:], colLabels=table_data[0],
-                      cellLoc='center', loc='center', bbox=[0, 0, 1, 1])
+table = ax_table.table(
+    cellText=table_data[1:],
+    colLabels=table_data[0],
+    cellLoc="center",
+    loc="center",
+    bbox=[0, 0, 1, 1],
+)
 table.auto_set_font_size(False)
 table.set_fontsize(11)
 table.scale(1, 2)
@@ -656,19 +815,21 @@ for i in range(len(table_data)):
     for j in range(len(table_data[0])):
         cell = table[(i, j)]
         if i == 0:  # Header row
-            cell.set_text_props(weight='bold')
-            cell.set_facecolor('#E8E8E8')
+            cell.set_text_props(weight="bold")
+            cell.set_facecolor("#E8E8E8")
         elif j == 0:  # Feature column
-            cell.set_text_props(weight='bold')
-            cell.set_facecolor('#F5F5F5')
+            cell.set_text_props(weight="bold")
+            cell.set_facecolor("#F5F5F5")
         else:
-            cell.set_facecolor('#FFFFFF')
+            cell.set_facecolor("#FFFFFF")
 
-ax_table.set_title('Action Handler Feature Comparison', fontsize=16, fontweight='bold', pad=20)
+ax_table.set_title(
+    "Action Handler Feature Comparison", fontsize=16, fontweight="bold", pad=20
+)
 
 plt.tight_layout()
-fig_summary.savefig(output_dir / "complete_summary.png", dpi=300, bbox_inches='tight')
-fig_summary.savefig(output_dir / "complete_summary.svg", bbox_inches='tight')
+fig_summary.savefig(output_dir / "complete_summary.png", dpi=300, bbox_inches="tight")
+fig_summary.savefig(output_dir / "complete_summary.svg", bbox_inches="tight")
 plt.show()
 
 # %% [markdown]
@@ -677,12 +838,18 @@ plt.show()
 # %%
 print(f"\n📁 Generated Output Files in {output_dir}:")
 output_files = [
-    "point_action_demo.png", "point_action_demo.svg",
-    "bbox_action_demo.png", "bbox_action_demo.svg",
-    "mask_action_demo.png", "mask_action_demo.svg",
-    "performance_analysis.png", "performance_analysis.svg",
-    "batch_processing_demo.png", "batch_processing_demo.svg",
-    "complete_summary.png", "complete_summary.svg"
+    "point_action_demo.png",
+    "point_action_demo.svg",
+    "bbox_action_demo.png",
+    "bbox_action_demo.svg",
+    "mask_action_demo.png",
+    "mask_action_demo.svg",
+    "performance_analysis.png",
+    "performance_analysis.svg",
+    "batch_processing_demo.png",
+    "batch_processing_demo.svg",
+    "complete_summary.png",
+    "complete_summary.svg",
 ]
 
 for file in output_files:
@@ -698,14 +865,14 @@ for file in output_files:
 print("\n🎨 Creating SVG outputs using JaxARC utilities...")
 
 # Create SVG visualizations using the existing JaxARC SVG utilities
-if 'point_results' in locals() and point_results and point_results[-1][0] is not None:
+if "point_results" in locals() and point_results and point_results[-1][0] is not None:
     final_point_state = point_results[-1][0]
 
     # Individual SVG grids
     point_svg = draw_grid_svg(
         final_point_state.working_grid,
         final_point_state.selected,
-        label="Point Actions Result"
+        label="Point Actions Result",
     )
     save_svg_drawing(point_svg, str(output_dir / "jaxarc_point_result.svg"))
 
@@ -713,31 +880,31 @@ if 'point_results' in locals() and point_results and point_results[-1][0] is not
     comparison_svg = draw_task_pair_svg(
         point_state.working_grid,
         final_point_state.working_grid,
-        label="Point Actions: Before → After"
+        label="Point Actions: Before → After",
     )
     save_svg_drawing(comparison_svg, str(output_dir / "jaxarc_point_comparison.svg"))
 
     print("  ✅ jaxarc_point_result.svg")
     print("  ✅ jaxarc_point_comparison.svg")
 
-if 'bbox_results' in locals() and bbox_results and bbox_results[-1][0] is not None:
+if "bbox_results" in locals() and bbox_results and bbox_results[-1][0] is not None:
     final_bbox_state = bbox_results[-1][0]
 
     bbox_svg = draw_grid_svg(
         final_bbox_state.working_grid,
         final_bbox_state.selected,
-        label="Bbox Actions Result"
+        label="Bbox Actions Result",
     )
     save_svg_drawing(bbox_svg, str(output_dir / "jaxarc_bbox_result.svg"))
     print("  ✅ jaxarc_bbox_result.svg")
 
-if 'mask_results' in locals() and mask_results and mask_results[-1][0] is not None:
+if "mask_results" in locals() and mask_results and mask_results[-1][0] is not None:
     final_mask_state = mask_results[-1][0]
 
     mask_svg = draw_grid_svg(
         final_mask_state.working_grid,
         final_mask_state.selected,
-        label="Mask Actions Result"
+        label="Mask Actions Result",
     )
     save_svg_drawing(mask_svg, str(output_dir / "jaxarc_mask_result.svg"))
     print("  ✅ jaxarc_mask_result.svg")
@@ -746,9 +913,9 @@ if 'mask_results' in locals() and mask_results and mask_results[-1][0] is not No
 # ## Summary and Conclusions
 
 # %%
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("🎉 JAXARC ACTION HANDLER DEMO COMPLETE!")
-print("="*60)
+print("=" * 60)
 
 print("\n✅ Successfully demonstrated:")
 print("  🎯 Point Actions: Individual cell selection")
@@ -760,10 +927,10 @@ print("  🎨 Visualization: Matplotlib + SVG output")
 print("  📊 Analysis: Performance comparison")
 
 print("\n📊 Key Performance Metrics:")
-print(f"  • Point Handler: {point_time*1000:.3f}ms per call")
-print(f"  • Bbox Handler: {bbox_time*1000:.3f}ms per call")
-print(f"  • Mask Handler: {mask_time*1000:.3f}ms per call")
-print(f"  • All handlers are JIT-compiled for optimal performance")
+print(f"  • Point Handler: {point_time * 1000:.3f}ms per call")
+print(f"  • Bbox Handler: {bbox_time * 1000:.3f}ms per call")
+print(f"  • Mask Handler: {mask_time * 1000:.3f}ms per call")
+print("  • All handlers are JIT-compiled for optimal performance")
 
 print("\n🎨 Generated Visualizations:")
 print(f"  • {len(output_files)} output files in {output_dir}")

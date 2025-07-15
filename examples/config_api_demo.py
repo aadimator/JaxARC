@@ -44,7 +44,7 @@ def demo_basic_usage():
     )
 
     logger.info(f"Created config with max steps: {config.max_episode_steps}")
-    logger.info(f"Action format: {config.action.action_format}")
+    logger.info(f"Selection format: {config.action.selection_format}")
 
     # Initialize environment
     key = jax.random.PRNGKey(42)
@@ -93,7 +93,7 @@ def demo_hydra_integration():
                 "max_grid_width": 25,
             },
             "action": {
-                "action_format": "selection_operation",
+                "selection_format": "mask",
                 "num_operations": 30,
             },
         }
@@ -211,7 +211,7 @@ def demo_preset_configs():
         config = get_preset_config(preset_name, max_episode_steps=30)
         logger.info(
             f"{preset_name.capitalize()} config: "
-            f"action_format={config.action.action_format}, "
+            f"selection_format={config.action.selection_format}, "
             f"validation={config.strict_validation}"
         )
 
@@ -252,7 +252,7 @@ def demo_manual_config_creation():
 
     # Create custom action configuration
     custom_action = ActionConfig(
-        action_format="selection_operation",
+        selection_format="mask",
         selection_threshold=0.7,
         allow_partial_selection=False,
         num_operations=25,

@@ -1,13 +1,13 @@
 """Tests for the clean class-based ArcEnvironment API."""
 
-import pytest
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
-import chex
-from unittest.mock import patch
+import pytest
 
+from jaxarc.envs.config import ActionConfig, ArcEnvConfig, GridConfig, RewardConfig
 from jaxarc.envs.environment import ArcEnvironment
-from jaxarc.envs.config import ArcEnvConfig, ActionConfig, GridConfig, RewardConfig
 from jaxarc.envs.functional import ArcEnvState
 from jaxarc.types import JaxArcTask
 
@@ -55,13 +55,15 @@ class TestArcEnvironment:
             true_test_output_grids=jnp.ones((1, 5, 5), dtype=jnp.int32),
             true_test_output_masks=jnp.ones((1, 5, 5), dtype=jnp.bool_),
             num_test_pairs=1,
-            task_index=jnp.int32(0)
+            task_index=jnp.int32(0),
         )
 
         state, obs = env.reset(key, task_data)
 
         assert isinstance(state, ArcEnvState)
-        assert jnp.array_equal(state.task_data.input_grids_examples, task_data.input_grids_examples)
+        assert jnp.array_equal(
+            state.task_data.input_grids_examples, task_data.input_grids_examples
+        )
 
     def test_step_without_reset(self):
         """Test step without reset raises error."""
@@ -69,14 +71,15 @@ class TestArcEnvironment:
         env = ArcEnvironment(config)
         action = 0
 
-        with pytest.raises(RuntimeError, match="Environment must be reset before stepping"):
+        with pytest.raises(
+            RuntimeError, match="Environment must be reset before stepping"
+        ):
             env.step(action)
 
     def test_step_after_reset(self):
         """Test step after reset."""
         config = ArcEnvConfig(
-            max_episode_steps=50,
-            action=ActionConfig(action_format="bbox")
+            max_episode_steps=50, action=ActionConfig(selection_format="bbox")
         )
         env = ArcEnvironment(config)
         key = jax.random.PRNGKey(42)
@@ -120,7 +123,7 @@ class TestArcEnvironment:
         """Test observation space information."""
         config = ArcEnvConfig(
             grid=GridConfig(max_grid_height=20, max_grid_width=25, max_colors=8),
-            action=ActionConfig(action_format="selection_operation")
+            action=ActionConfig(selection_format="mask"),
         )
         env = ArcEnvironment(config)
 
@@ -128,13 +131,13 @@ class TestArcEnvironment:
 
         assert obs_info["grid_shape"] == (20, 25)
         assert obs_info["max_colors"] == 8
-        assert obs_info["action_format"] == "selection_operation"
+        assert obs_info["selection_format"] == "mask"
 
-    def test_action_space_info_selection_operation(self):
-        """Test action space info for selection_operation format."""
+    def test_action_space_info_mask_format(self):
+        """Test action space info for mask format."""
         config = ArcEnvConfig(
             grid=GridConfig(max_grid_height=30, max_grid_width=30),
-            action=ActionConfig(action_format="selection_operation", num_operations=14)
+            action=ActionConfig(selection_format="mask", num_operations=14),
         )
         env = ArcEnvironment(config)
 
@@ -149,7 +152,7 @@ class TestArcEnvironment:
         """Test action space info for point format."""
         config = ArcEnvConfig(
             grid=GridConfig(max_grid_height=25, max_grid_width=20),
-            action=ActionConfig(action_format="point", num_operations=10)
+            action=ActionConfig(selection_format="point", num_operations=10),
         )
         env = ArcEnvironment(config)
 
@@ -162,7 +165,7 @@ class TestArcEnvironment:
     def test_action_space_info_bbox(self):
         """Test action space info for bbox format."""
         config = ArcEnvConfig(
-            action=ActionConfig(action_format="bbox", num_operations=8)
+            action=ActionConfig(selection_format="bbox", num_operations=8)
         )
         env = ArcEnvironment(config)
 
@@ -175,17 +178,17 @@ class TestArcEnvironment:
 
     def test_different_action_formats(self):
         """Test environment with different action formats."""
-        formats = ["selection_operation", "point", "bbox"]
+        formats = ["mask", "point", "bbox"]
 
-        for action_format in formats:
+        for selection_format in formats:
             config = ArcEnvConfig(
                 max_episode_steps=50,
-                action=ActionConfig(action_format=action_format)
+                action=ActionConfig(selection_format=selection_format),
             )
             env = ArcEnvironment(config)
 
             # Should initialize without error
-            assert env.config.action.action_format == action_format
+            assert env.config.action.selection_format == selection_format
 
             # Should provide correct action space info
             action_info = env.get_action_space_info()
@@ -206,9 +209,9 @@ class TestArcEnvironment:
             if env.is_done:
                 break
             try:
-                if config.action.action_format == "selection_operation":
-                    action = {"selection": jnp.array([0, 0, 1, 1]), "operation": 0}
-                elif config.action.action_format == "point":
+                if config.action.selection_format == "mask":
+                    action = {"mask": jnp.array([0, 0, 1, 1]), "operation": 0}
+                elif config.action.selection_format == "point":
                     action = {"point": jnp.array([1, 1]), "operation": 0}
                 else:  # bbox
                     action = {"bbox": jnp.array([0, 0, 1, 1]), "operation": 0}
@@ -230,6 +233,7 @@ class TestArcEnvironment:
         env_state, env_obs = env.reset(key)
 
         from jaxarc.envs.functional import arc_reset
+
         func_state, func_obs = arc_reset(key, config)
 
         # Should produce identical results
@@ -267,9 +271,9 @@ class TestArcEnvironment:
 
         # After step
         try:
-            if config.action.action_format == "selection_operation":
-                action = {"selection": jnp.array([0, 0, 1, 1]), "operation": 0}
-            elif config.action.action_format == "point":
+            if config.action.selection_format == "mask":
+                action = {"mask": jnp.array([0, 0, 1, 1]), "operation": 0}
+            elif config.action.selection_format == "point":
                 action = {"point": jnp.array([1, 1]), "operation": 0}
             else:  # bbox
                 action = {"bbox": jnp.array([0, 0, 1, 1]), "operation": 0}
@@ -289,7 +293,7 @@ class TestArcEnvironmentWithDifferentConfigs:
         config = ArcEnvConfig(
             max_episode_steps=10,
             grid=GridConfig(max_grid_height=5, max_grid_width=5, max_colors=3),
-            action=ActionConfig(num_operations=3)
+            action=ActionConfig(num_operations=3),
         )
         env = ArcEnvironment(config)
         key = jax.random.PRNGKey(42)
@@ -304,7 +308,7 @@ class TestArcEnvironmentWithDifferentConfigs:
         config = ArcEnvConfig(
             max_episode_steps=200,
             grid=GridConfig(max_grid_height=30, max_grid_width=30, max_colors=10),
-            action=ActionConfig(num_operations=14)
+            action=ActionConfig(num_operations=14),
         )
         env = ArcEnvironment(config)
         key = jax.random.PRNGKey(42)
@@ -322,8 +326,8 @@ class TestArcEnvironmentWithDifferentConfigs:
                 success_bonus=100.0,
                 step_penalty=-0.1,
                 progress_bonus=5.0,
-                reward_on_submit_only=False
-            )
+                reward_on_submit_only=False,
+            ),
         )
         env = ArcEnvironment(config)
         key = jax.random.PRNGKey(42)

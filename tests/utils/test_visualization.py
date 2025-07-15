@@ -8,21 +8,21 @@ from pathlib import Path
 import jax.numpy as jnp
 from rich.panel import Panel
 
+from jaxarc.types import Grid
+from jaxarc.utils.operation_names import (
+    OPERATION_NAMES,
+    get_operation_display_text,
+    get_operation_name,
+    is_valid_operation_id,
+)
 from jaxarc.utils.visualization import (
+    _extract_grid_data,
     draw_grid_svg,
     draw_rl_step_svg,
     log_grid_to_console,
     save_svg_drawing,
     visualize_grid_rich,
-    _extract_grid_data,
 )
-from jaxarc.utils.operation_names import (
-    get_operation_name,
-    get_operation_display_text,
-    is_valid_operation_id,
-    OPERATION_NAMES,
-)
-from jaxarc.types import Grid
 
 
 class TestGridVisualization:
@@ -324,7 +324,7 @@ class TestRLStepVisualization:
             selection_mask=selection_mask,
             operation_id=1,
             step_number=0,
-            label="Test Step"
+            label="Test Step",
         )
 
         # Check that SVG contains expected elements
@@ -350,7 +350,7 @@ class TestRLStepVisualization:
             after_grid=grid,
             selection_mask=selection_mask,
             operation_id=31,
-            step_number=5
+            step_number=5,
         )
 
         # Check basic structure

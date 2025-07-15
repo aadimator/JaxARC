@@ -81,12 +81,12 @@ class TestConfigClasses:
     def test_action_config_validation(self):
         """Test ActionConfig validation."""
         # Valid config
-        config = ActionConfig(action_format="selection_operation")
-        assert config.action_format == "selection_operation"
+        config = ActionConfig(selection_format="mask")
+        assert config.selection_format == "mask"
 
-        # Invalid action format
-        with pytest.raises(ValueError, match="Invalid action_format"):
-            ActionConfig(action_format="invalid_format")
+        # Invalid selection format
+        with pytest.raises(ValueError, match="Invalid selection_format"):
+            ActionConfig(selection_format="invalid_format")
 
         # Invalid selection threshold
         with pytest.raises(ValueError, match="selection_threshold must be in"):
@@ -121,7 +121,7 @@ class TestConfigClasses:
                     "max_colors": 8,
                 },
                 "action": {
-                    "action_format": "point",
+                    "selection_format": "point",
                     "num_operations": 20,
                 },
             }
@@ -135,7 +135,7 @@ class TestConfigClasses:
         assert config.reward.step_penalty == -0.05
         assert config.grid.max_grid_height == 25
         assert config.grid.max_colors == 8
-        assert config.action.action_format == "point"
+        assert config.action.selection_format == "point"
         assert config.action.num_operations == 20
 
     def test_config_serialization(self):
@@ -191,7 +191,7 @@ class TestFactoryFunctions:
         config = create_point_config(max_episode_steps=80)
 
         assert config.max_episode_steps == 80
-        assert config.action.action_format == "point"
+        assert config.action.selection_format == "point"
         assert config.action.allow_partial_selection is False
 
     def test_create_bbox_config(self):
@@ -199,7 +199,7 @@ class TestFactoryFunctions:
         config = create_bbox_config(max_episode_steps=90)
 
         assert config.max_episode_steps == 90
-        assert config.action.action_format == "bbox"
+        assert config.action.selection_format == "bbox"
         assert config.action.allow_partial_selection is False
 
     def test_create_restricted_config(self):
@@ -312,8 +312,8 @@ class TestFunctionalAPI:
         chex.assert_rank(obs, 2)
         assert state.step_count == 0
 
-    def test_arc_step_with_selection_operation(self):
-        """Test arc_step with selection-operation action."""
+    def test_arc_step_with_mask_format(self):
+        """Test arc_step with mask format action."""
         state, obs = arc_reset(self.key, self.config)
 
         # Create a simple action
@@ -401,7 +401,7 @@ class TestFunctionalAPI:
         config = create_standard_config(max_episode_steps=10)
         # Create new config with clipping enabled (frozen dataclass)
         action_config = ActionConfig(
-            action_format=config.action.action_format,
+            selection_format=config.action.selection_format,
             selection_threshold=config.action.selection_threshold,
             allow_partial_selection=config.action.allow_partial_selection,
             num_operations=config.action.num_operations,
@@ -560,7 +560,7 @@ class TestHydraIntegration:
                     "max_colors": 8,
                 },
                 "action": {
-                    "action_format": "bbox",
+                    "selection_format": "bbox",
                     "selection_threshold": 0.7,
                     "num_operations": 30,
                 },
@@ -574,7 +574,7 @@ class TestHydraIntegration:
         assert config.reward.reward_on_submit_only is False
         assert config.reward.progress_bonus == 0.5
         assert config.grid.max_grid_height == 25
-        assert config.action.action_format == "bbox"
+        assert config.action.selection_format == "bbox"
         assert config.action.selection_threshold == 0.7
 
 

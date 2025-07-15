@@ -25,9 +25,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from jaxarc.utils.task_manager import extract_task_id_from_index
-
 from jaxarc.types import Grid
+from jaxarc.utils.task_manager import extract_task_id_from_index
 
 if TYPE_CHECKING:
     from jaxarc.types import JaxArcTask
@@ -1584,6 +1583,7 @@ def save_svg_drawing(
         )
         raise ValueError(error_msg)
 
+
 def draw_rl_step_svg(
     before_grid: Grid,
     after_grid: Grid,
@@ -1632,15 +1632,17 @@ def draw_rl_step_svg(
 
     # Add title
     title_text = f"{label} - Step {step_number}" if label else f"Step {step_number}"
-    drawing.append(draw.Text(
-        title_text,
-        font_size=32,
-        x=total_width / 2,
-        y=50,
-        text_anchor="middle",
-        font_family="Anuphan",
-        font_weight="600"
-    ))
+    drawing.append(
+        draw.Text(
+            title_text,
+            font_size=32,
+            x=total_width / 2,
+            y=50,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="600",
+        )
+    )
 
     # Grid positions (only 2 grids now)
     before_x = side_padding
@@ -1648,7 +1650,9 @@ def draw_rl_step_svg(
     grids_y = top_padding
 
     # Helper function to draw a single grid directly
-    def draw_grid_direct(grid: Grid, x: float, y: float, grid_label: str) -> tuple[float, float]:
+    def draw_grid_direct(
+        grid: Grid, x: float, y: float, grid_label: str
+    ) -> tuple[float, float]:
         """Draw a grid directly into the main SVG and return actual dimensions."""
         grid_data, grid_mask = _extract_grid_data(grid)
 
@@ -1682,7 +1686,10 @@ def draw_rl_step_svg(
                 if grid_mask is not None:
                     actual_row = start_row + i
                     actual_col = start_col + j
-                    if actual_row < grid_mask.shape[0] and actual_col < grid_mask.shape[1]:
+                    if (
+                        actual_row < grid_mask.shape[0]
+                        and actual_col < grid_mask.shape[1]
+                    ):
                         is_valid = grid_mask[actual_row, actual_col]
 
                 if is_valid and 0 <= color_val < len(ARC_COLOR_PALETTE.keys()):
@@ -1690,57 +1697,69 @@ def draw_rl_step_svg(
                 else:
                     fill_color = "#CCCCCC"
 
-                drawing.append(draw.Rectangle(
-                    grid_x + j * cell_size,
-                    grid_y + i * cell_size,
-                    cell_size,
-                    cell_size,
-                    fill=fill_color,
-                    stroke="#111111",
-                    stroke_width=0.5
-                ))
+                drawing.append(
+                    draw.Rectangle(
+                        grid_x + j * cell_size,
+                        grid_y + i * cell_size,
+                        cell_size,
+                        cell_size,
+                        fill=fill_color,
+                        stroke="#111111",
+                        stroke_width=0.5,
+                    )
+                )
 
         # Add grid border
-        drawing.append(draw.Rectangle(
-            grid_x - 2,
-            grid_y - 2,
-            actual_width + 4,
-            actual_height + 4,
-            fill="none",
-            stroke="#111111",
-            stroke_width=2
-        ))
+        drawing.append(
+            draw.Rectangle(
+                grid_x - 2,
+                grid_y - 2,
+                actual_width + 4,
+                actual_height + 4,
+                fill="none",
+                stroke="#111111",
+                stroke_width=2,
+            )
+        )
 
         # Add grid label
-        drawing.append(draw.Text(
-            grid_label,
-            font_size=18,
-            x=grid_x,
-            y=grid_y + actual_height + 25,
-            text_anchor="start",
-            font_family="Anuphan",
-            font_weight="600"
-        ))
+        drawing.append(
+            draw.Text(
+                grid_label,
+                font_size=18,
+                x=grid_x,
+                y=grid_y + actual_height + 25,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="600",
+            )
+        )
 
         return actual_width, actual_height
 
     # Draw before grid with selection overlay
-    before_width, before_height = draw_grid_direct(before_grid, before_x, grids_y, "Before (with Selection)")
+    before_width, before_height = draw_grid_direct(
+        before_grid, before_x, grids_y, "Before (with Selection)"
+    )
 
     # Add selection mask overlay directly on before grid
     selection_mask_np = np.asarray(selection_mask)
     if selection_mask_np.any():
         # Get valid region info for coordinate mapping
         before_grid_np = np.asarray(before_grid.data)
-        before_mask_np = np.asarray(before_grid.mask) if before_grid.mask is not None else None
+        before_mask_np = (
+            np.asarray(before_grid.mask) if before_grid.mask is not None else None
+        )
 
-        _, (start_row, start_col), (display_height, display_width) = _extract_valid_region(
-            before_grid_np, before_mask_np
+        _, (start_row, start_col), (display_height, display_width) = (
+            _extract_valid_region(before_grid_np, before_mask_np)
         )
 
         if display_width > 0 and display_height > 0:
             # Calculate cell size and position for overlay on before grid
-            cell_size = min(grid_max_width / display_width, grid_max_height / display_height)
+            cell_size = min(
+                grid_max_width / display_width, grid_max_height / display_height
+            )
             overlay_x = before_x + (grid_max_width - before_width) / 2
             overlay_y = grids_y + (grid_max_height - before_height) / 2
 
@@ -1754,24 +1773,32 @@ def draw_rl_step_svg(
                     orig_row = start_row + display_row
                     orig_col = start_col + display_col
 
-                    if (orig_row < selection_mask_np.shape[0] and
-                        orig_col < selection_mask_np.shape[1] and
-                        selection_mask_np[orig_row, orig_col]):
-
-                        drawing.append(draw.Rectangle(
-                            overlay_x + display_col * cell_size,
-                            overlay_y + display_row * cell_size,
-                            cell_size,
-                            cell_size,
-                            fill=selection_color,
-                            fill_opacity=0.3,
-                            stroke="none"
-                        ))
+                    if (
+                        orig_row < selection_mask_np.shape[0]
+                        and orig_col < selection_mask_np.shape[1]
+                        and selection_mask_np[orig_row, orig_col]
+                    ):
+                        drawing.append(
+                            draw.Rectangle(
+                                overlay_x + display_col * cell_size,
+                                overlay_y + display_row * cell_size,
+                                cell_size,
+                                cell_size,
+                                fill=selection_color,
+                                fill_opacity=0.3,
+                                stroke="none",
+                            )
+                        )
 
             # Second pass: draw boundary lines only on outer edges
             def is_selected(row, col):
                 """Check if a cell is selected, handling bounds."""
-                if row < 0 or row >= selection_mask_np.shape[0] or col < 0 or col >= selection_mask_np.shape[1]:
+                if (
+                    row < 0
+                    or row >= selection_mask_np.shape[0]
+                    or col < 0
+                    or col >= selection_mask_np.shape[1]
+                ):
                     return False
                 return selection_mask_np[row, col]
 
@@ -1780,41 +1807,70 @@ def draw_rl_step_svg(
                     orig_row = start_row + display_row
                     orig_col = start_col + display_col
 
-                    if (orig_row < selection_mask_np.shape[0] and
-                        orig_col < selection_mask_np.shape[1] and
-                        selection_mask_np[orig_row, orig_col]):
-
+                    if (
+                        orig_row < selection_mask_np.shape[0]
+                        and orig_col < selection_mask_np.shape[1]
+                        and selection_mask_np[orig_row, orig_col]
+                    ):
                         cell_x = overlay_x + display_col * cell_size
                         cell_y = overlay_y + display_row * cell_size
 
                         # Check each edge and draw border line if it's on the boundary
                         # Top edge
                         if not is_selected(orig_row - 1, orig_col):
-                            drawing.append(draw.Line(
-                                cell_x, cell_y, cell_x + cell_size, cell_y,
-                                stroke=selection_color, stroke_width=3, stroke_opacity=0.9
-                            ))
+                            drawing.append(
+                                draw.Line(
+                                    cell_x,
+                                    cell_y,
+                                    cell_x + cell_size,
+                                    cell_y,
+                                    stroke=selection_color,
+                                    stroke_width=3,
+                                    stroke_opacity=0.9,
+                                )
+                            )
 
                         # Bottom edge
                         if not is_selected(orig_row + 1, orig_col):
-                            drawing.append(draw.Line(
-                                cell_x, cell_y + cell_size, cell_x + cell_size, cell_y + cell_size,
-                                stroke=selection_color, stroke_width=3, stroke_opacity=0.9
-                            ))
+                            drawing.append(
+                                draw.Line(
+                                    cell_x,
+                                    cell_y + cell_size,
+                                    cell_x + cell_size,
+                                    cell_y + cell_size,
+                                    stroke=selection_color,
+                                    stroke_width=3,
+                                    stroke_opacity=0.9,
+                                )
+                            )
 
                         # Left edge
                         if not is_selected(orig_row, orig_col - 1):
-                            drawing.append(draw.Line(
-                                cell_x, cell_y, cell_x, cell_y + cell_size,
-                                stroke=selection_color, stroke_width=3, stroke_opacity=0.9
-                            ))
+                            drawing.append(
+                                draw.Line(
+                                    cell_x,
+                                    cell_y,
+                                    cell_x,
+                                    cell_y + cell_size,
+                                    stroke=selection_color,
+                                    stroke_width=3,
+                                    stroke_opacity=0.9,
+                                )
+                            )
 
                         # Right edge
                         if not is_selected(orig_row, orig_col + 1):
-                            drawing.append(draw.Line(
-                                cell_x + cell_size, cell_y, cell_x + cell_size, cell_y + cell_size,
-                                stroke=selection_color, stroke_width=3, stroke_opacity=0.9
-                            ))
+                            drawing.append(
+                                draw.Line(
+                                    cell_x + cell_size,
+                                    cell_y,
+                                    cell_x + cell_size,
+                                    cell_y + cell_size,
+                                    stroke=selection_color,
+                                    stroke_width=3,
+                                    stroke_opacity=0.9,
+                                )
+                            )
 
     # Draw after grid
     after_width, after_height = draw_grid_direct(after_grid, after_x, grids_y, "After")
@@ -1824,19 +1880,22 @@ def draw_rl_step_svg(
     if show_operation_name:
         try:
             from jaxarc.utils.operation_names import get_operation_display_text
+
             operation_text = get_operation_display_text(operation_id)
         except (ValueError, ImportError):
             operation_text = f"Operation: {operation_id}"
 
-    drawing.append(draw.Text(
-        operation_text,
-        font_size=24,
-        x=total_width / 2,
-        y=grids_y + grid_max_height + 50,
-        text_anchor="middle",
-        font_family="Anuphan",
-        font_weight="400"
-    ))
+    drawing.append(
+        draw.Text(
+            operation_text,
+            font_size=24,
+            x=total_width / 2,
+            y=grids_y + grid_max_height + 50,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="400",
+        )
+    )
 
     # Add arrow between grids
     arrow_y = grids_y + grid_max_height / 2
@@ -1844,22 +1903,36 @@ def draw_rl_step_svg(
     # Arrow from before to after
     arrow_start_x = before_x + grid_max_width + 20
     arrow_end_x = after_x - 20
-    drawing.append(draw.Line(
-        arrow_start_x, arrow_y, arrow_end_x, arrow_y,
-        stroke="#666666", stroke_width=4
-    ))
-    drawing.append(draw.Lines(
-        arrow_end_x - 12, arrow_y - 8, arrow_end_x - 12, arrow_y + 8, arrow_end_x, arrow_y,
-        close=True, fill="#666666"
-    ))
+    drawing.append(
+        draw.Line(
+            arrow_start_x,
+            arrow_y,
+            arrow_end_x,
+            arrow_y,
+            stroke="#666666",
+            stroke_width=4,
+        )
+    )
+    drawing.append(
+        draw.Lines(
+            arrow_end_x - 12,
+            arrow_y - 8,
+            arrow_end_x - 12,
+            arrow_y + 8,
+            arrow_end_x,
+            arrow_y,
+            close=True,
+            fill="#666666",
+        )
+    )
 
     return drawing.as_svg()
 
 
 def save_rl_step_visualization(
-    state: "ArcEnvState",
+    state: ArcEnvState,
     action: dict,
-    next_state: "ArcEnvState",
+    next_state: ArcEnvState,
     output_dir: str = "output/rl_steps",
 ) -> None:
     """JAX callback function to save RL step visualization.
@@ -1872,7 +1945,6 @@ def save_rl_step_visualization(
         next_state: Environment state after the action
         output_dir: Directory to save visualization files
     """
-    import os
     from pathlib import Path
 
     # Ensure output directory exists

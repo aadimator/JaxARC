@@ -15,11 +15,15 @@ import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
 
-from ..types import ARCLEAction, JaxArcTask, Grid
+from jaxarc.utils.visualization import (
+    _clear_output_directory,
+    save_rl_step_visualization,
+)
+
+from ..types import ARCLEAction, JaxArcTask
 from .actions import get_action_handler
 from .config import ArcEnvConfig
 from .grid_operations import compute_grid_similarity, execute_grid_operation
-from jaxarc.utils.visualization import save_rl_step_visualization, _clear_output_directory
 
 # Type aliases for cleaner signatures
 ConfigType = Union[ArcEnvConfig, DictConfig]
@@ -113,7 +117,8 @@ def _validate_and_transform_action(
                 )
 
             # Convert to boolean selection if needed
-            if config.action.action_format == "selection_operation":
+            # Convert continuous to discrete using threshold
+            if config.action.selection_format == "mask":
                 if selection.dtype == jnp.bool_:
                     validated_selection = selection
                 else:
@@ -442,8 +447,9 @@ def arc_step(
     # Check for selection field (either direct or format-specific)
     has_selection = "selection" in action
     has_format_specific = (
-        (typed_config.action.action_format == "point" and "point" in action) or
-        (typed_config.action.action_format == "bbox" and "bbox" in action)
+        (typed_config.action.selection_format == "point" and "point" in action)
+        or (typed_config.action.selection_format == "bbox" and "bbox" in action)
+        or (typed_config.action.selection_format == "mask" and "mask" in action)
     )
 
     if not has_selection and not has_format_specific:
@@ -452,52 +458,60 @@ def arc_step(
     # Handle action transformation using new handler system
     if isinstance(action, dict) and "selection" in action and "operation" in action:
         # Check if action is already in standardized format (selection mask + operation)
-        if (isinstance(action["selection"], jnp.ndarray) and
-            len(action["selection"].shape) == 2 and
-            action["selection"].shape == state.working_grid_mask.shape):
+        if (
+            isinstance(action["selection"], jnp.ndarray)
+            and len(action["selection"].shape) == 2
+            and action["selection"].shape == state.working_grid_mask.shape
+        ):
             # Already standardized format from environment class
             validated_action = action
         else:
             # Validate selection shape if it's a 2D array
-            if (isinstance(action["selection"], jnp.ndarray) and
-                len(action["selection"].shape) == 2 and
-                action["selection"].shape != state.working_grid_mask.shape):
-                raise ValueError(f"Selection shape {action['selection'].shape} doesn't match grid shape {state.working_grid_mask.shape}")
+            if (
+                isinstance(action["selection"], jnp.ndarray)
+                and len(action["selection"].shape) == 2
+                and action["selection"].shape != state.working_grid_mask.shape
+            ):
+                raise ValueError(
+                    f"Selection shape {action['selection'].shape} doesn't match grid shape {state.working_grid_mask.shape}"
+                )
 
             # Transform using appropriate handler
-            handler = get_action_handler(typed_config.action.action_format)
+            handler = get_action_handler(typed_config.action.selection_format)
             selection_mask = handler(action["selection"], state.working_grid_mask)
             validated_action = {
                 "selection": selection_mask,
-                "operation": action["operation"]
+                "operation": action["operation"],
             }
     else:
         # Legacy action format - transform using appropriate handler
-        handler = get_action_handler(typed_config.action.action_format)
-        if typed_config.action.action_format == "point":
+        handler = get_action_handler(typed_config.action.selection_format)
+        if typed_config.action.selection_format == "point":
             if isinstance(action, dict) and "point" in action:
                 action_data = jnp.array(action["point"])
                 operation = action["operation"]
             else:
-                raise ValueError("Point action must be dict with 'point' and 'operation' keys")
-        elif typed_config.action.action_format == "bbox":
+                raise ValueError(
+                    "Point action must be dict with 'point' and 'operation' keys"
+                )
+        elif typed_config.action.selection_format == "bbox":
             if isinstance(action, dict) and "bbox" in action:
                 action_data = jnp.array(action["bbox"])
                 operation = action["operation"]
             else:
-                raise ValueError("Bbox action must be dict with 'bbox' and 'operation' keys")
-        else:  # mask or selection_operation
-            if isinstance(action, dict) and "selection" in action:
-                action_data = action["selection"].flatten()
-                operation = action["operation"]
-            else:
-                raise ValueError("Selection action must be dict with 'selection' and 'operation' keys")
+                raise ValueError(
+                    "Bbox action must be dict with 'bbox' and 'operation' keys"
+                )
+        elif isinstance(action, dict) and "mask" in action:
+            action_data = action["mask"].flatten()
+            operation = action["operation"]
+        else:
+            raise ValueError(
+                "Mask action must be dict with 'mask' and 'operation' keys"
+            )
 
         selection_mask = handler(action_data, state.working_grid_mask)
-        validated_action = {
-            "selection": selection_mask,
-            "operation": operation
-        }
+        validated_action = {"selection": selection_mask, "operation": operation}
 
     # Update selection in state
     state = state.replace(selected=validated_action["selection"])

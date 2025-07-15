@@ -6,21 +6,22 @@ and the JaxARC environment, ensuring proper action processing and
 compatibility with both class-based and functional APIs.
 """
 
+from __future__ import annotations
+
+import chex
 import jax
 import jax.numpy as jnp
 import pytest
-import chex
 
 from jaxarc.envs import (
-    ArcEnvironment,
-    ArcEnvConfig,
     ActionConfig,
+    ArcEnvConfig,
+    ArcEnvironment,
     GridConfig,
     RewardConfig,
     arc_reset,
     arc_step,
 )
-from jaxarc.envs.actions import create_test_action_data
 
 
 class TestActionHandlerEnvironmentIntegration:
@@ -31,7 +32,7 @@ class TestActionHandlerEnvironmentIntegration:
         # Create config with point action format
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="point"),
+            action=ActionConfig(selection_format="point"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
@@ -43,7 +44,7 @@ class TestActionHandlerEnvironmentIntegration:
 
         # Create point action
         action = {
-            "selection": jnp.array([5, 5]),  # Point at (5, 5)
+            "point": jnp.array([5, 5]),  # Point at (5, 5)
             "operation": jnp.array(1, dtype=jnp.int32),  # Fill with color 1
         }
 
@@ -59,7 +60,7 @@ class TestActionHandlerEnvironmentIntegration:
         # Create config with bbox action format
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="bbox"),
+            action=ActionConfig(selection_format="bbox"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
@@ -71,7 +72,7 @@ class TestActionHandlerEnvironmentIntegration:
 
         # Create bbox action
         action = {
-            "selection": jnp.array([2, 3, 4, 5]),  # Bbox from (2,3) to (4,5)
+            "bbox": jnp.array([2, 3, 4, 5]),  # Bbox from (2,3) to (4,5)
             "operation": jnp.array(2, dtype=jnp.int32),  # Fill with color 2
         }
 
@@ -89,7 +90,7 @@ class TestActionHandlerEnvironmentIntegration:
         # Create config with mask action format
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="selection_operation"),
+            action=ActionConfig(selection_format="mask"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
@@ -103,7 +104,7 @@ class TestActionHandlerEnvironmentIntegration:
         mask = jnp.zeros((10, 10), dtype=jnp.bool_)
         mask = mask.at[1:4, 1:4].set(True)  # 3x3 region
         action = {
-            "selection": mask.flatten(),
+            "mask": mask.flatten(),
             "operation": jnp.array(3, dtype=jnp.int32),  # Fill with color 3
         }
 
@@ -120,8 +121,8 @@ class TestActionHandlerEnvironmentIntegration:
         # Create config with small grid
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="point"),
-            grid=GridConfig(max_grid_height=5, max_grid_width=5),
+            action=ActionConfig(selection_format="point"),
+            grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
 
@@ -132,7 +133,7 @@ class TestActionHandlerEnvironmentIntegration:
 
         # Create point action outside working grid
         action = {
-            "selection": jnp.array([10, 10]),  # Point outside 5x5 grid
+            "point": jnp.array([10, 10]),  # Point outside 5x5 grid
             "operation": jnp.array(1, dtype=jnp.int32),
         }
 
@@ -149,19 +150,25 @@ class TestActionHandlerEnvironmentIntegration:
     def test_multiple_action_formats_with_functional_api(self):
         """Test different action formats with functional API."""
         formats_and_actions = [
-            ("point", {"selection": jnp.array([3, 4]), "operation": jnp.array(1)}),
-            ("bbox", {"selection": jnp.array([1, 2, 3, 4]), "operation": jnp.array(2)}),
-            ("selection_operation", {
-                "selection": jnp.zeros((10, 10), dtype=jnp.bool_).at[2:5, 2:5].set(True).flatten(),
-                "operation": jnp.array(3)
-            }),
+            ("point", {"point": jnp.array([3, 4]), "operation": jnp.array(1)}),
+            ("bbox", {"bbox": jnp.array([1, 2, 3, 4]), "operation": jnp.array(2)}),
+            (
+                "mask",
+                {
+                    "mask": jnp.zeros((10, 10), dtype=jnp.bool_)
+                    .at[2:5, 2:5]
+                    .set(True)
+                    .flatten(),
+                    "operation": jnp.array(3),
+                },
+            ),
         ]
 
-        for action_format, action in formats_and_actions:
+        for selection_format, action in formats_and_actions:
             # Create config for this format
             config = ArcEnvConfig(
                 max_episode_steps=10,
-                action=ActionConfig(action_format=action_format),
+                action=ActionConfig(selection_format=selection_format),
                 grid=GridConfig(max_grid_height=10, max_grid_width=10),
                 reward=RewardConfig(),
             )
@@ -179,7 +186,7 @@ class TestActionHandlerEnvironmentIntegration:
         """Test that environment actions work with JIT compilation."""
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="point"),
+            action=ActionConfig(selection_format="point"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
@@ -195,7 +202,7 @@ class TestActionHandlerEnvironmentIntegration:
 
         # Create action
         action = {
-            "selection": jnp.array([2, 3]),
+            "point": jnp.array([2, 3]),
             "operation": jnp.array(1, dtype=jnp.int32),
         }
 
@@ -210,7 +217,7 @@ class TestActionHandlerEnvironmentIntegration:
         """Test that action validation and clipping work correctly."""
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="point"),
+            action=ActionConfig(selection_format="point"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
@@ -221,7 +228,7 @@ class TestActionHandlerEnvironmentIntegration:
 
         # Test coordinate clipping
         action = {
-            "selection": jnp.array([-5, 35]),  # Coordinates outside valid range
+            "point": jnp.array([-5, 35]),  # Coordinates outside valid range
             "operation": jnp.array(1, dtype=jnp.int32),
         }
 
@@ -232,27 +239,27 @@ class TestActionHandlerEnvironmentIntegration:
         assert next_state.selected[0, 9] == True  # Clipped to (0, 9) for 10x10 grid
         assert jnp.sum(next_state.selected) == 1
 
-    def test_legacy_action_format_support(self):
-        """Test backward compatibility with legacy action formats."""
+    def test_point_action_format_support(self):
+        """Test point action format support."""
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="point"),
+            action=ActionConfig(selection_format="point"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
 
-        # Test legacy point action format
+        # Test point action format
         key = jax.random.PRNGKey(42)
         state, obs = arc_reset(key, config)
 
-        # Legacy format: dict with "point" key
-        legacy_action = {
+        # Point format: dict with "point" key
+        point_action = {
             "point": jnp.array([3, 4]),
             "operation": jnp.array(1, dtype=jnp.int32),
         }
 
         # Should work with functional API
-        next_state, next_obs, reward, done, info = arc_step(state, legacy_action, config)
+        next_state, next_obs, reward, done, info = arc_step(state, point_action, config)
 
         # Verify action was processed
         assert next_state.selected[3, 4] == True
@@ -265,8 +272,8 @@ class TestActionHandlerEnvironmentIntegration:
         for height, width in grid_sizes:
             config = ArcEnvConfig(
                 max_episode_steps=10,
-                action=ActionConfig(action_format="point"),
-                grid=GridConfig(max_grid_height=height, max_grid_width=width),
+                action=ActionConfig(selection_format="point"),
+                grid=GridConfig(max_grid_height=10, max_grid_width=10),
                 reward=RewardConfig(),
             )
 
@@ -275,8 +282,9 @@ class TestActionHandlerEnvironmentIntegration:
             state, obs = env.reset(key)
 
             # Create point action within grid bounds
+            # Create action for this grid size
             action = {
-                "selection": jnp.array([min(3, height-1), min(4, width-1)]),
+                "point": jnp.array([min(2, height - 1), min(2, width - 1)]),
                 "operation": jnp.array(1, dtype=jnp.int32),
             }
 
@@ -295,7 +303,7 @@ class TestActionHandlerEnvironmentIntegration:
         """
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="point"),
+            action=ActionConfig(selection_format="point"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
@@ -309,16 +317,12 @@ class TestActionHandlerEnvironmentIntegration:
         working_masks = jnp.ones((batch_size,) + grid_shape, dtype=jnp.bool_)
 
         # Create batch of action data (just the point coordinates)
-        batch_action_data = jnp.array([
-            [1, 2],
-            [3, 4],
-            [5, 6]
-        ])
+        batch_action_data = jnp.array([[1, 2], [3, 4], [5, 6]])
 
         # Test batch processing with action handlers
         from jaxarc.envs.actions import get_action_handler
 
-        handler = get_action_handler(config.action.action_format)
+        handler = get_action_handler(config.action.selection_format)
 
         # Use vmap to process batch of actions - this works because action handlers
         # only take JAX arrays as input, not config objects
@@ -341,7 +345,7 @@ class TestActionHandlerEnvironmentIntegration:
         """Test that action handlers maintain good performance."""
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="point"),
+            action=ActionConfig(selection_format="point"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
@@ -355,7 +359,7 @@ class TestActionHandlerEnvironmentIntegration:
         # Warm up JIT
         key = jax.random.PRNGKey(42)
         action = {
-            "selection": jnp.array([5, 5]),
+            "point": jnp.array([5, 5]),
             "operation": jnp.array(1, dtype=jnp.int32),
         }
         _ = full_pipeline(key, action)
@@ -368,7 +372,7 @@ class TestActionHandlerEnvironmentIntegration:
         """Test proper error handling in integration scenarios."""
         config = ArcEnvConfig(
             max_episode_steps=10,
-            action=ActionConfig(action_format="point"),
+            action=ActionConfig(selection_format="point"),
             grid=GridConfig(max_grid_height=10, max_grid_width=10),
             reward=RewardConfig(),
         )
@@ -386,7 +390,7 @@ class TestActionHandlerEnvironmentIntegration:
         fresh_env = ArcEnvironment(config)
         with pytest.raises(RuntimeError, match="Environment must be reset"):
             action = {
-                "selection": jnp.array([5, 5]),
+                "point": jnp.array([5, 5]),
                 "operation": jnp.array(1, dtype=jnp.int32),
             }
             fresh_env.step(action)

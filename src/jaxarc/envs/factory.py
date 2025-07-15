@@ -58,7 +58,7 @@ def create_raw_config(
     )
 
     action_config = ActionConfig(
-        action_format="selection_operation",
+        selection_format="mask",
         selection_threshold=0.5,
         allow_partial_selection=True,
         num_operations=35,
@@ -155,7 +155,7 @@ def create_standard_config(
     )
 
     action_config = ActionConfig(
-        action_format="selection_operation",
+        selection_format="mask",
         selection_threshold=0.5,
         allow_partial_selection=True,
         num_operations=35,
@@ -230,7 +230,7 @@ def create_full_config(
     )
 
     action_config = ActionConfig(
-        action_format="selection_operation",
+        selection_format="mask",
         selection_threshold=0.5,
         allow_partial_selection=True,
         num_operations=35,
@@ -288,7 +288,7 @@ def create_point_config(
 
     # Modify action config for point-based actions
     action_config = ActionConfig(
-        action_format="point",
+        selection_format="point",
         selection_threshold=0.5,
         allow_partial_selection=False,  # Not relevant for point actions
         num_operations=35,
@@ -340,7 +340,7 @@ def create_bbox_config(
 
     # Modify action config for bbox-based actions
     action_config = ActionConfig(
-        action_format="bbox",
+        selection_format="bbox",
         selection_threshold=0.5,
         allow_partial_selection=False,  # Not relevant for bbox actions
         num_operations=35,
@@ -399,7 +399,7 @@ def create_restricted_config(
 
     # Modify action config
     action_config = ActionConfig(
-        action_format="selection_operation",
+        selection_format="mask",
         selection_threshold=0.7,  # Higher threshold for more decisive selections
         allow_partial_selection=False,
         num_operations=max(allowed_operations) + 1 if allowed_operations else 35,
@@ -554,7 +554,7 @@ def create_evaluation_config(
     )
 
     action_config = ActionConfig(
-        action_format="selection_operation",
+        selection_format="mask",
         selection_threshold=0.5,
         allow_partial_selection=True,
         num_operations=35,
@@ -634,25 +634,25 @@ def create_dataset_config(
             "max_grid_height": 30,
             "max_grid_width": 30,
             "max_colors": 10,
-            "action_format": "selection_operation",
+            "selection_format": "mask",
         },
         "concept-arc": {
             "max_grid_height": 15,
             "max_grid_width": 15,
             "max_colors": 10,
-            "action_format": "selection_operation",
+            "selection_format": "mask",
         },
         "mini-arc": {
             "max_grid_height": 5,
             "max_grid_width": 5,
             "max_colors": 10,
-            "action_format": "point",  # Point actions work well for small grids
+            "selection_format": "point",  # Point actions work well for small grids
         },
         "re-arc": {
             "max_grid_height": 30,
             "max_grid_width": 30,
             "max_colors": 10,
-            "action_format": "selection_operation",
+            "selection_format": "mask",
         },
     }
 
@@ -677,7 +677,7 @@ def create_dataset_config(
     )
 
     action_config = ActionConfig(
-        action_format=dataset_settings["action_format"],
+        selection_format=dataset_settings["selection_format"],
         selection_threshold=base_config.action.selection_threshold,
         allow_partial_selection=base_config.action.allow_partial_selection,
         num_operations=base_config.action.num_operations,

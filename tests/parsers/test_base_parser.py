@@ -49,7 +49,7 @@ class TestArcDataParserBase:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
@@ -69,7 +69,7 @@ class TestArcDataParserBase:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
@@ -95,7 +95,7 @@ class TestArcDataParserBase:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
@@ -113,7 +113,7 @@ class TestArcDataParserBase:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
@@ -131,7 +131,7 @@ class TestArcDataParserBase:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
@@ -149,7 +149,7 @@ class TestArcDataParserBase:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": 5,
                     "max_test_pairs": 5,
@@ -169,7 +169,7 @@ class TestArcDataParserBase:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": -1,
                     "max_test_pairs": 5,
@@ -187,7 +187,7 @@ class TestArcDataParserBase:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": 0,
                     "max_test_pairs": 5,
@@ -205,7 +205,7 @@ class TestArcDataParserBase:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": 5,
                     "max_test_pairs": -1,
@@ -223,7 +223,7 @@ class TestArcDataParserBase:
                         "min_grid_height": 1,
                         "min_grid_width": 1,
                         "max_colors": 10,
-                        "background_color": 0
+                        "background_color": 0,
                     },
                     "max_train_pairs": 5,
                     "max_test_pairs": 0,
@@ -241,7 +241,7 @@ class TestArcDataParserBase:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 5,
                 "max_test_pairs": 3,
@@ -261,7 +261,7 @@ class TestArcDataParserBase:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
@@ -330,7 +330,7 @@ class TestArcDataParserBase:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
@@ -349,7 +349,7 @@ class TestArcDataParserBase:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
@@ -371,7 +371,7 @@ class TestArcDataParserBase:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 5,
                 "max_test_pairs": 5,
@@ -401,7 +401,7 @@ class TestArcDataParserBase:
                     "min_grid_height": 1,
                     "min_grid_width": 1,
                     "max_colors": 10,
-                    "background_color": 0
+                    "background_color": 0,
                 },
                 "max_train_pairs": 3,
                 "max_test_pairs": 2,

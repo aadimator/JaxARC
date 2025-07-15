@@ -187,8 +187,8 @@ class GridConfig:
 class ActionConfig:
     """Configuration for action space and validation."""
 
-    # Action format
-    action_format: str = "selection_operation"  # "selection_operation", "point", "bbox"
+    # Selection format
+    selection_format: str = "mask"  # "mask", "point", "bbox"
 
     # Selection parameters
     selection_threshold: float = 0.5  # For converting continuous to discrete selection
@@ -206,8 +206,8 @@ class ActionConfig:
 
     def __post_init__(self) -> None:
         """Validate action configuration."""
-        if self.action_format not in ["selection_operation", "point", "bbox"]:
-            raise ValueError(f"Invalid action_format: {self.action_format}")
+        if self.selection_format not in ["mask", "point", "bbox"]:
+            raise ValueError(f"Invalid selection_format: {self.selection_format}")
 
         if not 0.0 <= self.selection_threshold <= 1.0:
             raise ValueError(
@@ -234,8 +234,10 @@ class ActionConfig:
         if allowed_ops is not None and not isinstance(allowed_ops, list):
             allowed_ops = list(allowed_ops) if allowed_ops else None
 
+        selection_format = cfg.get("selection_format", "mask")
+
         return cls(
-            action_format=cfg.get("action_format", "selection_operation"),
+            selection_format=selection_format,
             selection_threshold=cfg.get("selection_threshold", 0.5),
             allow_partial_selection=cfg.get("allow_partial_selection", True),
             num_operations=cfg.get("num_operations", 35),
@@ -353,7 +355,7 @@ class ArcEnvConfig:
                 "background_color": self.grid.background_color,
             },
             "action": {
-                "action_format": self.action.action_format,
+                "selection_format": self.action.selection_format,
                 "selection_threshold": self.action.selection_threshold,
                 "allow_partial_selection": self.action.allow_partial_selection,
                 "num_operations": self.action.num_operations,
@@ -393,11 +395,11 @@ def validate_config(config: ArcEnvConfig) -> None:
 
     # Check action config consistency
     if (
-        config.action.action_format != "selection_operation"
+        config.action.selection_format != "mask"
         and config.action.allow_partial_selection
     ):
         logger.warning(
-            f"allow_partial_selection is ignored for action_format='{config.action.action_format}'"
+            f"allow_partial_selection is ignored for selection_format='{config.action.selection_format}'"
         )
 
 
@@ -436,7 +438,7 @@ def get_config_summary(config: ArcEnvConfig) -> str:
   Episode: max_steps={config.max_episode_steps}, auto_reset={config.auto_reset}
   Rewards: submit_only={config.reward.reward_on_submit_only}, success_bonus={config.reward.success_bonus}
   Grid: max_size=({config.grid.max_grid_height}, {config.grid.max_grid_width}), colors={config.grid.max_colors}
-  Actions: format={config.action.action_format}, operations={config.action.num_operations}, allowed={config.action.allowed_operations}
+  Actions: format={config.action.selection_format}, operations={config.action.num_operations}, allowed={config.action.allowed_operations}
   Dataset: name={config.dataset.dataset_name}, split={config.dataset.task_split}
   Logging: operations={config.log_operations}, grid_changes={config.log_grid_changes}
 """

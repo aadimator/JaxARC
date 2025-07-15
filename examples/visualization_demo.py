@@ -1,14 +1,15 @@
-
-
 """
 Demonstration of enhanced visualization capabilities.
 
 This script runs a short episode of the ARC environment with random actions
 and saves a visualization of each step to an SVG file.
 """
-import jax
+
+from __future__ import annotations
+
 import jax.numpy as jnp
 import jax.random as jr
+
 from jaxarc.envs import ArcEnvironment
 from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.utils.config import get_config
@@ -21,16 +22,16 @@ def create_random_action(key: jr.PRNGKey, config: ArcEnvConfig) -> dict:
     # Create a random operation
     op = jr.randint(op_key, shape=(), minval=0, maxval=config.action.num_operations)
 
-    # Create a random selection based on the action format
-    if config.action.action_format == "bbox":
+    # Create a random selection based on the selection format
+    if config.action.selection_format == "bbox":
         h, w = config.grid.max_grid_height, config.grid.max_grid_width
         r1, c1, r2, c2 = jr.randint(sel_key, shape=(4,), minval=0, maxval=max(h, w))
         selection = jnp.array([r1, c1, r2, c2])
-    elif config.action.action_format == "point":
+    elif config.action.selection_format == "point":
         h, w = config.grid.max_grid_height, config.grid.max_grid_width
         r, c = jr.randint(sel_key, shape=(2,), minval=0, maxval=jnp.array([h, w]))
         selection = jnp.array([r, c])
-    else:  # Default to selection_operation (mask)
+    else:  # Default to mask
         h, w = config.grid.max_grid_height, config.grid.max_grid_width
         selection = jr.bernoulli(sel_key, p=0.1, shape=(h, w))
 
@@ -43,7 +44,7 @@ def main():
     # for simpler random action generation.
     config = ArcEnvConfig.from_hydra(
         get_config(
-            overrides=["debug.log_rl_steps=true", "action.action_format=bbox"]
+            overrides=["debug.log_rl_steps=true", "action.selection_format=bbox"]
         )
     )
 
@@ -55,7 +56,9 @@ def main():
     key = jr.PRNGKey(0)
     state, obs = env.reset(key)
 
-    print(f"Running episode and saving visualizations to {config.debug.rl_steps_output_dir}...")
+    print(
+        f"Running episode and saving visualizations to {config.debug.rl_steps_output_dir}..."
+    )
 
     for i in range(5):
         # Take a random action
@@ -67,10 +70,13 @@ def main():
             print(f"Episode finished early at step {i + 1}.")
             break
 
-    print(f"\nEpisode completed! Check the directory '{config.debug.rl_steps_output_dir}' for the visualization files.")
-    print("You can open the 'step_*.svg' files in a web browser to see the visualizations.")
+    print(
+        f"\nEpisode completed! Check the directory '{config.debug.rl_steps_output_dir}' for the visualization files."
+    )
+    print(
+        "You can open the 'step_*.svg' files in a web browser to see the visualizations."
+    )
 
 
 if __name__ == "__main__":
     main()
-
