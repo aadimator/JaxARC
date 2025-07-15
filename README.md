@@ -49,6 +49,27 @@ pixi shell  # Activate project environment
 pixi run -e dev pre-commit install  # Set up pre-commit hooks
 ```
 
+## 📊 Supported Datasets
+
+JaxARC supports multiple ARC dataset variants with automatic download capabilities:
+
+- **ARC-AGI-1 (2024)**: Original ARC challenge dataset from Kaggle
+- **ARC-AGI-2 (2025)**: Updated ARC challenge dataset from Kaggle  
+- **ConceptARC**: 16 concept groups with 10 tasks each for systematic evaluation
+- **MiniARC**: Compact 5x5 grid version for rapid prototyping
+
+### Dataset Download
+
+```bash
+# Download specific datasets
+python scripts/download_kaggle_dataset.py conceptarc
+python scripts/download_kaggle_dataset.py miniarc
+python scripts/download_kaggle_dataset.py kaggle arc-prize-2025
+
+# Download all datasets at once
+python scripts/download_kaggle_dataset.py all-datasets
+```
+
 ## 🚀 Quick Start
 
 ### Basic Usage
@@ -76,6 +97,31 @@ action = {
 # Step environment
 state, observation, reward, done, info = arc_step(state, action, config)
 print(f"Reward: {reward}, Done: {done}, Similarity: {info['similarity']}")
+```
+
+### ConceptARC Usage
+
+```python
+import jax
+from jaxarc.parsers import ConceptArcParser
+from omegaconf import DictConfig
+
+# Create ConceptARC configuration
+config = DictConfig({
+    "corpus": {"path": "data/raw/ConceptARC/corpus"},
+    "grid": {"max_grid_height": 30, "max_grid_width": 30},
+    "max_train_pairs": 4, "max_test_pairs": 3
+})
+
+# Create parser and explore concept groups
+parser = ConceptArcParser(config)
+concepts = parser.get_concept_groups()
+print(f"Available concepts: {concepts}")
+
+# Get random task from specific concept
+key = jax.random.PRNGKey(42)
+task = parser.get_random_task_from_concept("Center", key)
+print(f"Task has {task.num_train_pairs} training pairs")
 ```
 
 ### JAX Transformations
@@ -227,8 +273,18 @@ pixi run docs-serve
 ### Examples
 
 ```bash
+# Basic configuration and environment demos
 python examples/config_api_demo.py
 python examples/hydra_integration_example.py
+
+# ConceptARC dataset exploration
+python examples/concept_arc_demo.py
+python examples/concept_arc_demo.py --concept Center
+python examples/concept_arc_demo.py --stats
+
+# Visualization demos
+python examples/visualization_demo.py
+python examples/enhanced_visualization_demo.py
 ```
 
 ## 📚 Documentation

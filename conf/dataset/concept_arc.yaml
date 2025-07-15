@@ -1,0 +1,50 @@
+# ConceptARC Dataset Configuration
+# This configuration contains dataset-specific settings for ConceptARC
+# ConceptARC organizes ARC tasks into 16 concept groups for systematic evaluation
+
+# Dataset Information
+dataset_name: "ConceptARC"
+dataset_year: 2023
+description: "ConceptARC dataset organized around 16 concept groups for systematic evaluation"
+
+default_split: "corpus"
+
+# Data Paths (adjust these to your local dataset location)
+data_root: "data/raw/ConceptARC"
+corpus:
+  path: "${dataset.data_root}/corpus"
+  concept_groups:
+    - "AboveBelow"
+    - "Center" 
+    - "CleanUp"
+    - "CompleteShape"
+    - "Copy"
+    - "Count"
+    - "ExtendToBoundary"
+    - "ExtractObjects"
+    - "FilledNotFilled"
+    - "HorizontalVertical"
+    - "InsideOutside"
+    - "MoveToBoundary"
+    - "Order"
+    - "SameDifferent"
+    - "TopBottom2D"
+    - "TopBottom3D"
+
+# Parser Configuration
+parser:
+  _target_: jaxarc.parsers.ConceptArcParser
+  description: "ConceptARC parser with concept group organization"
+
+# Grid Configuration - Standard ARC dimensions
+grid:
+  max_grid_height: 30
+  max_grid_width: 30
+  min_grid_height: 1
+  min_grid_width: 1
+  max_colors: 10
+  background_color: 0
+
+# Task Configuration
+max_train_pairs: 4  # ConceptARC has 1-4 demonstration pairs
+max_test_pairs: 3   # ConceptARC has 3 test inputs per task
