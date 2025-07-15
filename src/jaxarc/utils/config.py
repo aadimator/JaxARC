@@ -9,14 +9,14 @@ from omegaconf import DictConfig
 from pyprojroot import here
 
 
-def get_config() -> DictConfig:
+def get_config(overrides: list[str] | None = None) -> DictConfig:
     """Load the default Hydra configuration."""
     config_dir = here("conf")
 
     with initialize_config_dir(
         config_dir=str(config_dir.absolute()), version_base=None
     ):
-        return compose(config_name="config")
+        return compose(config_name="config", overrides=overrides or [])
 
 
 def get_path(path_type: str, create: bool = False) -> Path:

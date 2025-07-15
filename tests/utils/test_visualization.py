@@ -10,10 +10,19 @@ from rich.panel import Panel
 
 from jaxarc.utils.visualization import (
     draw_grid_svg,
+    draw_rl_step_svg,
     log_grid_to_console,
     save_svg_drawing,
     visualize_grid_rich,
+    _extract_grid_data,
 )
+from jaxarc.utils.operation_names import (
+    get_operation_name,
+    get_operation_display_text,
+    is_valid_operation_id,
+    OPERATION_NAMES,
+)
+from jaxarc.types import Grid
 
 
 class TestGridVisualization:
@@ -198,3 +207,154 @@ class TestGridVisualization:
             raise AssertionError("Expected ValueError for invalid input")
         except ValueError as e:
             assert "Unsupported grid input type" in str(e)
+
+
+class TestGridTypeSupport:
+    """Test Grid type support in visualization functions."""
+
+    def test_extract_grid_data_with_grid_object(self):
+        """Test _extract_grid_data with Grid object."""
+        data = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
+        mask = jnp.array([[True, True], [False, True]], dtype=jnp.bool_)
+
+        grid = Grid(data=data, mask=mask)
+
+        extracted_data, extracted_mask = _extract_grid_data(grid)
+
+        assert jnp.array_equal(extracted_data, data)
+        assert jnp.array_equal(extracted_mask, mask)
+
+    def test_extract_grid_data_with_jax_array(self):
+        """Test _extract_grid_data with JAX array."""
+        data = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
+
+        extracted_data, extracted_mask = _extract_grid_data(data)
+
+        assert jnp.array_equal(extracted_data, data)
+        assert extracted_mask is None
+
+    def test_extract_grid_data_invalid_type(self):
+        """Test _extract_grid_data with invalid type."""
+        try:
+            _extract_grid_data("invalid")  # type: ignore[arg-type]
+            raise AssertionError("Expected ValueError for invalid input")
+        except ValueError as e:
+            assert "Unsupported grid input type" in str(e)
+
+    def test_visualize_grid_rich_with_grid_object(self):
+        """Test visualize_grid_rich with Grid object."""
+        data = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
+        mask = jnp.array([[True, True], [False, True]], dtype=jnp.bool_)
+
+        grid = Grid(data=data, mask=mask)
+
+        panel = visualize_grid_rich(grid, title="Grid Object Test")
+        assert isinstance(panel, Panel)
+
+    def test_draw_grid_svg_with_grid_object(self):
+        """Test draw_grid_svg with Grid object."""
+        data = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
+        mask = jnp.array([[True, True], [False, True]], dtype=jnp.bool_)
+
+        grid = Grid(data=data, mask=mask)
+
+        result = draw_grid_svg(grid, label="Grid Object SVG")
+        assert hasattr(result, "save_svg")
+
+
+class TestOperationNames:
+    """Test operation names utility functions."""
+
+    def test_get_operation_name_valid(self):
+        """Test get_operation_name with valid IDs."""
+        assert get_operation_name(0) == "Fill 0"
+        assert get_operation_name(10) == "Flood Fill 0"
+        assert get_operation_name(20) == "Move Up"
+        assert get_operation_name(34) == "Submit"
+
+    def test_get_operation_name_invalid(self):
+        """Test get_operation_name with invalid ID."""
+        try:
+            get_operation_name(999)
+            raise AssertionError("Expected ValueError for invalid operation ID")
+        except ValueError as e:
+            assert "Unknown operation ID" in str(e)
+
+    def test_get_operation_display_text(self):
+        """Test get_operation_display_text formatting."""
+        assert get_operation_display_text(0) == "Op 0: Fill 0"
+        assert get_operation_display_text(20) == "Op 20: Move Up"
+
+    def test_is_valid_operation_id(self):
+        """Test is_valid_operation_id function."""
+        assert is_valid_operation_id(0) is True
+        assert is_valid_operation_id(34) is True
+        assert is_valid_operation_id(999) is False
+        assert is_valid_operation_id(-1) is False
+
+    def test_operation_names_coverage(self):
+        """Test that all expected operation IDs are covered."""
+        # Test some key operations exist
+        expected_ops = [0, 9, 10, 19, 20, 23, 24, 27, 28, 31, 32, 34]
+        for op_id in expected_ops:
+            assert op_id in OPERATION_NAMES
+            assert is_valid_operation_id(op_id)
+
+
+class TestRLStepVisualization:
+    """Test RL step visualization functionality."""
+
+    def test_draw_rl_step_svg_basic(self):
+        """Test basic RL step SVG generation."""
+        # Create simple before and after grids
+        before_data = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
+        after_data = jnp.array([[1, 1], [2, 3]], dtype=jnp.int32)
+        mask = jnp.array([[True, True], [True, True]], dtype=jnp.bool_)
+
+        before_grid = Grid(data=before_data, mask=mask)
+        after_grid = Grid(data=after_data, mask=mask)
+
+        # Create selection mask
+        selection_mask = jnp.array([[True, False], [False, False]], dtype=jnp.bool_)
+
+        # Generate SVG
+        svg_content = draw_rl_step_svg(
+            before_grid=before_grid,
+            after_grid=after_grid,
+            selection_mask=selection_mask,
+            operation_id=1,
+            step_number=0,
+            label="Test Step"
+        )
+
+        # Check that SVG contains expected elements
+        assert isinstance(svg_content, str)
+        assert "<svg" in svg_content
+        assert "Test Step - Step 0" in svg_content
+        assert "Op 1: Fill 1" in svg_content
+
+    def test_draw_rl_step_svg_no_selection(self):
+        """Test RL step SVG with no selection."""
+        # Create simple grids
+        data = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
+        mask = jnp.array([[True, True], [True, True]], dtype=jnp.bool_)
+
+        grid = Grid(data=data, mask=mask)
+
+        # Create empty selection mask
+        selection_mask = jnp.array([[False, False], [False, False]], dtype=jnp.bool_)
+
+        # Generate SVG
+        svg_content = draw_rl_step_svg(
+            before_grid=grid,
+            after_grid=grid,
+            selection_mask=selection_mask,
+            operation_id=31,
+            step_number=5
+        )
+
+        # Check basic structure
+        assert isinstance(svg_content, str)
+        assert "<svg" in svg_content
+        assert "Step 5" in svg_content
+        assert "Op 31: Clear" in svg_content

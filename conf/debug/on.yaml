@@ -1,0 +1,3 @@
+log_rl_steps: true
+rl_steps_output_dir: "outputs/rl_steps_debug"
+clear_output_dir: true

@@ -13,6 +13,7 @@ from loguru import logger
 from jaxarc.envs.actions import get_action_handler
 from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.envs.functional import ArcEnvState, arc_reset, arc_step
+from jaxarc.utils.visualization import _clear_output_directory
 from jaxarc.types import JaxArcTask
 
 
@@ -64,6 +65,10 @@ class ArcEnvironment:
         Returns:
             Tuple of (initial_state, initial_observation)
         """
+        # Clear visualization directory if enabled
+        if self.config.debug.log_rl_steps and self.config.debug.clear_output_dir:
+            self._clear_visualization_directory()
+
         self._state, obs = arc_reset(key, self.config, task_data)
         return self._state, obs
 
@@ -97,6 +102,18 @@ class ArcEnvironment:
 
         self._state, obs, reward, done, info = arc_step(self._state, standardized_action, self.config)
         return self._state, obs, reward, info
+
+    def _clear_visualization_directory(self) -> None:
+        """Clear the visualization output directory.
+
+        This method safely clears the RL steps visualization directory
+        to ensure clean output for each episode.
+        """
+        try:
+            _clear_output_directory(self.config.debug.rl_steps_output_dir)
+            logger.debug(f"Cleared visualization directory: {self.config.debug.rl_steps_output_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to clear visualization directory: {e}")
 
     @property
     def state(self) -> Optional[ArcEnvState]:

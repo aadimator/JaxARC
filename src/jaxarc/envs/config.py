@@ -16,6 +16,30 @@ from omegaconf import DictConfig, OmegaConf
 
 
 @chex.dataclass(frozen=True)
+class DebugConfig:
+    """Debug configuration for development and analysis."""
+
+    log_rl_steps: bool = False
+    rl_steps_output_dir: str = "output/rl_steps"
+    clear_output_dir: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate debug configuration."""
+        # Ensure output directory path is valid
+        if not isinstance(self.rl_steps_output_dir, str):
+            raise ValueError("rl_steps_output_dir must be a string")
+
+    @classmethod
+    def from_hydra(cls, cfg: DictConfig) -> DebugConfig:
+        """Create debug config from Hydra DictConfig."""
+        return cls(
+            log_rl_steps=cfg.get("log_rl_steps", False),
+            rl_steps_output_dir=cfg.get("rl_steps_output_dir", "output/rl_steps"),
+            clear_output_dir=cfg.get("clear_output_dir", True),
+        )
+
+
+@chex.dataclass(frozen=True)
 class RewardConfig:
     """Configuration for reward calculation."""
 
@@ -243,6 +267,7 @@ class ArcEnvConfig:
     grid: GridConfig = field(default_factory=GridConfig)
     action: ActionConfig = field(default_factory=ActionConfig)
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
+    debug: DebugConfig = field(default_factory=DebugConfig)
 
     # Task parser (can be set after creation)
     parser: Optional[Any] = field(default=None, compare=False, hash=False)
@@ -280,6 +305,7 @@ class ArcEnvConfig:
         grid_cfg = GridConfig.from_hydra(cfg.get("grid", {}))
         action_cfg = ActionConfig.from_hydra(cfg.get("action", {}))
         dataset_cfg = DatasetConfig.from_hydra(cfg.get("dataset", {}))
+        debug_cfg = DebugConfig.from_hydra(cfg.get("debug", {}))
 
         # Apply dataset-specific overrides to grid config
         effective_grid_cfg = dataset_cfg.get_effective_grid_config(grid_cfg)
@@ -296,6 +322,7 @@ class ArcEnvConfig:
             grid=effective_grid_cfg,
             action=action_cfg,
             dataset=dataset_cfg,
+            debug=debug_cfg,
             parser=parser,
         )
 

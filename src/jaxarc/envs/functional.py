@@ -15,10 +15,11 @@ import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
 
-from ..types import ARCLEAction, JaxArcTask
+from ..types import ARCLEAction, JaxArcTask, Grid
 from .actions import get_action_handler
 from .config import ArcEnvConfig
 from .grid_operations import compute_grid_similarity, execute_grid_operation
+from jaxarc.utils.visualization import save_rl_step_visualization, _clear_output_directory
 
 # Type aliases for cleaner signatures
 ConfigType = Union[ArcEnvConfig, DictConfig]
@@ -546,6 +547,24 @@ def arc_step(
             ),
             reward,
             info["similarity_improvement"],
+        )
+
+    # Optional visualization callback (add before return)
+    if typed_config.debug.log_rl_steps:
+        # Clear output directory at episode start (step 0)
+        if state.step_count == 0 and typed_config.debug.clear_output_dir:
+            jax.debug.callback(
+                lambda output_dir: _clear_output_directory(output_dir),
+                typed_config.debug.rl_steps_output_dir,
+            )
+
+        # Save step visualization
+        jax.debug.callback(
+            save_rl_step_visualization,
+            state,
+            validated_action,
+            new_state,
+            typed_config.debug.rl_steps_output_dir,
         )
 
     return new_state, observation, reward, done, info
