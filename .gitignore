@@ -1,6 +1,7 @@
 /planning-docs
 /data
 /outputs/
+/.kiro/specs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

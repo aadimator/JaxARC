@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "name": "Code Quality Analyzer",
+  "description": "Monitors source code files for changes and provides automated code quality analysis including code smells, design patterns, best practices, readability, maintainability, and performance optimizations with JAX compliance focus",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/**/*.py",
+      "tests/**/*.py",
+      "examples/**/*.py",
+      "scripts/**/*.py",
+      "notebooks/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Analyze the modified Python code for potential improvements. Focus on:\n\n1. **Code Smells & Anti-patterns**: Identify long functions, complex conditionals, duplicate code, magic numbers, and poor naming\n2. **Design Patterns**: Suggest appropriate patterns (Factory, Strategy, Observer, etc.) where beneficial\n3. **Best Practices**: Check for PEP 8 compliance, proper error handling, documentation, and type hints\n4. **Readability**: Assess variable naming, function clarity, comment quality, and code organization\n5. **Maintainability**: Look for tight coupling, low cohesion, and suggest refactoring opportunities\n6. **Performance**: Identify inefficient algorithms, unnecessary computations, and memory usage issues\n7. **JAX Compliance**: Ensure functions are pure, use proper PRNG management, maintain static shapes, leverage batch processing with vmap/pmap, use immutable state with chex.dataclass, and are JIT-compatible\n\nFor each issue found, provide:\n- Clear description of the problem\n- Specific location (file:line if possible)\n- Concrete improvement suggestion\n- Code example when helpful\n- Priority level (High/Medium/Low)\n\nMaintain existing functionality while suggesting improvements. Focus on actionable recommendations that enhance code quality without breaking changes."
+  }
+}
