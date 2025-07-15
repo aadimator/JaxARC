@@ -27,8 +27,10 @@ from rich.text import Text
 
 from jaxarc.utils.task_manager import extract_task_id_from_index
 
+from jaxarc.types import Grid
+
 if TYPE_CHECKING:
-    from jaxarc.types import Grid, JaxArcTask
+    from jaxarc.types import JaxArcTask
 
 # ARC color palette - matches the provided color map
 ARC_COLOR_PALETTE: dict[int, str] = {
@@ -46,22 +48,24 @@ ARC_COLOR_PALETTE: dict[int, str] = {
 }
 
 
-def _extract_grid_data(grid_input: jnp.ndarray | np.ndarray | Grid) -> np.ndarray:
-    """Extract numpy array from various grid input types.
+def _extract_grid_data(
+    grid_input: jnp.ndarray | np.ndarray | Grid,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Extract numpy array and mask from various grid input types.
 
     Args:
-        grid_input: Grid data in various formats (JAX array, numpy array, or Grid object)
+        grid_input: Grid data in various formats
 
     Returns:
-        numpy array representation of the grid
+        Tuple of (grid_data as numpy array, mask as numpy array or None)
 
     Raises:
-        ValueError: If input format is not supported
+        ValueError: If input type is not supported
     """
-    if hasattr(grid_input, "array"):  # Grid object
-        return np.asarray(grid_input.array)  # type: ignore[attr-defined]
+    if isinstance(grid_input, Grid):
+        return np.asarray(grid_input.data), np.asarray(grid_input.mask)
     if isinstance(grid_input, (jnp.ndarray, np.ndarray)):
-        return np.asarray(grid_input)
+        return np.asarray(grid_input), None
 
     msg = f"Unsupported grid input type: {type(grid_input)}"
     raise ValueError(msg)
@@ -129,7 +133,10 @@ def visualize_grid_rich(
     Returns:
         Rich Table object for display
     """
-    grid = _extract_grid_data(grid_input)
+    grid, grid_mask = _extract_grid_data(grid_input)
+
+    if mask is None:
+        mask = grid_mask
 
     if mask is not None:
         mask = np.asarray(mask)
@@ -300,7 +307,10 @@ def draw_grid_svg(
     Returns:
         Either a Drawing object or tuple of (Group, origin, size) if as_group=True
     """
-    grid = _extract_grid_data(grid_input)
+    grid, grid_mask = _extract_grid_data(grid_input)
+
+    if mask is None:
+        mask = grid_mask
 
     if mask is not None:
         mask = np.asarray(mask)
@@ -570,16 +580,19 @@ def draw_task_pair_svg(
     ymax = (height - padding - extra_bottom_padding - io_gap) / 2
 
     # Calculate aspect ratios to determine width requirements
-    input_grid_data = _extract_grid_data(input_grid)
-    input_mask_data = np.asarray(input_mask) if input_mask is not None else None
+    input_grid_data, input_mask_data = _extract_grid_data(input_grid)
+    if input_mask is not None:
+        input_mask_data = np.asarray(input_mask)
+
     _, _, (input_h, input_w) = _extract_valid_region(input_grid_data, input_mask_data)
 
     input_ratio = input_w / input_h if input_h > 0 else 1.0
     max_ratio = input_ratio
 
     if output_grid is not None:
-        output_grid_data = _extract_grid_data(output_grid)
-        output_mask_data = np.asarray(output_mask) if output_mask is not None else None
+        output_grid_data, output_mask_data = _extract_grid_data(output_grid)
+        if output_mask is not None:
+            output_mask_data = np.asarray(output_mask)
         _, _, (output_h, output_w) = _extract_valid_region(
             output_grid_data, output_mask_data
         )
@@ -1570,3 +1583,345 @@ def save_svg_drawing(
             f"Unknown file extension for {filename}. Supported: .svg, .png, .pdf"
         )
         raise ValueError(error_msg)
+
+def draw_rl_step_svg(
+    before_grid: Grid,
+    after_grid: Grid,
+    selection_mask: jnp.ndarray | np.ndarray,
+    operation_id: int,
+    step_number: int,
+    max_width: float = 1200.0,
+    max_height: float = 600.0,
+    label: str = "",
+    show_operation_name: bool = True,
+) -> str:
+    """Generate SVG visualization of a single RL step.
+
+    Layout: [Before Grid with Selection Overlay] -> [Operation] -> [After Grid]
+
+    Args:
+        before_grid: Grid state before the action
+        after_grid: Grid state after the action
+        selection_mask: Boolean mask showing selected cells
+        operation_id: Integer ID of the operation performed
+        step_number: Step number in the episode
+        max_width: Maximum width of the entire visualization
+        max_height: Maximum height of the entire visualization
+        label: Optional label for the visualization
+        show_operation_name: Whether to show operation name (vs just ID)
+
+    Returns:
+        SVG string containing the visualization
+    """
+    import drawsvg as draw
+
+    # Layout parameters
+    top_padding = 80
+    bottom_padding = 100
+    side_padding = 40
+    grid_spacing = 150
+    grid_max_width = 250
+    grid_max_height = 250
+
+    # Calculate total dimensions (only 2 grids now)
+    total_width = 2 * grid_max_width + grid_spacing + 2 * side_padding
+    total_height = grid_max_height + top_padding + bottom_padding
+
+    # Create main drawing
+    drawing = draw.Drawing(total_width, total_height)
+
+    # Add title
+    title_text = f"{label} - Step {step_number}" if label else f"Step {step_number}"
+    drawing.append(draw.Text(
+        title_text,
+        font_size=32,
+        x=total_width / 2,
+        y=50,
+        text_anchor="middle",
+        font_family="Anuphan",
+        font_weight="600"
+    ))
+
+    # Grid positions (only 2 grids now)
+    before_x = side_padding
+    after_x = side_padding + grid_max_width + grid_spacing
+    grids_y = top_padding
+
+    # Helper function to draw a single grid directly
+    def draw_grid_direct(grid: Grid, x: float, y: float, grid_label: str) -> tuple[float, float]:
+        """Draw a grid directly into the main SVG and return actual dimensions."""
+        grid_data, grid_mask = _extract_grid_data(grid)
+
+        if grid_mask is not None:
+            grid_mask = np.asarray(grid_mask)
+
+        # Extract valid region
+        valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(
+            grid_data, grid_mask
+        )
+
+        if height == 0 or width == 0:
+            return 0, 0
+
+        # Calculate cell size to fit within max dimensions
+        cell_size = min(grid_max_width / width, grid_max_height / height)
+        actual_width = width * cell_size
+        actual_height = height * cell_size
+
+        # Center the grid within the allocated space
+        grid_x = x + (grid_max_width - actual_width) / 2
+        grid_y = y + (grid_max_height - actual_height) / 2
+
+        # Draw grid cells
+        for i in range(height):
+            for j in range(width):
+                color_val = int(valid_grid[i, j])
+
+                # Check if cell is valid
+                is_valid = True
+                if grid_mask is not None:
+                    actual_row = start_row + i
+                    actual_col = start_col + j
+                    if actual_row < grid_mask.shape[0] and actual_col < grid_mask.shape[1]:
+                        is_valid = grid_mask[actual_row, actual_col]
+
+                if is_valid and 0 <= color_val < len(ARC_COLOR_PALETTE.keys()):
+                    fill_color = ARC_COLOR_PALETTE.get(color_val, "white")
+                else:
+                    fill_color = "#CCCCCC"
+
+                drawing.append(draw.Rectangle(
+                    grid_x + j * cell_size,
+                    grid_y + i * cell_size,
+                    cell_size,
+                    cell_size,
+                    fill=fill_color,
+                    stroke="#111111",
+                    stroke_width=0.5
+                ))
+
+        # Add grid border
+        drawing.append(draw.Rectangle(
+            grid_x - 2,
+            grid_y - 2,
+            actual_width + 4,
+            actual_height + 4,
+            fill="none",
+            stroke="#111111",
+            stroke_width=2
+        ))
+
+        # Add grid label
+        drawing.append(draw.Text(
+            grid_label,
+            font_size=18,
+            x=grid_x,
+            y=grid_y + actual_height + 25,
+            text_anchor="start",
+            font_family="Anuphan",
+            font_weight="600"
+        ))
+
+        return actual_width, actual_height
+
+    # Draw before grid with selection overlay
+    before_width, before_height = draw_grid_direct(before_grid, before_x, grids_y, "Before (with Selection)")
+
+    # Add selection mask overlay directly on before grid
+    selection_mask_np = np.asarray(selection_mask)
+    if selection_mask_np.any():
+        # Get valid region info for coordinate mapping
+        before_grid_np = np.asarray(before_grid.data)
+        before_mask_np = np.asarray(before_grid.mask) if before_grid.mask is not None else None
+
+        _, (start_row, start_col), (display_height, display_width) = _extract_valid_region(
+            before_grid_np, before_mask_np
+        )
+
+        if display_width > 0 and display_height > 0:
+            # Calculate cell size and position for overlay on before grid
+            cell_size = min(grid_max_width / display_width, grid_max_height / display_height)
+            overlay_x = before_x + (grid_max_width - before_width) / 2
+            overlay_y = grids_y + (grid_max_height - before_height) / 2
+
+            # Draw selection overlay on before grid
+            # Use magenta (#ff00ff) as it's not in the ARC color palette
+            selection_color = "#ff00ff"
+
+            # First pass: draw filled rectangles without borders
+            for display_row in range(display_height):
+                for display_col in range(display_width):
+                    orig_row = start_row + display_row
+                    orig_col = start_col + display_col
+
+                    if (orig_row < selection_mask_np.shape[0] and
+                        orig_col < selection_mask_np.shape[1] and
+                        selection_mask_np[orig_row, orig_col]):
+
+                        drawing.append(draw.Rectangle(
+                            overlay_x + display_col * cell_size,
+                            overlay_y + display_row * cell_size,
+                            cell_size,
+                            cell_size,
+                            fill=selection_color,
+                            fill_opacity=0.3,
+                            stroke="none"
+                        ))
+
+            # Second pass: draw boundary lines only on outer edges
+            def is_selected(row, col):
+                """Check if a cell is selected, handling bounds."""
+                if row < 0 or row >= selection_mask_np.shape[0] or col < 0 or col >= selection_mask_np.shape[1]:
+                    return False
+                return selection_mask_np[row, col]
+
+            for display_row in range(display_height):
+                for display_col in range(display_width):
+                    orig_row = start_row + display_row
+                    orig_col = start_col + display_col
+
+                    if (orig_row < selection_mask_np.shape[0] and
+                        orig_col < selection_mask_np.shape[1] and
+                        selection_mask_np[orig_row, orig_col]):
+
+                        cell_x = overlay_x + display_col * cell_size
+                        cell_y = overlay_y + display_row * cell_size
+
+                        # Check each edge and draw border line if it's on the boundary
+                        # Top edge
+                        if not is_selected(orig_row - 1, orig_col):
+                            drawing.append(draw.Line(
+                                cell_x, cell_y, cell_x + cell_size, cell_y,
+                                stroke=selection_color, stroke_width=3, stroke_opacity=0.9
+                            ))
+
+                        # Bottom edge
+                        if not is_selected(orig_row + 1, orig_col):
+                            drawing.append(draw.Line(
+                                cell_x, cell_y + cell_size, cell_x + cell_size, cell_y + cell_size,
+                                stroke=selection_color, stroke_width=3, stroke_opacity=0.9
+                            ))
+
+                        # Left edge
+                        if not is_selected(orig_row, orig_col - 1):
+                            drawing.append(draw.Line(
+                                cell_x, cell_y, cell_x, cell_y + cell_size,
+                                stroke=selection_color, stroke_width=3, stroke_opacity=0.9
+                            ))
+
+                        # Right edge
+                        if not is_selected(orig_row, orig_col + 1):
+                            drawing.append(draw.Line(
+                                cell_x + cell_size, cell_y, cell_x + cell_size, cell_y + cell_size,
+                                stroke=selection_color, stroke_width=3, stroke_opacity=0.9
+                            ))
+
+    # Draw after grid
+    after_width, after_height = draw_grid_direct(after_grid, after_x, grids_y, "After")
+
+    # Add operation information
+    operation_text = f"Operation: {operation_id}"
+    if show_operation_name:
+        try:
+            from jaxarc.utils.operation_names import get_operation_display_text
+            operation_text = get_operation_display_text(operation_id)
+        except (ValueError, ImportError):
+            operation_text = f"Operation: {operation_id}"
+
+    drawing.append(draw.Text(
+        operation_text,
+        font_size=24,
+        x=total_width / 2,
+        y=grids_y + grid_max_height + 50,
+        text_anchor="middle",
+        font_family="Anuphan",
+        font_weight="400"
+    ))
+
+    # Add arrow between grids
+    arrow_y = grids_y + grid_max_height / 2
+
+    # Arrow from before to after
+    arrow_start_x = before_x + grid_max_width + 20
+    arrow_end_x = after_x - 20
+    drawing.append(draw.Line(
+        arrow_start_x, arrow_y, arrow_end_x, arrow_y,
+        stroke="#666666", stroke_width=4
+    ))
+    drawing.append(draw.Lines(
+        arrow_end_x - 12, arrow_y - 8, arrow_end_x - 12, arrow_y + 8, arrow_end_x, arrow_y,
+        close=True, fill="#666666"
+    ))
+
+    return drawing.as_svg()
+
+
+def save_rl_step_visualization(
+    state: "ArcEnvState",
+    action: dict,
+    next_state: "ArcEnvState",
+    output_dir: str = "output/rl_steps",
+) -> None:
+    """JAX callback function to save RL step visualization.
+
+    This function is designed to be used with jax.debug.callback.
+
+    Args:
+        state: Environment state before the action
+        action: Action dictionary with 'selection' and 'operation' keys
+        next_state: Environment state after the action
+        output_dir: Directory to save visualization files
+    """
+    import os
+    from pathlib import Path
+
+    # Ensure output directory exists
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    # Create Grid objects (convert JAX arrays to numpy)
+    before_grid = Grid(
+        data=np.asarray(state.working_grid),
+        mask=np.asarray(state.working_grid_mask),
+    )
+    after_grid = Grid(
+        data=np.asarray(next_state.working_grid),
+        mask=np.asarray(next_state.working_grid_mask),
+    )
+
+    # Extract action components
+    selection_mask = np.asarray(action["selection"])
+    operation_id = int(action["operation"])
+    step_number = int(state.step_count)
+
+    # Generate visualization
+    svg_content = draw_rl_step_svg(
+        before_grid=before_grid,
+        after_grid=after_grid,
+        selection_mask=selection_mask,
+        operation_id=operation_id,
+        step_number=step_number,
+        label="Episode Step",
+    )
+
+    # Save to file with zero-padded step number
+    filename = f"step_{step_number:03d}.svg"
+    filepath = Path(output_dir) / filename
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(svg_content)
+
+    # Log the save (will appear in console during execution)
+    from loguru import logger
+
+    logger.info(f"Saved RL step visualization: {filepath}")
+
+
+def _clear_output_directory(output_dir: str) -> None:
+    """Clear output directory for new episode."""
+    import shutil
+    from pathlib import Path
+
+    output_path = Path(output_dir)
+    if output_path.exists():
+        shutil.rmtree(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)

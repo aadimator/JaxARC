@@ -4,6 +4,7 @@ defaults:
   - environment: arc_env # Which environment to use
   - reward: standard # Which reward configuration to use
   - action: standard # Which action configuration to use
+  - debug: "off"
 
 # Project paths
 paths:
@@ -14,7 +15,6 @@ paths:
 
 # Global settings
 seed: 42 # Global random seed
-debug: false # Global debug flag
 
 # Output directory for demo visualizations
 output_dir: "outputs/arc_demo"
