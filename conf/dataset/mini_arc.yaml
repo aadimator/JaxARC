@@ -1,41 +1,56 @@
-# Mini ARC Dataset Configuration
-# This configuration contains dataset-specific settings for Mini ARC
-# Smaller grids and simpler tasks for testing and rapid experimentation
+# MiniARC Dataset Configuration
+# This configuration contains dataset-specific settings for MiniARC
 
 # Dataset Information
-dataset_name: "Mini-ARC"
-dataset_year: 2024
-description:
-  "Mini ARC dataset with smaller grids for testing and experimentation"
+dataset_name: "MiniARC"
+dataset_year: 2022
+description: "MiniARC dataset with 5x5 grids for rapid prototyping and testing. Compact version of ARC with 400 training and 400 evaluation tasks optimized for faster experimentation."
 
 default_split: "training" # Default split to use
 
 # Data Paths (adjust these to your local dataset location)
-data_root: "data/raw/mini-arc"
+data_root: "data/raw/MiniARC"
 training:
-  challenges: "${dataset.data_root}/mini_arc_training_challenges.json"
-  solutions: "${dataset.data_root}/mini_arc_training_solutions.json"
+  path: "${dataset.data_root}/data/MiniARC/training"
 evaluation:
-  challenges: "${dataset.data_root}/mini_arc_evaluation_challenges.json"
-  solutions: "${dataset.data_root}/mini_arc_evaluation_solutions.json"
-testing:
-  challenges: "${dataset.data_root}/mini_arc_test_challenges.json"
-sample_submission: "${dataset.data_root}/sample_submission.json"
+  path: "${dataset.data_root}/data/MiniARC/evaluation"
 
 # Parser Configuration
 parser:
-  _target_: jaxarc.parsers.ArcAgiParser
-  description: "General ARC-AGI parser supporting Mini ARC format"
+  _target_: jaxarc.parsers.MiniArcParser
+  description: "MiniARC parser optimized for 5x5 grids with performance optimizations for smaller data structures"
 
-# Grid Configuration - Smaller for testing
+# Grid Configuration - Optimized for 5x5 grids
 grid:
-  max_grid_height: 10 # Smaller maximum height for faster processing
-  max_grid_width: 10 # Smaller maximum width for faster processing
+  max_grid_height: 5 # Maximum height optimized for MiniARC (5x5 constraint)
+  max_grid_width: 5 # Maximum width optimized for MiniARC (5x5 constraint)
   min_grid_height: 1 # Minimum height for valid grids
   min_grid_width: 1 # Minimum width for valid grids
   max_colors: 10 # Maximum number of colors (ARC uses 0-9)
   background_color: 0 # Default background color (black in ARC)
 
-# Task Configuration for JAX Environment - Fewer pairs for simpler tasks
-max_train_pairs: 5 # Fewer training pairs for simpler tasks
-max_test_pairs: 2 # Fewer test pairs for simpler tasks
+# Task Configuration for JAX Environment - Optimized for smaller dataset
+# MiniARC typically has fewer demonstration pairs and usually 1 test pair per task
+max_train_pairs: 3 # Maximum number of training pairs per task (typical for MiniARC)
+max_test_pairs: 1 # Maximum number of test pairs per task (usually 1 test pair per task)
+
+# MiniARC-specific optimization flags
+optimization:
+  enable_5x5_optimizations: true # Enable optimizations specific to 5x5 grids
+  fast_processing: true # Enable faster processing for smaller grids
+  reduced_memory_usage: true # Optimize memory usage for smaller data structures
+  batch_processing_size: 64 # Larger batch sizes possible due to smaller grids
+
+# MiniARC-specific metadata
+metadata:
+  total_training_tasks: 400
+  total_evaluation_tasks: 400
+  total_tasks: 800
+  grid_constraint: "5x5 maximum"
+  repository_url: "https://github.com/KSB21ST/MINI-ARC"
+  purpose: "Rapid prototyping and testing with compact ARC tasks"
+  performance_benefits:
+    - "Faster training iterations"
+    - "Reduced computational requirements"
+    - "Ideal for algorithm development and testing"
+    - "Quick experimentation cycles"

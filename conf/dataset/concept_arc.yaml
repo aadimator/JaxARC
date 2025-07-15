@@ -1,13 +1,12 @@
 # ConceptARC Dataset Configuration
 # This configuration contains dataset-specific settings for ConceptARC
-# ConceptARC organizes ARC tasks into 16 concept groups for systematic evaluation
 
 # Dataset Information
 dataset_name: "ConceptARC"
 dataset_year: 2023
-description: "ConceptARC dataset organized around 16 concept groups for systematic evaluation"
+description: "ConceptARC dataset organized around 16 concept groups for systematic evaluation of abstraction and generalization abilities"
 
-default_split: "corpus"
+default_split: "corpus" # Default split to use
 
 # Data Paths (adjust these to your local dataset location)
 data_root: "data/raw/ConceptARC"
@@ -15,7 +14,7 @@ corpus:
   path: "${dataset.data_root}/corpus"
   concept_groups:
     - "AboveBelow"
-    - "Center" 
+    - "Center"
     - "CleanUp"
     - "CompleteShape"
     - "Copy"
@@ -34,17 +33,26 @@ corpus:
 # Parser Configuration
 parser:
   _target_: jaxarc.parsers.ConceptArcParser
-  description: "ConceptARC parser with concept group organization"
+  description: "ConceptARC parser with concept group organization and metadata handling"
 
 # Grid Configuration - Standard ARC dimensions
 grid:
-  max_grid_height: 30
-  max_grid_width: 30
-  min_grid_height: 1
-  min_grid_width: 1
-  max_colors: 10
-  background_color: 0
+  max_grid_height: 30 # Maximum height for JAX array padding (same as standard ARC)
+  max_grid_width: 30 # Maximum width for JAX array padding (same as standard ARC)
+  min_grid_height: 1 # Minimum height for valid grids
+  min_grid_width: 1 # Minimum width for valid grids
+  max_colors: 10 # Maximum number of colors (ARC uses 0-9)
+  background_color: 0 # Default background color (black in ARC)
 
-# Task Configuration
-max_train_pairs: 4  # ConceptARC has 1-4 demonstration pairs
-max_test_pairs: 3   # ConceptARC has 3 test inputs per task
+# Task Configuration for JAX Environment
+# ConceptARC has 1-4 demonstration pairs per task, 3 test inputs per task
+max_train_pairs: 4 # Maximum number of training pairs per task (ConceptARC characteristic)
+max_test_pairs: 3 # Maximum number of test pairs per task (ConceptARC characteristic)
+
+# ConceptARC-specific metadata
+metadata:
+  total_concept_groups: 16
+  tasks_per_concept_group: 10
+  total_tasks: 160
+  repository_url: "https://github.com/victorvikram/ConceptARC"
+  paper_reference: "ConceptARC: An Abstraction and Reasoning Corpus"

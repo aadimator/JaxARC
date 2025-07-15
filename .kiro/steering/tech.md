@@ -48,9 +48,9 @@ pixi run pylint                         # Run pylint specifically
 pixi run docs-serve                     # Serve documentation locally
 
 # Examples
-python examples/config_api_demo.py      # Basic API demo
-python examples/hydra_integration_example.py  # Hydra config demo
-python examples/visualization_demo.py   # Visualization utilities demo
+pixi run python examples/config_api_demo.py      # Basic API demo
+pixi run python examples/hydra_integration_example.py  # Hydra config demo
+pixi run python examples/visualization_demo.py   # Visualization utilities demo
 ```
 
 ## JAX-Specific Considerations
