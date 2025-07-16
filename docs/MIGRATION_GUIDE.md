@@ -520,6 +520,8 @@ def validate_migration():
 ## 🔗 Additional Resources
 
 - [Config API Documentation](CONFIG_API_README.md)
+- [Kaggle to GitHub Migration Guide](KAGGLE_TO_GITHUB_MIGRATION.md) - **NEW**:
+  Migrate from Kaggle to GitHub datasets
 - [Architecture Overview](../planning-docs/PROJECT_ARCHITECTURE.md)
 - [Examples Directory](../examples/)
 - [Test Suite](../tests/envs/test_config_api.py)

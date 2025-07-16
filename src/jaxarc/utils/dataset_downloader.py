@@ -1,8 +1,7 @@
 """
 Dataset downloader utility for JaxARC datasets.
 
-Provides a unified interface for downloading datasets from various sources
-including GitHub repositories and Kaggle competitions.
+Provides a unified interface for downloading datasets from GitHub repositories.
 """
 
 from __future__ import annotations
@@ -83,6 +82,58 @@ class DatasetDownloader:
             return self._clone_repository(repo_url, target_dir, repo_name)
         except Exception as e:
             raise DatasetDownloadError(f"Failed to download MiniARC: {e}") from e
+
+    def download_arc_agi_1(self, target_dir: Optional[Path] = None) -> Path:
+        """
+        Download ARC-AGI-1 dataset from GitHub repository.
+
+        Args:
+            target_dir: Specific target directory. If None, uses output_dir/ARC-AGI-1.
+
+        Returns:
+            Path to the downloaded dataset directory.
+
+        Raises:
+            DatasetDownloadError: If download fails.
+        """
+        repo_url = "https://github.com/fchollet/ARC-AGI.git"
+        repo_name = "ARC-AGI-1"
+
+        if target_dir is None:
+            target_dir = self.output_dir / repo_name
+
+        logger.info(f"Downloading ARC-AGI-1 dataset to {target_dir}")
+
+        try:
+            return self._clone_repository(repo_url, target_dir, repo_name)
+        except Exception as e:
+            raise DatasetDownloadError(f"Failed to download ARC-AGI-1: {e}") from e
+
+    def download_arc_agi_2(self, target_dir: Optional[Path] = None) -> Path:
+        """
+        Download ARC-AGI-2 dataset from GitHub repository.
+
+        Args:
+            target_dir: Specific target directory. If None, uses output_dir/ARC-AGI-2.
+
+        Returns:
+            Path to the downloaded dataset directory.
+
+        Raises:
+            DatasetDownloadError: If download fails.
+        """
+        repo_url = "https://github.com/arcprize/ARC-AGI-2.git"
+        repo_name = "ARC-AGI-2"
+
+        if target_dir is None:
+            target_dir = self.output_dir / repo_name
+
+        logger.info(f"Downloading ARC-AGI-2 dataset to {target_dir}")
+
+        try:
+            return self._clone_repository(repo_url, target_dir, repo_name)
+        except Exception as e:
+            raise DatasetDownloadError(f"Failed to download ARC-AGI-2: {e}") from e
 
     def _clone_repository(
         self, repo_url: str, target_dir: Path, repo_name: str
@@ -254,6 +305,10 @@ class DatasetDownloader:
             self._validate_conceptarc_structure(target_dir)
         elif repo_name == "MiniARC":
             self._validate_miniarc_structure(target_dir)
+        elif repo_name == "ARC-AGI-1":
+            self._validate_arc_agi_1_structure(target_dir)
+        elif repo_name == "ARC-AGI-2":
+            self._validate_arc_agi_2_structure(target_dir)
 
     def _validate_conceptarc_structure(self, target_dir: Path) -> None:
         """Validate ConceptARC dataset structure."""
@@ -292,3 +347,89 @@ class DatasetDownloader:
                 f"MiniARC: Found only {len(json_files)} JSON files, "
                 "expected around 400+"
             )
+
+    def _validate_arc_agi_1_structure(self, target_dir: Path) -> None:
+        """Validate ARC-AGI-1 dataset structure."""
+        data_dir = target_dir / "data"
+        if not data_dir.exists():
+            raise DatasetDownloadError(
+                f"ARC-AGI-1 data directory not found at {data_dir}"
+            )
+
+        # Check for training directory
+        training_dir = data_dir / "training"
+        if not training_dir.exists():
+            raise DatasetDownloadError(
+                f"ARC-AGI-1 training directory not found at {training_dir}"
+            )
+
+        # Check for evaluation directory
+        evaluation_dir = data_dir / "evaluation"
+        if not evaluation_dir.exists():
+            raise DatasetDownloadError(
+                f"ARC-AGI-1 evaluation directory not found at {evaluation_dir}"
+            )
+
+        # Check for JSON files in training directory
+        training_json_files = list(training_dir.glob("*.json"))
+        if len(training_json_files) < 300:  # Expect around 400 training tasks
+            logger.warning(
+                f"ARC-AGI-1: Found only {len(training_json_files)} training JSON files, "
+                "expected around 400"
+            )
+
+        # Check for JSON files in evaluation directory
+        evaluation_json_files = list(evaluation_dir.glob("*.json"))
+        if len(evaluation_json_files) < 300:  # Expect around 400 evaluation tasks
+            logger.warning(
+                f"ARC-AGI-1: Found only {len(evaluation_json_files)} evaluation JSON files, "
+                "expected around 400"
+            )
+
+        logger.info(
+            f"ARC-AGI-1 validation successful: {len(training_json_files)} training tasks, "
+            f"{len(evaluation_json_files)} evaluation tasks"
+        )
+
+    def _validate_arc_agi_2_structure(self, target_dir: Path) -> None:
+        """Validate ARC-AGI-2 dataset structure."""
+        data_dir = target_dir / "data"
+        if not data_dir.exists():
+            raise DatasetDownloadError(
+                f"ARC-AGI-2 data directory not found at {data_dir}"
+            )
+
+        # Check for training directory
+        training_dir = data_dir / "training"
+        if not training_dir.exists():
+            raise DatasetDownloadError(
+                f"ARC-AGI-2 training directory not found at {training_dir}"
+            )
+
+        # Check for evaluation directory
+        evaluation_dir = data_dir / "evaluation"
+        if not evaluation_dir.exists():
+            raise DatasetDownloadError(
+                f"ARC-AGI-2 evaluation directory not found at {evaluation_dir}"
+            )
+
+        # Check for JSON files in training directory
+        training_json_files = list(training_dir.glob("*.json"))
+        if len(training_json_files) < 800:  # Expect around 1000 training tasks
+            logger.warning(
+                f"ARC-AGI-2: Found only {len(training_json_files)} training JSON files, "
+                "expected around 1000"
+            )
+
+        # Check for JSON files in evaluation directory
+        evaluation_json_files = list(evaluation_dir.glob("*.json"))
+        if len(evaluation_json_files) < 100:  # Expect around 120 evaluation tasks
+            logger.warning(
+                f"ARC-AGI-2: Found only {len(evaluation_json_files)} evaluation JSON files, "
+                "expected around 120"
+            )
+
+        logger.info(
+            f"ARC-AGI-2 validation successful: {len(training_json_files)} training tasks, "
+            f"{len(evaluation_json_files)} evaluation tasks"
+        )

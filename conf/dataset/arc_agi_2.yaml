@@ -1,24 +1,19 @@
-# ARC-AGI-2 Dataset Configuration (2025 Dataset)
+# ARC-AGI-2 Dataset Configuration (GitHub Format)
 # This configuration contains dataset-specific settings for ARC-AGI-2
 
 # Dataset Information
 dataset_name: "ARC-AGI-2"
 dataset_year: 2025
-description: "ARC-AGI-2 dataset (2025) for abstract reasoning tasks"
+description: "ARC-AGI-2 dataset from GitHub (arcprize/ARC-AGI-2)"
 
 default_split: "training" # Default split to use
 
-# Data Paths (adjust these to your local dataset location)
-data_root: "data/raw/arc-prize-2025"
+# Data Paths - GitHub format uses directories
+data_root: "data/raw/ARC-AGI-2"
 training:
-  challenges: "${dataset.data_root}/arc-agi_training_challenges.json"
-  solutions: "${dataset.data_root}/arc-agi_training_solutions.json"
+  path: "${dataset.data_root}/data/training"
 evaluation:
-  challenges: "${dataset.data_root}/arc-agi_evaluation_challenges.json"
-  solutions: "${dataset.data_root}/arc-agi_evaluation_solutions.json"
-testing:
-  challenges: "${dataset.data_root}/arc-agi_test_challenges.json"
-sample_submission: "${dataset.data_root}/sample_submission.json"
+  path: "${dataset.data_root}/data/evaluation"
 
 # Parser Configuration
 parser:

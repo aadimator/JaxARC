@@ -24,7 +24,8 @@ mechanisms.
 - **🤝 Multi-Agent**: Collaborative agents with hypothesis-proposal-consensus
   mechanism
 - **🎨 Rich Visualization**: Terminal and SVG grid rendering utilities
-- **📊 Comprehensive Testing**: 50+ tests with extensive MiniARC parser coverage and 100% coverage goal
+- **📊 Comprehensive Testing**: 50+ tests with extensive MiniARC parser coverage
+  and 100% coverage goal
 
 ## 📦 Installation
 
@@ -51,17 +52,24 @@ pixi run -e dev pre-commit install  # Set up pre-commit hooks
 
 ## 📊 Supported Datasets
 
-JaxARC supports multiple ARC dataset variants with automatic download
-capabilities:
+JaxARC supports multiple ARC dataset variants with automatic GitHub-based
+download:
 
-- **ARC-AGI-1 (2024)**: Original ARC challenge dataset from Kaggle
-- **ARC-AGI-2 (2025)**: Updated ARC challenge dataset from Kaggle
+- **ARC-AGI-1 (2024)**: Original ARC challenge dataset from GitHub
+  (fchollet/ARC-AGI)
+- **ARC-AGI-2 (2025)**: Updated ARC challenge dataset from GitHub
+  (arcprize/ARC-AGI-2)
 - **ConceptARC**: 16 concept groups with 10 tasks each for systematic evaluation
 - **MiniARC**: Compact 5x5 grid version for rapid prototyping
 
+All datasets are downloaded directly from GitHub repositories, eliminating the
+need for external CLI tools or API credentials.
+
 ### ConceptARC Dataset
 
-ConceptARC is a benchmark dataset organized around 16 concept groups with 10 tasks each, designed to systematically assess abstraction and generalization abilities. Each concept group focuses on specific reasoning patterns:
+ConceptARC is a benchmark dataset organized around 16 concept groups with 10
+tasks each, designed to systematically assess abstraction and generalization
+abilities. Each concept group focuses on specific reasoning patterns:
 
 - **Spatial Concepts**: AboveBelow, Center, InsideOutside, TopBottom2D/3D
 - **Pattern Concepts**: Copy, CompleteShape, SameDifferent, Order
@@ -69,6 +77,7 @@ ConceptARC is a benchmark dataset organized around 16 concept groups with 10 tas
 - **Property Concepts**: FilledNotFilled, Count, CleanUp, HorizontalVertical
 
 **Key Features:**
+
 - 160 total tasks (16 concepts × 10 tasks each)
 - 1-4 demonstration pairs per task
 - 3 test inputs per task
@@ -77,9 +86,12 @@ ConceptARC is a benchmark dataset organized around 16 concept groups with 10 tas
 
 ### MiniARC Dataset
 
-MiniARC is a compact version of ARC with 400+ tasks optimized for 5x5 grids, designed for faster experimentation and prototyping with reduced computational requirements.
+MiniARC is a compact version of ARC with 400+ tasks optimized for 5x5 grids,
+designed for faster experimentation and prototyping with reduced computational
+requirements.
 
 **Key Features:**
+
 - 400+ individual tasks optimized for rapid iteration
 - Maximum 5×5 grid size for faster processing
 - 10-50x performance improvement over standard ARC
@@ -87,6 +99,7 @@ MiniARC is a compact version of ARC with 400+ tasks optimized for 5x5 grids, des
 - Maintains ARC JSON format compatibility
 
 **Performance Benefits:**
+
 - **Memory**: 36x less memory per grid (25 vs 900 cells)
 - **Speed**: 10-50x faster processing and training
 - **Batch Size**: Support for larger batch sizes
@@ -94,15 +107,23 @@ MiniARC is a compact version of ARC with 400+ tasks optimized for 5x5 grids, des
 
 ### Dataset Download
 
+All datasets are now downloaded directly from GitHub repositories with no
+external dependencies:
+
 ```bash
 # Download specific datasets
-python scripts/download_kaggle_dataset.py download-conceptarc
-python scripts/download_kaggle_dataset.py download-miniarc
-python scripts/download_kaggle_dataset.py kaggle arc-prize-2025
+python scripts/download_dataset.py conceptarc
+python scripts/download_dataset.py miniarc
+python scripts/download_dataset.py arc-agi-1
+python scripts/download_dataset.py arc-agi-2
 
 # Download all datasets at once
-python scripts/download_kaggle_dataset.py all-datasets
+python scripts/download_dataset.py all
 ```
+
+> **Migration Note**: If you previously used Kaggle-based downloads, see the
+> [Kaggle to GitHub Migration Guide](docs/KAGGLE_TO_GITHUB_MIGRATION.md) for a
+> smooth transition.
 
 ## 🚀 Quick Start
 
@@ -187,8 +208,8 @@ task = parser.get_random_task(key)
 # Create optimized environment configuration
 env_config = create_miniarc_config(
     max_episode_steps=50,  # Shorter episodes for rapid iteration
-    success_bonus=5.0,     # Quick feedback
-    step_penalty=-0.001    # Lower penalty for experimentation
+    success_bonus=5.0,  # Quick feedback
+    step_penalty=-0.001,  # Lower penalty for experimentation
 )
 
 print(f"Task grid size: {task.test_input_grids.shape[-2:]}")
@@ -367,11 +388,16 @@ python examples/enhanced_visualization_demo.py
 
 ## 📚 Documentation
 
-- **[API Reference](docs/api_reference.md)**: Complete API documentation including all parser classes
+- **[API Reference](docs/api_reference.md)**: Complete API documentation
+  including all parser classes
 - **[Config API Guide](docs/CONFIG_API_README.md)**: Comprehensive configuration
   system documentation
-- **[Parser Usage Guide](docs/parser_usage.md)**: Detailed guide for ConceptARC, MiniARC, and ARC-AGI parsers
-- **[Testing Guide](docs/testing_guide.md)**: Comprehensive testing documentation with extensive MiniARC parser coverage
+- **[Parser Usage Guide](docs/parser_usage.md)**: Detailed guide for ConceptARC,
+  MiniARC, and ARC-AGI parsers
+- **[Kaggle to GitHub Migration Guide](docs/KAGGLE_TO_GITHUB_MIGRATION.md)**:
+  **NEW** - Complete migration guide from Kaggle to GitHub datasets
+- **[Testing Guide](docs/testing_guide.md)**: Comprehensive testing
+  documentation with extensive MiniARC parser coverage
 - **[Architecture Overview](planning-docs/PROJECT_ARCHITECTURE.md)**: Technical
   architecture details
 - **[Usage Examples](examples/)**: Working code examples
