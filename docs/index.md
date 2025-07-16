@@ -1,6 +1,9 @@
 # JaxARC Documentation
 
-JaxARC is a JAX-based Single-Agent Reinforcement Learning (SARL) environment for solving ARC (Abstraction and Reasoning Corpus) tasks. It provides a high-performance, functionally-pure environment designed for training AI agents on abstract reasoning puzzles.
+JaxARC is a JAX-based Single-Agent Reinforcement Learning (SARL) environment for
+solving ARC (Abstraction and Reasoning Corpus) tasks. It provides a
+high-performance, functionally-pure environment designed for training AI agents
+on abstract reasoning puzzles.
 
 ## Key Features
 
@@ -53,9 +56,12 @@ pixi run test
 
 ### Core Documentation
 
-- **[Parser Usage Guide](parser_usage.md)**: Comprehensive guide for using ARC dataset parsers
-- **[Data Format Documentation](data_format.md)**: Detailed information about supported dataset formats
-- **[Configuration API Guide](CONFIG_API_README.md)**: Complete configuration system documentation
+- **[Parser Usage Guide](parser_usage.md)**: Comprehensive guide for using ARC
+  dataset parsers
+- **[Data Format Documentation](data_format.md)**: Detailed information about
+  supported dataset formats
+- **[Configuration API Guide](CONFIG_API_README.md)**: Complete configuration
+  system documentation
 
 ### Dataset Support
 
@@ -74,9 +80,11 @@ JaxARC supports multiple ARC dataset variants:
 
 ### Architecture
 
-- **[Project Architecture](../planning-docs/PROJECT_ARCHITECTURE.md)**: Technical architecture overview
-- **[Implementation Guide](../planning-docs/guides/technical_implementation_guide.md)**: Detailed implementation guide
+- **[Project Architecture](../planning-docs/PROJECT_ARCHITECTURE.md)**:
+  Technical architecture overview
+- **[Implementation Guide](../planning-docs/guides/technical_implementation_guide.md)**:
+  Detailed implementation guide
 
 For detailed documentation on how the project was set up from scratch, refer to
-the [setup guide](./setup.md). For more information on how to use Pixi, refer to the
-[Pixi Documentation](https://pixi.js.org/docs/).
+the [setup guide](./setup.md). For more information on how to use Pixi, refer to
+the [Pixi Documentation](https://pixi.js.org/docs/).

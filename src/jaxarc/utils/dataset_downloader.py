@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -18,8 +17,6 @@ from loguru import logger
 
 class DatasetDownloadError(Exception):
     """Exception raised when dataset download fails."""
-
-    pass
 
 
 class DatasetDownloader:
@@ -50,12 +47,12 @@ class DatasetDownloader:
         """
         repo_url = "https://github.com/victorvikram/ConceptARC.git"
         repo_name = "ConceptARC"
-        
+
         if target_dir is None:
             target_dir = self.output_dir / repo_name
-            
+
         logger.info(f"Downloading ConceptARC dataset to {target_dir}")
-        
+
         try:
             return self._clone_repository(repo_url, target_dir, repo_name)
         except Exception as e:
@@ -76,18 +73,20 @@ class DatasetDownloader:
         """
         repo_url = "https://github.com/KSB21ST/MINI-ARC.git"
         repo_name = "MiniARC"
-        
+
         if target_dir is None:
             target_dir = self.output_dir / repo_name
-            
+
         logger.info(f"Downloading MiniARC dataset to {target_dir}")
-        
+
         try:
             return self._clone_repository(repo_url, target_dir, repo_name)
         except Exception as e:
             raise DatasetDownloadError(f"Failed to download MiniARC: {e}") from e
 
-    def _clone_repository(self, repo_url: str, target_dir: Path, repo_name: str) -> Path:
+    def _clone_repository(
+        self, repo_url: str, target_dir: Path, repo_name: str
+    ) -> Path:
         """
         Clone Git repository with comprehensive error handling.
 
@@ -120,29 +119,29 @@ class DatasetDownloader:
 
         # Clone the repository
         logger.info(f"Cloning {repo_url} to {target_dir}...")
-        
+
         try:
             cmd = ["git", "clone", repo_url, str(target_dir)]
             result = subprocess.run(
-                cmd, 
-                check=True, 
-                capture_output=True, 
+                cmd,
+                check=True,
+                capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout
+                timeout=300,  # 5 minute timeout
             )
-            
+
             logger.success(f"Successfully cloned {repo_name} dataset!")
             if result.stdout:
                 logger.debug(f"Git output: {result.stdout}")
-                
+
             # Validate the download
             self._validate_download(target_dir, repo_name)
-            
+
             return target_dir
-            
+
         except subprocess.TimeoutExpired as e:
             raise DatasetDownloadError(
-                f"Git clone timed out after 5 minutes. Check your network connection."
+                "Git clone timed out after 5 minutes. Check your network connection."
             ) from e
         except subprocess.CalledProcessError as e:
             error_msg = f"Git clone failed with exit code {e.returncode}"
@@ -154,10 +153,7 @@ class DatasetDownloader:
         """Check if git is available on the system."""
         try:
             subprocess.run(
-                ["git", "--version"], 
-                check=True, 
-                capture_output=True, 
-                text=True
+                ["git", "--version"], check=True, capture_output=True, text=True
             )
         except FileNotFoundError as e:
             raise DatasetDownloadError(
@@ -175,19 +171,22 @@ class DatasetDownloader:
                 hostname = repo_url.split("/")[2]
             else:
                 hostname = "github.com"
-            
+
             # Simple ping test (works on most systems)
             result = subprocess.run(
                 ["ping", "-c", "1", hostname],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
+                check=False,
             )
-            
+
             if result.returncode != 0:
                 logger.warning(f"Network connectivity test to {hostname} failed")
-                logger.info("Proceeding anyway - git clone will provide detailed error if needed")
-                
+                logger.info(
+                    "Proceeding anyway - git clone will provide detailed error if needed"
+                )
+
         except (subprocess.TimeoutExpired, FileNotFoundError):
             # Ping might not be available or might timeout
             logger.debug("Network connectivity test skipped")
@@ -197,13 +196,13 @@ class DatasetDownloader:
         try:
             stat = shutil.disk_usage(directory)
             available_mb = stat.free // (1024 * 1024)
-            
+
             if available_mb < min_space_mb:
                 raise DatasetDownloadError(
                     f"Insufficient disk space. Available: {available_mb}MB, "
                     f"Required: {min_space_mb}MB"
                 )
-                
+
         except OSError as e:
             logger.warning(f"Could not check disk space: {e}")
 
@@ -212,7 +211,7 @@ class DatasetDownloader:
         try:
             # Try to create the directory if it doesn't exist
             directory.mkdir(parents=True, exist_ok=True)
-            
+
             # Test write access by creating a temporary file
             test_file = directory / ".write_test"
             try:
@@ -222,7 +221,7 @@ class DatasetDownloader:
                 raise DatasetDownloadError(
                     f"No write permission for directory {directory}: {e}"
                 ) from e
-                
+
         except OSError as e:
             raise DatasetDownloadError(
                 f"Cannot create or access directory {directory}: {e}"
@@ -231,19 +230,25 @@ class DatasetDownloader:
     def _validate_download(self, target_dir: Path, repo_name: str) -> None:
         """Validate that the download was successful."""
         if not target_dir.exists():
-            raise DatasetDownloadError(f"Download directory {target_dir} does not exist")
-        
+            raise DatasetDownloadError(
+                f"Download directory {target_dir} does not exist"
+            )
+
         if not target_dir.is_dir():
             raise DatasetDownloadError(f"Download path {target_dir} is not a directory")
-        
+
         # Check if directory is not empty
         try:
             contents = list(target_dir.iterdir())
             if not contents:
-                raise DatasetDownloadError(f"Downloaded directory {target_dir} is empty")
+                raise DatasetDownloadError(
+                    f"Downloaded directory {target_dir} is empty"
+                )
         except OSError as e:
-            raise DatasetDownloadError(f"Cannot access downloaded directory: {e}") from e
-        
+            raise DatasetDownloadError(
+                f"Cannot access downloaded directory: {e}"
+            ) from e
+
         # Dataset-specific validation
         if repo_name == "ConceptARC":
             self._validate_conceptarc_structure(target_dir)
@@ -257,7 +262,7 @@ class DatasetDownloader:
             raise DatasetDownloadError(
                 f"ConceptARC corpus directory not found at {corpus_dir}"
             )
-        
+
         # Check for at least some concept groups
         concept_groups = [d for d in corpus_dir.iterdir() if d.is_dir()]
         if len(concept_groups) < 5:  # Expect at least 5 concept groups
@@ -275,11 +280,11 @@ class DatasetDownloader:
             if miniarc_dir.exists():
                 logger.info("Found MiniARC data in MiniARC subdirectory")
                 return
-            
+
             raise DatasetDownloadError(
                 f"MiniARC data directory not found at {data_dir} or {miniarc_dir}"
             )
-        
+
         # Check for JSON files
         json_files = list(data_dir.glob("*.json"))
         if len(json_files) < 100:  # Expect hundreds of task files

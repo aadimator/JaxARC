@@ -50,41 +50,55 @@ conf/                         # Hydra configuration hierarchy
 
 - **`data/`**: Raw and processed ARC datasets (arc-prize-2024, arc-prize-2025)
 - **`tests/`**: Comprehensive test suite targeting 100% coverage
-- **`examples/`**: Usage examples and demos (config API, Hydra integration, visualization)
+- **`examples/`**: Usage examples and demos (config API, Hydra integration,
+  visualization)
 - **`notebooks/`**: Jupyter notebooks for exploration and experimentation
 - **`docs/`**: Documentation and guides
-- **`planning-docs/`**: Architecture and design documents (PROJECT_ARCHITECTURE.md)
+- **`planning-docs/`**: Architecture and design documents
+  (PROJECT_ARCHITECTURE.md)
 - **`scripts/`**: Utility scripts (dataset download, demo parser)
 
 ## Architecture Patterns
 
 ### Single-Agent RL Focus
+
 - **SARL Environment**: Clean single-agent implementation optimized for learning
-- **Extensible Design**: Architecture supports future HRL, Meta-RL, Multi-Task RL extensions
+- **Extensible Design**: Architecture supports future HRL, Meta-RL, Multi-Task
+  RL extensions
 - **PureJaxRL Integration**: Designed to work with PureJaxRL for agent training
 
 ### Functional Core Design
-- **Pure Functions**: Core environment operations (`arc_reset`, `arc_step`) are pure functions
-- **Immutable State**: All state updates return new state objects using `chex.dataclass`
+
+- **Pure Functions**: Core environment operations (`arc_reset`, `arc_step`) are
+  pure functions
+- **Immutable State**: All state updates return new state objects using
+  `chex.dataclass`
 - **Explicit Dependencies**: Configuration and PRNG keys passed explicitly
 - **JAX Compatibility**: Full support for `jax.jit`, `jax.vmap`, `jax.pmap`
 
 ### Configuration-Driven Architecture
+
 - **Typed Configs**: All configuration uses `@chex.dataclass` with validation
 - **Hierarchical Composition**: Hydra manages complex configuration hierarchies
 - **Factory Functions**: `create_*_config()` functions for common configurations
 - **Preset System**: Predefined configurations for different use cases
 
 ### Action System Design
-- **Handler Pattern**: Different action formats (point, bbox, mask) use dedicated handlers
-- **Validation Pipeline**: Actions validated and transformed through consistent pipeline
-- **ARCLE Operations**: 35 operations (fill, flood fill, movement, rotation, clipboard, etc.)
+
+- **Handler Pattern**: Different action formats (point, bbox, mask) use
+  dedicated handlers
+- **Validation Pipeline**: Actions validated and transformed through consistent
+  pipeline
+- **ARCLE Operations**: 35 operations (fill, flood fill, movement, rotation,
+  clipboard, etc.)
 
 ## File Naming Conventions
 
-- **Tests**: `test_*.py` following pytest conventions with comprehensive coverage
+- **Tests**: `test_*.py` following pytest conventions with comprehensive
+  coverage
 - **Configs**: `*.yaml` files in hierarchical structure under `conf/`
-- **Examples**: Descriptive names like `config_api_demo.py`, `visualization_demo.py`
+- **Examples**: Descriptive names like `config_api_demo.py`,
+  `visualization_demo.py`
 - **Utilities**: Grouped by functionality (`visualization.py`, `grid_utils.py`)
 
 ## Import Patterns
@@ -104,17 +118,26 @@ from jaxarc.utils.config import get_config
 
 ## Data Flow Architecture
 
-1. **Task Loading**: `parsers/` → `JaxArcTask` data structures with static shapes
-2. **Environment Setup**: `config/` → typed configuration objects via factory functions
-3. **Environment Execution**: Pure functions in `envs/functional.py` with immutable state
-4. **Action Processing**: Action handlers transform inputs to grid operations (35 ARCLE ops)
-5. **Visualization**: `utils/visualization.py` for debugging with JAX debug callbacks
-6. **Testing**: Comprehensive test suite with `chex` assertions for JAX compatibility
+1. **Task Loading**: `parsers/` → `JaxArcTask` data structures with static
+   shapes
+2. **Environment Setup**: `config/` → typed configuration objects via factory
+   functions
+3. **Environment Execution**: Pure functions in `envs/functional.py` with
+   immutable state
+4. **Action Processing**: Action handlers transform inputs to grid operations
+   (35 ARCLE ops)
+5. **Visualization**: `utils/visualization.py` for debugging with JAX debug
+   callbacks
+6. **Testing**: Comprehensive test suite with `chex` assertions for JAX
+   compatibility
 
 ## Development Workflow
 
 - **TDD Approach**: Test-driven development with 100% coverage goal
-- **Planning First**: New features require planning documents in `planning-docs/`
-- **JAX Validation**: All functions tested for JIT compilation and batch processing
+- **Planning First**: New features require planning documents in
+  `planning-docs/`
+- **JAX Validation**: All functions tested for JIT compilation and batch
+  processing
 - **Configuration Management**: Use Hydra for complex parameter hierarchies
-- **Visualization**: Rich terminal and SVG rendering for debugging grid transformations
+- **Visualization**: Rich terminal and SVG rendering for debugging grid
+  transformations

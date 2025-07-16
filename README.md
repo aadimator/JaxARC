@@ -51,10 +51,11 @@ pixi run -e dev pre-commit install  # Set up pre-commit hooks
 
 ## 📊 Supported Datasets
 
-JaxARC supports multiple ARC dataset variants with automatic download capabilities:
+JaxARC supports multiple ARC dataset variants with automatic download
+capabilities:
 
 - **ARC-AGI-1 (2024)**: Original ARC challenge dataset from Kaggle
-- **ARC-AGI-2 (2025)**: Updated ARC challenge dataset from Kaggle  
+- **ARC-AGI-2 (2025)**: Updated ARC challenge dataset from Kaggle
 - **ConceptARC**: 16 concept groups with 10 tasks each for systematic evaluation
 - **MiniARC**: Compact 5x5 grid version for rapid prototyping
 
@@ -107,11 +108,14 @@ from jaxarc.parsers import ConceptArcParser
 from omegaconf import DictConfig
 
 # Create ConceptARC configuration
-config = DictConfig({
-    "corpus": {"path": "data/raw/ConceptARC/corpus"},
-    "grid": {"max_grid_height": 30, "max_grid_width": 30},
-    "max_train_pairs": 4, "max_test_pairs": 3
-})
+config = DictConfig(
+    {
+        "corpus": {"path": "data/raw/ConceptARC/corpus"},
+        "grid": {"max_grid_height": 30, "max_grid_width": 30},
+        "max_train_pairs": 4,
+        "max_test_pairs": 3,
+    }
+)
 
 # Create parser and explore concept groups
 parser = ConceptArcParser(config)

@@ -2,8 +2,10 @@
 
 The JaxARC project includes multiple parsers for different ARC dataset variants:
 
-- **`ArcAgiParser`**: General parser for ARC-AGI-1 and ARC-AGI-2 datasets from Kaggle
-- **`ConceptArcParser`**: Specialized parser for ConceptARC dataset with concept group organization
+- **`ArcAgiParser`**: General parser for ARC-AGI-1 and ARC-AGI-2 datasets from
+  Kaggle
+- **`ConceptArcParser`**: Specialized parser for ConceptARC dataset with concept
+  group organization
 - **`MiniArcParser`**: Optimized parser for MiniARC dataset with 5x5 grids
 
 ## Quick Start
@@ -77,25 +79,39 @@ from jaxarc.parsers import ConceptArcParser
 from omegaconf import DictConfig
 
 # Create configuration for ConceptARC
-config = DictConfig({
-    "corpus": {
-        "path": "data/raw/ConceptARC/corpus",
-        "concept_groups": [
-            "AboveBelow", "Center", "CleanUp", "CompleteShape", 
-            "Copy", "Count", "ExtendToBoundary", "ExtractObjects",
-            "FilledNotFilled", "HorizontalVertical", "InsideOutside",
-            "MoveToBoundary", "Order", "SameDifferent", "TopBottom2D", "TopBottom3D"
-        ]
-    },
-    "grid": {
-        "max_grid_height": 30,
-        "max_grid_width": 30,
-        "max_colors": 10,
-        "background_color": 0
-    },
-    "max_train_pairs": 4,
-    "max_test_pairs": 3
-})
+config = DictConfig(
+    {
+        "corpus": {
+            "path": "data/raw/ConceptARC/corpus",
+            "concept_groups": [
+                "AboveBelow",
+                "Center",
+                "CleanUp",
+                "CompleteShape",
+                "Copy",
+                "Count",
+                "ExtendToBoundary",
+                "ExtractObjects",
+                "FilledNotFilled",
+                "HorizontalVertical",
+                "InsideOutside",
+                "MoveToBoundary",
+                "Order",
+                "SameDifferent",
+                "TopBottom2D",
+                "TopBottom3D",
+            ],
+        },
+        "grid": {
+            "max_grid_height": 30,
+            "max_grid_width": 30,
+            "max_colors": 10,
+            "background_color": 0,
+        },
+        "max_train_pairs": 4,
+        "max_test_pairs": 3,
+    }
+)
 
 # Create parser instance
 parser = ConceptArcParser(config)
@@ -198,7 +214,7 @@ python scripts/demo_parser.py dataset=concept_arc
 parser = ConceptArcParser(config)
 stats = parser.get_dataset_statistics()
 
-for concept, data in stats['concept_groups'].items():
+for concept, data in stats["concept_groups"].items():
     print(f"{concept}: {data['num_tasks']} tasks")
     print(f"  Avg demonstrations: {data['avg_demonstrations']:.1f}")
     print(f"  Avg test inputs: {data['avg_test_inputs']:.1f}")
@@ -212,13 +228,13 @@ results = {}
 for concept in parser.get_concept_groups():
     concept_tasks = parser.get_tasks_in_concept(concept)
     concept_results = []
-    
+
     for task_id in concept_tasks:
         task = parser.get_task_by_id(task_id)
         # Run your model evaluation here
         # result = evaluate_model(task)
         # concept_results.append(result)
-    
+
     results[concept] = concept_results
 ```
 
