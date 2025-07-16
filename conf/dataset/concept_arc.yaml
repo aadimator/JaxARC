@@ -4,7 +4,9 @@
 # Dataset Information
 dataset_name: "ConceptARC"
 dataset_year: 2023
-description: "ConceptARC dataset organized around 16 concept groups for systematic evaluation of abstraction and generalization abilities"
+description:
+  "ConceptARC dataset organized around 16 concept groups for systematic
+  evaluation of abstraction and generalization abilities"
 
 default_split: "corpus" # Default split to use
 
@@ -33,7 +35,8 @@ corpus:
 # Parser Configuration
 parser:
   _target_: jaxarc.parsers.ConceptArcParser
-  description: "ConceptARC parser with concept group organization and metadata handling"
+  description:
+    "ConceptARC parser with concept group organization and metadata handling"
 
 # Grid Configuration - Standard ARC dimensions
 grid:

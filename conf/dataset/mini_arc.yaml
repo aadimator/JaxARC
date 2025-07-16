@@ -4,7 +4,10 @@
 # Dataset Information
 dataset_name: "MiniARC"
 dataset_year: 2022
-description: "MiniARC dataset with 5x5 grids for rapid prototyping and testing. Compact version of ARC with 400 training and 400 evaluation tasks optimized for faster experimentation."
+description:
+  "MiniARC dataset with 5x5 grids for rapid prototyping and testing. Compact
+  version of ARC with 400 training and 400 evaluation tasks optimized for faster
+  experimentation."
 
 default_split: "training" # Default split to use
 
@@ -18,7 +21,9 @@ evaluation:
 # Parser Configuration
 parser:
   _target_: jaxarc.parsers.MiniArcParser
-  description: "MiniARC parser optimized for 5x5 grids with performance optimizations for smaller data structures"
+  description:
+    "MiniARC parser optimized for 5x5 grids with performance optimizations for
+    smaller data structures"
 
 # Grid Configuration - Optimized for 5x5 grids
 grid:
