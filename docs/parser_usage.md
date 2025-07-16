@@ -233,6 +233,53 @@ print(f"Training pairs: {stats['train_pairs']['min']}-{stats['train_pairs']['max
 print(f"Test pairs: {stats['test_pairs']['min']}-{stats['test_pairs']['max']} (avg: {stats['test_pairs']['avg']:.1f})")
 ```
 
+#### MiniARC Validation and Error Handling
+
+The MiniARC parser includes comprehensive validation to ensure optimal performance:
+
+```python
+# Configuration validation - warns about suboptimal settings
+suboptimal_config = DictConfig({
+    "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
+    "grid": {
+        "max_grid_height": 30,  # Suboptimal for MiniARC
+        "max_grid_width": 30,   # Will log warning
+    },
+    "max_train_pairs": 3,
+    "max_test_pairs": 1,
+})
+
+# Parser will log: "MiniARC is optimized for 5x5 grids, but configured for 30x30"
+parser = MiniArcParser(suboptimal_config)
+
+# Grid constraint validation - automatically rejects oversized tasks
+# Tasks with grids exceeding 5x5 are filtered out during loading
+# Error logged: "Grid 6x6 exceeds MiniARC 5x5 constraint in task_oversized"
+
+# Handle missing datasets gracefully
+missing_config = DictConfig({
+    "tasks": {"path": "/nonexistent/path"},
+    "grid": {"max_grid_height": 5, "max_grid_width": 5},
+    "max_train_pairs": 3,
+    "max_test_pairs": 1,
+})
+
+parser = MiniArcParser(missing_config)  # Logs warning but doesn't crash
+print(f"Tasks loaded: {len(parser.get_available_task_ids())}")  # Returns 0
+
+# Error handling for invalid task access
+try:
+    task = parser.get_task_by_id("nonexistent_task")
+except ValueError as e:
+    print(f"Error: {e}")  # "Task ID 'nonexistent_task' not found in MiniARC dataset"
+
+try:
+    key = jax.random.PRNGKey(42)
+    task = parser.get_random_task(key)  # Raises RuntimeError if no tasks
+except RuntimeError as e:
+    print(f"Error: {e}")  # "No tasks available in MiniARC dataset"
+```
+
 #### Using with Hydra Configuration
 
 All parsers can be used with Hydra configuration to easily switch between
