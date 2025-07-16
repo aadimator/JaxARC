@@ -599,8 +599,8 @@ CONFIG_PRESETS = {
 
 DATASET_PRESETS = {
     "arc-agi-1": lambda **kwargs: create_dataset_config("arc-agi-1", **kwargs),
-    "concept-arc": lambda **kwargs: create_dataset_config("concept-arc", **kwargs),
-    "mini-arc": lambda **kwargs: create_dataset_config("mini-arc", **kwargs),
+    "concept-arc": lambda **kwargs: create_conceptarc_config(**kwargs),
+    "mini-arc": lambda **kwargs: create_miniarc_config(**kwargs),
     "re-arc": lambda **kwargs: create_dataset_config("re-arc", **kwargs),
 }
 
@@ -896,6 +896,216 @@ def create_complete_hydra_config(
         return create_config_with_parser(base_config, parser)
     logger.warning("No parser available - environment will use demo tasks")
     return base_config
+
+
+def create_conceptarc_config(
+    max_episode_steps: int = 120,
+    task_split: str = "corpus",
+    reward_on_submit_only: bool = True,
+    step_penalty: float = -0.01,
+    success_bonus: float = 10.0,
+    **kwargs: Any,
+) -> ArcEnvConfig:
+    """
+    Create configuration optimized for ConceptARC dataset.
+
+    ConceptARC is organized around 16 concept groups with 10 tasks each,
+    designed to systematically assess abstraction and generalization abilities.
+    Uses standard ARC grid dimensions (up to 30x30) with concept-based organization.
+
+    Args:
+        max_episode_steps: Maximum steps per episode (default 120 for concept exploration)
+        task_split: Dataset split to use (default "corpus" for ConceptARC)
+        reward_on_submit_only: Whether to give rewards only on submit
+        step_penalty: Penalty per step (should be negative)
+        success_bonus: Bonus for solving the task
+        **kwargs: Additional config overrides
+
+    Returns:
+        ArcEnvConfig optimized for ConceptARC dataset
+
+    Raises:
+        ValueError: If configuration validation fails
+    """
+    try:
+        # ConceptARC-specific reward configuration
+        reward_config = RewardConfig(
+            reward_on_submit_only=reward_on_submit_only,
+            step_penalty=step_penalty,
+            success_bonus=success_bonus,
+            similarity_weight=1.0,
+            progress_bonus=0.1,  # Small progress bonus for concept exploration
+            invalid_action_penalty=-0.1,
+        )
+
+        # ConceptARC uses standard ARC grid dimensions
+        grid_config = GridConfig(
+            max_grid_height=30,  # Standard ARC dimensions
+            max_grid_width=30,
+            min_grid_height=1,
+            min_grid_width=1,
+            max_colors=10,
+            background_color=0,
+        )
+
+        # ConceptARC works well with mask-based actions for concept reasoning
+        action_config = ActionConfig(
+            selection_format="mask",
+            selection_threshold=0.5,
+            allow_partial_selection=True,
+            num_operations=35,
+            validate_actions=True,
+            clip_invalid_actions=True,
+        )
+
+        # ConceptARC-specific dataset configuration
+        dataset_config = DatasetConfig(
+            dataset_name="ConceptARC",
+            task_split=task_split,
+            dataset_max_grid_height=30,
+            dataset_max_grid_width=30,
+            dataset_max_colors=10,
+            shuffle_tasks=True,
+        )
+
+        config = ArcEnvConfig(
+            max_episode_steps=max_episode_steps,
+            auto_reset=True,
+            log_operations=False,
+            log_grid_changes=False,
+            log_rewards=False,
+            strict_validation=True,
+            allow_invalid_actions=False,
+            reward=reward_config,
+            grid=grid_config,
+            action=action_config,
+            dataset=dataset_config,
+        )
+
+        # Apply any additional overrides
+        if kwargs:
+            config_dict = config.to_dict()
+            config_dict.update(kwargs)
+            from .config import config_from_dict
+
+            config = config_from_dict(config_dict)
+
+        # Validate the configuration
+        from .config import validate_config
+
+        validate_config(config)
+
+        logger.info("Created ConceptARC configuration with concept-based organization")
+        return config
+
+    except Exception as e:
+        logger.error(f"Failed to create ConceptARC configuration: {e}")
+        raise ValueError(f"ConceptARC configuration error: {e}") from e
+
+
+def create_miniarc_config(
+    max_episode_steps: int = 80,
+    task_split: str = "training",
+    reward_on_submit_only: bool = True,
+    step_penalty: float = -0.005,  # Lower penalty for faster iteration
+    success_bonus: float = 5.0,  # Lower bonus for smaller tasks
+    **kwargs: Any,
+) -> ArcEnvConfig:
+    """
+    Create configuration optimized for MiniARC dataset.
+
+    MiniARC is a 5x5 compact version of ARC with 400 training and 400 evaluation
+    tasks, designed for faster experimentation and prototyping. Optimized for
+    smaller grid dimensions and rapid iteration.
+
+    Args:
+        max_episode_steps: Maximum steps per episode (default 80 for faster iteration)
+        task_split: Dataset split to use (default "training" for MiniARC)
+        reward_on_submit_only: Whether to give rewards only on submit
+        step_penalty: Penalty per step (lower for faster iteration)
+        success_bonus: Bonus for solving the task (lower for smaller tasks)
+        **kwargs: Additional config overrides
+
+    Returns:
+        ArcEnvConfig optimized for MiniARC dataset
+
+    Raises:
+        ValueError: If configuration validation fails
+    """
+    try:
+        # MiniARC-specific reward configuration (optimized for smaller tasks)
+        reward_config = RewardConfig(
+            reward_on_submit_only=reward_on_submit_only,
+            step_penalty=step_penalty,  # Lower penalty for rapid iteration
+            success_bonus=success_bonus,  # Lower bonus for smaller tasks
+            similarity_weight=1.0,
+            progress_bonus=0.05,  # Small progress bonus for quick feedback
+            invalid_action_penalty=-0.05,  # Lower penalty for experimentation
+        )
+
+        # MiniARC grid configuration optimized for 5x5 grids
+        grid_config = GridConfig(
+            max_grid_height=5,  # MiniARC 5x5 constraint
+            max_grid_width=5,
+            min_grid_height=1,
+            min_grid_width=1,
+            max_colors=10,
+            background_color=0,
+        )
+
+        # MiniARC works well with point-based actions for small grids
+        action_config = ActionConfig(
+            selection_format="point",  # Point actions optimal for 5x5 grids
+            selection_threshold=0.5,
+            allow_partial_selection=False,  # Not relevant for point actions
+            num_operations=35,
+            validate_actions=True,
+            clip_invalid_actions=True,
+        )
+
+        # MiniARC-specific dataset configuration
+        dataset_config = DatasetConfig(
+            dataset_name="MiniARC",
+            task_split=task_split,
+            dataset_max_grid_height=5,
+            dataset_max_grid_width=5,
+            dataset_max_colors=10,
+            shuffle_tasks=True,
+        )
+
+        config = ArcEnvConfig(
+            max_episode_steps=max_episode_steps,
+            auto_reset=True,
+            log_operations=False,
+            log_grid_changes=False,
+            log_rewards=False,
+            strict_validation=True,
+            allow_invalid_actions=False,
+            reward=reward_config,
+            grid=grid_config,
+            action=action_config,
+            dataset=dataset_config,
+        )
+
+        # Apply any additional overrides
+        if kwargs:
+            config_dict = config.to_dict()
+            config_dict.update(kwargs)
+            from .config import config_from_dict
+
+            config = config_from_dict(config_dict)
+
+        # Validate the configuration
+        from .config import validate_config
+
+        validate_config(config)
+
+        logger.info("Created MiniARC configuration optimized for 5x5 grids")
+        return config
+
+    except Exception as e:
+        logger.error(f"Failed to create MiniARC configuration: {e}")
+        raise ValueError(f"MiniARC configuration error: {e}") from e
 
 
 def create_config_with_task_sampler(

@@ -95,7 +95,7 @@ class MiniArcParser(ArcDataParserBase):
                 f"(optimized for 5x5 grids)"
             )
 
-        except Exception as e:
+        except (FileNotFoundError, ValueError, OSError) as e:
             logger.error(f"Error loading and caching MiniARC tasks: {e}")
             raise
 
@@ -135,7 +135,7 @@ class MiniArcParser(ArcDataParserBase):
                 self._cached_tasks[task_id] = task_data
                 self._task_ids.append(task_id)
 
-            except Exception as e:
+            except (json.JSONDecodeError, ValueError, OSError) as e:
                 logger.error(f"Error loading MiniARC task {task_file}: {e}")
                 continue
 

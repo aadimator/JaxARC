@@ -136,6 +136,27 @@ advanced_config = create_training_config("advanced")  # All features
 expert_config = create_training_config("expert")  # High performance
 ```
 
+### Dataset-Specific Configurations
+
+```python
+from jaxarc.envs import create_conceptarc_config, create_miniarc_config
+
+# ConceptARC configuration for concept-based evaluation
+conceptarc_config = create_conceptarc_config(
+    max_episode_steps=150,
+    task_split="corpus",
+    success_bonus=20.0,
+    step_penalty=-0.01
+)
+
+# MiniARC configuration for rapid prototyping
+miniarc_config = create_miniarc_config(
+    max_episode_steps=50,  # Shorter episodes for rapid iteration
+    success_bonus=5.0,     # Quick feedback
+    step_penalty=-0.001    # Lower penalty for experimentation
+)
+```
+
 ### Evaluation Configuration
 
 ```python

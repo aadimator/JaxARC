@@ -13,10 +13,8 @@ default_split: "training" # Default split to use
 
 # Data Paths (adjust these to your local dataset location)
 data_root: "data/raw/MiniARC"
-training:
-  path: "${dataset.data_root}/data/MiniARC/training"
-evaluation:
-  path: "${dataset.data_root}/data/MiniARC/evaluation"
+tasks:
+  path: "${dataset.data_root}/data/MiniARC"
 
 # Parser Configuration
 parser:

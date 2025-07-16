@@ -5,8 +5,9 @@ The JaxARC project includes multiple parsers for different ARC dataset variants:
 - **`ArcAgiParser`**: General parser for ARC-AGI-1 and ARC-AGI-2 datasets from
   Kaggle
 - **`ConceptArcParser`**: Specialized parser for ConceptARC dataset with concept
-  group organization
-- **`MiniArcParser`**: Optimized parser for MiniARC dataset with 5x5 grids
+  group organization and systematic evaluation
+- **`MiniArcParser`**: Optimized parser for MiniARC dataset with 5x5 grids and
+  rapid prototyping capabilities
 
 ## Quick Start
 
@@ -52,6 +53,37 @@ git clone https://github.com/victorvikram/ConceptARC.git data/raw/ConceptARC
 
 # Expected structure:
 # data/raw/ConceptARC/corpus/{ConceptGroup}/{TaskName}.json
+```
+
+### 3. Download MiniARC Dataset
+
+For MiniARC dataset, clone the repository:
+
+```bash
+# Clone MiniARC repository
+git clone https://github.com/KSB21ST/MINI-ARC.git data/raw/MiniARC
+
+# Expected structure:
+# data/raw/MiniARC/data/MiniARC/{TaskName}.json
+```
+
+### 4. Automated Dataset Download
+
+Use the enhanced download script for automatic dataset downloading:
+
+```bash
+# Download ConceptARC dataset
+python scripts/download_kaggle_dataset.py download-conceptarc
+
+# Download MiniARC dataset  
+python scripts/download_kaggle_dataset.py download-miniarc
+
+# Download ARC-AGI datasets from Kaggle
+python scripts/download_kaggle_dataset.py kaggle arc-prize-2024
+python scripts/download_kaggle_dataset.py kaggle arc-prize-2025
+
+# Download all datasets at once
+python scripts/download_kaggle_dataset.py all-datasets
 ```
 
 ### 3. Using the Parsers
@@ -140,6 +172,67 @@ print(f"Total tasks: {stats['total_tasks']}")
 print(f"Total concept groups: {stats['total_concept_groups']}")
 ```
 
+#### MiniARC Parser (Rapid Prototyping Usage)
+
+```python
+import jax
+from jaxarc.parsers import MiniArcParser
+from omegaconf import DictConfig
+
+# Create configuration for MiniARC (optimized for 5x5 grids)
+config = DictConfig(
+    {
+        "tasks": {
+            "path": "data/raw/MiniARC/data/MiniARC"
+        },
+        "grid": {
+            "max_grid_height": 5,
+            "max_grid_width": 5,
+            "min_grid_height": 1,
+            "min_grid_width": 1,
+            "max_colors": 10,
+            "background_color": 0
+        },
+        "max_train_pairs": 3,
+        "max_test_pairs": 1,
+    }
+)
+
+# Create parser instance (automatically loads and caches all tasks)
+parser = MiniArcParser(config)
+
+# Get random task (optimized for 5x5 grids)
+key = jax.random.PRNGKey(42)
+task = parser.get_random_task(key)
+
+# Get available task IDs
+task_ids = parser.get_available_task_ids()
+print(f"Available tasks: {len(task_ids)}")
+
+# Get specific task by ID (uses filename without extension)
+task = parser.get_task_by_id("copy_pattern_5x5")
+
+# Load task directly from file
+raw_task_data = parser.load_task_file("data/raw/MiniARC/data/MiniARC/task_001.json")
+processed_task = parser.preprocess_task_data(raw_task_data, key)
+
+# Get dataset statistics
+stats = parser.get_dataset_statistics()
+print(f"Total tasks: {stats['total_tasks']}")
+print(f"Optimization: {stats['optimization']}")
+print(f"Max dimensions: {stats['max_configured_dimensions']}")
+print(f"5x5 optimized: {stats['is_5x5_optimized']}")
+
+# Grid dimension statistics
+grid_dims = stats['grid_dimensions']
+print(f"Max grid size: {grid_dims['max_height']}x{grid_dims['max_width']}")
+print(f"Avg grid size: {grid_dims['avg_height']:.1f}x{grid_dims['avg_width']:.1f}")
+
+# Training/test pair statistics
+print(f"Training pairs: {stats['train_pairs']['min']}-{stats['train_pairs']['max']} (avg: {stats['train_pairs']['avg']:.1f})")
+print(f"Test pairs: {stats['test_pairs']['min']}-{stats['test_pairs']['max']} (avg: {stats['test_pairs']['avg']:.1f})")
+```
+
 #### Using with Hydra Configuration
 
 All parsers can be used with Hydra configuration to easily switch between
@@ -182,17 +275,38 @@ All parsers convert JSON data into JAX-compatible data structures:
 
 #### ConceptARC Examples
 
-See `examples/concept_arc_demo.py` for comprehensive ConceptARC usage:
+See `examples/conceptarc_usage_example.py` for comprehensive ConceptARC usage:
 
 ```bash
 # Basic ConceptARC demo
-python examples/concept_arc_demo.py
+python examples/conceptarc_usage_example.py
 
 # Demonstrate specific concept group
-python examples/concept_arc_demo.py --concept Center
+python examples/conceptarc_usage_example.py --concept Center --visualize
 
-# Show dataset statistics
-python examples/concept_arc_demo.py --stats
+# Interactive exploration mode
+python examples/conceptarc_usage_example.py --interactive
+
+# Run complete environment episode
+python examples/conceptarc_usage_example.py --run-episode --concept Copy
+```
+
+#### MiniARC Examples
+
+See `examples/miniarc_usage_example.py` for comprehensive MiniARC usage:
+
+```bash
+# Basic MiniARC demo with performance benefits
+python examples/miniarc_usage_example.py
+
+# Performance comparison with standard ARC
+python examples/miniarc_usage_example.py --performance-comparison
+
+# Rapid prototyping workflow demonstration
+python examples/miniarc_usage_example.py --rapid-prototyping --visualize
+
+# Batch processing efficiency demo
+python examples/miniarc_usage_example.py --batch-processing --verbose
 ```
 
 #### General Parser Examples
