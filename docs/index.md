@@ -58,11 +58,11 @@ pixi run test
 
 - **[API Reference](api_reference.md)**: Complete API documentation including
   all parser classes and configuration utilities
-- **[Parser Usage Guide](parser_usage.md)**: Comprehensive guide for using ARC
-  dataset parsers
+- **[Datasets Guide](datasets.md)**: Comprehensive guide for using ARC
+  dataset parsers and supported datasets
 - **[Data Format Documentation](data_format.md)**: Detailed information about
   supported dataset formats
-- **[Configuration API Guide](CONFIG_API_README.md)**: Complete configuration
+- **[Configuration Guide](configuration.md)**: Complete configuration
   system documentation
 
 ### Dataset Support
