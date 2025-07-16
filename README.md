@@ -59,12 +59,45 @@ capabilities:
 - **ConceptARC**: 16 concept groups with 10 tasks each for systematic evaluation
 - **MiniARC**: Compact 5x5 grid version for rapid prototyping
 
+### ConceptARC Dataset
+
+ConceptARC is a benchmark dataset organized around 16 concept groups with 10 tasks each, designed to systematically assess abstraction and generalization abilities. Each concept group focuses on specific reasoning patterns:
+
+- **Spatial Concepts**: AboveBelow, Center, InsideOutside, TopBottom2D/3D
+- **Pattern Concepts**: Copy, CompleteShape, SameDifferent, Order
+- **Object Concepts**: ExtractObjects, MoveToBoundary, ExtendToBoundary
+- **Property Concepts**: FilledNotFilled, Count, CleanUp, HorizontalVertical
+
+**Key Features:**
+- 160 total tasks (16 concepts × 10 tasks each)
+- 1-4 demonstration pairs per task
+- 3 test inputs per task
+- Standard ARC grid sizes (up to 30×30)
+- Hierarchical organization for systematic evaluation
+
+### MiniARC Dataset
+
+MiniARC is a compact version of ARC with 400+ tasks optimized for 5x5 grids, designed for faster experimentation and prototyping with reduced computational requirements.
+
+**Key Features:**
+- 400+ individual tasks optimized for rapid iteration
+- Maximum 5×5 grid size for faster processing
+- 10-50x performance improvement over standard ARC
+- Ideal for algorithm development and quick experiments
+- Maintains ARC JSON format compatibility
+
+**Performance Benefits:**
+- **Memory**: 36x less memory per grid (25 vs 900 cells)
+- **Speed**: 10-50x faster processing and training
+- **Batch Size**: Support for larger batch sizes
+- **Development**: Seconds to minutes vs hours for iteration cycles
+
 ### Dataset Download
 
 ```bash
 # Download specific datasets
-python scripts/download_kaggle_dataset.py conceptarc
-python scripts/download_kaggle_dataset.py miniarc
+python scripts/download_kaggle_dataset.py download-conceptarc
+python scripts/download_kaggle_dataset.py download-miniarc
 python scripts/download_kaggle_dataset.py kaggle arc-prize-2025
 
 # Download all datasets at once
@@ -126,6 +159,40 @@ print(f"Available concepts: {concepts}")
 key = jax.random.PRNGKey(42)
 task = parser.get_random_task_from_concept("Center", key)
 print(f"Task has {task.num_train_pairs} training pairs")
+```
+
+### MiniARC Usage
+
+```python
+import jax
+from jaxarc.parsers import MiniArcParser
+from jaxarc.envs import create_miniarc_config
+from omegaconf import DictConfig
+
+# Create MiniARC configuration optimized for 5x5 grids
+config = DictConfig(
+    {
+        "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
+        "grid": {"max_grid_height": 5, "max_grid_width": 5},
+        "max_train_pairs": 3,
+        "max_test_pairs": 1,
+    }
+)
+
+# Create parser for rapid prototyping
+parser = MiniArcParser(config)
+key = jax.random.PRNGKey(42)
+task = parser.get_random_task(key)
+
+# Create optimized environment configuration
+env_config = create_miniarc_config(
+    max_episode_steps=50,  # Shorter episodes for rapid iteration
+    success_bonus=5.0,     # Quick feedback
+    step_penalty=-0.001    # Lower penalty for experimentation
+)
+
+print(f"Task grid size: {task.test_input_grids.shape[-2:]}")
+print(f"10-50x faster than standard ARC!")
 ```
 
 ### JAX Transformations
@@ -281,10 +348,17 @@ pixi run docs-serve
 python examples/config_api_demo.py
 python examples/hydra_integration_example.py
 
-# ConceptARC dataset exploration
-python examples/concept_arc_demo.py
-python examples/concept_arc_demo.py --concept Center
-python examples/concept_arc_demo.py --stats
+# ConceptARC dataset exploration and usage
+python examples/conceptarc_usage_example.py
+python examples/conceptarc_usage_example.py --concept Center --visualize
+python examples/conceptarc_usage_example.py --interactive
+python examples/conceptarc_usage_example.py --run-episode --concept Copy
+
+# MiniARC rapid prototyping and performance demos
+python examples/miniarc_usage_example.py
+python examples/miniarc_usage_example.py --performance-comparison
+python examples/miniarc_usage_example.py --rapid-prototyping --visualize
+python examples/miniarc_usage_example.py --batch-processing --verbose
 
 # Visualization demos
 python examples/visualization_demo.py
@@ -293,12 +367,13 @@ python examples/enhanced_visualization_demo.py
 
 ## 📚 Documentation
 
+- **[API Reference](docs/api_reference.md)**: Complete API documentation including all parser classes
 - **[Config API Guide](docs/CONFIG_API_README.md)**: Comprehensive configuration
   system documentation
+- **[Parser Usage Guide](docs/parser_usage.md)**: Detailed guide for ConceptARC, MiniARC, and ARC-AGI parsers
 - **[Architecture Overview](planning-docs/PROJECT_ARCHITECTURE.md)**: Technical
   architecture details
 - **[Usage Examples](examples/)**: Working code examples
-- **[API Reference](docs/)**: Complete API documentation
 
 ## 🤝 Contributing
 

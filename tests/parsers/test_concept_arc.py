@@ -1,12 +1,22 @@
-"""Tests for ConceptARC parser implementation."""
+"""Comprehensive tests for ConceptARC parser implementation.
+
+This test suite covers:
+- Concept group discovery and organization
+- Task loading from hierarchical structure
+- Concept-based random sampling
+- Error handling for missing concept groups
+- Task metadata and statistics
+- Grid validation and preprocessing
+"""
 
 from __future__ import annotations
 
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import chex
 import jax
 import jax.numpy as jnp
 import pytest
