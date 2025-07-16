@@ -60,3 +60,6 @@ pylint = "pylint jaxarc"
 [feature.docs.tasks]
 docs-init = { cmd = "jupyter book init --write-toc", cwd = "docs" }
 docs-serve = { cmd = "jupyter book start --execute", cwd = "docs" }
+
+[feature.docs.pypi-dependencies]
+jupyter-book = ">=2.0.0a0"
