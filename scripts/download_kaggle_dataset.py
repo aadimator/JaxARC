@@ -16,6 +16,7 @@ import typer
 from loguru import logger
 
 from jaxarc.utils.config import get_raw_path
+from jaxarc.utils.dataset_downloader import DatasetDownloader, DatasetDownloadError
 
 
 def download_kaggle_data(competition_name: str, output_dir: Path) -> None:
@@ -116,15 +117,23 @@ def download_github_repository(repo_url: str, output_dir: Path, repo_name: str) 
 
 
 def download_conceptarc(output_dir: Path) -> None:
-    """Download ConceptARC dataset from GitHub."""
-    repo_url = "https://github.com/victorvikram/ConceptARC.git"
-    download_github_repository(repo_url, output_dir, "ConceptARC")
+    """Download ConceptARC dataset from GitHub using DatasetDownloader."""
+    try:
+        downloader = DatasetDownloader(output_dir)
+        downloader.download_conceptarc()
+    except DatasetDownloadError as e:
+        logger.error(f"Failed to download ConceptARC: {e}")
+        sys.exit(1)
 
 
 def download_miniarc(output_dir: Path) -> None:
-    """Download MiniARC dataset from GitHub."""
-    repo_url = "https://github.com/KSB21ST/MINI-ARC.git"
-    download_github_repository(repo_url, output_dir, "MiniARC")
+    """Download MiniARC dataset from GitHub using DatasetDownloader."""
+    try:
+        downloader = DatasetDownloader(output_dir)
+        downloader.download_miniarc()
+    except DatasetDownloadError as e:
+        logger.error(f"Failed to download MiniARC: {e}")
+        sys.exit(1)
 
 
 app = typer.Typer(help="Download ARC datasets from various sources")
