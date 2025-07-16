@@ -107,19 +107,28 @@ requirements.
 
 ### Dataset Download
 
-All datasets are now downloaded directly from GitHub repositories with no
-external dependencies:
+All datasets are downloaded directly from GitHub repositories with no external dependencies or authentication required:
 
 ```bash
 # Download specific datasets
-python scripts/download_dataset.py conceptarc
-python scripts/download_dataset.py miniarc
-python scripts/download_dataset.py arc-agi-1
-python scripts/download_dataset.py arc-agi-2
+python scripts/download_dataset.py arc-agi-1    # ARC-AGI 2024 (400 train + 400 eval)
+python scripts/download_dataset.py arc-agi-2    # ARC-AGI 2025 (1000 train + 120 eval)
+python scripts/download_dataset.py conceptarc   # ConceptARC (16 concepts × 10 tasks)
+python scripts/download_dataset.py miniarc      # MiniARC (400+ tasks, 5×5 grids)
 
 # Download all datasets at once
 python scripts/download_dataset.py all
+
+# Download with options
+python scripts/download_dataset.py arc-agi-1 --output /custom/path --force
 ```
+
+**Download Features:**
+- ✅ **No Authentication**: Direct GitHub repository cloning
+- ✅ **Automatic Organization**: Proper directory structure setup
+- ✅ **Resume Support**: Handles interrupted downloads gracefully
+- ✅ **Validation**: Verifies dataset integrity after download
+- ✅ **Force Refresh**: `--force` flag to re-download existing datasets
 
 > **Migration Note**: If you previously used Kaggle-based downloads, see the
 > [Kaggle to GitHub Migration Guide](docs/KAGGLE_TO_GITHUB_MIGRATION.md) for a
@@ -388,18 +397,13 @@ python examples/enhanced_visualization_demo.py
 
 ## 📚 Documentation
 
-- **[API Reference](docs/api_reference.md)**: Complete API documentation
-  including all parser classes
-- **[Config API Guide](docs/CONFIG_API_README.md)**: Comprehensive configuration
-  system documentation
-- **[Parser Usage Guide](docs/parser_usage.md)**: Detailed guide for ConceptARC,
-  MiniARC, and ARC-AGI parsers
-- **[Kaggle to GitHub Migration Guide](docs/KAGGLE_TO_GITHUB_MIGRATION.md)**:
-  **NEW** - Complete migration guide from Kaggle to GitHub datasets
-- **[Testing Guide](docs/testing_guide.md)**: Comprehensive testing
-  documentation with extensive MiniARC parser coverage
-- **[Architecture Overview](planning-docs/PROJECT_ARCHITECTURE.md)**: Technical
-  architecture details
+- **[API Reference](docs/api_reference.md)**: Complete API documentation including all parser classes and GitHub format changes
+- **[Config API Guide](docs/CONFIG_API_README.md)**: Comprehensive configuration system documentation
+- **[Parser Usage Guide](docs/parser_usage.md)**: Detailed guide for ConceptARC, MiniARC, and ARC-AGI parsers
+- **[Kaggle to GitHub Migration Guide](docs/KAGGLE_TO_GITHUB_MIGRATION.md)**: Complete migration guide from Kaggle to GitHub datasets
+- **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)**: **NEW** - Comprehensive troubleshooting for GitHub downloads, parser issues, and common problems
+- **[Testing Guide](docs/testing_guide.md)**: Comprehensive testing documentation with extensive MiniARC parser coverage
+- **[Architecture Overview](planning-docs/PROJECT_ARCHITECTURE.md)**: Technical architecture details
 - **[Usage Examples](examples/)**: Working code examples
 
 ## 🤝 Contributing

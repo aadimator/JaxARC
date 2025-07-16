@@ -337,11 +337,13 @@ if __name__ == "__main__":
 
 If you encounter issues during migration:
 
-1. Check the [common issues section](#common-migration-issues) above
-2. Run the [validation script](#validation-script) to identify problems
-3. Review the [examples](../examples/) for reference implementations
-4. Open an issue on [GitHub](https://github.com/aadimator/JaxARC/issues)
-5. Start a discussion on [GitHub Discussions](https://github.com/aadimator/JaxARC/discussions)
+1. **Check the [Troubleshooting Guide](TROUBLESHOOTING.md)** for comprehensive GitHub download and parser issues
+2. **Run the diagnostic script** from the troubleshooting guide: `python diagnose.py`
+3. **Check the [common issues section](#common-migration-issues)** above for migration-specific problems
+4. **Run the [validation script](#validation-script)** to identify specific problems
+5. **Review the [examples](../examples/)** for reference implementations
+6. **Open an issue** on [GitHub](https://github.com/aadimator/JaxARC/issues) with diagnostic output
+7. **Start a discussion** on [GitHub Discussions](https://github.com/aadimator/JaxARC/discussions) for general questions
 
 ## 🎯 Migration Summary
 

@@ -7,44 +7,156 @@ all parser classes, configuration utilities, and core functionality.
 
 ### ArcAgiParser
 
-General parser for ARC-AGI datasets from GitHub repositories.
+General parser for ARC-AGI datasets from GitHub repositories. Supports both ARC-AGI-1 (2024) and ARC-AGI-2 (2025) datasets with individual JSON task files.
 
 ```python
 from jaxarc.parsers import ArcAgiParser
 
 
 class ArcAgiParser(ArcDataParserBase):
-    """Parser for ARC-AGI datasets (2024 and 2025 competitions)."""
+    """Parser for ARC-AGI datasets from GitHub repositories.
+    
+    Handles individual JSON task files instead of combined Kaggle format.
+    Automatically detects and validates GitHub repository structure.
+    """
 
     def __init__(self, cfg: DictConfig):
-        """Initialize parser with configuration."""
+        """Initialize parser with GitHub format configuration.
+        
+        Args:
+            cfg: Configuration with 'path' fields pointing to directories
+                 containing individual JSON task files.
+                 
+        Raises:
+            RuntimeError: If legacy Kaggle format detected or paths invalid.
+        """
 
-    def parse_task_file(self, file_path: str, task_id: str) -> JaxArcTask:
-        """Parse a specific task from a JSON file."""
+    def get_available_task_ids(self) -> list[str]:
+        """Get list of all available task IDs.
+        
+        Task IDs are derived from JSON filenames (without .json extension).
+        """
 
-    def parse_all_tasks_from_file(self, file_path: str) -> dict[str, JaxArcTask]:
-        """Parse all tasks from a JSON file."""
+    def get_task_by_id(self, task_id: str) -> JaxArcTask:
+        """Get specific task by ID.
+        
+        Args:
+            task_id: Task identifier (JSON filename without extension)
+            
+        Returns:
+            JaxArcTask with preprocessed data and static shapes
+        """
 
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
-        """Get a random task from the dataset."""
+        """Get a random task from the dataset.
+        
+        Args:
+            key: JAX PRNG key for random selection
+            
+        Returns:
+            Randomly selected JaxArcTask
+        """
+
+    def load_task_file(self, task_file_path: str) -> dict:
+        """Load raw task data from individual JSON file.
+        
+        Args:
+            task_file_path: Path to individual task JSON file
+            
+        Returns:
+            Raw task data dictionary with 'train' and 'test' sections
+            
+        Raises:
+            FileNotFoundError: If task file doesn't exist
+            ValueError: If JSON is malformed
+        """
+
+    def preprocess_task_data(self, raw_task_data: dict, key: chex.PRNGKey) -> JaxArcTask:
+        """Convert raw GitHub format task data into JaxArcTask.
+        
+        Args:
+            raw_task_data: Raw task data from JSON file
+            key: JAX PRNG key for preprocessing
+            
+        Returns:
+            JaxArcTask with static shapes and proper padding
+        """
 ```
 
 **Supported Datasets:**
 
-- ARC-AGI-1 (2024 competition)
-- ARC-AGI-2 (2025 competition)
+- **ARC-AGI-1 (2024)**: 400 training + 400 evaluation tasks from `fchollet/ARC-AGI`
+- **ARC-AGI-2 (2025)**: 1000 training + 120 evaluation tasks from `arcprize/ARC-AGI-2`
 
-**Configuration:**
+**GitHub Format Structure:**
+
+```text
+data/raw/ARC-AGI-1/
+└── data/
+    ├── training/
+    │   ├── 007bbfb7.json    # Individual task files
+    │   ├── 00d62c1b.json
+    │   └── ... (400 files)
+    └── evaluation/
+        ├── 00576224.json
+        └── ... (400 files)
+```
+
+**Configuration (GitHub Format):**
 
 ```yaml
-dataset_name: "ARC-AGI-2"
-data_root: "data/raw/arc-prize-2025"
+dataset_name: "ARC-AGI-1"
+dataset_year: 2024
+description: "ARC-AGI-1 dataset from GitHub (fchollet/ARC-AGI)"
+
+default_split: "training"
+
+# GitHub format uses directory paths
+data_root: "data/raw/ARC-AGI-1"
 training:
-  challenges_path: "${dataset.data_root}/arc-agi_training_challenges.json"
-  solutions_path: "${dataset.data_root}/arc-agi_training_solutions.json"
+  path: "${dataset.data_root}/data/training"
 evaluation:
-  challenges_path: "${dataset.data_root}/arc-agi_evaluation_challenges.json"
-  solutions_path: "${dataset.data_root}/arc-agi_evaluation_solutions.json"
+  path: "${dataset.data_root}/data/evaluation"
+
+# Parser configuration
+parser:
+  _target_: jaxarc.parsers.ArcAgiParser
+  description: "ARC-AGI parser for GitHub format datasets"
+
+# Grid and task constraints
+grid:
+  max_grid_height: 30
+  max_grid_width: 30
+  min_grid_height: 1
+  min_grid_width: 1
+  max_colors: 10
+  background_color: 0
+
+max_train_pairs: 10
+max_test_pairs: 3
+```
+
+**Migration from Kaggle Format:**
+
+The parser automatically detects legacy Kaggle format and provides helpful error messages:
+
+```python
+# Legacy Kaggle format (no longer supported)
+config = DictConfig({
+    "training": {
+        "challenges": "path/to/challenges.json",  # Old format
+        "solutions": "path/to/solutions.json"
+    }
+})
+
+# Will raise: RuntimeError: Legacy Kaggle format detected. 
+# Please update configuration to use GitHub format with 'path' instead of 'challenges'/'solutions'
+
+# New GitHub format
+config = DictConfig({
+    "training": {"path": "data/raw/ARC-AGI-1/data/training"},
+    "evaluation": {"path": "data/raw/ARC-AGI-1/data/evaluation"}
+})
 ```
 
 ### ConceptArcParser
@@ -478,6 +590,7 @@ parallel_process = jax.pmap(process_task, in_axes=(0, None))
 - **`ValueError`**: Invalid configuration or task parameters
 - **`KeyError`**: Missing concept group or task ID
 - **`ValidationError`**: Configuration validation failures
+- **`RuntimeError`**: Legacy Kaggle format detected or GitHub download issues
 
 ### Best Practices
 
@@ -486,6 +599,321 @@ parallel_process = jax.pmap(process_task, in_axes=(0, None))
 3. **Use appropriate grid sizes** for each dataset type
 4. **Check task availability** before accessing specific tasks
 5. **Monitor memory usage** with large batch sizes
+
+## Troubleshooting GitHub Downloads
+
+### Common Download Issues
+
+#### Issue 1: "Repository not found" or "Permission denied"
+
+**Problem**: Git clone fails with repository access errors.
+
+**Solutions:**
+```bash
+# Check internet connectivity
+ping github.com
+
+# Verify repository URLs are accessible
+curl -I https://github.com/fchollet/ARC-AGI
+curl -I https://github.com/arcprize/ARC-AGI-2
+
+# Try manual clone to test
+git clone https://github.com/fchollet/ARC-AGI.git /tmp/test-clone
+```
+
+#### Issue 2: "No space left on device"
+
+**Problem**: Insufficient disk space for dataset download.
+
+**Solutions:**
+```bash
+# Check available disk space
+df -h
+
+# Clean up old datasets if needed
+rm -rf data/raw/old-datasets/
+
+# Use custom output directory with more space
+python scripts/download_dataset.py arc-agi-1 --output /path/with/more/space
+```
+
+#### Issue 3: "Git command not found"
+
+**Problem**: Git is not installed or not in PATH.
+
+**Solutions:**
+```bash
+# Install git (macOS)
+brew install git
+
+# Install git (Ubuntu/Debian)
+sudo apt-get install git
+
+# Install git (CentOS/RHEL)
+sudo yum install git
+
+# Verify installation
+git --version
+```
+
+#### Issue 4: "SSL certificate problem"
+
+**Problem**: SSL/TLS certificate verification issues.
+
+**Solutions:**
+```bash
+# Update certificates (macOS)
+brew install ca-certificates
+
+# Update certificates (Ubuntu)
+sudo apt-get update && sudo apt-get install ca-certificates
+
+# Temporary workaround (not recommended for production)
+git config --global http.sslVerify false
+```
+
+#### Issue 5: "Directory already exists"
+
+**Problem**: Target directory exists and conflicts with download.
+
+**Solutions:**
+```bash
+# Use --force flag to overwrite
+python scripts/download_dataset.py arc-agi-1 --force
+
+# Or manually remove existing directory
+rm -rf data/raw/ARC-AGI-1/
+python scripts/download_dataset.py arc-agi-1
+```
+
+#### Issue 6: "Network timeout" or "Connection reset"
+
+**Problem**: Network connectivity issues during download.
+
+**Solutions:**
+```bash
+# Increase git timeout
+git config --global http.lowSpeedLimit 1000
+git config --global http.lowSpeedTime 300
+
+# Use different DNS servers
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+
+# Try download with verbose output
+python scripts/download_dataset.py arc-agi-1 --verbose
+```
+
+### Parser Issues with GitHub Format
+
+#### Issue 1: "Legacy Kaggle format detected"
+
+**Problem**: Configuration still uses old Kaggle format.
+
+**Solution:**
+```python
+# OLD (Kaggle format - no longer supported)
+config = DictConfig({
+    "training": {
+        "challenges": "path/to/challenges.json",
+        "solutions": "path/to/solutions.json"
+    }
+})
+
+# NEW (GitHub format)
+config = DictConfig({
+    "training": {"path": "data/raw/ARC-AGI-1/data/training"},
+    "evaluation": {"path": "data/raw/ARC-AGI-1/data/evaluation"}
+})
+```
+
+#### Issue 2: "No data path specified in configuration"
+
+**Problem**: Missing required `path` field in configuration.
+
+**Solution:**
+```yaml
+# Add path fields to configuration
+training:
+  path: "data/raw/ARC-AGI-1/data/training"
+evaluation:
+  path: "data/raw/ARC-AGI-1/data/evaluation"
+```
+
+#### Issue 3: "Data directory not found"
+
+**Problem**: Dataset not downloaded or incorrect path.
+
+**Solutions:**
+```bash
+# Verify dataset was downloaded
+ls -la data/raw/ARC-AGI-1/data/training/
+
+# Re-download if missing
+python scripts/download_dataset.py arc-agi-1
+
+# Check configuration paths match actual structure
+```
+
+#### Issue 4: "No JSON files found in directory"
+
+**Problem**: Directory exists but contains no task files.
+
+**Solutions:**
+```bash
+# Check directory contents
+ls -la data/raw/ARC-AGI-1/data/training/
+
+# Verify download completed successfully
+python scripts/download_dataset.py arc-agi-1 --force
+
+# Check for hidden files or permission issues
+ls -la data/raw/ARC-AGI-1/data/training/.*
+```
+
+### Performance Issues
+
+#### Issue 1: Slow task loading
+
+**Problem**: Individual JSON files load slower than expected.
+
+**Solutions:**
+```python
+# Use task caching
+parser = ArcAgiParser(config)
+# Tasks are automatically cached after first load
+
+# Pre-load frequently used tasks
+task_ids = parser.get_available_task_ids()
+for task_id in task_ids[:10]:  # Pre-load first 10 tasks
+    parser.get_task_by_id(task_id)
+```
+
+#### Issue 2: High memory usage
+
+**Problem**: Loading large datasets consumes too much memory.
+
+**Solutions:**
+```python
+# Use lazy loading - only load tasks when needed
+task = parser.get_random_task(key)  # Loads single task
+
+# Clear cache periodically for long-running processes
+parser._cached_tasks.clear()  # Clear internal cache
+
+# Use MiniARC for development/testing
+from jaxarc.parsers import MiniArcParser
+mini_parser = MiniArcParser(miniarc_config)  # 36x less memory
+```
+
+### Validation and Debugging
+
+#### Diagnostic Script
+
+```python
+#!/usr/bin/env python3
+"""Diagnostic script for GitHub download and parser issues."""
+
+import json
+from pathlib import Path
+from jaxarc.parsers import ArcAgiParser
+from omegaconf import DictConfig
+
+def diagnose_github_setup():
+    """Diagnose common GitHub download and parser issues."""
+    
+    print("🔍 JaxARC GitHub Setup Diagnostics")
+    print("=" * 50)
+    
+    # Check dataset directories
+    datasets = {
+        "ARC-AGI-1": "data/raw/ARC-AGI-1/data",
+        "ARC-AGI-2": "data/raw/ARC-AGI-2/data",
+        "ConceptARC": "data/raw/ConceptARC/corpus",
+        "MiniARC": "data/raw/MiniARC/data/MiniARC"
+    }
+    
+    for name, path_str in datasets.items():
+        path = Path(path_str)
+        if path.exists():
+            if name.startswith("ARC-AGI"):
+                train_files = list((path / "training").glob("*.json"))
+                eval_files = list((path / "evaluation").glob("*.json"))
+                print(f"✅ {name}: {len(train_files)} train, {len(eval_files)} eval tasks")
+            else:
+                files = list(path.glob("**/*.json"))
+                print(f"✅ {name}: {len(files)} task files")
+        else:
+            print(f"❌ {name}: Not found at {path}")
+            print(f"   Run: python scripts/download_dataset.py {name.lower().replace('-', '-')}")
+    
+    # Test parser functionality
+    print("\n🧪 Testing Parser Functionality")
+    print("-" * 30)
+    
+    try:
+        config = DictConfig({
+            "training": {"path": "data/raw/ARC-AGI-1/data/training"},
+            "evaluation": {"path": "data/raw/ARC-AGI-1/data/evaluation"},
+            "grid": {"max_grid_height": 30, "max_grid_width": 30},
+            "max_train_pairs": 10,
+            "max_test_pairs": 3,
+        })
+        
+        parser = ArcAgiParser(config)
+        task_ids = parser.get_available_task_ids()
+        
+        if task_ids:
+            # Test loading a task
+            sample_task = parser.get_task_by_id(task_ids[0])
+            print(f"✅ Parser test successful: {len(task_ids)} tasks available")
+            print(f"   Sample task: {sample_task.num_train_pairs} train pairs")
+        else:
+            print("❌ No tasks found - check dataset download")
+            
+    except Exception as e:
+        print(f"❌ Parser test failed: {e}")
+        print("   Check configuration and dataset paths")
+    
+    # Check git installation
+    print("\n🔧 System Requirements")
+    print("-" * 20)
+    
+    import subprocess
+    try:
+        result = subprocess.run(["git", "--version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"✅ Git: {result.stdout.strip()}")
+        else:
+            print("❌ Git: Command failed")
+    except FileNotFoundError:
+        print("❌ Git: Not installed or not in PATH")
+        print("   Install with: brew install git (macOS) or apt-get install git (Linux)")
+    
+    print("\n🎯 Recommendations")
+    print("-" * 15)
+    print("1. Ensure all datasets are downloaded: python scripts/download_dataset.py all")
+    print("2. Use --force flag to re-download if issues persist")
+    print("3. Check disk space: df -h")
+    print("4. Verify network connectivity: ping github.com")
+    print("5. See full troubleshooting guide in docs/api_reference.md")
+
+if __name__ == "__main__":
+    diagnose_github_setup()
+```
+
+### Getting Help
+
+If issues persist after trying these solutions:
+
+1. **Run the diagnostic script** above to identify specific problems
+2. **Check the [Migration Guide](KAGGLE_TO_GITHUB_MIGRATION.md)** for detailed migration steps
+3. **Review [examples](../examples/)** for working code patterns
+4. **Open an issue** on [GitHub](https://github.com/aadimator/JaxARC/issues) with:
+   - Error messages and stack traces
+   - Output from diagnostic script
+   - System information (OS, Python version, git version)
+   - Steps to reproduce the issue
+5. **Start a discussion** on [GitHub Discussions](https://github.com/aadimator/JaxARC/discussions) for general questions
 
 ## Migration Guide
 
