@@ -108,25 +108,72 @@ class MiniArcParser(ArcDataParserBase):
     """Parser for MiniARC dataset optimized for 5x5 grids."""
     
     def __init__(self, cfg: DictConfig):
-        """Initialize parser with MiniARC configuration."""
+        """Initialize parser with MiniARC configuration.
+        
+        Automatically validates grid constraints and logs warnings
+        for suboptimal configurations (e.g., max_grid_height/width > 5).
+        """
         
     def load_task_file(self, task_file_path: str) -> Any:
-        """Load raw task data from a JSON file."""
+        """Load raw task data from a JSON file.
+        
+        Raises:
+            FileNotFoundError: If task file doesn't exist
+            ValueError: If JSON is invalid
+        """
         
     def preprocess_task_data(self, raw_task_data: Any, key: chex.PRNGKey) -> JaxArcTask:
-        """Convert raw task data into JaxArcTask structure."""
+        """Convert raw task data into JaxArcTask structure.
+        
+        Validates grid sizes and rejects tasks exceeding 5x5 constraint.
+        """
         
     def get_available_task_ids(self) -> list[str]:
-        """Get list of all available task IDs."""
+        """Get list of all available task IDs.
+        
+        Task IDs are derived from filenames without .json extension.
+        """
         
     def get_task_by_id(self, task_id: str) -> JaxArcTask:
-        """Get specific task by ID."""
+        """Get specific task by ID.
+        
+        Args:
+            task_id: Task identifier (filename without .json)
+            
+        Raises:
+            ValueError: If task ID not found in dataset
+        """
         
     def get_dataset_statistics(self) -> dict:
-        """Get dataset statistics including performance metrics."""
+        """Get comprehensive dataset statistics.
+        
+        Returns:
+            Dictionary containing:
+            - total_tasks: Number of loaded tasks
+            - optimization: "5x5 grids"
+            - max_configured_dimensions: Grid size configuration
+            - is_5x5_optimized: Whether optimally configured
+            - train_pairs: Min/max/avg training pairs
+            - test_pairs: Min/max/avg test pairs
+            - grid_dimensions: Actual grid size statistics
+        """
         
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
-        """Get random task optimized for 5x5 processing."""
+        """Get random task optimized for 5x5 processing.
+        
+        Raises:
+            RuntimeError: If no tasks available in dataset
+        """
+        
+    # Private validation methods (used internally)
+    def _validate_grid_size(self, grid: list, context: str) -> None:
+        """Validate grid doesn't exceed 5x5 constraint."""
+        
+    def _validate_grid_colors(self, grid: chex.Array) -> None:
+        """Validate grid colors are within valid range."""
+        
+    def _validate_task_structure(self, task_data: dict, task_id: str) -> None:
+        """Validate task has required structure (train/test sections)."""
 ```
 
 **Performance Benefits:**

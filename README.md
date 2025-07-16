@@ -24,7 +24,7 @@ mechanisms.
 - **🤝 Multi-Agent**: Collaborative agents with hypothesis-proposal-consensus
   mechanism
 - **🎨 Rich Visualization**: Terminal and SVG grid rendering utilities
-- **📊 Comprehensive Testing**: 48+ tests with 100% coverage goal
+- **📊 Comprehensive Testing**: 50+ tests with extensive MiniARC parser coverage and 100% coverage goal
 
 ## 📦 Installation
 
@@ -371,6 +371,7 @@ python examples/enhanced_visualization_demo.py
 - **[Config API Guide](docs/CONFIG_API_README.md)**: Comprehensive configuration
   system documentation
 - **[Parser Usage Guide](docs/parser_usage.md)**: Detailed guide for ConceptARC, MiniARC, and ARC-AGI parsers
+- **[Testing Guide](docs/testing_guide.md)**: Comprehensive testing documentation with extensive MiniARC parser coverage
 - **[Architecture Overview](planning-docs/PROJECT_ARCHITECTURE.md)**: Technical
   architecture details
 - **[Usage Examples](examples/)**: Working code examples

@@ -14,9 +14,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import chex
+from unittest.mock import patch
 import jax
 import jax.numpy as jnp
 import pytest
