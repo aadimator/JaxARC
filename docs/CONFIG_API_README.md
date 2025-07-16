@@ -418,10 +418,43 @@ See `examples/config_api_demo.py` for comprehensive examples including:
 
 1. **"Non-hashable static arguments"**: Make sure configs are frozen dataclasses
 2. **"Selection shape mismatch"**: Ensure selection shape matches grid shape
-3. **"Invalid operation"**: Check operation is in valid range [0,
-   num_operations)
-4. **"Config field assignment"**: Configs are frozen - create new instances
-   instead
+3. **"Invalid operation"**: Check operation is in valid range [0, num_operations)
+4. **"Config field assignment"**: Configs are frozen - create new instances instead
+5. **"Legacy Kaggle format detected"**: Update configuration to use GitHub format with `path` instead of `challenges`/`solutions`
+6. **"No data path specified"**: Add required `path` field pointing to GitHub dataset directory
+7. **"Data directory not found"**: Ensure dataset is downloaded with `python scripts/download_dataset.py <dataset-name>`
+
+### GitHub Dataset Issues
+
+#### Configuration Format
+```python
+# OLD (Kaggle format - no longer supported)
+config = DictConfig({
+    "training": {
+        "challenges": "path/to/challenges.json",
+        "solutions": "path/to/solutions.json"
+    }
+})
+
+# NEW (GitHub format)
+config = DictConfig({
+    "training": {"path": "data/raw/ARC-AGI-1/data/training"},
+    "evaluation": {"path": "data/raw/ARC-AGI-1/data/evaluation"}
+})
+```
+
+#### Dataset Download Issues
+```bash
+# Download missing datasets
+python scripts/download_dataset.py arc-agi-1
+python scripts/download_dataset.py arc-agi-2
+
+# Force re-download if corrupted
+python scripts/download_dataset.py arc-agi-1 --force
+
+# Check dataset structure
+ls -la data/raw/ARC-AGI-1/data/training/
+```
 
 ### Debug Tips
 
@@ -429,3 +462,5 @@ See `examples/config_api_demo.py` for comprehensive examples including:
 - Use `get_config_summary()` to inspect configuration
 - Check `info` dict returned by `arc_step()` for detailed metrics
 - Use `validate_config()` to catch configuration issues early
+- Run diagnostic script from [API Reference](api_reference.md#diagnostic-script) for GitHub setup issues
+- Check [Migration Guide](KAGGLE_TO_GITHUB_MIGRATION.md) for detailed troubleshooting

@@ -3,7 +3,8 @@
 Config-Based API Demo for JaxARC
 
 This example demonstrates the new config-based architecture for JaxARC,
-showing how to use typed configurations, functional API, and Hydra integration.
+showing how to use typed configurations, functional API, Hydra integration,
+and GitHub-based dataset loading.
 """
 
 from __future__ import annotations
@@ -227,6 +228,67 @@ def demo_preset_configs():
         )
 
 
+def demo_github_dataset_integration():
+    """Demonstrate GitHub-based dataset integration."""
+    logger.info("\n=== GitHub Dataset Integration Demo ===")
+
+    # Demonstrate ARC-AGI-1 configuration
+    logger.info("1. ARC-AGI-1 (GitHub Format):")
+    try:
+        from jaxarc.utils.config import get_config
+        
+        # Load ARC-AGI-1 configuration
+        arc_agi_1_config = get_config("dataset=arc_agi_1")
+        logger.info(f"  • Dataset: {arc_agi_1_config.dataset.dataset_name}")
+        logger.info(f"  • Source: GitHub (fchollet/ARC-AGI)")
+        logger.info(f"  • Training path: {arc_agi_1_config.dataset.training.path}")
+        logger.info(f"  • Format: Individual JSON files")
+        
+    except Exception as e:
+        logger.info(f"  • ARC-AGI-1 config not available: {e}")
+        logger.info("  • Download with: python scripts/download_dataset.py arc-agi-1")
+
+    # Demonstrate ARC-AGI-2 configuration
+    logger.info("2. ARC-AGI-2 (GitHub Format):")
+    try:
+        arc_agi_2_config = get_config("dataset=arc_agi_2")
+        logger.info(f"  • Dataset: {arc_agi_2_config.dataset.dataset_name}")
+        logger.info(f"  • Source: GitHub (arcprize/ARC-AGI-2)")
+        logger.info(f"  • Training path: {arc_agi_2_config.dataset.training.path}")
+        logger.info(f"  • Enhanced features: 2.5x more training data")
+        
+    except Exception as e:
+        logger.info(f"  • ARC-AGI-2 config not available: {e}")
+        logger.info("  • Download with: python scripts/download_dataset.py arc-agi-2")
+
+    # Show GitHub format benefits
+    logger.info("3. GitHub Format Benefits:")
+    benefits = [
+        "No Kaggle CLI dependency",
+        "Direct repository access",
+        "Individual file loading",
+        "Better error handling",
+        "Faster task access",
+        "Incremental updates via git pull",
+    ]
+    
+    for benefit in benefits:
+        logger.info(f"  • {benefit}")
+
+    # Demonstrate configuration differences
+    logger.info("4. Configuration Structure:")
+    logger.info("  GitHub Format:")
+    logger.info("    data_root: 'data/raw/ARC-AGI-1'")
+    logger.info("    training:")
+    logger.info("      path: '${dataset.data_root}/data/training'")
+    logger.info("    evaluation:")
+    logger.info("      path: '${dataset.data_root}/data/evaluation'")
+    
+    logger.info("  Legacy Kaggle Format:")
+    logger.info("    challenges_file: 'arc-agi_training_challenges.json'")
+    logger.info("    solutions_file: 'arc-agi_training_solutions.json'")
+
+
 def demo_manual_config_creation():
     """Demonstrate manual configuration creation."""
     logger.info("\n=== Manual Config Creation Demo ===")
@@ -293,6 +355,7 @@ def main():
         demo_action_formats()
         demo_jax_compatibility()
         demo_preset_configs()
+        demo_github_dataset_integration()
         demo_manual_config_creation()
 
         logger.info("\n🎉 All demos completed successfully!")
