@@ -1,37 +1,41 @@
 # API Reference
 
-This document provides a comprehensive reference for the JaxARC API, including all parser classes, configuration utilities, and core functionality.
+This document provides a comprehensive reference for the JaxARC API, including
+all parser classes, configuration utilities, and core functionality.
 
 ## Parser Classes
 
 ### ArcAgiParser
 
-General parser for ARC-AGI datasets from Kaggle competitions.
+General parser for ARC-AGI datasets from GitHub repositories.
 
 ```python
 from jaxarc.parsers import ArcAgiParser
 
+
 class ArcAgiParser(ArcDataParserBase):
     """Parser for ARC-AGI datasets (2024 and 2025 competitions)."""
-    
+
     def __init__(self, cfg: DictConfig):
         """Initialize parser with configuration."""
-        
+
     def parse_task_file(self, file_path: str, task_id: str) -> JaxArcTask:
         """Parse a specific task from a JSON file."""
-        
+
     def parse_all_tasks_from_file(self, file_path: str) -> dict[str, JaxArcTask]:
         """Parse all tasks from a JSON file."""
-        
+
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         """Get a random task from the dataset."""
 ```
 
 **Supported Datasets:**
+
 - ARC-AGI-1 (2024 competition)
 - ARC-AGI-2 (2025 competition)
 
 **Configuration:**
+
 ```yaml
 dataset_name: "ARC-AGI-2"
 data_root: "data/raw/arc-prize-2025"
@@ -50,103 +54,123 @@ Specialized parser for ConceptARC dataset with concept group organization.
 ```python
 from jaxarc.parsers import ConceptArcParser
 
+
 class ConceptArcParser(ArcDataParserBase):
     """Parser for ConceptARC dataset with concept group organization."""
-    
+
     def __init__(self, cfg: DictConfig):
         """Initialize parser with ConceptARC configuration."""
-        
+
     def get_concept_groups(self) -> list[str]:
         """Get list of available concept groups."""
-        
-    def get_random_task_from_concept(self, concept: str, key: chex.PRNGKey) -> JaxArcTask:
+
+    def get_random_task_from_concept(
+        self, concept: str, key: chex.PRNGKey
+    ) -> JaxArcTask:
         """Get random task from specific concept group."""
-        
+
     def get_tasks_in_concept(self, concept: str) -> list[str]:
         """Get all task IDs in a specific concept group."""
-        
+
     def get_task_by_id(self, task_id: str) -> JaxArcTask:
         """Get specific task by ID (format: 'ConceptGroup/TaskName')."""
-        
+
     def get_task_metadata(self, task_id: str) -> dict:
         """Get metadata for a specific task."""
-        
+
     def get_dataset_statistics(self) -> dict:
         """Get comprehensive dataset statistics."""
 ```
 
 **Concept Groups:**
+
 - **Spatial**: AboveBelow, Center, InsideOutside, TopBottom2D, TopBottom3D
 - **Pattern**: Copy, CompleteShape, SameDifferent, Order
 - **Object**: ExtractObjects, MoveToBoundary, ExtendToBoundary
 - **Property**: FilledNotFilled, Count, CleanUp, HorizontalVertical
 
 **Configuration:**
+
 ```yaml
 dataset_name: "ConceptARC"
 data_root: "data/raw/ConceptARC"
 corpus:
   path: "${dataset.data_root}/corpus"
-  concept_groups: [
-    "AboveBelow", "Center", "CleanUp", "CompleteShape",
-    "Copy", "Count", "ExtendToBoundary", "ExtractObjects",
-    "FilledNotFilled", "HorizontalVertical", "InsideOutside",
-    "MoveToBoundary", "Order", "SameDifferent", "TopBottom2D", "TopBottom3D"
-  ]
+  concept_groups:
+    [
+      "AboveBelow",
+      "Center",
+      "CleanUp",
+      "CompleteShape",
+      "Copy",
+      "Count",
+      "ExtendToBoundary",
+      "ExtractObjects",
+      "FilledNotFilled",
+      "HorizontalVertical",
+      "InsideOutside",
+      "MoveToBoundary",
+      "Order",
+      "SameDifferent",
+      "TopBottom2D",
+      "TopBottom3D",
+    ]
 max_train_pairs: 4
 max_test_pairs: 3
 ```
 
 ### MiniArcParser
 
-Optimized parser for MiniARC dataset with 5x5 grids and rapid prototyping capabilities.
+Optimized parser for MiniARC dataset with 5x5 grids and rapid prototyping
+capabilities.
 
 ```python
 from jaxarc.parsers import MiniArcParser
 
+
 class MiniArcParser(ArcDataParserBase):
     """Parser for MiniARC dataset optimized for 5x5 grids."""
-    
+
     def __init__(self, cfg: DictConfig):
         """Initialize parser with MiniARC configuration.
-        
+
         Automatically validates grid constraints and logs warnings
         for suboptimal configurations (e.g., max_grid_height/width > 5).
         """
-        
+
     def load_task_file(self, task_file_path: str) -> Any:
         """Load raw task data from a JSON file.
-        
+
         Raises:
             FileNotFoundError: If task file doesn't exist
             ValueError: If JSON is invalid
         """
-        
+
     def preprocess_task_data(self, raw_task_data: Any, key: chex.PRNGKey) -> JaxArcTask:
         """Convert raw task data into JaxArcTask structure.
-        
+
         Validates grid sizes and rejects tasks exceeding 5x5 constraint.
         """
-        
+
     def get_available_task_ids(self) -> list[str]:
         """Get list of all available task IDs.
-        
+
         Task IDs are derived from filenames without .json extension.
         """
-        
+
     def get_task_by_id(self, task_id: str) -> JaxArcTask:
         """Get specific task by ID.
-        
+
         Args:
             task_id: Task identifier (filename without .json)
-            
+
         Raises:
             ValueError: If task ID not found in dataset
         """
-        
+
     def get_dataset_statistics(self) -> dict:
         """Get comprehensive dataset statistics.
-        
+
         Returns:
             Dictionary containing:
             - total_tasks: Number of loaded tasks
@@ -157,32 +181,34 @@ class MiniArcParser(ArcDataParserBase):
             - test_pairs: Min/max/avg test pairs
             - grid_dimensions: Actual grid size statistics
         """
-        
+
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         """Get random task optimized for 5x5 processing.
-        
+
         Raises:
             RuntimeError: If no tasks available in dataset
         """
-        
+
     # Private validation methods (used internally)
     def _validate_grid_size(self, grid: list, context: str) -> None:
         """Validate grid doesn't exceed 5x5 constraint."""
-        
+
     def _validate_grid_colors(self, grid: chex.Array) -> None:
         """Validate grid colors are within valid range."""
-        
+
     def _validate_task_structure(self, task_data: dict, task_id: str) -> None:
         """Validate task has required structure (train/test sections)."""
 ```
 
 **Performance Benefits:**
+
 - **Memory**: 36x less memory per grid (25 vs 900 cells)
 - **Speed**: 10-50x faster processing and training
 - **Batch Size**: Support for larger batch sizes
 - **Development**: Seconds to minutes vs hours for iteration cycles
 
 **Configuration:**
+
 ```yaml
 dataset_name: "MiniARC"
 data_root: "data/raw/MiniARC"
@@ -204,10 +230,8 @@ optimization:
 ### Dataset-Specific Configurations
 
 ```python
-from jaxarc.envs.factory import (
-    create_conceptarc_config,
-    create_miniarc_config
-)
+from jaxarc.envs.factory import create_conceptarc_config, create_miniarc_config
+
 
 def create_conceptarc_config(
     max_episode_steps: int = 150,
@@ -218,6 +242,7 @@ def create_conceptarc_config(
     **kwargs
 ) -> ArcEnvConfig:
     """Create ConceptARC-optimized environment configuration."""
+
 
 def create_miniarc_config(
     max_episode_steps: int = 50,
@@ -233,10 +258,8 @@ def create_miniarc_config(
 ### Configuration Utilities
 
 ```python
-from jaxarc.utils.config import (
-    create_conceptarc_config,
-    create_miniarc_config
-)
+from jaxarc.utils.config import create_conceptarc_config, create_miniarc_config
+
 
 def create_conceptarc_config(
     max_episode_steps: int = 100,
@@ -245,6 +268,7 @@ def create_conceptarc_config(
     **kwargs
 ) -> DictConfig:
     """Create ConceptARC configuration for parser usage."""
+
 
 def create_miniarc_config(
     max_episode_steps: int = 80,
@@ -264,22 +288,23 @@ Main data structure for ARC tasks, compatible with all parsers.
 ```python
 from jaxarc.types import JaxArcTask
 
+
 @chex.dataclass
 class JaxArcTask:
     """JAX-compatible ARC task representation."""
-    
+
     input_grids_examples: chex.Array  # Shape: (max_train_pairs, H, W)
     input_masks_examples: chex.Array  # Shape: (max_train_pairs, H, W)
     output_grids_examples: chex.Array  # Shape: (max_train_pairs, H, W)
     output_masks_examples: chex.Array  # Shape: (max_train_pairs, H, W)
     num_train_pairs: int
-    
+
     test_input_grids: chex.Array  # Shape: (max_test_pairs, H, W)
     test_input_masks: chex.Array  # Shape: (max_test_pairs, H, W)
     true_test_output_grids: chex.Array  # Shape: (max_test_pairs, H, W)
     true_test_output_masks: chex.Array  # Shape: (max_test_pairs, H, W)
     num_test_pairs: int
-    
+
     task_index: chex.Array  # Unique task identifier
 ```
 
@@ -300,17 +325,15 @@ Grid = chex.Array  # Shape: (height, width), dtype: int32
 ```python
 from jaxarc.envs import arc_reset, arc_step
 
+
 def arc_reset(
-    key: chex.PRNGKey,
-    config: ArcEnvConfig,
-    task_data: JaxArcTask | None = None
+    key: chex.PRNGKey, config: ArcEnvConfig, task_data: JaxArcTask | None = None
 ) -> tuple[ArcEnvState, chex.Array]:
     """Reset environment with optional task data."""
 
+
 def arc_step(
-    state: ArcEnvState,
-    action: dict[str, chex.Array],
-    config: ArcEnvConfig
+    state: ArcEnvState, action: dict[str, chex.Array], config: ArcEnvConfig
 ) -> tuple[ArcEnvState, chex.Array, float, bool, dict]:
     """Step environment with action."""
 ```
@@ -320,22 +343,20 @@ def arc_step(
 ```python
 from jaxarc.envs import ArcEnvironment
 
+
 class ArcEnvironment:
     """JAX-compatible ARC environment."""
-    
+
     def __init__(self, config: ArcEnvConfig):
         """Initialize environment with configuration."""
-        
+
     def reset(
-        self,
-        key: chex.PRNGKey,
-        task_data: JaxArcTask | None = None
+        self, key: chex.PRNGKey, task_data: JaxArcTask | None = None
     ) -> tuple[ArcEnvState, chex.Array]:
         """Reset environment."""
-        
+
     def step(
-        self,
-        action: dict[str, chex.Array]
+        self, action: dict[str, chex.Array]
     ) -> tuple[ArcEnvState, chex.Array, float, dict]:
         """Step environment."""
 ```
@@ -351,12 +372,14 @@ from jaxarc.envs import create_conceptarc_config, ArcEnvironment
 from omegaconf import DictConfig
 
 # Create parser configuration
-parser_config = DictConfig({
-    "corpus": {"path": "data/raw/ConceptARC/corpus"},
-    "grid": {"max_grid_height": 30, "max_grid_width": 30},
-    "max_train_pairs": 4,
-    "max_test_pairs": 3,
-})
+parser_config = DictConfig(
+    {
+        "corpus": {"path": "data/raw/ConceptARC/corpus"},
+        "grid": {"max_grid_height": 30, "max_grid_width": 30},
+        "max_train_pairs": 4,
+        "max_test_pairs": 3,
+    }
+)
 
 # Initialize parser
 parser = ConceptArcParser(parser_config)
@@ -370,10 +393,7 @@ key = jax.random.PRNGKey(42)
 task = parser.get_random_task_from_concept("Center", key)
 
 # Create environment configuration
-env_config = create_conceptarc_config(
-    max_episode_steps=150,
-    success_bonus=20.0
-)
+env_config = create_conceptarc_config(max_episode_steps=150, success_bonus=20.0)
 
 # Run environment
 env = ArcEnvironment(env_config)
@@ -389,12 +409,14 @@ from jaxarc.envs import create_miniarc_config, ArcEnvironment
 from omegaconf import DictConfig
 
 # Create parser configuration
-parser_config = DictConfig({
-    "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
-    "grid": {"max_grid_height": 5, "max_grid_width": 5},
-    "max_train_pairs": 3,
-    "max_test_pairs": 1,
-})
+parser_config = DictConfig(
+    {
+        "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
+        "grid": {"max_grid_height": 5, "max_grid_width": 5},
+        "max_train_pairs": 3,
+        "max_test_pairs": 1,
+    }
+)
 
 # Initialize parser
 parser = MiniArcParser(parser_config)
@@ -405,8 +427,7 @@ task = parser.get_random_task(key)
 
 # Create optimized environment configuration
 env_config = create_miniarc_config(
-    max_episode_steps=50,  # Shorter for rapid iteration
-    success_bonus=5.0
+    max_episode_steps=50, success_bonus=5.0  # Shorter for rapid iteration
 )
 
 # Run environment (10-50x faster than standard ARC)
@@ -441,6 +462,7 @@ All parsers and configurations are fully compatible with JAX transformations:
 def process_task(task, config):
     return some_processing(task, config)
 
+
 # Vectorization
 batch_process = jax.vmap(process_task, in_axes=(0, None))
 
@@ -472,10 +494,12 @@ parallel_process = jax.pmap(process_task, in_axes=(0, None))
 ```python
 # Old way
 from jaxarc.parsers import ArcAgi1Parser
+
 parser = ArcAgi1Parser()
 
 # New way
 from jaxarc.parsers import ArcAgiParser
+
 parser = ArcAgiParser(config)
 ```
 

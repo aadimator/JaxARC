@@ -21,8 +21,7 @@
   grid rendering
 - **Data Processing**: `tqdm`, `loguru` for progress tracking and logging
 - **CLI**: `typer` for command-line interfaces
-- **Utilities**: `pyprojroot` for project root detection, `kaggle` for dataset
-  access
+- **Utilities**: `pyprojroot` for project root detection
 
 ## Development Tools
 

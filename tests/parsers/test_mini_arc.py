@@ -15,6 +15,7 @@ import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -30,18 +31,30 @@ def sample_miniarc_task():
     return {
         "train": [
             {
-                "input": [[0, 1, 0, 1, 0], [1, 0, 1, 0, 1], [0, 1, 0, 1, 0], [1, 0, 1, 0, 1], [0, 1, 0, 1, 0]],
-                "output": [[1, 0, 1, 0, 1], [0, 1, 0, 1, 0], [1, 0, 1, 0, 1], [0, 1, 0, 1, 0], [1, 0, 1, 0, 1]]
+                "input": [
+                    [0, 1, 0, 1, 0],
+                    [1, 0, 1, 0, 1],
+                    [0, 1, 0, 1, 0],
+                    [1, 0, 1, 0, 1],
+                    [0, 1, 0, 1, 0],
+                ],
+                "output": [
+                    [1, 0, 1, 0, 1],
+                    [0, 1, 0, 1, 0],
+                    [1, 0, 1, 0, 1],
+                    [0, 1, 0, 1, 0],
+                    [1, 0, 1, 0, 1],
+                ],
             },
             {
                 "input": [[0, 2, 0], [2, 0, 2], [0, 2, 0]],
-                "output": [[2, 0, 2], [0, 2, 0], [2, 0, 2]]
+                "output": [[2, 0, 2], [0, 2, 0], [2, 0, 2]],
             },
         ],
         "test": [
             {
                 "input": [[0, 3, 0, 3], [3, 0, 3, 0], [0, 3, 0, 3], [3, 0, 3, 0]],
-                "output": [[3, 0, 3, 0], [0, 3, 0, 3], [3, 0, 3, 0], [0, 3, 0, 3]]
+                "output": [[3, 0, 3, 0], [0, 3, 0, 3], [3, 0, 3, 0], [0, 3, 0, 3]],
             },
         ],
     }
@@ -53,10 +66,22 @@ def sample_oversized_task():
     return {
         "train": [
             {
-                "input": [[0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1], 
-                         [1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0]],  # 6x6 grid
-                "output": [[1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0],
-                          [0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1]]
+                "input": [
+                    [0, 1, 0, 1, 0, 1],
+                    [1, 0, 1, 0, 1, 0],
+                    [0, 1, 0, 1, 0, 1],
+                    [1, 0, 1, 0, 1, 0],
+                    [0, 1, 0, 1, 0, 1],
+                    [1, 0, 1, 0, 1, 0],
+                ],  # 6x6 grid
+                "output": [
+                    [1, 0, 1, 0, 1, 0],
+                    [0, 1, 0, 1, 0, 1],
+                    [1, 0, 1, 0, 1, 0],
+                    [0, 1, 0, 1, 0, 1],
+                    [1, 0, 1, 0, 1, 0],
+                    [0, 1, 0, 1, 0, 1],
+                ],
             },
         ],
         "test": [
@@ -96,7 +121,7 @@ def suboptimal_miniarc_config():
         {
             "grid": {
                 "max_grid_height": 30,  # Suboptimal for MiniARC
-                "max_grid_width": 30,   # Suboptimal for MiniARC
+                "max_grid_width": 30,  # Suboptimal for MiniARC
                 "min_grid_height": 1,
                 "min_grid_width": 1,
                 "max_colors": 10,
@@ -121,7 +146,7 @@ def mock_miniarc_directory(sample_miniarc_task):
         # Create sample task files in flat structure
         task_files = [
             "pattern_reversal_001.json",
-            "color_swap_002.json", 
+            "color_swap_002.json",
             "symmetry_test_003.json",
             "rotation_task_004.json",
             "fill_pattern_005.json",
@@ -138,10 +163,14 @@ def mock_miniarc_directory(sample_miniarc_task):
 class TestMiniArcParser:
     """Test suite for MiniArcParser implementation."""
 
-    def test_miniarc_parser_initialization_optimal_config(self, miniarc_config, mock_miniarc_directory):
+    def test_miniarc_parser_initialization_optimal_config(
+        self, miniarc_config, mock_miniarc_directory
+    ):
         """Test MiniArcParser initialization with optimal 5x5 configuration."""
         # Update config to point to mock directory
-        miniarc_config.tasks.path = str(Path(mock_miniarc_directory) / "data" / "MiniARC")
+        miniarc_config.tasks.path = str(
+            Path(mock_miniarc_directory) / "data" / "MiniARC"
+        )
 
         with patch("jaxarc.parsers.mini_arc.here") as mock_here:
             mock_here.return_value = Path(miniarc_config.tasks.path)
@@ -151,25 +180,29 @@ class TestMiniArcParser:
             # Check that tasks were loaded
             task_ids = parser.get_available_task_ids()
             assert len(task_ids) == 5
-            
+
             # Check task IDs match filenames (without .json extension)
             expected_ids = [
                 "pattern_reversal_001",
-                "color_swap_002", 
+                "color_swap_002",
                 "symmetry_test_003",
                 "rotation_task_004",
                 "fill_pattern_005",
             ]
             assert set(task_ids) == set(expected_ids)
 
-    def test_miniarc_parser_initialization_suboptimal_config(self, suboptimal_miniarc_config, mock_miniarc_directory):
+    def test_miniarc_parser_initialization_suboptimal_config(
+        self, suboptimal_miniarc_config, mock_miniarc_directory
+    ):
         """Test MiniArcParser initialization with suboptimal configuration (should warn)."""
         # Update config to point to mock directory
-        suboptimal_miniarc_config.tasks.path = str(Path(mock_miniarc_directory) / "data" / "MiniARC")
+        suboptimal_miniarc_config.tasks.path = str(
+            Path(mock_miniarc_directory) / "data" / "MiniARC"
+        )
 
         with patch("jaxarc.parsers.mini_arc.here") as mock_here:
             mock_here.return_value = Path(suboptimal_miniarc_config.tasks.path)
-            
+
             with patch("jaxarc.parsers.mini_arc.logger") as mock_logger:
                 parser = MiniArcParser(suboptimal_miniarc_config)
 
@@ -193,9 +226,15 @@ class TestMiniArcParser:
             oversized_task = {
                 "train": [
                     {
-                        "input": [[0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1], 
-                                 [1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0]],  # 6x6 grid
-                        "output": [[1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1]]
+                        "input": [
+                            [0, 1, 0, 1, 0, 1],
+                            [1, 0, 1, 0, 1, 0],
+                            [0, 1, 0, 1, 0, 1],
+                            [1, 0, 1, 0, 1, 0],
+                            [0, 1, 0, 1, 0, 1],
+                            [1, 0, 1, 0, 1, 0],
+                        ],  # 6x6 grid
+                        "output": [[1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1]],
                     },
                 ],
                 "test": [{"input": [[0, 2, 0, 2, 0, 2]]}],  # 1x6 grid
@@ -211,26 +250,36 @@ class TestMiniArcParser:
 
             with patch("jaxarc.parsers.mini_arc.here") as mock_here:
                 mock_here.return_value = Path(miniarc_config.tasks.path)
-                
+
                 with patch("jaxarc.parsers.mini_arc.logger") as mock_logger:
                     parser = MiniArcParser(miniarc_config)
 
                     # Should have logged errors about oversized grids
                     mock_logger.error.assert_called()
-                    error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
-                    
+                    error_calls = [
+                        call[0][0] for call in mock_logger.error.call_args_list
+                    ]
+
                     # Check that error mentions grid size constraint violation
-                    constraint_errors = [call for call in error_calls if "exceeds MiniARC 5x5 constraint" in call]
+                    constraint_errors = [
+                        call
+                        for call in error_calls
+                        if "exceeds MiniARC 5x5 constraint" in call
+                    ]
                     assert len(constraint_errors) > 0
 
                     # Task should not be loaded due to constraint violation
                     task_ids = parser.get_available_task_ids()
                     assert "oversized_task" not in task_ids
 
-    def test_miniarc_parser_flat_directory_structure_loading(self, miniarc_config, mock_miniarc_directory):
+    def test_miniarc_parser_flat_directory_structure_loading(
+        self, miniarc_config, mock_miniarc_directory
+    ):
         """Test task loading from flat directory structure."""
         # Update config to point to mock directory
-        miniarc_config.tasks.path = str(Path(mock_miniarc_directory) / "data" / "MiniARC")
+        miniarc_config.tasks.path = str(
+            Path(mock_miniarc_directory) / "data" / "MiniARC"
+        )
 
         with patch("jaxarc.parsers.mini_arc.here") as mock_here:
             mock_here.return_value = Path(miniarc_config.tasks.path)
@@ -254,10 +303,14 @@ class TestMiniArcParser:
                 task = parser.get_task_by_id(task_id)
                 assert isinstance(task, JaxArcTask)
 
-    def test_miniarc_parser_performance_optimizations(self, miniarc_config, mock_miniarc_directory):
+    def test_miniarc_parser_performance_optimizations(
+        self, miniarc_config, mock_miniarc_directory
+    ):
         """Test performance optimizations for 5x5 grids."""
         # Update config to point to mock directory
-        miniarc_config.tasks.path = str(Path(mock_miniarc_directory) / "data" / "MiniARC")
+        miniarc_config.tasks.path = str(
+            Path(mock_miniarc_directory) / "data" / "MiniARC"
+        )
 
         with patch("jaxarc.parsers.mini_arc.here") as mock_here:
             mock_here.return_value = Path(miniarc_config.tasks.path)
@@ -300,39 +353,51 @@ class TestMiniArcParser:
                     "task": {
                         "train": [
                             {
-                                "input": [[0], [1], [0], [1], [0], [1]],  # 6x1 (height > 5)
-                                "output": [[1], [0], [1], [0], [1], [0]]
+                                "input": [
+                                    [0],
+                                    [1],
+                                    [0],
+                                    [1],
+                                    [0],
+                                    [1],
+                                ],  # 6x1 (height > 5)
+                                "output": [[1], [0], [1], [0], [1], [0]],
                             }
                         ],
-                        "test": [{"input": [[0], [1]]}]
-                    }
+                        "test": [{"input": [[0], [1]]}],
+                    },
                 },
                 {
-                    "name": "width_violation.json", 
+                    "name": "width_violation.json",
                     "task": {
                         "train": [
                             {
                                 "input": [[0, 1, 0, 1, 0, 1]],  # 1x6 (width > 5)
-                                "output": [[1, 0, 1, 0, 1, 0]]
+                                "output": [[1, 0, 1, 0, 1, 0]],
                             }
                         ],
-                        "test": [{"input": [[0, 1, 0, 1, 0, 1]]}]
-                    }
+                        "test": [{"input": [[0, 1, 0, 1, 0, 1]]}],
+                    },
                 },
                 {
                     "name": "both_violation.json",
                     "task": {
                         "train": [
                             {
-                                "input": [[0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0], 
-                                         [0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0],
-                                         [0, 1, 0, 1, 0, 1], [1, 0, 1, 0, 1, 0]],  # 6x6 (both > 5)
-                                "output": [[1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1]]
+                                "input": [
+                                    [0, 1, 0, 1, 0, 1],
+                                    [1, 0, 1, 0, 1, 0],
+                                    [0, 1, 0, 1, 0, 1],
+                                    [1, 0, 1, 0, 1, 0],
+                                    [0, 1, 0, 1, 0, 1],
+                                    [1, 0, 1, 0, 1, 0],
+                                ],  # 6x6 (both > 5)
+                                "output": [[1, 0, 1, 0, 1, 0], [0, 1, 0, 1, 0, 1]],
                             }
                         ],
-                        "test": [{"input": [[0, 1]]}]
-                    }
-                }
+                        "test": [{"input": [[0, 1]]}],
+                    },
+                },
             ]
 
             # Write test cases to files
@@ -346,27 +411,49 @@ class TestMiniArcParser:
 
             with patch("jaxarc.parsers.mini_arc.here") as mock_here:
                 mock_here.return_value = Path(miniarc_config.tasks.path)
-                
+
                 with patch("jaxarc.parsers.mini_arc.logger") as mock_logger:
                     parser = MiniArcParser(miniarc_config)
 
                     # Should have logged specific errors for each constraint violation
-                    error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
-                    
+                    error_calls = [
+                        call[0][0] for call in mock_logger.error.call_args_list
+                    ]
+
                     # Check for specific error messages
-                    height_errors = [call for call in error_calls if "6x1" in call and "exceeds MiniARC 5x5 constraint" in call]
-                    width_errors = [call for call in error_calls if "1x6" in call and "exceeds MiniARC 5x5 constraint" in call]
-                    both_errors = [call for call in error_calls if "6x6" in call and "exceeds MiniARC 5x5 constraint" in call]
-                    
-                    assert len(height_errors) > 0, "Should log height constraint violation"
-                    assert len(width_errors) > 0, "Should log width constraint violation"  
-                    assert len(both_errors) > 0, "Should log both dimensions constraint violation"
+                    height_errors = [
+                        call
+                        for call in error_calls
+                        if "6x1" in call and "exceeds MiniARC 5x5 constraint" in call
+                    ]
+                    width_errors = [
+                        call
+                        for call in error_calls
+                        if "1x6" in call and "exceeds MiniARC 5x5 constraint" in call
+                    ]
+                    both_errors = [
+                        call
+                        for call in error_calls
+                        if "6x6" in call and "exceeds MiniARC 5x5 constraint" in call
+                    ]
+
+                    assert len(height_errors) > 0, (
+                        "Should log height constraint violation"
+                    )
+                    assert len(width_errors) > 0, (
+                        "Should log width constraint violation"
+                    )
+                    assert len(both_errors) > 0, (
+                        "Should log both dimensions constraint violation"
+                    )
 
                     # None of the invalid tasks should be loaded
                     task_ids = parser.get_available_task_ids()
                     assert len(task_ids) == 0
 
-    def test_miniarc_parser_task_preprocessing(self, miniarc_config, sample_miniarc_task):
+    def test_miniarc_parser_task_preprocessing(
+        self, miniarc_config, sample_miniarc_task
+    ):
         """Test task data preprocessing with MiniARC-specific optimizations."""
         with patch("jaxarc.parsers.mini_arc.here") as mock_here:
             mock_here.return_value = Path("/mock/path")
@@ -386,8 +473,16 @@ class TestMiniArcParser:
         assert jax_task.num_test_pairs == 1
 
         # Check optimized array shapes (5x5 instead of 30x30)
-        assert jax_task.input_grids_examples.shape == (3, 5, 5)  # max_train_pairs, max_h, max_w
-        assert jax_task.test_input_grids.shape == (1, 5, 5)  # max_test_pairs, max_h, max_w
+        assert jax_task.input_grids_examples.shape == (
+            3,
+            5,
+            5,
+        )  # max_train_pairs, max_h, max_w
+        assert jax_task.test_input_grids.shape == (
+            1,
+            5,
+            5,
+        )  # max_test_pairs, max_h, max_w
 
         # Check data types
         assert jax_task.input_grids_examples.dtype == jnp.int32
@@ -405,10 +500,14 @@ class TestMiniArcParser:
         if jax_task.num_train_pairs < 3:
             assert jax_task.input_masks_examples[2].sum() == 0  # Should be all False
 
-    def test_miniarc_parser_get_random_task(self, miniarc_config, mock_miniarc_directory):
+    def test_miniarc_parser_get_random_task(
+        self, miniarc_config, mock_miniarc_directory
+    ):
         """Test getting random task from MiniARC dataset."""
         # Update config to point to mock directory
-        miniarc_config.tasks.path = str(Path(mock_miniarc_directory) / "data" / "MiniARC")
+        miniarc_config.tasks.path = str(
+            Path(mock_miniarc_directory) / "data" / "MiniARC"
+        )
 
         with patch("jaxarc.parsers.mini_arc.here") as mock_here:
             mock_here.return_value = Path(miniarc_config.tasks.path)
@@ -425,18 +524,22 @@ class TestMiniArcParser:
             # Test multiple random selections
             keys = jax.random.split(key, 10)
             tasks = [parser.get_random_task(k) for k in keys]
-            
+
             # All should be valid JaxArcTask instances
             assert all(isinstance(task, JaxArcTask) for task in tasks)
-            
+
             # Should potentially get different tasks (though not guaranteed with small dataset)
             task_indices = [task.task_index for task in tasks]
             assert all(isinstance(idx, jnp.ndarray) for idx in task_indices)
 
-    def test_miniarc_parser_get_task_by_id(self, miniarc_config, mock_miniarc_directory):
+    def test_miniarc_parser_get_task_by_id(
+        self, miniarc_config, mock_miniarc_directory
+    ):
         """Test getting specific task by ID."""
         # Update config to point to mock directory
-        miniarc_config.tasks.path = str(Path(mock_miniarc_directory) / "data" / "MiniARC")
+        miniarc_config.tasks.path = str(
+            Path(mock_miniarc_directory) / "data" / "MiniARC"
+        )
 
         with patch("jaxarc.parsers.mini_arc.here") as mock_here:
             mock_here.return_value = Path(miniarc_config.tasks.path)
@@ -460,7 +563,9 @@ class TestMiniArcParser:
                 assert task.num_test_pairs == 1
 
             # Test invalid task ID
-            with pytest.raises(ValueError, match="Task ID 'invalid_task' not found in MiniARC dataset"):
+            with pytest.raises(
+                ValueError, match="Task ID 'invalid_task' not found in MiniARC dataset"
+            ):
                 parser.get_task_by_id("invalid_task")
 
     def test_miniarc_parser_empty_directory(self, miniarc_config):
@@ -484,7 +589,9 @@ class TestMiniArcParser:
 
             # Should raise error when trying to get random task
             key = jax.random.PRNGKey(0)
-            with pytest.raises(RuntimeError, match="No tasks available in MiniARC dataset"):
+            with pytest.raises(
+                RuntimeError, match="No tasks available in MiniARC dataset"
+            ):
                 parser.get_random_task(key)
 
     def test_miniarc_parser_load_task_file(self, miniarc_config, sample_miniarc_task):
@@ -531,10 +638,14 @@ class TestMiniArcParser:
         finally:
             Path(temp_file).unlink()
 
-    def test_miniarc_parser_dataset_statistics(self, miniarc_config, mock_miniarc_directory):
+    def test_miniarc_parser_dataset_statistics(
+        self, miniarc_config, mock_miniarc_directory
+    ):
         """Test dataset statistics calculation."""
         # Update config to point to mock directory
-        miniarc_config.tasks.path = str(Path(mock_miniarc_directory) / "data" / "MiniARC")
+        miniarc_config.tasks.path = str(
+            Path(mock_miniarc_directory) / "data" / "MiniARC"
+        )
 
         with patch("jaxarc.parsers.mini_arc.here") as mock_here:
             mock_here.return_value = Path(miniarc_config.tasks.path)
@@ -543,7 +654,7 @@ class TestMiniArcParser:
 
             # Test dataset statistics
             stats = parser.get_dataset_statistics()
-            
+
             # Basic statistics
             assert stats["total_tasks"] == 5
             assert stats["optimization"] == "5x5 grids"
@@ -613,7 +724,7 @@ class TestMiniArcParser:
         # Test valid task structure
         valid_task = {
             "train": [{"input": [[0, 1]], "output": [[1, 0]]}],
-            "test": [{"input": [[0, 2]]}]
+            "test": [{"input": [[0, 2]]}],
         }
         parser._validate_task_structure(valid_task, "test_task")  # Should not raise
 
@@ -621,7 +732,7 @@ class TestMiniArcParser:
         invalid_tasks = [
             # Missing train section
             {"test": [{"input": [[0, 1]]}]},
-            # Missing test section  
+            # Missing test section
             {"train": [{"input": [[0, 1]], "output": [[1, 0]]}]},
             # Empty train section
             {"train": [], "test": [{"input": [[0, 1]]}]},
@@ -637,21 +748,25 @@ class TestMiniArcParser:
 
     def test_miniarc_parser_missing_config_path(self):
         """Test handling of missing tasks path in configuration."""
-        config_without_path = DictConfig({
-            "grid": {
-                "max_grid_height": 5,
-                "max_grid_width": 5,
-                "min_grid_height": 1,
-                "min_grid_width": 1,
-                "max_colors": 10,
-                "background_color": 0,
-            },
-            "max_train_pairs": 3,
-            "max_test_pairs": 1,
-            # Missing tasks.path
-        })
+        config_without_path = DictConfig(
+            {
+                "grid": {
+                    "max_grid_height": 5,
+                    "max_grid_width": 5,
+                    "min_grid_height": 1,
+                    "min_grid_width": 1,
+                    "max_colors": 10,
+                    "background_color": 0,
+                },
+                "max_train_pairs": 3,
+                "max_test_pairs": 1,
+                # Missing tasks.path
+            }
+        )
 
-        with pytest.raises(ValueError, match="MiniARC tasks path not specified in configuration"):
+        with pytest.raises(
+            ValueError, match="MiniARC tasks path not specified in configuration"
+        ):
             MiniArcParser(config_without_path)
 
     def test_miniarc_parser_grid_size_validation_methods(self, miniarc_config):
@@ -667,7 +782,13 @@ class TestMiniArcParser:
             [[0, 1, 2, 3, 4]],  # 1x5
             [[0], [1], [2], [3], [4]],  # 5x1
             [[0, 1, 2], [3, 4, 5], [6, 7, 8]],  # 3x3
-            [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [0, 1, 2, 3, 4]],  # 5x5
+            [
+                [0, 1, 2, 3, 4],
+                [5, 6, 7, 8, 9],
+                [0, 1, 2, 3, 4],
+                [5, 6, 7, 8, 9],
+                [0, 1, 2, 3, 4],
+            ],  # 5x5
         ]
 
         for i, grid in enumerate(valid_grids):
@@ -677,8 +798,14 @@ class TestMiniArcParser:
         invalid_grids = [
             [[0, 1, 2, 3, 4, 5]],  # 1x6 (width > 5)
             [[0], [1], [2], [3], [4], [5]],  # 6x1 (height > 5)
-            [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9, 0, 1], [2, 3, 4, 5, 6, 7], 
-             [8, 9, 0, 1, 2, 3], [4, 5, 6, 7, 8, 9], [0, 1, 2, 3, 4, 5]],  # 6x6 (both > 5)
+            [
+                [0, 1, 2, 3, 4, 5],
+                [6, 7, 8, 9, 0, 1],
+                [2, 3, 4, 5, 6, 7],
+                [8, 9, 0, 1, 2, 3],
+                [4, 5, 6, 7, 8, 9],
+                [0, 1, 2, 3, 4, 5],
+            ],  # 6x6 (both > 5)
         ]
 
         for i, grid in enumerate(invalid_grids):

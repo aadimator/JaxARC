@@ -56,7 +56,8 @@ pixi run test
 
 ### Core Documentation
 
-- **[API Reference](api_reference.md)**: Complete API documentation including all parser classes and configuration utilities
+- **[API Reference](api_reference.md)**: Complete API documentation including
+  all parser classes and configuration utilities
 - **[Parser Usage Guide](parser_usage.md)**: Comprehensive guide for using ARC
   dataset parsers
 - **[Data Format Documentation](data_format.md)**: Detailed information about
@@ -68,21 +69,26 @@ pixi run test
 
 JaxARC supports multiple ARC dataset variants with dedicated parsers:
 
-- **ARC-AGI-1/2**: Original Kaggle competition datasets (`ArcAgiParser`)
-- **ConceptARC**: 16 concept groups for systematic evaluation (`ConceptArcParser`)
+- **ARC-AGI-1/2**: Original ARC challenge datasets from GitHub (`ArcAgiParser`)
+- **ConceptARC**: 16 concept groups for systematic evaluation
+  (`ConceptArcParser`)
 - **MiniARC**: Compact 5x5 grid version for rapid prototyping (`MiniArcParser`)
 
 #### Parser Classes
 
-- **`ArcAgiParser`**: General parser for ARC-AGI datasets from Kaggle
-- **`ConceptArcParser`**: Specialized parser with concept group organization and systematic evaluation features
-- **`MiniArcParser`**: Optimized parser for 5x5 grids with rapid prototyping capabilities and performance optimizations
+- **`ArcAgiParser`**: General parser for ARC-AGI datasets from GitHub
+- **`ConceptArcParser`**: Specialized parser with concept group organization and
+  systematic evaluation features
+- **`MiniArcParser`**: Optimized parser for 5x5 grids with rapid prototyping
+  capabilities and performance optimizations
 
 ### Examples and Demos
 
 - **Basic Usage**: `examples/config_api_demo.py`
-- **ConceptARC Usage**: `examples/conceptarc_usage_example.py` - Comprehensive ConceptARC demonstration
-- **MiniARC Usage**: `examples/miniarc_usage_example.py` - Rapid prototyping and performance comparison
+- **ConceptARC Usage**: `examples/conceptarc_usage_example.py` - Comprehensive
+  ConceptARC demonstration
+- **MiniARC Usage**: `examples/miniarc_usage_example.py` - Rapid prototyping and
+  performance comparison
 - **Hydra Integration**: `examples/hydra_integration_example.py`
 - **Visualization**: `examples/visualization_demo.py`
 

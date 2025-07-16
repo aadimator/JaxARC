@@ -4,7 +4,7 @@
   "description": "Monitors source code files for changes and provides automated code quality analysis including code smells, design patterns, best practices, readability, maintainability, and performance optimizations with JAX compliance focus",
   "version": "1",
   "when": {
-    "type": "fileEdited",
+    "type": "userTriggered",
     "patterns": [
       "src/**/*.py",
       "tests/**/*.py",

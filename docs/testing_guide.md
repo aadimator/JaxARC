@@ -1,36 +1,48 @@
 # Testing Guide
 
-JaxARC includes comprehensive test coverage for all parser implementations, with particular emphasis on the MiniARC parser's unique 5x5 grid constraints and performance optimizations.
+JaxARC includes comprehensive test coverage for all parser implementations, with
+particular emphasis on the MiniARC parser's unique 5x5 grid constraints and
+performance optimizations.
 
 ## Test Coverage Overview
 
 ### MiniARC Parser Tests (`tests/parsers/test_mini_arc.py`)
 
-The MiniARC parser has the most comprehensive test suite with 15+ test methods covering:
+The MiniARC parser has the most comprehensive test suite with 15+ test methods
+covering:
 
 #### Core Functionality Tests
-- **Initialization with optimal configuration**: Validates proper setup with 5x5 grid constraints
-- **Initialization with suboptimal configuration**: Tests warning system for non-optimal settings
-- **Task loading from flat directory structure**: Ensures proper file discovery and loading
+
+- **Initialization with optimal configuration**: Validates proper setup with 5x5
+  grid constraints
+- **Initialization with suboptimal configuration**: Tests warning system for
+  non-optimal settings
+- **Task loading from flat directory structure**: Ensures proper file discovery
+  and loading
 - **Random task selection**: Validates random sampling functionality
 - **Task retrieval by ID**: Tests specific task access by filename-based IDs
 
 #### Validation and Error Handling Tests
-- **5x5 grid constraint validation**: Ensures oversized grids are rejected during loading
+
+- **5x5 grid constraint validation**: Ensures oversized grids are rejected
+  during loading
 - **Grid size validation methods**: Tests helper methods for dimension checking
 - **Grid color validation**: Validates color values are within acceptable range
-- **Task structure validation**: Ensures required train/test sections are present
+- **Task structure validation**: Ensures required train/test sections are
+  present
 - **Missing configuration handling**: Tests graceful handling of missing paths
 - **Empty directory handling**: Validates behavior with no available tasks
 - **Invalid JSON file handling**: Tests error handling for malformed files
 
 #### Performance and Optimization Tests
+
 - **Performance optimizations**: Validates 5x5-specific optimizations are active
 - **Task preprocessing**: Tests conversion to JAX-compatible data structures
 - **Dataset statistics**: Validates comprehensive statistics generation
 - **Memory efficiency**: Ensures optimal array shapes (5x5 vs 30x30)
 
 #### Integration Tests
+
 - **File loading and caching**: Tests task loading and caching mechanisms
 - **Configuration validation**: Ensures proper configuration parameter checking
 - **Error message quality**: Validates informative error messages for debugging
@@ -142,7 +154,7 @@ def test_miniarc_parser_5x5_grid_constraint_validation(self, miniarc_config):
         }],
         "test": [{"input": [[0, 2, 0, 2, 0, 2]]}]  # 1x6 grid
     }
-    
+
     # Verify task is rejected with appropriate error logging
     with patch("jaxarc.parsers.mini_arc.logger") as mock_logger:
         parser = MiniArcParser(miniarc_config)
@@ -154,7 +166,8 @@ def test_miniarc_parser_5x5_grid_constraint_validation(self, miniarc_config):
 
 ### Temporary Test Data
 
-Tests create temporary directories and files to avoid dependencies on external data:
+Tests create temporary directories and files to avoid dependencies on external
+data:
 
 ```python
 @pytest.fixture
@@ -163,13 +176,13 @@ def mock_miniarc_directory(sample_miniarc_task):
     with tempfile.TemporaryDirectory() as temp_dir:
         tasks_dir = Path(temp_dir) / "data" / "MiniARC"
         tasks_dir.mkdir(parents=True)
-        
+
         # Create sample task files
         for task_file in ["pattern_reversal_001.json", "color_swap_002.json"]:
             task_path = tasks_dir / task_file
             with task_path.open("w") as f:
                 json.dump(sample_miniarc_task, f)
-        
+
         yield temp_dir
 ```
 
@@ -186,7 +199,7 @@ def test_miniarc_parser_error_handling_oversized_grids(self, miniarc_config):
             "task": {"train": [{"input": [[0], [1], [0], [1], [0], [1]]}]}  # 6x1
         },
         {
-            "name": "width_violation.json", 
+            "name": "width_violation.json",
             "task": {"train": [{"input": [[0, 1, 0, 1, 0, 1]]}]}  # 1x6
         },
         {
@@ -207,16 +220,16 @@ Tests verify that MiniARC optimizations are properly applied:
 def test_miniarc_parser_performance_optimizations(self, miniarc_config, mock_miniarc_directory):
     """Test performance optimizations for 5x5 grids."""
     parser = MiniArcParser(miniarc_config)
-    
+
     # Verify parser is configured for optimal 5x5 performance
     assert parser.max_grid_height == 5
     assert parser.max_grid_width == 5
-    
+
     # Verify optimized array shapes
     task = parser.get_random_task(key)
     expected_shape = (miniarc_config.max_train_pairs, 5, 5)
     assert task.input_grids_examples.shape == expected_shape
-    
+
     # Verify dataset statistics show optimization
     stats = parser.get_dataset_statistics()
     assert stats["optimization"] == "5x5 grids"
@@ -231,11 +244,11 @@ Tests validate memory-efficient data structures:
 def test_miniarc_parser_task_preprocessing(self, miniarc_config, sample_miniarc_task):
     """Test task data preprocessing with MiniARC-specific optimizations."""
     jax_task = parser.preprocess_task_data((task_id, sample_miniarc_task), key)
-    
+
     # Check optimized array shapes (5x5 instead of 30x30)
     assert jax_task.input_grids_examples.shape == (3, 5, 5)
     assert jax_task.test_input_grids.shape == (1, 5, 5)
-    
+
     # Verify proper data types and masking
     assert jax_task.input_grids_examples.dtype == jnp.int32
     assert jax_task.input_masks_examples.dtype == jnp.bool_
@@ -278,15 +291,15 @@ import chex
 
 def test_jax_compatibility():
     """Test JAX transformations work correctly."""
-    
+
     @jax.jit
     def process_task(task):
         return task.input_grids_examples.sum()
-    
+
     # Test JIT compilation works
     result = process_task(task)
     assert isinstance(result, jnp.ndarray)
-    
+
     # Test array shapes and types
     chex.assert_shape(task.input_grids_examples, (3, 5, 5))
     chex.assert_type(task.input_grids_examples, jnp.int32)
@@ -303,7 +316,7 @@ Tests run automatically on all pull requests and commits:
 - name: Run tests
   run: |
     pixi run -e test pytest --cov=src/jaxarc --cov-report=xml
-    
+
 - name: Upload coverage
   uses: codecov/codecov-action@v3
   with:
@@ -346,10 +359,10 @@ def test_example():
     # Arrange
     config = create_test_config()
     parser = MiniArcParser(config)
-    
+
     # Act
     result = parser.get_random_task(key)
-    
+
     # Assert
     assert isinstance(result, JaxArcTask)
     assert result.num_train_pairs > 0

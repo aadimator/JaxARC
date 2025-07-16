@@ -3,7 +3,7 @@
 The JaxARC project includes multiple parsers for different ARC dataset variants:
 
 - **`ArcAgiParser`**: General parser for ARC-AGI-1 and ARC-AGI-2 datasets from
-  Kaggle
+  GitHub
 - **`ConceptArcParser`**: Specialized parser for ConceptARC dataset with concept
   group organization and systematic evaluation
 - **`MiniArcParser`**: Optimized parser for MiniARC dataset with 5x5 grids and
@@ -11,36 +11,48 @@ The JaxARC project includes multiple parsers for different ARC dataset variants:
 
 ## Quick Start
 
-### 1. Download Data from Kaggle
+### 1. Download Data from GitHub
 
-Download the datasets from Kaggle and place them in your data directory:
+Download the datasets directly from GitHub repositories using the streamlined
+download script:
 
 ```bash
-# For ARC-AGI-1 (2024)
-# Place files in: data/raw/arc-prize-2024/
+# Download ARC-AGI datasets from GitHub (no Kaggle CLI required)
+python scripts/download_dataset.py arc-agi-1
+python scripts/download_dataset.py arc-agi-2
 
-# For ARC-AGI-2 (2025)
-# Place files in: data/raw/arc-prize-2025/
+# Download other datasets
+python scripts/download_dataset.py conceptarc
+python scripts/download_dataset.py miniarc
+
+# Download all datasets at once
+python scripts/download_dataset.py all
 ```
 
 Expected file structure:
 
 ```text
 data/raw/
-├── arc-prize-2024/
-│   ├── arc-agi_training_challenges.json
-│   ├── arc-agi_training_solutions.json
-│   ├── arc-agi_evaluation_challenges.json
-│   ├── arc-agi_evaluation_solutions.json
-│   ├── arc-agi_test_challenges.json
-│   └── sample_submission.json
-└── arc-prize-2025/
-    ├── arc-agi_training_challenges.json
-    ├── arc-agi_training_solutions.json
-    ├── arc-agi_evaluation_challenges.json
-    ├── arc-agi_evaluation_solutions.json
-    ├── arc-agi_test_challenges.json
-    └── sample_submission.json
+├── ARC-AGI-1/
+│   └── data/
+│       ├── training/
+│       │   ├── 007bbfb7.json
+│       │   ├── 00d62c1b.json
+│       │   └── ... (400 training tasks)
+│       └── evaluation/
+│           ├── 00576224.json
+│           ├── 009d5c81.json
+│           └── ... (400 evaluation tasks)
+└── ARC-AGI-2/
+    └── data/
+        ├── training/
+        │   ├── 007bbfb7.json
+        │   ├── 00d62c1b.json
+        │   └── ... (1000 training tasks)
+        └── evaluation/
+            ├── 00576224.json
+            ├── 009d5c81.json
+            └── ... (120 evaluation tasks)
 ```
 
 ### 2. Download ConceptARC Dataset
@@ -73,17 +85,17 @@ Use the enhanced download script for automatic dataset downloading:
 
 ```bash
 # Download ConceptARC dataset
-python scripts/download_kaggle_dataset.py download-conceptarc
+python scripts/download_dataset.py conceptarc
 
-# Download MiniARC dataset  
-python scripts/download_kaggle_dataset.py download-miniarc
+# Download MiniARC dataset
+python scripts/download_dataset.py miniarc
 
-# Download ARC-AGI datasets from Kaggle
-python scripts/download_kaggle_dataset.py kaggle arc-prize-2024
-python scripts/download_kaggle_dataset.py kaggle arc-prize-2025
+# Download ARC-AGI datasets from GitHub
+python scripts/download_dataset.py arc-agi-1
+python scripts/download_dataset.py arc-agi-2
 
 # Download all datasets at once
-python scripts/download_kaggle_dataset.py all-datasets
+python scripts/download_dataset.py all
 ```
 
 ### 3. Using the Parsers
@@ -182,16 +194,14 @@ from omegaconf import DictConfig
 # Create configuration for MiniARC (optimized for 5x5 grids)
 config = DictConfig(
     {
-        "tasks": {
-            "path": "data/raw/MiniARC/data/MiniARC"
-        },
+        "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
         "grid": {
             "max_grid_height": 5,
             "max_grid_width": 5,
             "min_grid_height": 1,
             "min_grid_width": 1,
             "max_colors": 10,
-            "background_color": 0
+            "background_color": 0,
         },
         "max_train_pairs": 3,
         "max_test_pairs": 1,
@@ -224,30 +234,37 @@ print(f"Max dimensions: {stats['max_configured_dimensions']}")
 print(f"5x5 optimized: {stats['is_5x5_optimized']}")
 
 # Grid dimension statistics
-grid_dims = stats['grid_dimensions']
+grid_dims = stats["grid_dimensions"]
 print(f"Max grid size: {grid_dims['max_height']}x{grid_dims['max_width']}")
 print(f"Avg grid size: {grid_dims['avg_height']:.1f}x{grid_dims['avg_width']:.1f}")
 
 # Training/test pair statistics
-print(f"Training pairs: {stats['train_pairs']['min']}-{stats['train_pairs']['max']} (avg: {stats['train_pairs']['avg']:.1f})")
-print(f"Test pairs: {stats['test_pairs']['min']}-{stats['test_pairs']['max']} (avg: {stats['test_pairs']['avg']:.1f})")
+print(
+    f"Training pairs: {stats['train_pairs']['min']}-{stats['train_pairs']['max']} (avg: {stats['train_pairs']['avg']:.1f})"
+)
+print(
+    f"Test pairs: {stats['test_pairs']['min']}-{stats['test_pairs']['max']} (avg: {stats['test_pairs']['avg']:.1f})"
+)
 ```
 
 #### MiniARC Validation and Error Handling
 
-The MiniARC parser includes comprehensive validation to ensure optimal performance:
+The MiniARC parser includes comprehensive validation to ensure optimal
+performance:
 
 ```python
 # Configuration validation - warns about suboptimal settings
-suboptimal_config = DictConfig({
-    "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
-    "grid": {
-        "max_grid_height": 30,  # Suboptimal for MiniARC
-        "max_grid_width": 30,   # Will log warning
-    },
-    "max_train_pairs": 3,
-    "max_test_pairs": 1,
-})
+suboptimal_config = DictConfig(
+    {
+        "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
+        "grid": {
+            "max_grid_height": 30,  # Suboptimal for MiniARC
+            "max_grid_width": 30,  # Will log warning
+        },
+        "max_train_pairs": 3,
+        "max_test_pairs": 1,
+    }
+)
 
 # Parser will log: "MiniARC is optimized for 5x5 grids, but configured for 30x30"
 parser = MiniArcParser(suboptimal_config)
@@ -257,12 +274,14 @@ parser = MiniArcParser(suboptimal_config)
 # Error logged: "Grid 6x6 exceeds MiniARC 5x5 constraint in task_oversized"
 
 # Handle missing datasets gracefully
-missing_config = DictConfig({
-    "tasks": {"path": "/nonexistent/path"},
-    "grid": {"max_grid_height": 5, "max_grid_width": 5},
-    "max_train_pairs": 3,
-    "max_test_pairs": 1,
-})
+missing_config = DictConfig(
+    {
+        "tasks": {"path": "/nonexistent/path"},
+        "grid": {"max_grid_height": 5, "max_grid_width": 5},
+        "max_train_pairs": 3,
+        "max_test_pairs": 1,
+    }
+)
 
 parser = MiniArcParser(missing_config)  # Logs warning but doesn't crash
 print(f"Tasks loaded: {len(parser.get_available_task_ids())}")  # Returns 0

@@ -273,3 +273,243 @@ class TestDatasetDownloader:
         # Should complete successfully despite network connectivity warning
         assert result == tmp_path / "ConceptARC"
         assert mock_run.call_count == 3
+
+    @patch("jaxarc.utils.dataset_downloader.subprocess.run")
+    @patch("jaxarc.utils.dataset_downloader.shutil.rmtree")
+    def test_download_arc_agi_1_success(self, mock_rmtree, mock_run, tmp_path):
+        """Test successful ARC-AGI-1 download."""
+        # Setup mocks for multiple subprocess calls
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout="git version 2.0", stderr=""),  # git --version
+            Mock(returncode=0, stdout="", stderr=""),  # ping (success)
+            Mock(returncode=0, stdout="Success", stderr=""),  # git clone
+        ]
+
+        # Create expected directory structure
+        target_dir = tmp_path / "ARC-AGI-1"
+        data_dir = target_dir / "data"
+        training_dir = data_dir / "training"
+        evaluation_dir = data_dir / "evaluation"
+        training_dir.mkdir(parents=True)
+        evaluation_dir.mkdir(parents=True)
+
+        # Create JSON files for training and evaluation
+        for i in range(400):
+            (training_dir / f"task_{i:03d}.json").write_text(
+                '{"train": [], "test": []}'
+            )
+        for i in range(400):
+            (evaluation_dir / f"task_{i:03d}.json").write_text(
+                '{"train": [], "test": []}'
+            )
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with patch.object(downloader, "_validate_arc_agi_1_structure"):
+            result = downloader.download_arc_agi_1()
+
+        assert result == target_dir
+        assert mock_run.call_count == 3
+        # Check that git clone was called with correct URL
+        git_clone_call = mock_run.call_args_list[2]
+        assert "git" in git_clone_call[0][0][0]
+        assert "clone" in git_clone_call[0][0][1]
+        assert "https://github.com/fchollet/ARC-AGI.git" in git_clone_call[0][0][2]
+
+    @patch("jaxarc.utils.dataset_downloader.subprocess.run")
+    @patch("jaxarc.utils.dataset_downloader.shutil.rmtree")
+    def test_download_arc_agi_2_success(self, mock_rmtree, mock_run, tmp_path):
+        """Test successful ARC-AGI-2 download."""
+        # Setup mocks for multiple subprocess calls
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout="git version 2.0", stderr=""),  # git --version
+            Mock(returncode=0, stdout="", stderr=""),  # ping (success)
+            Mock(returncode=0, stdout="Success", stderr=""),  # git clone
+        ]
+
+        # Create expected directory structure
+        target_dir = tmp_path / "ARC-AGI-2"
+        data_dir = target_dir / "data"
+        training_dir = data_dir / "training"
+        evaluation_dir = data_dir / "evaluation"
+        training_dir.mkdir(parents=True)
+        evaluation_dir.mkdir(parents=True)
+
+        # Create JSON files for training and evaluation
+        for i in range(1000):
+            (training_dir / f"task_{i:03d}.json").write_text(
+                '{"train": [], "test": []}'
+            )
+        for i in range(120):
+            (evaluation_dir / f"task_{i:03d}.json").write_text(
+                '{"train": [], "test": []}'
+            )
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with patch.object(downloader, "_validate_arc_agi_2_structure"):
+            result = downloader.download_arc_agi_2()
+
+        assert result == target_dir
+        assert mock_run.call_count == 3
+        # Check that git clone was called with correct URL
+        git_clone_call = mock_run.call_args_list[2]
+        assert "git" in git_clone_call[0][0][0]
+        assert "clone" in git_clone_call[0][0][1]
+        assert "https://github.com/arcprize/ARC-AGI-2.git" in git_clone_call[0][0][2]
+
+    def test_validate_arc_agi_1_structure_missing_data(self, tmp_path):
+        """Test ARC-AGI-1 validation with missing data directory."""
+        target_dir = tmp_path / "ARC-AGI-1"
+        target_dir.mkdir()
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with pytest.raises(
+            DatasetDownloadError, match="ARC-AGI-1 data directory not found"
+        ):
+            downloader._validate_arc_agi_1_structure(target_dir)
+
+    def test_validate_arc_agi_1_structure_missing_training(self, tmp_path):
+        """Test ARC-AGI-1 validation with missing training directory."""
+        target_dir = tmp_path / "ARC-AGI-1"
+        data_dir = target_dir / "data"
+        data_dir.mkdir(parents=True)
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with pytest.raises(
+            DatasetDownloadError, match="ARC-AGI-1 training directory not found"
+        ):
+            downloader._validate_arc_agi_1_structure(target_dir)
+
+    def test_validate_arc_agi_1_structure_missing_evaluation(self, tmp_path):
+        """Test ARC-AGI-1 validation with missing evaluation directory."""
+        target_dir = tmp_path / "ARC-AGI-1"
+        data_dir = target_dir / "data"
+        training_dir = data_dir / "training"
+        training_dir.mkdir(parents=True)
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with pytest.raises(
+            DatasetDownloadError, match="ARC-AGI-1 evaluation directory not found"
+        ):
+            downloader._validate_arc_agi_1_structure(target_dir)
+
+    def test_validate_arc_agi_1_structure_success(self, tmp_path):
+        """Test successful ARC-AGI-1 validation."""
+        target_dir = tmp_path / "ARC-AGI-1"
+        data_dir = target_dir / "data"
+        training_dir = data_dir / "training"
+        evaluation_dir = data_dir / "evaluation"
+        training_dir.mkdir(parents=True)
+        evaluation_dir.mkdir(parents=True)
+
+        # Create sufficient JSON files
+        for i in range(400):
+            (training_dir / f"task_{i:03d}.json").write_text(
+                '{"train": [], "test": []}'
+            )
+        for i in range(400):
+            (evaluation_dir / f"task_{i:03d}.json").write_text(
+                '{"train": [], "test": []}'
+            )
+
+        downloader = DatasetDownloader(tmp_path)
+
+        # Should not raise exception
+        downloader._validate_arc_agi_1_structure(target_dir)
+
+    def test_validate_arc_agi_2_structure_missing_data(self, tmp_path):
+        """Test ARC-AGI-2 validation with missing data directory."""
+        target_dir = tmp_path / "ARC-AGI-2"
+        target_dir.mkdir()
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with pytest.raises(
+            DatasetDownloadError, match="ARC-AGI-2 data directory not found"
+        ):
+            downloader._validate_arc_agi_2_structure(target_dir)
+
+    def test_validate_arc_agi_2_structure_missing_training(self, tmp_path):
+        """Test ARC-AGI-2 validation with missing training directory."""
+        target_dir = tmp_path / "ARC-AGI-2"
+        data_dir = target_dir / "data"
+        data_dir.mkdir(parents=True)
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with pytest.raises(
+            DatasetDownloadError, match="ARC-AGI-2 training directory not found"
+        ):
+            downloader._validate_arc_agi_2_structure(target_dir)
+
+    def test_validate_arc_agi_2_structure_missing_evaluation(self, tmp_path):
+        """Test ARC-AGI-2 validation with missing evaluation directory."""
+        target_dir = tmp_path / "ARC-AGI-2"
+        data_dir = target_dir / "data"
+        training_dir = data_dir / "training"
+        training_dir.mkdir(parents=True)
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with pytest.raises(
+            DatasetDownloadError, match="ARC-AGI-2 evaluation directory not found"
+        ):
+            downloader._validate_arc_agi_2_structure(target_dir)
+
+    def test_validate_arc_agi_2_structure_success(self, tmp_path):
+        """Test successful ARC-AGI-2 validation."""
+        target_dir = tmp_path / "ARC-AGI-2"
+        data_dir = target_dir / "data"
+        training_dir = data_dir / "training"
+        evaluation_dir = data_dir / "evaluation"
+        training_dir.mkdir(parents=True)
+        evaluation_dir.mkdir(parents=True)
+
+        # Create sufficient JSON files
+        for i in range(1000):
+            (training_dir / f"task_{i:03d}.json").write_text(
+                '{"train": [], "test": []}'
+            )
+        for i in range(120):
+            (evaluation_dir / f"task_{i:03d}.json").write_text(
+                '{"train": [], "test": []}'
+            )
+
+        downloader = DatasetDownloader(tmp_path)
+
+        # Should not raise exception
+        downloader._validate_arc_agi_2_structure(target_dir)
+
+    def test_download_arc_agi_1_custom_target_directory(self, tmp_path):
+        """Test ARC-AGI-1 download with custom target directory."""
+        custom_dir = tmp_path / "custom_arc_agi_1"
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with patch.object(downloader, "_clone_repository") as mock_clone:
+            mock_clone.return_value = custom_dir
+            result = downloader.download_arc_agi_1(custom_dir)
+
+        assert result == custom_dir
+        mock_clone.assert_called_once_with(
+            "https://github.com/fchollet/ARC-AGI.git", custom_dir, "ARC-AGI-1"
+        )
+
+    def test_download_arc_agi_2_custom_target_directory(self, tmp_path):
+        """Test ARC-AGI-2 download with custom target directory."""
+        custom_dir = tmp_path / "custom_arc_agi_2"
+
+        downloader = DatasetDownloader(tmp_path)
+
+        with patch.object(downloader, "_clone_repository") as mock_clone:
+            mock_clone.return_value = custom_dir
+            result = downloader.download_arc_agi_2(custom_dir)
+
+        assert result == custom_dir
+        mock_clone.assert_called_once_with(
+            "https://github.com/arcprize/ARC-AGI-2.git", custom_dir, "ARC-AGI-2"
+        )

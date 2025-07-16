@@ -100,7 +100,7 @@ class DatasetConfig:
         """Validate dataset configuration."""
         # Standard splits for most datasets
         standard_splits = ["train", "eval", "test", "all"]
-        
+
         # Dataset-specific splits
         dataset_specific_splits = {
             "ConceptARC": ["corpus"],
@@ -108,12 +108,12 @@ class DatasetConfig:
             "arc-agi-1": ["training", "evaluation"],
             "arc-agi-2": ["training", "evaluation"],
         }
-        
+
         # Get valid splits for this dataset
         valid_splits = standard_splits.copy()
         if self.dataset_name in dataset_specific_splits:
             valid_splits.extend(dataset_specific_splits[self.dataset_name])
-        
+
         if self.task_split not in valid_splits:
             raise ValueError(
                 f"task_split must be one of {valid_splits}, got {self.task_split}"

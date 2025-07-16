@@ -18,38 +18,54 @@ match the expected answer) can be said to be correct.
 
 JaxARC supports four main dataset variants:
 
-1. **ARC-AGI-1 (2024)**: Original Kaggle competition dataset
-2. **ARC-AGI-2 (2025)**: Updated Kaggle competition dataset
+1. **ARC-AGI-1 (2024)**: Original ARC challenge dataset from GitHub
+2. **ARC-AGI-2 (2025)**: Updated ARC challenge dataset from GitHub
 3. **ConceptARC**: Concept-organized dataset for systematic evaluation
 4. **MiniARC**: Compact 5x5 grid version for rapid prototyping
 
 For additional information about the ARC challenge, visit
 [ARCPrize.org](http://arcprize.org/play).
 
-## ARC-AGI Dataset Format (Kaggle Competition)
+## ARC-AGI Dataset Format (GitHub Repositories)
 
 ### File Structure
 
-The ARC-AGI datasets (both 2024 and 2025) store information in separate files:
+The ARC-AGI datasets (both 2024 and 2025) are downloaded directly from GitHub
+repositories and store individual tasks as separate JSON files. This format
+eliminates the need for external dependencies like Kaggle CLI and provides
+better performance through individual task loading.
 
-- **arc-agi_training-challenges.json**: Training task demonstrations
-- **arc-agi_training-solutions.json**: Training task solutions (ground truth)
-- **arc-agi_evaluation-challenges.json**: Evaluation task demonstrations
-- **arc-agi_evaluation-solutions.json**: Evaluation task solutions (ground
-  truth)
-- **arc-agi_test-challenges.json**: Test tasks for leaderboard evaluation
-- **sample_submission.json**: Submission format example
+**Key Benefits of GitHub Format:**
+
+- No external authentication or API credentials required
+- Faster, more reliable downloads directly from repositories
+- Individual task files enable selective loading and better memory usage
+- Consistent format across all datasets
+
+**Repository Sources:**
+
+- **ARC-AGI-1**: [fchollet/ARC-AGI](https://github.com/fchollet/ARC-AGI)
+- **ARC-AGI-2**: [arcprize/ARC-AGI-2](https://github.com/arcprize/ARC-AGI-2)
+
+**Directory Structure:**
+
+- **data/training/**: Directory containing individual training task JSON files
+- **data/evaluation/**: Directory containing individual evaluation task JSON
+  files
 
 ### Directory Structure
 
 ```
-data/raw/arc-prize-2024/  # or arc-prize-2025/
-├── arc-agi_training_challenges.json
-├── arc-agi_training_solutions.json
-├── arc-agi_evaluation_challenges.json
-├── arc-agi_evaluation_solutions.json
-├── arc-agi_test_challenges.json
-└── sample_submission.json
+data/raw/ARC-AGI-1/  # or ARC-AGI-2/
+└── data/
+    ├── training/
+    │   ├── 007bbfb7.json
+    │   ├── 00d62c1b.json
+    │   └── ... (400 or 1000 training tasks)
+    └── evaluation/
+        ├── 00576224.json
+        ├── 009d5c81.json
+        └── ... (400 or 120 evaluation tasks)
 ```
 
 ## ConceptARC Dataset Format
@@ -249,7 +265,7 @@ class JaxArcTask:
 
 | Dataset         | Max Train Pairs | Max Test Pairs | Max Grid Size | Special Features           |
 | --------------- | --------------- | -------------- | ------------- | -------------------------- |
-| **ARC-AGI-1/2** | 10              | 3              | 30x30         | Kaggle competition format  |
+| **ARC-AGI-1/2** | 10              | 3              | 30x30         | GitHub repository format   |
 | **ConceptARC**  | 4               | 3              | 30x30         | Concept group organization |
 | **MiniARC**     | 3               | 1              | 5x5           | Optimized for speed        |
 

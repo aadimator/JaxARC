@@ -21,16 +21,16 @@ from .utils import convert_grid_to_jax, log_parsing_stats, pad_array_sequence
 class ArcAgiParser(ArcDataParserBase):
     """Parses ARC-AGI task files into JaxArcTask objects.
 
-    This parser supports ARC-AGI datasets downloaded from Kaggle, including:
-    - ARC-AGI-1 (2024 dataset)
-    - ARC-AGI-2 (2025 dataset)
+    This parser supports ARC-AGI datasets downloaded from GitHub repositories, including:
+    - ARC-AGI-1 (fchollet/ARC-AGI repository)
+    - ARC-AGI-2 (arcprize/ARC-AGI-2 repository)
 
-    Both datasets follow the same JSON structure format and can be parsed
-    with this implementation. It handles challenge files (containing training
-    pairs and test inputs) and optional solution files (containing test outputs).
+    Both datasets follow the GitHub format with individual JSON files per task.
+    Each task file contains complete task data including training pairs and test pairs
+    with outputs when available.
 
     The parser outputs JAX-compatible JaxArcTask structures with padded
-    arrays and boolean masks for efficient processing in the MARL environment.
+    arrays and boolean masks for efficient processing in the SARL environment.
     """
 
     def __init__(
@@ -52,61 +52,49 @@ class ArcAgiParser(ArcDataParserBase):
         self._load_and_cache_tasks()
 
     def _load_and_cache_tasks(self) -> None:
-        """Load and cache all tasks from challenges and solutions files."""
+        """Load and cache all tasks from individual JSON files in GitHub format."""
         try:
             # Load from default split (usually 'training')
             default_split = self.cfg.get("default_split", "training")
             split_config = self.cfg.get(default_split, {})
 
-            challenges_path = split_config.get("challenges")
-            solutions_path = split_config.get("solutions")
-
-            # Load challenges data
-            challenges_data = {}
-            if challenges_path:
-                challenges_file = here(challenges_path)
-                if challenges_file.exists():
-                    with challenges_file.open("r", encoding="utf-8") as f:
-                        challenges_data = json.load(f)
-                    logger.info(
-                        f"Loaded {len(challenges_data)} tasks from {challenges_file}"
+            # GitHub format uses directory paths instead of file paths
+            data_dir_path = split_config.get("path")
+            if not data_dir_path:
+                # Check if this is legacy Kaggle format configuration
+                if "challenges" in split_config:
+                    raise RuntimeError(
+                        "Legacy Kaggle format detected. Please update configuration to use GitHub format with 'path' instead of 'challenges'/'solutions'"
                     )
-                else:
-                    logger.warning(f"Challenges file not found: {challenges_file}")
-                    return
+                raise RuntimeError("No data path specified in configuration")
 
-            # Load solutions data
-            solutions_data = {}
-            if solutions_path:
-                solutions_file = here(solutions_path)
-                if solutions_file.exists():
-                    with solutions_file.open("r", encoding="utf-8") as f:
-                        solutions_data = json.load(f)
-                    logger.info(f"Loaded solutions from {solutions_file}")
-                else:
-                    logger.warning(f"Solutions file not found: {solutions_file}")
+            data_dir = here(data_dir_path)
+            if not data_dir.exists() or not data_dir.is_dir():
+                raise RuntimeError(f"Data directory not found: {data_dir}")
 
-            # Merge challenges and solutions data
+            # Load individual JSON files
+            json_files = list(data_dir.glob("*.json"))
+            if not json_files:
+                raise RuntimeError(f"No JSON files found in {data_dir}")
+
             self._cached_tasks = {}
-            for task_id, task_data in challenges_data.items():
-                # Start with the challenge data
-                merged_task = task_data.copy()
-
-                # Add solutions if available
-                if solutions_data.get(task_id):
-                    # Solutions are stored as a list of outputs for test pairs
-                    test_outputs = solutions_data[task_id]
-
-                    # Merge solutions into test pairs
-                    if "test" in merged_task:
-                        for i, test_pair in enumerate(merged_task["test"]):
-                            if i < len(test_outputs):
-                                test_pair["output"] = test_outputs[i]
-
-                self._cached_tasks[task_id] = merged_task
+            for json_file in json_files:
+                task_id = json_file.stem  # filename without extension
+                try:
+                    with json_file.open("r", encoding="utf-8") as f:
+                        task_data = json.load(f)
+                    self._cached_tasks[task_id] = task_data
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Skipping invalid JSON file {json_file}: {e}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error loading task file {json_file}: {e}")
+                    continue
 
             self._task_ids = list(self._cached_tasks.keys())
-            logger.info(f"Cached {len(self._cached_tasks)} tasks in memory")
+            logger.info(
+                f"Loaded {len(self._cached_tasks)} tasks from GitHub format in {data_dir}"
+            )
 
         except Exception as e:
             logger.error(f"Error loading and caching tasks: {e}")
@@ -142,6 +130,7 @@ class ArcAgiParser(ArcDataParserBase):
         self,
         raw_task_data: Any,
         key: chex.PRNGKey,  # noqa: ARG002
+        task_id: str | None = None,
     ) -> JaxArcTask:
         """Convert raw task data into JaxArcTask structure.
 
@@ -156,7 +145,12 @@ class ArcAgiParser(ArcDataParserBase):
             ValueError: If the task data format is invalid
         """
         # Extract task ID and content
-        task_id, task_content = self._extract_task_id_and_content(raw_task_data)
+        extracted_task_id, task_content = self._extract_task_id_and_content(
+            raw_task_data
+        )
+
+        # Use provided task_id if available, otherwise use extracted one
+        final_task_id = task_id if task_id is not None else extracted_task_id
 
         # Process training and test pairs
         train_input_grids, train_output_grids = self._process_training_pairs(
@@ -175,7 +169,7 @@ class ArcAgiParser(ArcDataParserBase):
             train_output_grids,
             test_input_grids,
             test_output_grids,
-            task_id,
+            final_task_id,
         )
 
         # Create JaxArcTask structure with JAX-compatible task index
@@ -190,11 +184,14 @@ class ArcAgiParser(ArcDataParserBase):
             true_test_output_grids=padded_arrays["test_outputs"],
             true_test_output_masks=padded_arrays["test_output_masks"],
             num_test_pairs=len(test_input_grids),
-            task_index=create_jax_task_index(task_id),
+            task_index=create_jax_task_index(final_task_id),
         )
 
     def _extract_task_id_and_content(self, raw_task_data: Any) -> tuple[str, dict]:
         """Extract task ID and content from raw task data.
+
+        For GitHub format, the raw_task_data is expected to be direct task content:
+        {"train": [...], "test": [...]}
 
         Args:
             raw_task_data: Raw task data dictionary
@@ -209,12 +206,13 @@ class ArcAgiParser(ArcDataParserBase):
             msg = f"Expected dict, got {type(raw_task_data)}"
             raise ValueError(msg)
 
-        if len(raw_task_data) != 1:
-            msg = f"Expected single task, got {len(raw_task_data)} tasks"
-            raise ValueError(msg)
+        # GitHub format: direct task content
+        if "train" in raw_task_data and "test" in raw_task_data:
+            # Task ID will be determined from filename during loading
+            return "unknown", raw_task_data
 
-        task_id, task_content = next(iter(raw_task_data.items()))
-        return task_id, task_content
+        msg = "Invalid task data format. Expected GitHub format with 'train' and 'test' keys"
+        raise ValueError(msg)
 
     def _process_training_pairs(self, task_content: dict) -> tuple[list, list]:
         """Process training pairs and convert them to JAX arrays.
@@ -289,8 +287,7 @@ class ArcAgiParser(ArcDataParserBase):
             self._validate_grid_colors(input_grid)
             test_input_grids.append(input_grid)
 
-            # For test pairs, output might be None (challenge files)
-            # or provided (solution files). We'll handle both cases.
+            # For test pairs, output might be None or provided depending on the dataset
             if "output" in pair and pair["output"] is not None:
                 output_grid = convert_grid_to_jax(pair["output"])
                 self.validate_grid_dimensions(*output_grid.shape)
@@ -441,11 +438,11 @@ class ArcAgiParser(ArcDataParserBase):
         task_index = jax.random.randint(key, (), 0, len(self._task_ids))
         task_id = self._task_ids[int(task_index)]
 
-        # Get the cached task data
-        task_data = {task_id: self._cached_tasks[task_id]}
+        # Get the cached task data (GitHub format: direct task content)
+        task_data = self._cached_tasks[task_id]
 
         # Preprocess and return
-        return self.preprocess_task_data(task_data, key)
+        return self.preprocess_task_data(task_data, key, task_id)
 
     def get_task_by_id(self, task_id: str) -> JaxArcTask:
         """Get a specific task by its ID.
@@ -463,14 +460,14 @@ class ArcAgiParser(ArcDataParserBase):
             msg = f"Task ID '{task_id}' not found in dataset"
             raise ValueError(msg)
 
-        # Get the cached task data
-        task_data = {task_id: self._cached_tasks[task_id]}
+        # Get the cached task data (GitHub format: direct task content)
+        task_data = self._cached_tasks[task_id]
 
         # Create a dummy key for preprocessing (deterministic)
         key = jax.random.PRNGKey(0)
 
         # Preprocess and return
-        return self.preprocess_task_data(task_data, key)
+        return self.preprocess_task_data(task_data, key, task_id)
 
     def get_available_task_ids(self) -> list[str]:
         """Get list of all available task IDs.

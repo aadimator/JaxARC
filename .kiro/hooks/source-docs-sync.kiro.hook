@@ -4,7 +4,7 @@
   "description": "Monitors all Python source files and configuration files for changes, then requests documentation updates in README or docs folder to keep documentation synchronized with code changes",
   "version": "1",
   "when": {
-    "type": "fileEdited",
+    "type": "userTriggered",
     "patterns": [
       "src/**/*.py",
       "*.py",
