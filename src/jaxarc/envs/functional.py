@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict, Tuple, Union
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from loguru import logger
@@ -359,14 +360,14 @@ def arc_step(
         "operation": operation
     }
 
-    # Update selection in state
-    state = state.replace(selected=standardized_action["selection"])
+    # Update selection in state using Equinox tree_at for better performance
+    state = eqx.tree_at(lambda s: s.selected, state, standardized_action["selection"])
 
     # Execute operation using existing grid operations
     new_state = execute_grid_operation(state, standardized_action["operation"])
 
-    # Update step count
-    new_state = new_state.replace(step_count=state.step_count + 1)
+    # Update step count using Equinox tree_at
+    new_state = eqx.tree_at(lambda s: s.step_count, new_state, state.step_count + 1)
 
     # Calculate reward
     reward = _calculate_reward(state, new_state, typed_config)
@@ -374,8 +375,8 @@ def arc_step(
     # Check if episode is done
     done = _is_episode_done(new_state, typed_config)
 
-    # Update episode_done flag
-    new_state = new_state.replace(episode_done=done)
+    # Update episode_done flag using Equinox tree_at
+    new_state = eqx.tree_at(lambda s: s.episode_done, new_state, done)
 
     # Get observation
     observation = _get_observation(new_state, typed_config)
