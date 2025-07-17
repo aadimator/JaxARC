@@ -23,6 +23,7 @@ from typer.testing import CliRunner
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from download_dataset import app as download_app
+
 from jaxarc.parsers.arc_agi import ArcAgiParser
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.config import get_config

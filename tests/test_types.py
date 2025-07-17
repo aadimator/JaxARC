@@ -280,3 +280,90 @@ def test_jax_arc_task_utility_methods():
     test_pair = jax_arc_task.get_test_pair(0)
     chex.assert_trees_all_equal(test_pair.input_grid.data, test_input[0])
     chex.assert_trees_all_equal(test_pair.output_grid.data, test_output[0])
+
+
+def test_jaxtyping_annotations_integration():
+    """Tests that JAXTyping annotations work correctly with the updated dataclasses."""
+    from jaxarc.utils.jax_types import (
+        ContinuousSelectionArray,
+        GridArray,
+        MaskArray,
+        OperationId,
+        TaskIndex,
+        TaskInputGrids,
+    )
+
+    # Test Grid with JAXTyping annotations
+    grid_data: GridArray = jnp.array([[0, 1, 2], [3, 4, 5]], dtype=jnp.int32)
+    grid_mask: MaskArray = jnp.array([[True, True, False], [False, True, True]])
+
+    grid = Grid(data=grid_data, mask=grid_mask)
+
+    # Verify the types are preserved
+    assert isinstance(grid.data, jnp.ndarray)
+    assert isinstance(grid.mask, jnp.ndarray)
+    chex.assert_type(grid.data, jnp.int32)
+    chex.assert_type(grid.mask, jnp.bool_)
+    chex.assert_shape(grid.data, (2, 3))
+    chex.assert_shape(grid.mask, (2, 3))
+
+    # Test ARCLEAction with JAXTyping annotations
+    selection: ContinuousSelectionArray = jnp.array(
+        [[0.5, 0.8], [0.2, 1.0]], dtype=jnp.float32
+    )
+    operation: OperationId = jnp.array(15, dtype=jnp.int32)
+
+    action = ARCLEAction(
+        selection=selection, operation=operation, agent_id=1, timestamp=100
+    )
+
+    # Verify the types are preserved
+    chex.assert_type(action.selection, jnp.float32)
+    chex.assert_type(action.operation, jnp.int32)
+    chex.assert_shape(action.selection, (2, 2))
+    chex.assert_shape(action.operation, ())
+
+    # Test JaxArcTask with JAXTyping annotations
+    task_grids: TaskInputGrids = jnp.zeros((2, 4, 4), dtype=jnp.int32)
+    task_masks = jnp.ones((2, 4, 4), dtype=jnp.bool_)
+    task_idx: TaskIndex = jnp.array(42, dtype=jnp.int32)
+
+    task = JaxArcTask(
+        input_grids_examples=task_grids,
+        input_masks_examples=task_masks,
+        output_grids_examples=task_grids,
+        output_masks_examples=task_masks,
+        num_train_pairs=2,
+        test_input_grids=jnp.zeros((1, 4, 4), dtype=jnp.int32),
+        test_input_masks=jnp.ones((1, 4, 4), dtype=jnp.bool_),
+        true_test_output_grids=jnp.zeros((1, 4, 4), dtype=jnp.int32),
+        true_test_output_masks=jnp.ones((1, 4, 4), dtype=jnp.bool_),
+        num_test_pairs=1,
+        task_index=task_idx,
+    )
+
+    # Verify the types are preserved
+    chex.assert_type(task.input_grids_examples, jnp.int32)
+    chex.assert_type(task.input_masks_examples, jnp.bool_)
+    chex.assert_type(task.task_index, jnp.int32)
+    chex.assert_shape(task.input_grids_examples, (2, 4, 4))
+    chex.assert_shape(task.task_index, ())
+
+
+def test_grid_color_validation():
+    """Tests that Grid validates color values are in ARC range (0-9)."""
+    # Valid color values (0-9)
+    valid_data = jnp.array([[0, 5, 9], [1, 3, 7]], dtype=jnp.int32)
+    valid_mask = jnp.ones((2, 3), dtype=jnp.bool_)
+
+    grid = Grid(data=valid_data, mask=valid_mask)
+    assert jnp.min(grid.data) >= 0
+    assert jnp.max(grid.data) <= 9
+
+    # Test with edge case values
+    edge_data = jnp.array([[0, 9]], dtype=jnp.int32)
+    edge_mask = jnp.ones((1, 2), dtype=jnp.bool_)
+
+    edge_grid = Grid(data=edge_data, mask=edge_mask)
+    assert jnp.min(edge_grid.data) == 0
+    assert jnp.max(edge_grid.data) == 9

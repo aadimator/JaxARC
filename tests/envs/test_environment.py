@@ -8,7 +8,7 @@ import pytest
 
 from jaxarc.envs.config import ActionConfig, ArcEnvConfig, GridConfig, RewardConfig
 from jaxarc.envs.environment import ArcEnvironment
-from jaxarc.envs.functional import ArcEnvState
+from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 
 

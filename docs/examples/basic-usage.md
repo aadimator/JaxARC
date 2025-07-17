@@ -1,6 +1,7 @@
 # Basic Usage Examples
 
-This document contains core functionality examples for JaxARC, covering environment setup, task loading, and basic action patterns.
+This document contains core functionality examples for JaxARC, covering
+environment setup, task loading, and basic action patterns.
 
 ## Environment Setup and Configuration
 
@@ -12,10 +13,7 @@ from jaxarc.envs import create_standard_config, arc_reset, arc_step
 
 # Create a balanced configuration for training
 config = create_standard_config(
-    max_episode_steps=100,
-    success_bonus=10.0,
-    step_penalty=-0.01,
-    log_operations=True
+    max_episode_steps=100, success_bonus=10.0, step_penalty=-0.01, log_operations=True
 )
 
 print(f"Max steps: {config.max_episode_steps}")
@@ -26,11 +24,11 @@ print(f"Available operations: {len(config.action_handler.operations)}")
 
 ```python
 from jaxarc.envs import (
-    create_raw_config,      # Minimal operations (fill colors, resize, submit)
-    create_standard_config, # Balanced for training (+ flood fill, clipboard)
-    create_full_config,     # All 35 operations
-    create_point_config,    # Point-based actions
-    create_bbox_config,     # Bounding box actions
+    create_raw_config,  # Minimal operations (fill colors, resize, submit)
+    create_standard_config,  # Balanced for training (+ flood fill, clipboard)
+    create_full_config,  # All 35 operations
+    create_point_config,  # Point-based actions
+    create_bbox_config,  # Bounding box actions
 )
 
 # Compare different configurations
@@ -54,12 +52,14 @@ from jaxarc.parsers import MiniArcParser
 from omegaconf import DictConfig
 
 # Create parser configuration
-parser_config = DictConfig({
-    "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
-    "grid": {"max_grid_height": 5, "max_grid_width": 5},
-    "max_train_pairs": 3,
-    "max_test_pairs": 1,
-})
+parser_config = DictConfig(
+    {
+        "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
+        "grid": {"max_grid_height": 5, "max_grid_width": 5},
+        "max_train_pairs": 3,
+        "max_test_pairs": 1,
+    }
+)
 
 # Initialize parser and load task
 parser = MiniArcParser(parser_config)
@@ -77,13 +77,15 @@ print(f"Output grid shape: {task.train_output_grids.shape}")
 from jaxarc.parsers import ArcAgiParser
 
 # Create ARC-AGI configuration
-parser_config = DictConfig({
-    "challenges": {"path": "data/raw/ARC-AGI-2/data/training"},
-    "solutions": {"path": "data/raw/ARC-AGI-2/data/training"},
-    "grid": {"max_grid_height": 30, "max_grid_width": 30},
-    "max_train_pairs": 4,
-    "max_test_pairs": 1,
-})
+parser_config = DictConfig(
+    {
+        "challenges": {"path": "data/raw/ARC-AGI-2/data/training"},
+        "solutions": {"path": "data/raw/ARC-AGI-2/data/training"},
+        "grid": {"max_grid_height": 30, "max_grid_width": 30},
+        "max_train_pairs": 4,
+        "max_test_pairs": 1,
+    }
+)
 
 parser = ArcAgiParser(parser_config)
 task = parser.get_random_task(key)
@@ -108,13 +110,16 @@ log_grid_to_console(state.working_grid)
 
 # Create selection mask and apply operation
 action = {
-    "selection": jnp.array([
-        [True, True, False, False, False],
-        [True, True, False, False, False],
-        [False, False, False, False, False],
-        [False, False, False, False, False],
-        [False, False, False, False, False]
-    ], dtype=jnp.bool_),
+    "selection": jnp.array(
+        [
+            [True, True, False, False, False],
+            [True, True, False, False, False],
+            [False, False, False, False, False],
+            [False, False, False, False, False],
+            [False, False, False, False, False],
+        ],
+        dtype=jnp.bool_,
+    ),
     "operation": jnp.array(1, dtype=jnp.int32),  # Fill with color 1
 }
 
@@ -168,10 +173,12 @@ print(f"Bounding box action reward: {reward:.3f}")
 ```python
 import time
 
+
 # JIT compile the step function for massive speedup
 @jax.jit
 def jitted_step(state, action, config):
     return arc_step(state, action, config)
+
 
 # Compare performance
 action = {
@@ -202,7 +209,7 @@ def single_episode(episode_key):
     """Run a single episode and return total reward."""
     state, obs = arc_reset(episode_key, config, task)
     total_reward = 0.0
-    
+
     for step in range(10):  # Short episode
         action = {
             "selection": jnp.ones((1, 1), dtype=jnp.bool_),
@@ -212,8 +219,9 @@ def single_episode(episode_key):
         total_reward += reward
         if done:
             break
-    
+
     return total_reward
+
 
 # Create batch of random keys
 batch_size = 100
@@ -280,7 +288,11 @@ print("Configuration created successfully")
 
 ## Next Steps
 
-- **[ConceptARC Examples](conceptarc-examples.md)**: Learn ConceptARC-specific patterns
-- **[MiniARC Examples](miniarc-examples.md)**: Explore rapid prototyping workflows  
-- **[Advanced Patterns](advanced-patterns.md)**: Master JAX transformations and batch processing
-- **[Configuration Guide](../configuration.md)**: Complete configuration system documentation
+- **[ConceptARC Examples](conceptarc-examples.md)**: Learn ConceptARC-specific
+  patterns
+- **[MiniARC Examples](miniarc-examples.md)**: Explore rapid prototyping
+  workflows
+- **[Advanced Patterns](advanced-patterns.md)**: Master JAX transformations and
+  batch processing
+- **[Configuration Guide](../configuration.md)**: Complete configuration system
+  documentation

@@ -7,17 +7,25 @@
 [![PyPI platforms][pypi-platforms]][pypi-link]
 [![GitHub Discussion][github-discussions-badge]][github-discussions-link]
 
-A JAX-based Single-Agent Reinforcement Learning (SARL) environment for solving ARC (Abstraction and Reasoning Corpus) tasks. JaxARC provides a high-performance, functionally-pure environment designed for training AI agents on abstract reasoning puzzles, with architecture designed to support future extensions to Hierarchical RL, Meta-RL, and Multi-Task RL.
+A JAX-based Single-Agent Reinforcement Learning (SARL) environment for solving
+ARC (Abstraction and Reasoning Corpus) tasks. JaxARC provides a
+high-performance, functionally-pure environment designed for training AI agents
+on abstract reasoning puzzles, with architecture designed to support future
+extensions to Hierarchical RL, Meta-RL, and Multi-Task RL.
 
 ## 🚀 Key Features
 
-- **🔥 JAX-Native**: Pure functional API with full `jax.jit`, `jax.vmap`, and `jax.pmap` support
+- **🔥 JAX-Native**: Pure functional API with full `jax.jit`, `jax.vmap`, and
+  `jax.pmap` support
 - **⚡ High Performance**: 100x+ speedup with JIT compilation
 - **🎯 Single-Agent Focus**: Clean SARL implementation optimized for learning
-- **🔧 Extensible Architecture**: Designed to support future HRL, Meta-RL, and Multi-Task RL
-- **🧩 Type Safety**: Typed configuration dataclasses with comprehensive validation
+- **🔧 Extensible Architecture**: Designed to support future HRL, Meta-RL, and
+  Multi-Task RL
+- **🧩 Type Safety**: Typed configuration dataclasses with comprehensive
+  validation
 - **🎨 Rich Visualization**: Terminal and SVG grid rendering utilities
-- **📊 Multiple Datasets**: ARC-AGI, ConceptARC, and MiniARC with GitHub-based download
+- **📊 Multiple Datasets**: ARC-AGI, ConceptARC, and MiniARC with GitHub-based
+  download
 
 ## 📦 Installation
 
@@ -44,12 +52,12 @@ pixi run -e dev pre-commit install  # Set up pre-commit hooks
 
 ## 📊 Supported Datasets
 
-| Dataset | Tasks | Grid Size | Use Case |
-|---------|-------|-----------|----------|
-| **ARC-AGI-2** | 1000 train + 120 eval | Up to 30×30 | Full challenge dataset |
-| **ConceptARC** | 160 (16 concepts × 10) | Up to 30×30 | Systematic evaluation |
-| **MiniARC** | 400+ | 5×5 | Rapid prototyping |
-| **ARC-AGI-1** | 400 train + 400 eval | Up to 30×30 | Original 2024 dataset |
+| Dataset        | Tasks                  | Grid Size   | Use Case               |
+| -------------- | ---------------------- | ----------- | ---------------------- |
+| **ARC-AGI-2**  | 1000 train + 120 eval  | Up to 30×30 | Full challenge dataset |
+| **ConceptARC** | 160 (16 concepts × 10) | Up to 30×30 | Systematic evaluation  |
+| **MiniARC**    | 400+                   | 5×5         | Rapid prototyping      |
+| **ARC-AGI-1**  | 400 train + 400 eval   | Up to 30×30 | Original 2024 dataset  |
 
 ### Quick Download
 
@@ -60,7 +68,8 @@ python scripts/download_dataset.py arc-agi-2   # Full challenge dataset
 python scripts/download_dataset.py all         # All datasets
 ```
 
-All datasets are downloaded directly from GitHub with no authentication required.
+All datasets are downloaded directly from GitHub with no authentication
+required.
 
 ## 🚀 Quick Start
 
@@ -75,10 +84,12 @@ from omegaconf import DictConfig
 # python scripts/download_dataset.py miniarc
 
 # 2. Load a task
-parser_config = DictConfig({
-    "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
-    "grid": {"max_grid_height": 5, "max_grid_width": 5},
-})
+parser_config = DictConfig(
+    {
+        "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
+        "grid": {"max_grid_height": 5, "max_grid_width": 5},
+    }
+)
 parser = MiniArcParser(parser_config)
 key = jax.random.PRNGKey(42)
 task = parser.get_random_task(key)
@@ -96,7 +107,8 @@ state, obs, reward, done, info = arc_step(state, action, config)
 print(f"Reward: {reward:.3f}, Similarity: {info['similarity']:.3f}")
 ```
 
-**Next Steps**: See the [Getting Started Guide](docs/getting-started.md) for a complete walkthrough.
+**Next Steps**: See the [Getting Started Guide](docs/getting-started.md) for a
+complete walkthrough.
 
 ## 🎛️ Configuration & Actions
 
@@ -105,15 +117,16 @@ JaxARC uses typed configuration dataclasses with preset options:
 ```python
 from jaxarc.envs import (
     create_standard_config,  # Balanced for training (recommended)
-    create_full_config,      # All 35 operations
-    create_point_config,     # Point-based actions
+    create_full_config,  # All 35 operations
+    create_point_config,  # Point-based actions
 )
 
 config = create_standard_config(max_episode_steps=100)
 ```
 
-**Action Formats**: Selection-based (default), point-based, or bounding box actions  
-**Operations**: 35 total operations including fill, flood fill, movement, rotation, and clipboard  
+**Action Formats**: Selection-based (default), point-based, or bounding box
+actions **Operations**: 35 total operations including fill, flood fill,
+movement, rotation, and clipboard
 
 See the [Configuration Guide](docs/configuration.md) for complete details.
 
@@ -163,12 +176,16 @@ python examples/enhanced_visualization_demo.py
 
 ## 📚 Documentation
 
-- **[Getting Started](docs/getting-started.md)**: Complete setup and first steps guide
-- **[Datasets Guide](docs/datasets.md)**: All supported datasets and usage patterns
-- **[Configuration Guide](docs/configuration.md)**: Complete configuration system documentation
+- **[Getting Started](docs/getting-started.md)**: Complete setup and first steps
+  guide
+- **[Datasets Guide](docs/datasets.md)**: All supported datasets and usage
+  patterns
+- **[Configuration Guide](docs/configuration.md)**: Complete configuration
+  system documentation
 - **[API Reference](docs/api_reference.md)**: Comprehensive API documentation
 - **[Examples](docs/examples/)**: Practical usage examples and patterns
-- **[Architecture Overview](planning-docs/PROJECT_ARCHITECTURE.md)**: Technical architecture details
+- **[Architecture Overview](planning-docs/PROJECT_ARCHITECTURE.md)**: Technical
+  architecture details
 
 ## 🤝 Contributing
 
@@ -214,7 +231,8 @@ JaxARC is optimized for high-performance training:
 
 JaxARC is designed for:
 
-- **Single-Agent Reinforcement Learning**: Abstract reasoning and pattern recognition
+- **Single-Agent Reinforcement Learning**: Abstract reasoning and pattern
+  recognition
 - **Hierarchical RL**: Multi-level reasoning with extensible architecture
 - **Meta-Learning**: Learning to learn across ARC task distributions
 - **Curriculum Learning**: Progressive difficulty training

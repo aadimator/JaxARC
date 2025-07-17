@@ -13,8 +13,9 @@ import pytest
 from omegaconf import DictConfig
 from pyprojroot import here
 
-from jaxarc.envs.arc_base import ArcEnvironment, ArcEnvState
+from jaxarc.envs.arc_base import ArcEnvironment
 from jaxarc.parsers.arc_agi import ArcAgiParser
+from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 
 

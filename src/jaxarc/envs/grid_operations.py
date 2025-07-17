@@ -31,7 +31,7 @@ import jax
 import jax.numpy as jnp
 
 if TYPE_CHECKING:
-    from .arc_base import ArcEnvState
+    from ..state import ArcEnvState
 
 
 @jax.jit

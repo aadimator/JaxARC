@@ -30,7 +30,7 @@ from jaxarc.envs import (
     create_training_config,
     get_preset_config,
 )
-from jaxarc.envs.functional import ArcEnvState
+from jaxarc.state import ArcEnvState
 
 
 class TestConfigClasses:

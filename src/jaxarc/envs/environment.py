@@ -14,7 +14,8 @@ from loguru import logger
 
 from jaxarc.envs.actions import get_action_handler
 from jaxarc.envs.config import ArcEnvConfig
-from jaxarc.envs.functional import ArcEnvState, arc_reset, arc_step
+from jaxarc.envs.functional import arc_reset, arc_step
+from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.visualization import _clear_output_directory
 

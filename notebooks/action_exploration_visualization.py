@@ -777,7 +777,7 @@ def create_test_environment_state(parsed_task=None):
         target_grid = jnp.array(parsed_task.output_grids_examples[0])  # Make a copy
 
     # Create environment state
-    from jaxarc.envs.arc_base import ArcEnvState
+    from jaxarc.state import ArcEnvState
 
     # Set up working grid mask
     if parsed_task is None:
@@ -864,8 +864,8 @@ def minimal_grid_test():
     # Test grid operation execution
     try:
         console.print("[bold]Testing grid operation execution:[/bold]")
-        from jaxarc.envs.arc_base import ArcEnvState
         from jaxarc.envs.grid_operations import execute_grid_operation
+        from jaxarc.state import ArcEnvState
 
         # Create minimal state
         from jaxarc.types import JaxArcTask
