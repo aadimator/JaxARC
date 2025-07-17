@@ -3,7 +3,7 @@
 # Includes all operations: fill colors, flood fill, movement, rotation, flipping, clipboard, grid, and submit
 
 # Action Format
-selection_format: "mask" # Use mask + operation format
+selection_format: "mask" # Use mask + operation format (others: point, bbox)
 
 # Selection Settings
 selection_threshold: 0.5 # Threshold for converting continuous selections to boolean

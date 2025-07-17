@@ -3,6 +3,14 @@ Factory functions for creating ARC environment configurations.
 
 This module provides convenient factory functions for creating different types
 of ARC environment configurations with sensible defaults and Hydra integration.
+
+DEPRECATION NOTICE:
+These factory functions are maintained for backward compatibility but are deprecated
+in favor of Hydra's native composition system. For new code, prefer using Hydra
+configuration files and the `create_complete_hydra_config()` function.
+
+See the migration guide in docs/configuration.md for examples of how to replace
+factory functions with Hydra configurations.
 """
 
 from __future__ import annotations
@@ -26,6 +34,13 @@ def create_raw_config(
     """
     Create minimal configuration for basic ARC environment.
 
+    DEPRECATED: Use Hydra configuration instead. See migration guide in docs/configuration.md
+    
+    Hydra equivalent:
+        @hydra.main(config_path="conf", config_name="presets/raw")
+        def main(cfg: DictConfig):
+            config = create_complete_hydra_config(cfg)
+
     Suitable for simple experiments and debugging. Only allows fill colors (0-9),
     resize (33), and submit (34) operations.
 
@@ -39,6 +54,12 @@ def create_raw_config(
     Returns:
         ArcEnvConfig with minimal settings
     """
+    warnings.warn(
+        "create_raw_config() is deprecated. Use Hydra configuration with "
+        "create_complete_hydra_config() instead. See docs/configuration.md for migration guide.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     reward_config = RewardConfig(
         reward_on_submit_only=False,
         step_penalty=step_penalty,
@@ -122,6 +143,13 @@ def create_standard_config(
     """
     Create standard configuration for ARC environment.
 
+    DEPRECATED: Use Hydra configuration instead. See migration guide in docs/configuration.md
+    
+    Hydra equivalent:
+        @hydra.main(config_path="conf", config_name="presets/standard")
+        def main(cfg: DictConfig):
+            config = create_complete_hydra_config(cfg)
+
     Balanced settings suitable for most training scenarios.
 
     Args:
@@ -136,6 +164,12 @@ def create_standard_config(
     Returns:
         ArcEnvConfig with standard settings
     """
+    warnings.warn(
+        "create_standard_config() is deprecated. Use Hydra configuration with "
+        "create_complete_hydra_config() instead. See docs/configuration.md for migration guide.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     reward_config = RewardConfig(
         reward_on_submit_only=reward_on_submit_only,
         step_penalty=step_penalty,

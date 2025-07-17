@@ -111,6 +111,11 @@ RewardValue: TypeAlias = Float[Array, "*batch"]
 """Float array representing reward value(s).
 Supports both single rewards () and batched rewards (*batch)."""
 
+# Observation types
+ObservationArray: TypeAlias = Int[Array, "*batch height width"]
+"""Integer array representing observation(s) from the environment.
+Supports both single observations (height, width) and batched observations (*batch, height, width)."""
+
 # =============================================================================
 # Environment State Types
 # =============================================================================
@@ -137,6 +142,14 @@ EpisodeDone: TypeAlias = Bool[Array, ""]
 ColorValue: TypeAlias = Int[Array, ""]
 """Scalar integer representing a color value (0-9)."""
 
+# Padding value type
+PaddingValue: TypeAlias = Int[Array, ""] | int
+"""Padding value for grid operations (can be scalar or JAX array)."""
+
+# PRNG key types
+PRNGKey: TypeAlias = Int[Array, "2"]
+"""JAX PRNG key array with shape (2,)."""
+
 # Grid dimensions
 GridHeight: TypeAlias = Int[Array, ""]
 """Scalar integer representing grid height."""
@@ -150,6 +163,10 @@ RowIndex: TypeAlias = Int[Array, ""]
 
 ColIndex: TypeAlias = Int[Array, ""]
 """Scalar integer representing a column index."""
+
+# Bounding box type
+BoundingBox: TypeAlias = tuple[RowIndex, RowIndex, ColIndex, ColIndex]
+"""Bounding box coordinates as (min_row, max_row, min_col, max_col)."""
 
 # =============================================================================
 # Validation and Debug Types
@@ -193,3 +210,11 @@ MaxTrainPairs: TypeAlias = int
 MaxTestPairs: TypeAlias = int
 NumColors: TypeAlias = int
 NumOperations: TypeAlias = int
+
+# =============================================================================
+# Visualization and Color Types
+# =============================================================================
+
+# Visualization types
+ColorHex: TypeAlias = str  # Hex color string like "#FF0000"
+RGBColor: TypeAlias = tuple[int, int, int]  # RGB color tuple

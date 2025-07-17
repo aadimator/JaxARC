@@ -3,7 +3,7 @@
 # Only includes: Fill colors (0-9), Resize grid, and Submit actions
 
 # Action Format
-selection_format: "mask" # Use mask + operation format
+selection_format: "mask" # Use mask + operation format (point, bbox)
 
 # Selection Settings
 selection_threshold: 0.5 # Threshold for converting continuous selections to boolean

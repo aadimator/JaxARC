@@ -222,26 +222,42 @@ config = create_full_config()
 
 ### Direct Hydra Support
 
-JaxARC integrates seamlessly with Hydra configuration management:
+JaxARC integrates seamlessly with Hydra configuration management with enhanced validation:
 
 ```python
 from omegaconf import OmegaConf
 from jaxarc.envs import arc_reset, ArcEnvConfig
+from jaxarc.envs.config import ConfigValidationError
 
-# Create Hydra config
-hydra_config = OmegaConf.create(
-    {
+# Create Hydra config with validation
+try:
+    hydra_config = OmegaConf.create({
         "max_episode_steps": 100,
-        "reward": {"success_bonus": 15.0},
-        "action": {"selection_format": "point"},
-    }
-)
-
-# Use directly with functional API
-state, obs = arc_reset(key, hydra_config)
-
-# Or convert to typed config
-typed_config = ArcEnvConfig.from_hydra(hydra_config)
+        "reward": {
+            "success_bonus": 15.0,
+            "step_penalty": -0.01,
+            "similarity_weight": 1.5
+        },
+        "action": {
+            "selection_format": "point",
+            "num_operations": 35,
+            "validate_actions": True
+        },
+        "grid": {
+            "max_grid_height": 30,
+            "max_grid_width": 30,
+            "max_colors": 10
+        }
+    })
+    
+    # Convert to typed config with comprehensive validation
+    typed_config = ArcEnvConfig.from_hydra(hydra_config)
+    
+    # Use with functional API
+    state, obs = arc_reset(key, typed_config)
+    
+except ConfigValidationError as e:
+    print(f"Configuration validation failed: {e}")
 ```
 
 ### Configuration Files
@@ -406,19 +422,119 @@ override_config = OmegaConf.create(
 merged_config = merge_configs(base_config, override_config)
 ```
 
-### Configuration Validation
+### Enhanced Configuration Validation
 
-Validate configurations before use:
+JaxARC now provides comprehensive configuration validation with detailed error messages:
 
 ```python
-from jaxarc.envs.config import validate_config, get_config_summary
+from jaxarc.envs.config import (
+    ArcEnvConfig, RewardConfig, ActionConfig, GridConfig,
+    ConfigValidationError
+)
 
-# Validate configuration consistency
-validate_config(config)
+# Comprehensive validation with clear error messages
+try:
+    config = ArcEnvConfig(
+        max_episode_steps=100,
+        reward=RewardConfig(
+            success_bonus=10.0,
+            step_penalty=-0.01,  # Must be negative or zero
+            similarity_weight=1.5,  # Must be in [0.0, 10.0]
+            invalid_action_penalty=-0.1
+        ),
+        action=ActionConfig(
+            selection_format="point",  # Must be "mask", "point", or "bbox"
+            num_operations=35,
+            allowed_operations=[0, 1, 2, 3, 4, 5],  # Must be valid operation IDs
+            validate_actions=True
+        ),
+        grid=GridConfig(
+            max_grid_height=30,  # Must be positive
+            max_grid_width=30,   # Must be positive
+            min_grid_height=3,   # Must be <= max_grid_height
+            min_grid_width=3,    # Must be <= max_grid_width
+            max_colors=10,       # Must be >= 2
+            background_color=0   # Must be < max_colors
+        )
+    )
+    print("✅ Configuration validation passed")
+    
+except ConfigValidationError as e:
+    print(f"❌ Configuration validation failed: {e}")
 
-# Get human-readable summary
-summary = get_config_summary(config)
-print(summary)
+# Validation also provides helpful warnings
+config = RewardConfig(
+    step_penalty=0.01,  # Warning: should typically be negative
+    success_bonus=-5.0,  # Warning: should typically be positive
+)
+# Output: Warning: step_penalty should typically be negative or zero for proper learning
+```
+
+#### Field-Level Validation
+
+Each configuration class validates its fields comprehensively:
+
+```python
+# RewardConfig validation
+reward_config = RewardConfig(
+    step_penalty=-0.01,        # ✅ Valid: negative penalty
+    success_bonus=10.0,        # ✅ Valid: positive bonus
+    similarity_weight=1.5,     # ✅ Valid: in range [0.0, 10.0]
+    progress_bonus=0.1,        # ✅ Valid: reasonable range
+    invalid_action_penalty=-0.5 # ✅ Valid: negative penalty
+)
+
+# ActionConfig validation
+action_config = ActionConfig(
+    selection_format="mask",    # ✅ Valid: one of ["mask", "point", "bbox"]
+    selection_threshold=0.5,    # ✅ Valid: in range [0.0, 1.0]
+    num_operations=35,          # ✅ Valid: positive integer
+    allowed_operations=[0, 1, 2], # ✅ Valid: list of valid operation IDs
+    validate_actions=True       # ✅ Valid: boolean
+)
+
+# GridConfig validation
+grid_config = GridConfig(
+    max_grid_height=30,    # ✅ Valid: positive integer
+    max_grid_width=30,     # ✅ Valid: positive integer
+    min_grid_height=3,     # ✅ Valid: positive and <= max_grid_height
+    min_grid_width=3,      # ✅ Valid: positive and <= max_grid_width
+    max_colors=10,         # ✅ Valid: >= 2
+    background_color=0     # ✅ Valid: < max_colors
+)
+```
+
+#### Cross-Field Validation
+
+The validation system checks consistency across related fields:
+
+```python
+# Cross-field validation examples
+try:
+    # This will fail: min > max
+    GridConfig(
+        max_grid_height=10,
+        min_grid_height=20  # ❌ Error: min > max
+    )
+except ConfigValidationError as e:
+    print(f"Cross-field validation error: {e}")
+
+try:
+    # This will fail: background_color >= max_colors
+    GridConfig(
+        max_colors=5,
+        background_color=5  # ❌ Error: background_color must be < max_colors
+    )
+except ConfigValidationError as e:
+    print(f"Color validation error: {e}")
+
+try:
+    # This will fail: duplicate operations
+    ActionConfig(
+        allowed_operations=[0, 1, 2, 1]  # ❌ Error: duplicate operation IDs
+    )
+except ConfigValidationError as e:
+    print(f"Operation validation error: {e}")
 ```
 
 ## Practical Examples

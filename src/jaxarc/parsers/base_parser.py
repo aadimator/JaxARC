@@ -14,6 +14,18 @@ import chex
 from omegaconf import DictConfig
 
 from jaxarc.types import JaxArcTask
+from jaxarc.utils.jax_types import (
+    ColorValue,
+    GridArray,
+    GridHeight,
+    GridWidth,
+    MaskArray,
+    PRNGKey,
+)
+
+# Type aliases for parser functions
+GridList = list[GridArray]
+MaskList = list[MaskArray]
 
 
 class ArcDataParserBase(ABC):
@@ -125,7 +137,7 @@ class ArcDataParserBase(ABC):
         """
 
     @abstractmethod
-    def preprocess_task_data(self, raw_task_data: Any, key: chex.PRNGKey) -> JaxArcTask:
+    def preprocess_task_data(self, raw_task_data: Any, key: PRNGKey) -> JaxArcTask:
         """Convert raw task data into a JAX-compatible JaxArcTask structure.
 
         This method performs the core transformation from dataset-specific format
@@ -147,7 +159,7 @@ class ArcDataParserBase(ABC):
         """
 
     @abstractmethod
-    def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
+    def get_random_task(self, key: PRNGKey) -> JaxArcTask:
         """Get a random task from the dataset.
 
         This method orchestrates the complete pipeline from task selection to
@@ -196,7 +208,7 @@ class ArcDataParserBase(ABC):
             "background_color": self.background_color,
         }
 
-    def validate_grid_dimensions(self, height: int, width: int) -> None:
+    def validate_grid_dimensions(self, height: GridHeight, width: GridWidth) -> None:
         """Validate that grid dimensions are within the configured bounds.
 
         Args:
@@ -219,7 +231,7 @@ class ArcDataParserBase(ABC):
             )
             raise ValueError(msg)
 
-    def validate_color_value(self, color: int) -> None:
+    def validate_color_value(self, color: ColorValue) -> None:
         """Validate that a color value is within the allowed range.
 
         Args:

@@ -2,10 +2,6 @@
 # Optimized configuration for evaluating ARC agents
 # Uses evaluation-specific sub-configurations for accurate performance assessment
 
-defaults:
-  - reward: evaluation
-  - action: standard
-
 # Environment target class (for backward compatibility)
 _target_: jaxarc.envs.ArcEnvironment
 

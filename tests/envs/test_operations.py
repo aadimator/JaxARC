@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from jaxarc.utils.operation_names import (
+from jaxarc.envs.operations import (
     OPERATION_NAMES,
     get_all_operation_ids,
     get_operation_display_text,

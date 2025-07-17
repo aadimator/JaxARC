@@ -21,7 +21,7 @@ from jaxarc.envs import ArcEnvironment
 from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.types import Grid
 from jaxarc.utils.config import get_config
-from jaxarc.utils.operation_names import (
+from jaxarc.envs.operations import (
     get_operation_display_text,
     get_operation_name,
     get_operations_by_category,

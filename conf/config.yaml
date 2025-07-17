@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - dataset: arc_agi_2 # Which dataset to use
-  - environment: arc_env # Which environment to use
+  - environment: training # Which environment to use (training/evaluation)
   - reward: standard # Which reward configuration to use
   - action: standard # Which action configuration to use
   - debug: "off"
