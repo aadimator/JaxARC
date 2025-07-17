@@ -19,11 +19,21 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 
+from ..utils.jax_types import (
+    BboxActionData,
+    BboxCoords,
+    MaskActionData,
+    MaskArray,
+    PointActionData,
+    PointCoords,
+    SelectionArray,
+)
+
 
 @jax.jit
 def point_handler(
-    action_data: jnp.ndarray, working_grid_mask: jnp.ndarray
-) -> jnp.ndarray:
+    action_data: PointActionData, working_grid_mask: MaskArray
+) -> SelectionArray:
     """Convert point coordinates to selection mask.
 
     Args:
@@ -50,8 +60,8 @@ def point_handler(
 
 @jax.jit
 def bbox_handler(
-    action_data: jnp.ndarray, working_grid_mask: jnp.ndarray
-) -> jnp.ndarray:
+    action_data: BboxActionData, working_grid_mask: MaskArray
+) -> SelectionArray:
     """Convert bounding box coordinates to selection mask.
 
     Args:
@@ -93,8 +103,8 @@ def bbox_handler(
 
 @jax.jit
 def mask_handler(
-    action_data: jnp.ndarray, working_grid_mask: jnp.ndarray
-) -> jnp.ndarray:
+    action_data: MaskActionData, working_grid_mask: MaskArray
+) -> SelectionArray:
     """Pass through mask data with validation.
 
     Args:
@@ -147,7 +157,7 @@ def get_action_handler(selection_format: str):
 
 
 def validate_action_data(
-    action_data: jnp.ndarray, selection_format: str, grid_shape: tuple = None
+    action_data: PointActionData | BboxActionData | MaskActionData, selection_format: str, grid_shape: tuple = None
 ) -> None:
     """Validate action data format and shape.
 
@@ -187,7 +197,7 @@ def validate_action_data(
 
 def create_test_action_data(
     selection_format: str, grid_shape: tuple = (30, 30), **kwargs
-) -> jnp.ndarray:
+) -> PointActionData | BboxActionData | MaskActionData:
     """Create test action data for given format.
 
     Args:

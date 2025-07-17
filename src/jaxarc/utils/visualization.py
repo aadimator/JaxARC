@@ -27,6 +27,12 @@ from rich.text import Text
 
 from jaxarc.types import Grid
 from jaxarc.utils.task_manager import extract_task_id_from_index
+from .jax_types import (
+    ColorHex,
+    GridArray,
+    MaskArray,
+    RGBColor,
+)
 
 if TYPE_CHECKING:
     from jaxarc.types import JaxArcTask
@@ -48,7 +54,7 @@ ARC_COLOR_PALETTE: dict[int, str] = {
 
 
 def _extract_grid_data(
-    grid_input: jnp.ndarray | np.ndarray | Grid,
+    grid_input: GridArray | np.ndarray | Grid,
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """Extract numpy array and mask from various grid input types.
 
@@ -1879,7 +1885,7 @@ def draw_rl_step_svg(
     operation_text = f"Operation: {operation_id}"
     if show_operation_name:
         try:
-            from jaxarc.utils.operation_names import get_operation_display_text
+            from jaxarc.envs.operations import get_operation_display_text
 
             operation_text = get_operation_display_text(operation_id)
         except (ValueError, ImportError):

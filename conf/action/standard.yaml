@@ -4,7 +4,7 @@
 # Excludes object-based operations (no movement, flip, rotate, etc.)
 
 # Action Format
-selection_format: "mask" # Use mask + operation format
+selection_format: "mask" # Use mask + operation format (others: point, bbox)
 
 # Selection Settings
 selection_threshold: 0.5 # Threshold for converting continuous selections to boolean

@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from rich.panel import Panel
 
 from jaxarc.types import Grid
-from jaxarc.utils.operation_names import (
+from jaxarc.envs.operations import (
     OPERATION_NAMES,
     get_operation_display_text,
     get_operation_name,

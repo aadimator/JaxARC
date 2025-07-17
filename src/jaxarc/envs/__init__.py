@@ -65,6 +65,20 @@ from .functional import (
 # Grid operations
 from .grid_operations import execute_grid_operation
 
+# Operation definitions and utilities
+from .operations import (
+    OPERATION_NAMES,
+    get_operation_name,
+    get_operation_display_text,
+    is_valid_operation_id,
+    get_all_operation_ids,
+    get_operations_by_category,
+    get_operation_category,
+)
+
+# Action and observation spaces
+from .spaces import Space, MultiBinary
+
 __all__ = [
     # Core environment classes
     "ArcEnvironment",
@@ -113,4 +127,15 @@ __all__ = [
     "mask_handler",
     # Grid operations
     "execute_grid_operation",
+    # Operation definitions
+    "OPERATION_NAMES",
+    "get_operation_name",
+    "get_operation_display_text",
+    "is_valid_operation_id",
+    "get_all_operation_ids",
+    "get_operations_by_category",
+    "get_operation_category",
+    # Action and observation spaces
+    "Space",
+    "MultiBinary",
 ]

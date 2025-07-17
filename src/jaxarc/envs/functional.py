@@ -23,6 +23,16 @@ from jaxarc.utils.visualization import (
 
 from ..state import ArcEnvState
 from ..types import ARCLEAction, JaxArcTask
+from ..utils.jax_types import (
+    EpisodeDone,
+    GridArray,
+    ObservationArray,
+    OperationId,
+    PRNGKey,
+    RewardValue,
+    SelectionArray,
+    SimilarityScore,
+)
 from .actions import get_action_handler
 from .config import ArcEnvConfig
 from .grid_operations import compute_grid_similarity, execute_grid_operation
@@ -39,7 +49,7 @@ def _ensure_config(config: ConfigType) -> ArcEnvConfig:
     return config
 
 
-def _validate_operation(operation: Any, config: ArcEnvConfig) -> jnp.ndarray:
+def _validate_operation(operation: Any, config: ArcEnvConfig) -> OperationId:
     """Validate and normalize operation value."""
     if isinstance(operation, (int, jnp.integer)):
         operation = jnp.array(operation, dtype=jnp.int32)
@@ -53,7 +63,7 @@ def _validate_operation(operation: Any, config: ArcEnvConfig) -> jnp.ndarray:
     return operation
 
 
-def _get_observation(state: ArcEnvState, config: ArcEnvConfig) -> jnp.ndarray:
+def _get_observation(state: ArcEnvState, config: ArcEnvConfig) -> ObservationArray:
     """Extract observation from state."""
     # For now, just return the working grid
     # Future: Could include additional channels for selection, target, etc.
@@ -62,7 +72,7 @@ def _get_observation(state: ArcEnvState, config: ArcEnvConfig) -> jnp.ndarray:
 
 def _calculate_reward(
     old_state: ArcEnvState, new_state: ArcEnvState, config: ArcEnvConfig
-) -> jnp.ndarray:
+) -> RewardValue:
     """Calculate reward based on state transition and config."""
     reward_cfg = config.reward
 
@@ -97,7 +107,7 @@ def _calculate_reward(
     return reward
 
 
-def _is_episode_done(state: ArcEnvState, config: ArcEnvConfig) -> jnp.ndarray:
+def _is_episode_done(state: ArcEnvState, config: ArcEnvConfig) -> EpisodeDone:
     """Check if episode should terminate."""
     # Episode ends if:
     # 1. Task is solved (perfect similarity)
@@ -185,10 +195,10 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
 
 
 def arc_reset(
-    key: chex.PRNGKey,
+    key: PRNGKey,
     config: ConfigType,
     task_data: JaxArcTask | None = None,
-) -> Tuple[ArcEnvState, jnp.ndarray]:
+) -> Tuple[ArcEnvState, ObservationArray]:
     """
     Reset ARC environment with functional API.
 
@@ -261,7 +271,7 @@ def arc_step(
     state: ArcEnvState,
     action: ActionType,
     config: ConfigType,
-) -> Tuple[ArcEnvState, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
+) -> Tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, Dict[str, Any]]:
     """
     Execute single step in ARC environment with functional API.
 
@@ -435,10 +445,10 @@ def arc_step(
 
 
 def arc_reset_with_hydra(
-    key: chex.PRNGKey,
+    key: PRNGKey,
     hydra_config: DictConfig,
     task_data: JaxArcTask | None = None,
-) -> Tuple[ArcEnvState, jnp.ndarray]:
+) -> Tuple[ArcEnvState, ObservationArray]:
     """Reset with explicit Hydra config (for type clarity)."""
     return arc_reset(key, hydra_config, task_data)
 
@@ -447,6 +457,6 @@ def arc_step_with_hydra(
     state: ArcEnvState,
     action: ActionType,
     hydra_config: DictConfig,
-) -> Tuple[ArcEnvState, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
+) -> Tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, Dict[str, Any]]:
     """Step with explicit Hydra config (for type clarity)."""
     return arc_step(state, action, hydra_config)

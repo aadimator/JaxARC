@@ -10,10 +10,19 @@ from __future__ import annotations
 import chex
 import jax.numpy as jnp
 
+from .jax_types import (
+    BoundingBox,
+    ColorValue,
+    GridArray,
+    GridHeight,
+    GridWidth,
+    PaddingValue,
+)
+
 
 def pad_to_max_dims(
-    grid: chex.Array, max_height: int, max_width: int, fill_value: int | float = 0
-) -> chex.Array:
+    grid: GridArray, max_height: GridHeight, max_width: GridWidth, fill_value: PaddingValue = 0
+) -> GridArray:
     """
     Pad a grid to maximum dimensions.
 
@@ -47,8 +56,8 @@ def pad_to_max_dims(
 
 
 def get_grid_bounds(
-    grid: chex.Array, background_value: int = 0
-) -> tuple[int, int, int, int]:
+    grid: GridArray, background_value: ColorValue = 0
+) -> BoundingBox:
     """
     Get the bounding box of non-background content in a grid.
 
@@ -78,7 +87,7 @@ def get_grid_bounds(
     return min_row, max_row, min_col, max_col
 
 
-def crop_grid_to_content(grid: chex.Array, background_value: int = 0) -> chex.Array:
+def crop_grid_to_content(grid: GridArray, background_value: ColorValue = 0) -> GridArray:
     """
     Crop a grid to its content bounds (remove background padding).
 

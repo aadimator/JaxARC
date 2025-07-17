@@ -137,14 +137,122 @@ miniarc_parser = create_miniarc_config(max_episode_steps=80)
 
 ## Core Data Types
 
+### ArcEnvState (Equinox Module)
+
+The centralized environment state using Equinox for better JAX integration:
+
+```python
+from jaxarc.state import ArcEnvState
+from jaxarc.utils.jax_types import GridArray, MaskArray, SimilarityScore
+import equinox as eqx
+
+class ArcEnvState(eqx.Module):
+    """ARC environment state with Equinox Module for better JAX integration."""
+    
+    # Core ARC state with JAXTyping annotations
+    task_data: JaxArcTask
+    working_grid: GridArray          # Int[Array, "height width"]
+    working_grid_mask: MaskArray     # Bool[Array, "height width"]
+    target_grid: GridArray
+    
+    # Episode management
+    step_count: StepCount            # Int[Array, ""]
+    episode_done: EpisodeDone        # Bool[Array, ""]
+    current_example_idx: EpisodeIndex
+    
+    # Grid operations
+    selected: SelectionArray         # Bool[Array, "height width"]
+    clipboard: GridArray
+    similarity_score: SimilarityScore # Float[Array, ""]
+
+# Usage examples
+import jax.numpy as jnp
+
+# Create state
+state = ArcEnvState(
+    task_data=task,
+    working_grid=jnp.array([[1, 2], [3, 4]], dtype=jnp.int32),
+    working_grid_mask=jnp.ones((2, 2), dtype=bool),
+    target_grid=jnp.array([[4, 3], [2, 1]], dtype=jnp.int32),
+    step_count=jnp.array(0, dtype=jnp.int32),
+    episode_done=jnp.array(False, dtype=bool),
+    current_example_idx=jnp.array(0, dtype=jnp.int32),
+    selected=jnp.zeros((2, 2), dtype=bool),
+    clipboard=jnp.zeros((2, 2), dtype=jnp.int32),
+    similarity_score=jnp.array(0.0, dtype=jnp.float32)
+)
+
+# Update state using Equinox patterns
+import equinox as eqx
+
+# Single field update
+new_state = eqx.tree_at(lambda s: s.step_count, state, state.step_count + 1)
+
+# Multiple field update
+new_state = eqx.tree_at(
+    lambda s: (s.step_count, s.episode_done),
+    state,
+    (state.step_count + 1, jnp.array(True))
+)
+
+# Convenience replace method
+new_state = state.replace(
+    step_count=state.step_count + 1,
+    episode_done=True
+)
+```
+
+### JAXTyping Type Definitions
+
+Precise array type annotations for better type safety:
+
+```python
+from jaxarc.utils.jax_types import (
+    # Grid types (support both single and batched operations)
+    GridArray,        # Int[Array, "*batch height width"]
+    MaskArray,        # Bool[Array, "*batch height width"]
+    SelectionArray,   # Bool[Array, "*batch height width"]
+    
+    # Action types
+    PointCoords,      # Int[Array, "2"] - [row, col]
+    BboxCoords,       # Int[Array, "4"] - [r1, c1, r2, c2]
+    OperationId,      # Int[Array, ""] - scalar operation ID
+    
+    # Scoring and state types
+    SimilarityScore,  # Float[Array, "*batch"]
+    StepCount,        # Int[Array, ""]
+    EpisodeIndex,     # Int[Array, ""]
+    EpisodeDone,      # Bool[Array, ""]
+)
+
+# Usage with precise type annotations
+def compute_similarity(grid1: GridArray, grid2: GridArray) -> SimilarityScore:
+    """Compute similarity with automatic shape validation."""
+    diff = jnp.abs(grid1 - grid2)
+    return 1.0 - jnp.mean(diff) / 9.0
+
+def process_point_action(
+    point: PointCoords,
+    operation: OperationId,
+    grid_shape: tuple[int, int]
+) -> SelectionArray:
+    """Convert point action to selection mask."""
+    row, col = point
+    selection = jnp.zeros(grid_shape, dtype=bool)
+    return selection.at[row, col].set(True)
+
+# Batch operations work with the same types
+batch_grids: GridArray = jnp.stack([grid1, grid2])  # Shape: (2, height, width)
+batch_similarities: SimilarityScore = jax.vmap(compute_similarity)(batch_grids, batch_grids)
+```
+
 ### JaxArcTask
 
-Main data structure for ARC tasks with static shapes for JAX compatibility.
+Main data structure for ARC tasks with static shapes for JAX compatibility:
 
 ```python
 from jaxarc.types import JaxArcTask
 import chex
-
 
 @chex.dataclass
 class JaxArcTask:
@@ -159,13 +267,120 @@ class JaxArcTask:
     task_index: chex.Array  # Unique identifier
 ```
 
-### Grid
+## Equinox Utilities
+
+Enhanced utilities for working with Equinox modules and state debugging:
 
 ```python
-from jaxarc.types import Grid
+from jaxarc.utils.equinox_utils import (
+    tree_map_with_path, validate_state_shapes, create_state_diff,
+    print_state_summary, module_memory_usage
+)
 
-Grid = chex.Array  # Shape: (height, width), dtype: int32
+# State validation
+if validate_state_shapes(state):
+    print("✅ State validation passed")
+else:
+    print("❌ State validation failed")
+
+# State debugging
+print_state_summary(state, "Current State")
+
+# Tree traversal with path information
+def debug_arrays(path: str, value: Any) -> Any:
+    if hasattr(value, 'shape'):
+        print(f"{path}: shape={value.shape}, dtype={value.dtype}")
+    return value
+
+tree_map_with_path(debug_arrays, state)
+
+# State comparison
+diff = create_state_diff(old_state, new_state)
+for path, change_info in diff.items():
+    print(f"Changed: {path}")
+    print(f"  Type: {change_info['type']}")
+    if 'old' in change_info:
+        print(f"  Old: {change_info['old']}")
+    if 'new' in change_info:
+        print(f"  New: {change_info['new']}")
+
+# Memory analysis
+memory_info = module_memory_usage(state)
+print(f"Total memory: {memory_info['total_bytes']:,} bytes")
+print(f"Total elements: {memory_info['total_elements']:,}")
 ```
+
+**Key Functions:**
+
+- `validate_state_shapes(state) -> bool`: Validate Equinox module structure
+- `print_state_summary(state, name)`: Print comprehensive state summary
+- `tree_map_with_path(fn, tree)`: Map function over tree with path information
+- `create_state_diff(old, new) -> dict`: Create diff between two states
+- `module_memory_usage(module) -> dict`: Analyze memory usage of Equinox module
+
+## Enhanced Configuration System
+
+Comprehensive configuration with validation and error handling:
+
+```python
+from jaxarc.envs.config import (
+    ArcEnvConfig, RewardConfig, ActionConfig, GridConfig,
+    ConfigValidationError
+)
+
+# Create configuration with validation
+try:
+    config = ArcEnvConfig(
+        max_episode_steps=100,
+        reward=RewardConfig(
+            success_bonus=10.0,
+            step_penalty=-0.01,
+            similarity_weight=1.5
+        ),
+        action=ActionConfig(
+            selection_format="point",
+            num_operations=35,
+            allowed_operations=[0, 1, 2, 3, 4, 5]
+        ),
+        grid=GridConfig(
+            max_grid_height=30,
+            max_grid_width=30,
+            max_colors=10
+        )
+    )
+    print("✅ Configuration validation passed")
+    
+except ConfigValidationError as e:
+    print(f"❌ Configuration validation failed: {e}")
+
+# Create from Hydra config
+from omegaconf import OmegaConf
+
+hydra_config = OmegaConf.create({
+    "max_episode_steps": 100,
+    "reward": {"success_bonus": 15.0},
+    "action": {"selection_format": "mask"}
+})
+
+typed_config = ArcEnvConfig.from_hydra(hydra_config)
+```
+
+**Configuration Classes:**
+
+- `ArcEnvConfig`: Main environment configuration
+- `RewardConfig`: Reward calculation settings
+- `ActionConfig`: Action space and validation
+- `GridConfig`: Grid dimensions and constraints
+- `DatasetConfig`: Dataset-specific settings
+- `DebugConfig`: Debug and logging options
+
+**Validation Features:**
+
+- Field-level validation with clear error messages
+- Cross-field consistency checking
+- Range validation for numeric values
+- Choice validation for string values
+- Helpful warnings for potentially problematic configurations
 
 ## Environment Integration
 

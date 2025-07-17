@@ -1,8 +1,8 @@
-"""
-Operation names utility for JaxARC.
+"""Operation definitions and utilities for ARC environment.
 
-This module provides centralized operation name mappings and utilities for
-converting operation IDs to human-readable names and display text.
+This module provides centralized operation definitions, name mappings, and utilities
+for converting operation IDs to human-readable names and display text. This is core
+environment functionality that supports the action system.
 """
 
 from __future__ import annotations
@@ -64,6 +64,14 @@ def get_operation_name(operation_id: int) -> str:
 
     Raises:
         ValueError: If operation_id is not recognized
+        
+    Example:
+        ```python
+        from jaxarc.envs.operations import get_operation_name
+        
+        name = get_operation_name(0)  # "Fill 0"
+        name = get_operation_name(24)  # "Rotate CW"
+        ```
     """
     if operation_id not in OPERATION_NAMES:
         raise ValueError(f"Unknown operation ID: {operation_id}")
@@ -82,6 +90,14 @@ def get_operation_display_text(operation_id: int) -> str:
 
     Raises:
         ValueError: If operation_id is not recognized
+        
+    Example:
+        ```python
+        from jaxarc.envs.operations import get_operation_display_text
+        
+        text = get_operation_display_text(0)  # "Op 0: Fill 0"
+        text = get_operation_display_text(34)  # "Op 34: Submit"
+        ```
     """
     name = get_operation_name(operation_id)
     return f"Op {operation_id}: {name}"
@@ -95,6 +111,15 @@ def is_valid_operation_id(operation_id: int) -> bool:
 
     Returns:
         True if operation ID is valid, False otherwise
+        
+    Example:
+        ```python
+        from jaxarc.envs.operations import is_valid_operation_id
+        
+        assert is_valid_operation_id(0) == True
+        assert is_valid_operation_id(34) == True
+        assert is_valid_operation_id(35) == False
+        ```
     """
     return operation_id in OPERATION_NAMES
 
@@ -103,9 +128,16 @@ def get_all_operation_ids() -> list[int]:
     """Get all valid operation IDs.
 
     Returns:
-        List of all valid operation IDs
+        List of all valid operation IDs sorted in ascending order
+        
+    Example:
+        ```python
+        from jaxarc.envs.operations import get_all_operation_ids
+        
+        ids = get_all_operation_ids()  # [0, 1, 2, ..., 34]
+        ```
     """
-    return list(OPERATION_NAMES.keys())
+    return sorted(OPERATION_NAMES.keys())
 
 
 def get_operations_by_category() -> dict[str, list[int]]:
@@ -113,6 +145,15 @@ def get_operations_by_category() -> dict[str, list[int]]:
 
     Returns:
         Dictionary mapping category names to lists of operation IDs
+        
+    Example:
+        ```python
+        from jaxarc.envs.operations import get_operations_by_category
+        
+        categories = get_operations_by_category()
+        fill_ops = categories["fill"]  # [0, 1, 2, ..., 9]
+        movement_ops = categories["movement"]  # [20, 21, 22, 23]
+        ```
     """
     return {
         "fill": list(range(10)),
@@ -122,3 +163,35 @@ def get_operations_by_category() -> dict[str, list[int]]:
         "editing": list(range(28, 32)),
         "special": list(range(32, 35)),
     }
+
+
+def get_operation_category(operation_id: int) -> str:
+    """Get the category name for an operation ID.
+    
+    Args:
+        operation_id: Integer operation ID
+        
+    Returns:
+        Category name for the operation
+        
+    Raises:
+        ValueError: If operation_id is not recognized
+        
+    Example:
+        ```python
+        from jaxarc.envs.operations import get_operation_category
+        
+        category = get_operation_category(5)  # "fill"
+        category = get_operation_category(24)  # "transformation"
+        ```
+    """
+    if not is_valid_operation_id(operation_id):
+        raise ValueError(f"Unknown operation ID: {operation_id}")
+    
+    categories = get_operations_by_category()
+    for category_name, op_ids in categories.items():
+        if operation_id in op_ids:
+            return category_name
+    
+    # This should never happen if is_valid_operation_id works correctly
+    raise ValueError(f"Operation ID {operation_id} not found in any category")

@@ -2,10 +2,6 @@
 # Optimized configuration for training ARC agents
 # Uses training-specific sub-configurations for better learning signals
 
-defaults:
-  - reward: training
-  - action: standard
-
 # Environment target class (for backward compatibility)
 _target_: jaxarc.envs.ArcEnvironment
 
