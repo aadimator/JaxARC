@@ -15,7 +15,7 @@ from jaxarc.types import JaxArcTask
 from jaxarc.utils.task_manager import create_jax_task_index
 
 from .base_parser import ArcDataParserBase
-from .utils import convert_grid_to_jax, log_parsing_stats, pad_array_sequence
+from .utils import convert_grid_to_jax, log_parsing_stats
 
 
 class ArcAgiParser(ArcDataParserBase):
@@ -214,209 +214,15 @@ class ArcAgiParser(ArcDataParserBase):
         msg = "Invalid task data format. Expected GitHub format with 'train' and 'test' keys"
         raise ValueError(msg)
 
-    def _process_training_pairs(self, task_content: dict) -> tuple[list, list]:
-        """Process training pairs and convert them to JAX arrays.
 
-        Args:
-            task_content: Task content dictionary
 
-        Returns:
-            Tuple of (train_input_grids, train_output_grids)
 
-        Raises:
-            ValueError: If training data is invalid
-        """
-        train_pairs_data = task_content.get("train", [])
 
-        if not train_pairs_data:
-            msg = "Task must have at least one training pair"
-            raise ValueError(msg)
 
-        train_input_grids = []
-        train_output_grids = []
 
-        for i, pair in enumerate(train_pairs_data):
-            if "input" not in pair or "output" not in pair:
-                msg = f"Training pair {i} missing input or output"
-                raise ValueError(msg)
 
-            input_grid = convert_grid_to_jax(pair["input"])
-            output_grid = convert_grid_to_jax(pair["output"])
 
-            # Validate grid dimensions
-            self.validate_grid_dimensions(*input_grid.shape)
-            self.validate_grid_dimensions(*output_grid.shape)
 
-            # Validate color values
-            self._validate_grid_colors(input_grid)
-            self._validate_grid_colors(output_grid)
-
-            train_input_grids.append(input_grid)
-            train_output_grids.append(output_grid)
-
-        return train_input_grids, train_output_grids
-
-    def _process_test_pairs(self, task_content: dict) -> tuple[list, list]:
-        """Process test pairs and convert them to JAX arrays.
-
-        Args:
-            task_content: Task content dictionary
-
-        Returns:
-            Tuple of (test_input_grids, test_output_grids)
-
-        Raises:
-            ValueError: If test data is invalid
-        """
-        test_pairs_data = task_content.get("test", [])
-
-        if not test_pairs_data:
-            msg = "Task must have at least one test pair"
-            raise ValueError(msg)
-
-        test_input_grids = []
-        test_output_grids = []
-
-        for i, pair in enumerate(test_pairs_data):
-            if "input" not in pair:
-                msg = f"Test pair {i} missing input"
-                raise ValueError(msg)
-
-            input_grid = convert_grid_to_jax(pair["input"])
-            self.validate_grid_dimensions(*input_grid.shape)
-            self._validate_grid_colors(input_grid)
-            test_input_grids.append(input_grid)
-
-            # For test pairs, output might be None or provided depending on the dataset
-            if "output" in pair and pair["output"] is not None:
-                output_grid = convert_grid_to_jax(pair["output"])
-                self.validate_grid_dimensions(*output_grid.shape)
-                self._validate_grid_colors(output_grid)
-                test_output_grids.append(output_grid)
-            else:
-                # Create dummy output grid (will be masked as invalid)
-                dummy_output = jnp.zeros_like(input_grid)
-                test_output_grids.append(dummy_output)
-
-        return test_input_grids, test_output_grids
-
-    def _pad_and_create_masks(
-        self,
-        train_input_grids: list,
-        train_output_grids: list,
-        test_input_grids: list,
-        test_output_grids: list,
-    ) -> dict:
-        """Pad arrays and create validity masks.
-
-        Args:
-            train_input_grids: List of training input grids
-            train_output_grids: List of training output grids
-            test_input_grids: List of test input grids
-            test_output_grids: List of test output grids
-
-        Returns:
-            Dictionary containing padded arrays and masks
-        """
-        # Pad all arrays to maximum dimensions
-        padded_train_inputs, train_input_masks = pad_array_sequence(
-            train_input_grids,
-            self.max_train_pairs,
-            self.max_grid_height,
-            self.max_grid_width,
-            fill_value=-1,  # Use -1 as fill value for inputs
-        )
-
-        padded_train_outputs, train_output_masks = pad_array_sequence(
-            train_output_grids,
-            self.max_train_pairs,
-            self.max_grid_height,
-            self.max_grid_width,
-            fill_value=-1,
-        )
-
-        padded_test_inputs, test_input_masks = pad_array_sequence(
-            test_input_grids,
-            self.max_test_pairs,
-            self.max_grid_height,
-            self.max_grid_width,
-            fill_value=-1,
-        )
-
-        padded_test_outputs, test_output_masks = pad_array_sequence(
-            test_output_grids,
-            self.max_test_pairs,
-            self.max_grid_height,
-            self.max_grid_width,
-            fill_value=-1,
-        )
-
-        return {
-            "train_inputs": padded_train_inputs,
-            "train_input_masks": train_input_masks,
-            "train_outputs": padded_train_outputs,
-            "train_output_masks": train_output_masks,
-            "test_inputs": padded_test_inputs,
-            "test_input_masks": test_input_masks,
-            "test_outputs": padded_test_outputs,
-            "test_output_masks": test_output_masks,
-        }
-
-    def _log_parsing_stats(
-        self,
-        train_input_grids: list,
-        train_output_grids: list,
-        test_input_grids: list,
-        test_output_grids: list,
-        task_id: str,
-    ) -> None:
-        """Log parsing statistics.
-
-        Args:
-            train_input_grids: List of training input grids
-            train_output_grids: List of training output grids
-            test_input_grids: List of test input grids
-            test_output_grids: List of test output grids
-            task_id: Task identifier
-        """
-        max_train_dims = max(
-            (grid.shape for grid in train_input_grids + train_output_grids),
-            default=(0, 0),
-        )
-        max_test_dims = max(
-            (grid.shape for grid in test_input_grids + test_output_grids),
-            default=(0, 0),
-        )
-        max_dims = (
-            max(max_train_dims[0], max_test_dims[0]),
-            max(max_train_dims[1], max_test_dims[1]),
-        )
-
-        log_parsing_stats(
-            len(train_input_grids), len(test_input_grids), max_dims, task_id
-        )
-
-    def _validate_grid_colors(self, grid: jnp.ndarray) -> None:
-        """Validate that all colors in a grid are within the allowed range.
-
-        Args:
-            grid: JAX array representing the grid to validate
-
-        Raises:
-            ValueError: If any color value is outside the valid range
-        """
-        # Get unique color values in the grid
-        unique_colors = jnp.unique(grid)
-
-        # Check each color value
-        for color in unique_colors:
-            # Convert to Python int for validation
-            color_val = int(color)
-            try:
-                self.validate_color_value(color_val)
-            except ValueError as e:
-                msg = f"Invalid color in grid: {e}"
-                raise ValueError(msg) from e
 
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         """Get a random task from the dataset.
