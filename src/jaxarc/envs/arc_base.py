@@ -9,6 +9,7 @@ for multi-task or hierarchical reinforcement learning approaches.
 from __future__ import annotations
 
 import chex
+import equinox as eqx
 import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
@@ -108,21 +109,21 @@ class ArcEnvironment:
         self, state: ArcEnvState, action: dict
     ) -> tuple[ArcEnvState, jnp.ndarray, jnp.ndarray, jnp.ndarray, dict]:
         """Execute single step with grid operation."""
-        # Update selection in state
-        state = state.replace(selected=action["selection"])
+        # Update selection in state using Equinox tree_at for better performance
+        state = eqx.tree_at(lambda s: s.selected, state, action["selection"])
 
         # Execute operation using existing grid_operations
         new_state = execute_grid_operation(state, action["operation"])
 
-        # Update step count
-        new_state = new_state.replace(step_count=state.step_count + 1)
+        # Update step count using Equinox tree_at
+        new_state = eqx.tree_at(lambda s: s.step_count, new_state, state.step_count + 1)
 
         # Calculate reward and check termination
         reward = self._calculate_reward(state, new_state)
         done = self._is_episode_done(new_state)
 
-        # Update episode_done flag
-        new_state = new_state.replace(episode_done=done)
+        # Update episode_done flag using Equinox tree_at
+        new_state = eqx.tree_at(lambda s: s.episode_done, new_state, done)
 
         # Get observation
         observation = self._get_observation(new_state)

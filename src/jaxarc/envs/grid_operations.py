@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
@@ -90,7 +91,7 @@ def apply_within_bounds(
 def fill_color(state: ArcEnvState, selection: jnp.ndarray, color: int) -> ArcEnvState:
     """Fill selected region with specified color."""
     new_grid = apply_within_bounds(state.working_grid, selection, color)
-    return state.replace(working_grid=new_grid)
+    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
 # --- Flood Fill Operations (10-19) ---
@@ -153,7 +154,7 @@ def flood_fill_color(
 ) -> ArcEnvState:
     """Flood fill from selected region with specified color."""
     new_grid = simple_flood_fill(state.working_grid, selection, color)
-    return state.replace(working_grid=new_grid)
+    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
 # --- Object Movement Operations (20-23) ---
@@ -195,7 +196,7 @@ def move_object(
     )
     # Combine with cleared grid
     new_grid = jnp.where(moved_object > 0, moved_object, cleared_grid)
-    return state.replace(working_grid=new_grid)
+    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
 # --- Object Rotation Operations (24-25) ---
@@ -250,7 +251,7 @@ def rotate_object(
 
     # Combine with cleared grid
     new_grid = jnp.where(final_rotated_region != 0, final_rotated_region, cleared_grid)
-    return state.replace(working_grid=new_grid)
+    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
 # --- Object Flip Operations (26-27) ---
@@ -282,7 +283,7 @@ def flip_object(state: ArcEnvState, selection: jnp.ndarray, axis: int) -> ArcEnv
     flipped_region = jax.lax.switch(axis, [flip_horizontal, flip_vertical])
     # Combine with cleared grid
     new_grid = jnp.where(flipped_region != 0, flipped_region, cleared_grid)
-    return state.replace(working_grid=new_grid)
+    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
 # --- Clipboard Operations (28-30) ---
@@ -292,7 +293,7 @@ def flip_object(state: ArcEnvState, selection: jnp.ndarray, axis: int) -> ArcEnv
 def copy_to_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     """Copy selected region to clipboard."""
     new_clipboard = jnp.where(selection, state.working_grid, 0)
-    return state.replace(clipboard=new_clipboard)
+    return eqx.tree_at(lambda s: s.clipboard, state, new_clipboard)
 
 
 @jax.jit
@@ -361,7 +362,7 @@ def paste_from_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvSt
     paste_mask = should_paste & selection
     new_grid = jnp.where(paste_mask, clipboard_values, state.working_grid)
 
-    return state.replace(working_grid=new_grid)
+    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
 @jax.jit
@@ -373,7 +374,12 @@ def cut_to_clipboard(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
     # Clear selected region
     new_grid = jnp.where(selection, 0, state.working_grid)
 
-    return state.replace(working_grid=new_grid, clipboard=new_clipboard)
+    # Update both working_grid and clipboard using Equinox tree_at
+    return eqx.tree_at(
+        lambda s: (s.working_grid, s.clipboard),
+        state,
+        (new_grid, new_clipboard)
+    )
 
 
 # --- Grid Operations (31-33) ---
@@ -391,7 +397,7 @@ def clear_grid(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
         return jnp.zeros_like(state.working_grid)
 
     new_grid = jax.lax.cond(has_selection, clear_selection, clear_all)
-    return state.replace(working_grid=new_grid)
+    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
 @jax.jit
@@ -400,7 +406,7 @@ def copy_input_grid(state: ArcEnvState, _selection: jnp.ndarray) -> ArcEnvState:
     input_grid = state.task_data.input_grids_examples[state.current_example_idx]
     # Copy input grid to working grid shape
     new_working_grid = _copy_grid_to_target_shape(input_grid, state.working_grid)
-    return state.replace(working_grid=new_working_grid)
+    return eqx.tree_at(lambda s: s.working_grid, state, new_working_grid)
 
 
 @jax.jit
@@ -432,7 +438,11 @@ def resize_grid(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
             becoming_inactive, -1, new_grid
         )  # New inactive areas = padding
 
-        return state.replace(working_grid=new_grid, working_grid_mask=new_mask)
+        return eqx.tree_at(
+            lambda s: (s.working_grid, s.working_grid_mask),
+            state,
+            (new_grid, new_mask)
+        )
 
     def no_resize():
         return state
@@ -446,7 +456,7 @@ def resize_grid(state: ArcEnvState, selection: jnp.ndarray) -> ArcEnvState:
 @jax.jit
 def submit_solution(state: ArcEnvState, _selection: jnp.ndarray) -> ArcEnvState:
     """Submit current grid as solution."""
-    return state.replace(episode_done=True)
+    return eqx.tree_at(lambda s: s.episode_done, state, True)
 
 
 # --- Main Operation Execution ---
@@ -611,4 +621,4 @@ def execute_grid_operation(state: ArcEnvState, operation: jnp.ndarray) -> ArcEnv
     ]
     similarity = compute_grid_similarity(new_state.working_grid, target_grid)
 
-    return new_state.replace(similarity_score=similarity)
+    return eqx.tree_at(lambda s: s.similarity_score, new_state, similarity)
