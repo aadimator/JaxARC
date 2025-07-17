@@ -1,6 +1,7 @@
 # API Reference
 
-Complete reference for JaxARC parsers, configuration, and core functionality with practical examples.
+Complete reference for JaxARC parsers, configuration, and core functionality
+with practical examples.
 
 ## Parser Classes
 
@@ -14,27 +15,32 @@ from omegaconf import DictConfig
 import jax
 
 # Basic usage
-config = DictConfig({
-    "training": {"path": "data/raw/ARC-AGI-1/data/training"},
-    "evaluation": {"path": "data/raw/ARC-AGI-1/data/evaluation"},
-    "grid": {"max_grid_height": 30, "max_grid_width": 30},
-    "max_train_pairs": 10, "max_test_pairs": 3
-})
+config = DictConfig(
+    {
+        "training": {"path": "data/raw/ARC-AGI-1/data/training"},
+        "evaluation": {"path": "data/raw/ARC-AGI-1/data/evaluation"},
+        "grid": {"max_grid_height": 30, "max_grid_width": 30},
+        "max_train_pairs": 10,
+        "max_test_pairs": 3,
+    }
+)
 
 parser = ArcAgiParser(config)
 
 # Get tasks
 task_ids = parser.get_available_task_ids()  # List all task IDs
-task = parser.get_task_by_id("007bbfb7")    # Get specific task
+task = parser.get_task_by_id("007bbfb7")  # Get specific task
 random_task = parser.get_random_task(jax.random.PRNGKey(42))  # Random task
 ```
 
 **Key Methods:**
+
 - `get_available_task_ids() -> list[str]`: List all available task IDs
 - `get_task_by_id(task_id: str) -> JaxArcTask`: Get specific task
 - `get_random_task(key: chex.PRNGKey) -> JaxArcTask`: Get random task
 
 **Supported Datasets:**
+
 - **ARC-AGI-1**: 400 train + 400 eval tasks (`fchollet/ARC-AGI`)
 - **ARC-AGI-2**: 1000 train + 120 eval tasks (`arcprize/ARC-AGI-2`)
 
@@ -48,11 +54,14 @@ from omegaconf import DictConfig
 import jax
 
 # Basic usage
-config = DictConfig({
-    "corpus": {"path": "data/raw/ConceptARC/corpus"},
-    "grid": {"max_grid_height": 30, "max_grid_width": 30},
-    "max_train_pairs": 4, "max_test_pairs": 3
-})
+config = DictConfig(
+    {
+        "corpus": {"path": "data/raw/ConceptARC/corpus"},
+        "grid": {"max_grid_height": 30, "max_grid_width": 30},
+        "max_train_pairs": 4,
+        "max_test_pairs": 3,
+    }
+)
 
 parser = ConceptArcParser(config)
 
@@ -63,11 +72,14 @@ task = parser.get_random_task_from_concept("Center", jax.random.PRNGKey(42))
 ```
 
 **Key Methods:**
+
 - `get_concept_groups() -> list[str]`: List available concept groups
-- `get_random_task_from_concept(concept, key) -> JaxArcTask`: Random task from concept
+- `get_random_task_from_concept(concept, key) -> JaxArcTask`: Random task from
+  concept
 - `get_tasks_in_concept(concept: str) -> list[str]`: All tasks in concept group
 
-**Concept Groups:** Spatial (Center, AboveBelow), Pattern (Copy, Order), Object (ExtractObjects), Property (Count, CleanUp)
+**Concept Groups:** Spatial (Center, AboveBelow), Pattern (Copy, Order), Object
+(ExtractObjects), Property (Count, CleanUp)
 
 ### MiniArcParser
 
@@ -79,11 +91,14 @@ from omegaconf import DictConfig
 import jax
 
 # Basic usage
-config = DictConfig({
-    "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
-    "grid": {"max_grid_height": 5, "max_grid_width": 5},
-    "max_train_pairs": 3, "max_test_pairs": 1
-})
+config = DictConfig(
+    {
+        "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
+        "grid": {"max_grid_height": 5, "max_grid_width": 5},
+        "max_train_pairs": 3,
+        "max_test_pairs": 1,
+    }
+)
 
 parser = MiniArcParser(config)
 
@@ -94,11 +109,13 @@ stats = parser.get_dataset_statistics()  # Performance metrics
 ```
 
 **Key Methods:**
+
 - `get_available_task_ids() -> list[str]`: List all available task IDs
 - `get_random_task(key: chex.PRNGKey) -> JaxArcTask`: Get random 5x5 task
 - `get_dataset_statistics() -> dict`: Performance and optimization metrics
 
-**Performance Benefits:** 36x less memory, 10-50x faster processing, larger batch sizes
+**Performance Benefits:** 36x less memory, 10-50x faster processing, larger
+batch sizes
 
 ## Configuration Factory Functions
 
@@ -111,7 +128,7 @@ from jaxarc.envs.factory import create_conceptarc_config, create_miniarc_config
 conceptarc_env = create_conceptarc_config(max_episode_steps=150, success_bonus=20.0)
 miniarc_env = create_miniarc_config(max_episode_steps=50, success_bonus=5.0)
 
-# Parser configurations  
+# Parser configurations
 from jaxarc.utils.config import create_conceptarc_config, create_miniarc_config
 
 conceptarc_parser = create_conceptarc_config(max_episode_steps=100)
@@ -128,17 +145,18 @@ Main data structure for ARC tasks with static shapes for JAX compatibility.
 from jaxarc.types import JaxArcTask
 import chex
 
+
 @chex.dataclass
 class JaxArcTask:
-    input_grids_examples: chex.Array    # (max_train_pairs, H, W)
-    output_grids_examples: chex.Array   # (max_train_pairs, H, W)
+    input_grids_examples: chex.Array  # (max_train_pairs, H, W)
+    output_grids_examples: chex.Array  # (max_train_pairs, H, W)
     num_train_pairs: int
-    
-    test_input_grids: chex.Array        # (max_test_pairs, H, W)
+
+    test_input_grids: chex.Array  # (max_test_pairs, H, W)
     true_test_output_grids: chex.Array  # (max_test_pairs, H, W)
     num_test_pairs: int
-    
-    task_index: chex.Array              # Unique identifier
+
+    task_index: chex.Array  # Unique identifier
 ```
 
 ### Grid
@@ -159,7 +177,7 @@ from jaxarc.envs import arc_reset, arc_step
 # Reset environment
 state, obs = arc_reset(key, config, task_data=task)
 
-# Step environment  
+# Step environment
 state, obs, reward, done, info = arc_step(state, action, config)
 ```
 
@@ -310,33 +328,39 @@ import jax
 from jaxarc.parsers import ArcAgiParser
 from omegaconf import DictConfig
 
+
 def test_parser_functionality():
     """Test basic parser operations."""
-    config = DictConfig({
-        "training": {"path": "data/raw/ARC-AGI-1/data/training"},
-        "grid": {"max_grid_height": 30, "max_grid_width": 30},
-        "max_train_pairs": 10, "max_test_pairs": 3
-    })
-    
+    config = DictConfig(
+        {
+            "training": {"path": "data/raw/ARC-AGI-1/data/training"},
+            "grid": {"max_grid_height": 30, "max_grid_width": 30},
+            "max_train_pairs": 10,
+            "max_test_pairs": 3,
+        }
+    )
+
     parser = ArcAgiParser(config)
     task_ids = parser.get_available_task_ids()
     assert len(task_ids) > 0
-    
+
     # Test task loading
     task = parser.get_task_by_id(task_ids[0])
     assert task.num_train_pairs > 0
-    
+
     # Test random task
     key = jax.random.PRNGKey(42)
     random_task = parser.get_random_task(key)
     assert random_task.task_index is not None
 
+
 def test_jax_compatibility():
     """Test JAX transformations work correctly."""
+
     @jax.jit
     def process_task(task):
         return task.input_grids_examples.sum()
-    
+
     # Test with actual task data
     task = parser.get_random_task(jax.random.PRNGKey(0))
     result = process_task(task)  # Should not raise errors
@@ -345,6 +369,9 @@ def test_jax_compatibility():
 
 ### Common Issues
 
-- **FileNotFoundError**: Download datasets with `python scripts/download_dataset.py <dataset-name>`
-- **Legacy format error**: Update config to use `path` instead of `challenges`/`solutions`
-- **Memory issues**: Use MiniARC for development or clear parser cache periodically
+- **FileNotFoundError**: Download datasets with
+  `python scripts/download_dataset.py <dataset-name>`
+- **Legacy format error**: Update config to use `path` instead of
+  `challenges`/`solutions`
+- **Memory issues**: Use MiniARC for development or clear parser cache
+  periodically

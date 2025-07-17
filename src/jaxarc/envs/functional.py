@@ -20,6 +20,7 @@ from jaxarc.utils.visualization import (
     save_rl_step_visualization,
 )
 
+from ..state import ArcEnvState
 from ..types import ARCLEAction, JaxArcTask
 from .actions import get_action_handler
 from .config import ArcEnvConfig
@@ -30,58 +31,6 @@ ConfigType = Union[ArcEnvConfig, DictConfig]
 ActionType = Union[Dict[str, Any], ARCLEAction]
 
 
-@chex.dataclass
-class ArcEnvState:
-    """ARC environment state with full grid operations compatibility."""
-
-    # Core ARC state
-    task_data: JaxArcTask
-    working_grid: jnp.ndarray  # Current grid being modified
-    working_grid_mask: jnp.ndarray  # Valid cells mask
-    target_grid: jnp.ndarray  # Goal grid for current example
-
-    # Episode management
-    step_count: int
-    episode_done: bool
-    current_example_idx: int  # Which training example we're working on
-
-    # Grid operations fields
-    selected: jnp.ndarray  # Selection mask for operations
-    clipboard: jnp.ndarray  # For copy/paste operations
-    similarity_score: jnp.ndarray  # Grid similarity to target
-
-    def __post_init__(self) -> None:
-        """Validate ARC environment state structure."""
-        # Skip validation during JAX transformations
-        if not hasattr(self.working_grid, "shape"):
-            return
-
-        try:
-            # Validate grid shapes and types
-            chex.assert_rank(self.working_grid, 2)
-            chex.assert_rank(self.working_grid_mask, 2)
-            chex.assert_rank(self.target_grid, 2)
-            chex.assert_rank(self.selected, 2)
-            chex.assert_rank(self.clipboard, 2)
-
-            chex.assert_type(self.working_grid, jnp.integer)
-            chex.assert_type(self.working_grid_mask, jnp.bool_)
-            chex.assert_type(self.target_grid, jnp.integer)
-            chex.assert_type(self.selected, jnp.bool_)
-            chex.assert_type(self.clipboard, jnp.integer)
-            chex.assert_type(self.similarity_score, jnp.floating)
-
-            # Check consistent shapes
-            chex.assert_shape(self.working_grid_mask, self.working_grid.shape)
-            chex.assert_shape(self.target_grid, self.working_grid.shape)
-            chex.assert_shape(self.selected, self.working_grid.shape)
-            chex.assert_shape(self.clipboard, self.working_grid.shape)
-
-        except (AttributeError, TypeError):
-            # Skip validation during JAX transformations
-            pass
-
-
 def _ensure_config(config: ConfigType) -> ArcEnvConfig:
     """Convert config to typed ArcEnvConfig if needed."""
     if isinstance(config, DictConfig):
@@ -89,129 +38,18 @@ def _ensure_config(config: ConfigType) -> ArcEnvConfig:
     return config
 
 
-def _validate_and_transform_action(
-    action: ActionType, config: ArcEnvConfig, grid_shape: Tuple[int, int]
-) -> Dict[str, Any]:
-    """Validate and transform action to standard format."""
-    if isinstance(action, ARCLEAction):
-        # Convert ARCLEAction to standard format
-        return {
-            "selection": action.selection,
-            "operation": action.operation,
-        }
-
-    if isinstance(action, dict):
-        # Validate required fields
-        if "selection" not in action:
-            raise ValueError("Action must contain 'selection' field")
-        if "operation" not in action:
-            raise ValueError("Action must contain 'operation' field")
-
-        # Validate and transform selection
-        selection = action["selection"]
-        if isinstance(selection, jnp.ndarray):
-            # Continuous selection - validate shape and values
-            if selection.shape != grid_shape:
-                raise ValueError(
-                    f"Selection shape {selection.shape} doesn't match grid shape {grid_shape}"
-                )
-
-            # Convert to boolean selection if needed
-            # Convert continuous to discrete using threshold
-            if config.action.selection_format == "mask":
-                if selection.dtype == jnp.bool_:
-                    validated_selection = selection
-                else:
-                    # Convert continuous to discrete using threshold
-                    validated_selection = selection >= config.action.selection_threshold
-            else:
-                validated_selection = selection
-        else:
-            raise ValueError(f"Selection must be jnp.ndarray, got {type(selection)}")
-
-        # Validate operation
-        operation = action["operation"]
-        if isinstance(operation, (int, jnp.integer)):
-            operation = jnp.array(operation, dtype=jnp.int32)
-
-        if not isinstance(operation, jnp.ndarray):
-            raise ValueError(
-                f"Operation must be int or jnp.ndarray, got {type(operation)}"
-            )
-
-        # Validate operation range (JAX-compatible)
-        if config.action.validate_actions:
-            if config.action.clip_invalid_actions:
-                # Always clip to valid range - JAX-compatible
-                operation = jnp.clip(operation, 0, config.action.num_operations - 1)
-            else:
-                # For non-clipping validation, we can't check concrete values during tracing
-                # So we'll rely on runtime errors from grid_operations if invalid
-                pass
-
-        # Check if operation is in allowed list (if restricted)
-        if config.action.allowed_operations is not None:
-            # For JAX compatibility, we can't do complex validation during tracing
-            # Just clip to ensure it's in valid range - the actual restriction
-            # should be enforced at the action generation level
-            operation = jnp.clip(operation, 0, config.action.num_operations - 1)
-
-        return {
-            "selection": validated_selection,
-            "operation": operation,
-        }
-
-    raise ValueError(f"Action must be dict or ARCLEAction, got {type(action)}")
-
-
-def _transform_point_action(
-    action: Dict[str, Any], grid_shape: Tuple[int, int]
-) -> Dict[str, Any]:
-    """Transform point-based action to selection-operation format."""
-    if "point" not in action:
-        raise ValueError("Point action must contain 'point' field")
-
-    point = action["point"]
-    if not isinstance(point, (tuple, list, jnp.ndarray)) or len(point) != 2:
-        raise ValueError(f"Point must be (row, col) tuple, got {point}")
-
-    row, col = int(point[0]), int(point[1])
-
-    # Create selection mask with single point
-    selection = jnp.zeros(grid_shape, dtype=jnp.bool_)
-    selection = selection.at[row, col].set(True)
-
-    return {
-        "selection": selection,
-        "operation": action["operation"],
-    }
-
-
-def _transform_bbox_action(
-    action: Dict[str, Any], grid_shape: Tuple[int, int]
-) -> Dict[str, Any]:
-    """Transform bbox-based action to selection-operation format."""
-    if "bbox" not in action:
-        raise ValueError("Bbox action must contain 'bbox' field")
-
-    bbox = action["bbox"]
-    if not isinstance(bbox, (tuple, list, jnp.ndarray)) or len(bbox) != 4:
-        raise ValueError(f"Bbox must be (row1, col1, row2, col2) tuple, got {bbox}")
-
-    row1, col1, row2, col2 = map(int, bbox)
-
-    # Ensure valid bbox
-    row1, row2 = min(row1, row2), max(row1, row2)
-    col1, col2 = min(col1, col2), max(col1, col2)
-
-    # Create selection mask for bbox region
-    selection = jnp.zeros(grid_shape, dtype=jnp.bool_)
-    selection = selection.at[row1 : row2 + 1, col1 : col2 + 1].set(True)
-
-    return {
-        "selection": selection,
-        "operation": action["operation"],
-    }
+def _validate_operation(operation: Any, config: ArcEnvConfig) -> jnp.ndarray:
+    """Validate and normalize operation value."""
+    if isinstance(operation, (int, jnp.integer)):
+        operation = jnp.array(operation, dtype=jnp.int32)
+    elif not isinstance(operation, jnp.ndarray):
+        raise ValueError(f"Operation must be int or jnp.ndarray, got {type(operation)}")
+    
+    # Validate operation range (JAX-compatible)
+    if config.action.validate_actions and config.action.clip_invalid_actions:
+        operation = jnp.clip(operation, 0, config.action.num_operations - 1)
+    
+    return operation
 
 
 def _get_observation(state: ArcEnvState, config: ArcEnvConfig) -> jnp.ndarray:
@@ -437,6 +275,13 @@ def arc_step(
     # Ensure we have a typed config
     typed_config = _ensure_config(config)
 
+    # Convert ARCLEAction to dict format if needed
+    if isinstance(action, ARCLEAction):
+        action = {
+            "selection": action.selection,
+            "operation": action.operation,
+        }
+
     # Validate action format
     if not isinstance(action, dict):
         raise ValueError("Action must be a dictionary")
@@ -444,80 +289,81 @@ def arc_step(
     if "operation" not in action:
         raise ValueError("Action must contain 'operation' field")
 
-    # Check for selection field (either direct or format-specific)
-    has_selection = "selection" in action
-    has_format_specific = (
-        (typed_config.action.selection_format == "point" and "point" in action)
-        or (typed_config.action.selection_format == "bbox" and "bbox" in action)
-        or (typed_config.action.selection_format == "mask" and "mask" in action)
-    )
-
-    if not has_selection and not has_format_specific:
-        raise ValueError("Action must contain 'selection' field")
-
-    # Handle action transformation using new handler system
-    if isinstance(action, dict) and "selection" in action and "operation" in action:
-        # Check if action is already in standardized format (selection mask + operation)
-        if (
-            isinstance(action["selection"], jnp.ndarray)
-            and len(action["selection"].shape) == 2
-            and action["selection"].shape == state.working_grid_mask.shape
-        ):
-            # Already standardized format from environment class
-            validated_action = action
+    # Get the appropriate action handler based on configuration
+    handler = get_action_handler(typed_config.action.selection_format)
+    
+    # Extract action data based on selection format
+    if typed_config.action.selection_format == "point":
+        if "point" not in action:
+            raise ValueError("Action must contain 'point' field")
+        action_data = jnp.array(action["point"])
+    elif typed_config.action.selection_format == "bbox":
+        if "bbox" not in action:
+            raise ValueError("Action must contain 'bbox' field")
+        action_data = jnp.array(action["bbox"])
+    elif typed_config.action.selection_format == "mask":
+        if "mask" in action:
+            mask = action["mask"]
+            # Handle both 2D (grid shape) and 1D (flattened) masks
+            if len(mask.shape) == 2:
+                # 2D mask - validate shape
+                if mask.shape != state.working_grid_mask.shape:
+                    raise ValueError(
+                        f"Selection shape {mask.shape} doesn't match grid shape {state.working_grid_mask.shape}"
+                    )
+                action_data = mask.flatten()
+            elif len(mask.shape) == 1:
+                # 1D mask - validate size
+                expected_size = state.working_grid_mask.size
+                if mask.size != expected_size:
+                    raise ValueError(
+                        f"Selection size {mask.size} doesn't match grid size {expected_size}"
+                    )
+                action_data = mask
+            else:
+                raise ValueError(f"Mask must be 1D or 2D array, got shape {mask.shape}")
+        elif "selection" in action:
+            selection = action["selection"]
+            # Handle both 2D (grid shape) and 1D (flattened) selections
+            if len(selection.shape) == 2:
+                # 2D selection - validate shape
+                if selection.shape != state.working_grid_mask.shape:
+                    raise ValueError(
+                        f"Selection shape {selection.shape} doesn't match grid shape {state.working_grid_mask.shape}"
+                    )
+                action_data = selection.flatten()
+            elif len(selection.shape) == 1:
+                # 1D selection - validate size
+                expected_size = state.working_grid_mask.size
+                if selection.size != expected_size:
+                    raise ValueError(
+                        f"Selection size {selection.size} doesn't match grid size {expected_size}"
+                    )
+                action_data = selection
+            else:
+                raise ValueError(f"Selection must be 1D or 2D array, got shape {selection.shape}")
         else:
-            # Validate selection shape if it's a 2D array
-            if (
-                isinstance(action["selection"], jnp.ndarray)
-                and len(action["selection"].shape) == 2
-                and action["selection"].shape != state.working_grid_mask.shape
-            ):
-                raise ValueError(
-                    f"Selection shape {action['selection'].shape} doesn't match grid shape {state.working_grid_mask.shape}"
-                )
-
-            # Transform using appropriate handler
-            handler = get_action_handler(typed_config.action.selection_format)
-            selection_mask = handler(action["selection"], state.working_grid_mask)
-            validated_action = {
-                "selection": selection_mask,
-                "operation": action["operation"],
-            }
+            raise ValueError("Action must contain 'selection' field")
     else:
-        # Legacy action format - transform using appropriate handler
-        handler = get_action_handler(typed_config.action.selection_format)
-        if typed_config.action.selection_format == "point":
-            if isinstance(action, dict) and "point" in action:
-                action_data = jnp.array(action["point"])
-                operation = action["operation"]
-            else:
-                raise ValueError(
-                    "Point action must be dict with 'point' and 'operation' keys"
-                )
-        elif typed_config.action.selection_format == "bbox":
-            if isinstance(action, dict) and "bbox" in action:
-                action_data = jnp.array(action["bbox"])
-                operation = action["operation"]
-            else:
-                raise ValueError(
-                    "Bbox action must be dict with 'bbox' and 'operation' keys"
-                )
-        elif isinstance(action, dict) and "mask" in action:
-            action_data = action["mask"].flatten()
-            operation = action["operation"]
-        else:
-            raise ValueError(
-                "Mask action must be dict with 'mask' and 'operation' keys"
-            )
+        raise ValueError(f"Unknown selection format: {typed_config.action.selection_format}")
 
-        selection_mask = handler(action_data, state.working_grid_mask)
-        validated_action = {"selection": selection_mask, "operation": operation}
+    # Handler creates standardized selection mask
+    selection_mask = handler(action_data, state.working_grid_mask)
+    
+    # Validate and normalize operation
+    operation = _validate_operation(action["operation"], typed_config)
+    
+    # Create standardized action dictionary
+    standardized_action = {
+        "selection": selection_mask,
+        "operation": operation
+    }
 
     # Update selection in state
-    state = state.replace(selected=validated_action["selection"])
+    state = state.replace(selected=standardized_action["selection"])
 
     # Execute operation using existing grid operations
-    new_state = execute_grid_operation(state, validated_action["operation"])
+    new_state = execute_grid_operation(state, standardized_action["operation"])
 
     # Update step count
     new_state = new_state.replace(step_count=state.step_count + 1)
@@ -549,7 +395,7 @@ def arc_step(
                 f"Step {int(step)}: op={int(op)}, sim={float(sim):.3f}, reward={float(rew):.3f}"
             ),
             new_state.step_count,
-            validated_action["operation"],
+            standardized_action["operation"],
             new_state.similarity_score,
             reward,
         )
@@ -563,7 +409,7 @@ def arc_step(
             info["similarity_improvement"],
         )
 
-    # Optional visualization callback (add before return)
+    # Optional visualization callback
     if typed_config.debug.log_rl_steps:
         # Clear output directory at episode start (step 0)
         if state.step_count == 0 and typed_config.debug.clear_output_dir:
@@ -576,7 +422,7 @@ def arc_step(
         jax.debug.callback(
             save_rl_step_visualization,
             state,
-            validated_action,
+            standardized_action,
             new_state,
             typed_config.debug.rl_steps_output_dir,
         )

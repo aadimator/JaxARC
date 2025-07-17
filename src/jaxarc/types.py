@@ -3,7 +3,7 @@ Type definitions for the JaxARC project.
 
 This module contains all the core data structures used throughout the project,
 including grid representations, task data, agent states, and environment states.
-All types are designed to be JAX-compatible with proper validation.
+All types are designed to be JAX-compatible with proper validation and JAXTyping annotations.
 """
 
 from __future__ import annotations
@@ -14,6 +14,19 @@ from typing import NewType
 import chex
 import jax.numpy as jnp
 
+# Import JAXTyping definitions
+from jaxarc.utils.jax_types import (
+    ContinuousSelectionArray,
+    GridArray,
+    MaskArray,
+    OperationId,
+    TaskIndex,
+    TaskInputGrids,
+    TaskInputMasks,
+    TaskOutputGrids,
+    TaskOutputMasks,
+)
+
 
 @chex.dataclass
 class Grid:
@@ -21,21 +34,32 @@ class Grid:
     Represents a grid in the ARC challenge.
 
     Attributes:
-        data: The grid data as a 2D array
-        mask: Boolean mask indicating valid cells
+        data: The grid data as a 2D integer array with JAXTyping shape annotation
+        mask: Boolean mask indicating valid cells with JAXTyping shape annotation
     """
 
-    data: jnp.ndarray  # Shape: (height, width), dtype: int32
-    mask: jnp.ndarray  # Shape: (height, width), dtype: bool
+    data: GridArray  # JAXTyping: Int[Array, "height width"]
+    mask: MaskArray  # JAXTyping: Bool[Array, "height width"]
 
     def __post_init__(self) -> None:
-        """Validate grid structure."""
+        """Validate grid structure with enhanced JAXTyping validation."""
         if hasattr(self.data, "shape") and hasattr(self.mask, "shape"):
+            # JAXTyping provides compile-time shape validation, but we keep runtime checks
+            # for compatibility and additional safety during development
             chex.assert_rank(self.data, 2)
             chex.assert_rank(self.mask, 2)
             chex.assert_type(self.data, jnp.integer)
             chex.assert_type(self.mask, jnp.bool_)
             chex.assert_shape(self.mask, self.data.shape)
+
+            # Additional JAXTyping-aware validation
+            # Ensure grid values are in valid ARC color range (0-9)
+            if hasattr(self.data, "min") and hasattr(self.data, "max"):
+                min_val = int(jnp.min(self.data))
+                max_val = int(jnp.max(self.data))
+                if not (0 <= min_val <= max_val <= 9):
+                    msg = f"Grid color values must be in [0, 9], got [{min_val}, {max_val}]"
+                    raise ValueError(msg)
 
 
 @chex.dataclass
@@ -59,42 +83,43 @@ class JaxArcTask:
 
     This structure contains all task data with fixed-size arrays padded to
     maximum dimensions for efficient batch processing and JAX transformations.
+    All arrays now use JAXTyping annotations for better type safety and documentation.
 
     Attributes:
-        # Training examples
-        input_grids_examples: Training input grids (num_train_pairs, max_h, max_w)
-        input_masks_examples: Masks for training inputs
-        output_grids_examples: Training output grids
-        output_masks_examples: Masks for training outputs
+        # Training examples with JAXTyping annotations
+        input_grids_examples: Training input grids with precise shape annotation
+        input_masks_examples: Masks for training inputs with precise shape annotation
+        output_grids_examples: Training output grids with precise shape annotation
+        output_masks_examples: Masks for training outputs with precise shape annotation
         num_train_pairs: Number of valid training pairs
 
-        # Test examples
-        test_input_grids: Test input grids (num_test_pairs, max_h, max_w)
-        test_input_masks: Masks for test inputs
-        true_test_output_grids: True test outputs (for evaluation)
-        true_test_output_masks: Masks for true test outputs
+        # Test examples with JAXTyping annotations
+        test_input_grids: Test input grids with precise shape annotation
+        test_input_masks: Masks for test inputs with precise shape annotation
+        true_test_output_grids: True test outputs with precise shape annotation
+        true_test_output_masks: Masks for true test outputs with precise shape annotation
         num_test_pairs: Number of valid test pairs
 
-        # Task metadata
-        task_index: Integer index for task identification (JAX-compatible)
+        # Task metadata with JAXTyping annotation
+        task_index: Integer index for task identification (JAX-compatible scalar)
     """
 
-    # Training examples - shape: (max_train_pairs, max_grid_h, max_grid_w)
-    input_grids_examples: jnp.ndarray  # int32
-    input_masks_examples: jnp.ndarray  # bool
-    output_grids_examples: jnp.ndarray  # int32
-    output_masks_examples: jnp.ndarray  # bool
+    # Training examples - JAXTyping: Int[Array, "max_pairs max_height max_width"]
+    input_grids_examples: TaskInputGrids
+    input_masks_examples: TaskInputMasks
+    output_grids_examples: TaskOutputGrids
+    output_masks_examples: TaskOutputMasks
     num_train_pairs: int
 
-    # Test examples - shape: (max_test_pairs, max_grid_h, max_grid_w)
-    test_input_grids: jnp.ndarray  # int32
-    test_input_masks: jnp.ndarray  # bool
-    true_test_output_grids: jnp.ndarray  # int32
-    true_test_output_masks: jnp.ndarray  # bool
+    # Test examples - JAXTyping: Int[Array, "max_pairs max_height max_width"]
+    test_input_grids: TaskInputGrids
+    test_input_masks: TaskInputMasks
+    true_test_output_grids: TaskOutputGrids
+    true_test_output_masks: TaskOutputMasks
     num_test_pairs: int
 
-    # Task metadata
-    task_index: jnp.ndarray  # int32 scalar - integer ID for JAX compatibility
+    # Task metadata - JAXTyping: Int[Array, ""]
+    task_index: TaskIndex
 
     def __post_init__(self) -> None:
         """Validate parsed task data structure."""
@@ -301,8 +326,8 @@ class ARCLEAction:
         timestamp: When the action was taken
     """
 
-    selection: jnp.ndarray  # Shape: (height, width), float32
-    operation: jnp.ndarray  # int32 scalar
+    selection: ContinuousSelectionArray  # JAXTyping: Float[Array, "height width"]
+    operation: OperationId  # JAXTyping: Int[Array, ""]
     agent_id: int
     timestamp: int
 
@@ -320,14 +345,14 @@ class ARCLEAction:
             if hasattr(self.selection, "min") and hasattr(self.selection, "max"):
                 min_val = float(jnp.min(self.selection))
                 max_val = float(jnp.max(self.selection))
-                if not (0.0 <= min_val <= max_val <= 1.0):
+                if not 0.0 <= min_val <= max_val <= 1.0:
                     msg = f"Selection values must be in [0, 1], got [{min_val}, {max_val}]"
                     raise ValueError(msg)
 
             # Validate operation ID
             if hasattr(self.operation, "item"):
                 op_val = int(self.operation.item())
-                if not (0 <= op_val <= 34):
+                if not 0 <= op_val <= 34:
                     msg = f"Operation ID must be in [0, 34], got {op_val}"
                     raise ValueError(msg)
 

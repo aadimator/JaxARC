@@ -18,11 +18,13 @@ rich = ">=14.0.0,<15"
 drawsvg = ">=2.4.0,<3"
 cairosvg = ">=2.8.2,<3"
 seaborn = ">=0.13.2,<0.14"
+marimo = ">=0.13.6,<0.15"
 
 [pypi-dependencies]
 JaxARC = { path = ".", editable = true }
 jax = { version = ">=0.6.2, <0.7", extras = ["cuda12"] }
 chex = ">=0.1.89, <0.2"
+jaxtyping = ">=0.3.2, <0.4"
 
 [activation.env]
 JAX_PLATFORMS = "cuda"

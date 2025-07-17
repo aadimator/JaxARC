@@ -8,6 +8,9 @@ environments with both functional and class-based APIs.
 
 from __future__ import annotations
 
+# State definition (centralized)
+from ..state import ArcEnvState
+
 # Action handlers
 from .actions import bbox_handler, get_action_handler, mask_handler, point_handler
 
@@ -53,7 +56,6 @@ from .factory import (
 
 # Functional API
 from .functional import (
-    ArcEnvState,
     arc_reset,
     arc_reset_with_hydra,
     arc_step,

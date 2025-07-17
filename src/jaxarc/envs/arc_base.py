@@ -14,62 +14,9 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from ..parsers.arc_agi import ArcAgiParser
+from ..state import ArcEnvState
 from ..types import JaxArcTask
 from .grid_operations import compute_grid_similarity, execute_grid_operation
-
-
-@chex.dataclass
-class ArcEnvState:
-    """ARC environment state with full grid operations compatibility."""
-
-    # Core ARC state
-    task_data: JaxArcTask
-    working_grid: jnp.ndarray  # Current grid being modified
-    working_grid_mask: jnp.ndarray  # Valid cells mask
-    target_grid: jnp.ndarray  # Goal grid for current example
-
-    # Episode management
-    step_count: int
-    episode_done: bool
-    current_example_idx: (
-        int  # Which training example we're working on (maps to active_train_pair_idx)
-    )
-
-    # Grid operations fields
-    selected: jnp.ndarray  # Selection mask for operations
-    clipboard: jnp.ndarray  # For copy/paste operations
-    similarity_score: jnp.ndarray  # Grid similarity to target
-
-    def __post_init__(self) -> None:
-        """Validate ARC environment state structure."""
-        # Skip validation during JAX transformations
-        if not hasattr(self.working_grid, "shape"):
-            return
-
-        try:
-            # Validate grid shapes and types
-            chex.assert_rank(self.working_grid, 2)
-            chex.assert_rank(self.working_grid_mask, 2)
-            chex.assert_rank(self.target_grid, 2)
-            chex.assert_rank(self.selected, 2)
-            chex.assert_rank(self.clipboard, 2)
-
-            chex.assert_type(self.working_grid, jnp.integer)
-            chex.assert_type(self.working_grid_mask, jnp.bool_)
-            chex.assert_type(self.target_grid, jnp.integer)
-            chex.assert_type(self.selected, jnp.bool_)
-            chex.assert_type(self.clipboard, jnp.integer)
-            chex.assert_type(self.similarity_score, jnp.floating)
-
-            # Check consistent shapes
-            chex.assert_shape(self.working_grid_mask, self.working_grid.shape)
-            chex.assert_shape(self.target_grid, self.working_grid.shape)
-            chex.assert_shape(self.selected, self.working_grid.shape)
-            chex.assert_shape(self.clipboard, self.working_grid.shape)
-
-        except (AttributeError, TypeError):
-            # Skip validation during JAX transformations
-            pass
 
 
 class ArcEnvironment:

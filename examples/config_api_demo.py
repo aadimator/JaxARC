@@ -236,14 +236,14 @@ def demo_github_dataset_integration():
     logger.info("1. ARC-AGI-1 (GitHub Format):")
     try:
         from jaxarc.utils.config import get_config
-        
+
         # Load ARC-AGI-1 configuration
         arc_agi_1_config = get_config("dataset=arc_agi_1")
         logger.info(f"  • Dataset: {arc_agi_1_config.dataset.dataset_name}")
-        logger.info(f"  • Source: GitHub (fchollet/ARC-AGI)")
+        logger.info("  • Source: GitHub (fchollet/ARC-AGI)")
         logger.info(f"  • Training path: {arc_agi_1_config.dataset.training.path}")
-        logger.info(f"  • Format: Individual JSON files")
-        
+        logger.info("  • Format: Individual JSON files")
+
     except Exception as e:
         logger.info(f"  • ARC-AGI-1 config not available: {e}")
         logger.info("  • Download with: python scripts/download_dataset.py arc-agi-1")
@@ -253,10 +253,10 @@ def demo_github_dataset_integration():
     try:
         arc_agi_2_config = get_config("dataset=arc_agi_2")
         logger.info(f"  • Dataset: {arc_agi_2_config.dataset.dataset_name}")
-        logger.info(f"  • Source: GitHub (arcprize/ARC-AGI-2)")
+        logger.info("  • Source: GitHub (arcprize/ARC-AGI-2)")
         logger.info(f"  • Training path: {arc_agi_2_config.dataset.training.path}")
-        logger.info(f"  • Enhanced features: 2.5x more training data")
-        
+        logger.info("  • Enhanced features: 2.5x more training data")
+
     except Exception as e:
         logger.info(f"  • ARC-AGI-2 config not available: {e}")
         logger.info("  • Download with: python scripts/download_dataset.py arc-agi-2")
@@ -271,7 +271,7 @@ def demo_github_dataset_integration():
         "Faster task access",
         "Incremental updates via git pull",
     ]
-    
+
     for benefit in benefits:
         logger.info(f"  • {benefit}")
 
@@ -283,7 +283,7 @@ def demo_github_dataset_integration():
     logger.info("      path: '${dataset.data_root}/data/training'")
     logger.info("    evaluation:")
     logger.info("      path: '${dataset.data_root}/data/evaluation'")
-    
+
     logger.info("  Legacy Kaggle Format:")
     logger.info("    challenges_file: 'arc-agi_training_challenges.json'")
     logger.info("    solutions_file: 'arc-agi_training_solutions.json'")

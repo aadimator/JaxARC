@@ -22,7 +22,7 @@ project:
         - file: examples/conceptarc-examples.md
         - file: examples/miniarc-examples.md
         - file: examples/README.md
-    
+
 site:
   template: book-theme
   # options:

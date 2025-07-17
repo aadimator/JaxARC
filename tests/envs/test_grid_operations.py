@@ -11,11 +11,11 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from jaxarc.envs.arc_base import ArcEnvState
 from jaxarc.envs.grid_operations import (
     compute_grid_similarity,
     execute_grid_operation,
 )
+from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 
 

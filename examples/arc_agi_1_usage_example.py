@@ -18,7 +18,6 @@ Usage:
 from __future__ import annotations
 
 import time
-from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -44,10 +43,26 @@ class DemoArcAgi1Parser:
     def __init__(self):
         # Mock ARC-AGI-1 tasks
         self._task_ids = [
-            "007bbfb7", "00d62c1b", "025d127b", "045e512c", "0520fde7",
-            "05269061", "05f2a901", "08ed6ac7", "09629e4f", "0a938d79",
-            "0b148d64", "0ca9ddb6", "0d3d703e", "0e206a2e", "1190e5a7",
-            "137eaa0f", "150deff5", "178fcbfb", "1a07d186", "1b60fb0c",
+            "007bbfb7",
+            "00d62c1b",
+            "025d127b",
+            "045e512c",
+            "0520fde7",
+            "05269061",
+            "05f2a901",
+            "08ed6ac7",
+            "09629e4f",
+            "0a938d79",
+            "0b148d64",
+            "0ca9ddb6",
+            "0d3d703e",
+            "0e206a2e",
+            "1190e5a7",
+            "137eaa0f",
+            "150deff5",
+            "178fcbfb",
+            "1a07d186",
+            "1b60fb0c",
         ]
 
         self._task_metadata = {}
@@ -73,27 +88,31 @@ class DemoArcAgi1Parser:
         from jaxarc.utils.task_manager import create_jax_task_index
 
         # Create realistic ARC-style demo grids
-        input_grid = jnp.array([
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 1, 1, 0, 0, 2, 2, 0],
-            [0, 1, 1, 0, 0, 2, 2, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 3, 3, 0, 0, 4, 4, 0],
-            [0, 3, 3, 0, 0, 4, 4, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-        ])
+        input_grid = jnp.array(
+            [
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 1, 1, 0, 0, 2, 2, 0],
+                [0, 1, 1, 0, 0, 2, 2, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 3, 3, 0, 0, 4, 4, 0],
+                [0, 3, 3, 0, 0, 4, 4, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+            ]
+        )
 
-        output_grid = jnp.array([
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 1, 1, 1, 1, 2, 2, 0],
-            [0, 1, 1, 1, 1, 2, 2, 0],
-            [0, 1, 1, 1, 1, 2, 2, 0],
-            [0, 3, 3, 3, 3, 4, 4, 0],
-            [0, 3, 3, 3, 3, 4, 4, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0],
-        ])
+        output_grid = jnp.array(
+            [
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 1, 1, 1, 1, 2, 2, 0],
+                [0, 1, 1, 1, 1, 2, 2, 0],
+                [0, 1, 1, 1, 1, 2, 2, 0],
+                [0, 3, 3, 3, 3, 4, 4, 0],
+                [0, 3, 3, 3, 3, 4, 4, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+            ]
+        )
 
         # Pad to standard size
         padded_input = jnp.zeros((30, 30), dtype=jnp.int32)
@@ -157,8 +176,8 @@ def demonstrate_parser_basics():
     """Demonstrate basic ARC-AGI-1 parser functionality."""
     console.print(
         Panel.fit(
-            "[bold blue]🔍 ARC-AGI-1 Parser Basics (GitHub Format)[/bold blue]", 
-            border_style="blue"
+            "[bold blue]🔍 ARC-AGI-1 Parser Basics (GitHub Format)[/bold blue]",
+            border_style="blue",
         )
     )
 
@@ -168,24 +187,27 @@ def demonstrate_parser_basics():
     except Exception as e:
         console.print(f"[yellow]⚠️  Configuration not found: {e}[/yellow]")
         console.print("[dim]Using fallback configuration...[/dim]")
-        
+
         from omegaconf import DictConfig
-        config = DictConfig({
-            "dataset": {
-                "data_root": "data/raw/ARC-AGI-1",
-                "training": {"path": "data/raw/ARC-AGI-1/data/training"},
-                "evaluation": {"path": "data/raw/ARC-AGI-1/data/evaluation"},
-                "parser": {"_target_": "jaxarc.parsers.ArcAgiParser"},
-                "grid": {
-                    "max_grid_height": 30,
-                    "max_grid_width": 30,
-                    "max_colors": 10,
-                    "background_color": 0,
-                },
-                "max_train_pairs": 10,
-                "max_test_pairs": 3,
+
+        config = DictConfig(
+            {
+                "dataset": {
+                    "data_root": "data/raw/ARC-AGI-1",
+                    "training": {"path": "data/raw/ARC-AGI-1/data/training"},
+                    "evaluation": {"path": "data/raw/ARC-AGI-1/data/evaluation"},
+                    "parser": {"_target_": "jaxarc.parsers.ArcAgiParser"},
+                    "grid": {
+                        "max_grid_height": 30,
+                        "max_grid_width": 30,
+                        "max_colors": 10,
+                        "background_color": 0,
+                    },
+                    "max_train_pairs": 10,
+                    "max_test_pairs": 3,
+                }
             }
-        })
+        )
 
     # Initialize parser with error handling for missing data
     try:
@@ -240,53 +262,47 @@ def demonstrate_github_format_benefits():
     table.add_column("Improvement", style="bold magenta")
 
     table.add_row(
-        "Data Source", 
-        "Direct GitHub repository", 
-        "Kaggle API + CLI", 
-        "No external dependencies"
+        "Data Source",
+        "Direct GitHub repository",
+        "Kaggle API + CLI",
+        "No external dependencies",
     )
     table.add_row(
-        "File Structure", 
-        "Individual JSON per task", 
-        "Combined challenges/solutions", 
-        "Better organization"
+        "File Structure",
+        "Individual JSON per task",
+        "Combined challenges/solutions",
+        "Better organization",
     )
     table.add_row(
-        "Task Loading", 
-        "Direct file access", 
-        "Parse + merge operations", 
-        "Faster loading"
+        "Task Loading",
+        "Direct file access",
+        "Parse + merge operations",
+        "Faster loading",
     )
     table.add_row(
-        "Error Handling", 
-        "File-specific errors", 
-        "Batch parsing errors", 
-        "Better debugging"
+        "Error Handling",
+        "File-specific errors",
+        "Batch parsing errors",
+        "Better debugging",
     )
     table.add_row(
-        "Dependencies", 
-        "Git clone only", 
-        "Kaggle CLI + credentials", 
-        "Simplified setup"
+        "Dependencies", "Git clone only", "Kaggle CLI + credentials", "Simplified setup"
     )
     table.add_row(
-        "Caching", 
-        "Individual file caching", 
-        "Full dataset caching", 
-        "Selective loading"
+        "Caching",
+        "Individual file caching",
+        "Full dataset caching",
+        "Selective loading",
     )
     table.add_row(
-        "Updates", 
-        "Git pull", 
-        "Re-download entire dataset", 
-        "Incremental updates"
+        "Updates", "Git pull", "Re-download entire dataset", "Incremental updates"
     )
 
     console.print(table)
 
     # Demonstrate file structure differences
     console.print("\n📁 File Structure Comparison:")
-    
+
     console.print("\n[bold green]GitHub Format:[/bold green]")
     console.print("  data/raw/ARC-AGI-1/")
     console.print("  ├── data/")
@@ -308,25 +324,25 @@ def demonstrate_github_format_benefits():
 
     # Show JSON structure differences
     console.print("\n📄 JSON Structure Comparison:")
-    
+
     console.print("\n[bold green]GitHub Format (per file):[/bold green]")
-    console.print('  {')
+    console.print("  {")
     console.print('    "train": [')
     console.print('      {"input": [[0,1,0]], "output": [[1,0,1]]},')
     console.print('      {"input": [[1,0,1]], "output": [[0,1,0]]}')
-    console.print('    ],')
+    console.print("    ],")
     console.print('    "test": [')
     console.print('      {"input": [[0,0,1]], "output": [[1,1,0]]}')
-    console.print('    ]')
-    console.print('  }')
+    console.print("    ]")
+    console.print("  }")
 
     console.print("\n[bold red]Kaggle Format (combined):[/bold red]")
-    console.print('  challenges.json: {')
+    console.print("  challenges.json: {")
     console.print('    "task_id": {"train": [...], "test": [{"input": [...]}]}')
-    console.print('  }')
-    console.print('  solutions.json: {')
+    console.print("  }")
+    console.print("  solutions.json: {")
     console.print('    "task_id": [[[output_grid]]]')
-    console.print('  }')
+    console.print("  }")
 
 
 def demonstrate_individual_file_loading(parser):
@@ -342,23 +358,23 @@ def demonstrate_individual_file_loading(parser):
 
     # Simulate loading individual tasks
     task_ids = parser.get_available_task_ids()[:5]  # First 5 tasks
-    
+
     console.print(f"\n[bold]Loading {len(task_ids)} individual tasks:[/bold]")
 
     loading_times = []
     for i, task_id in enumerate(task_ids):
         start_time = time.time()
-        
+
         # Get task metadata (simulates file access)
         metadata = parser.get_task_metadata(task_id)
-        
+
         # Simulate loading the actual task
         key = jax.random.PRNGKey(i)
         task = parser.get_random_task(key)
-        
+
         load_time = time.time() - start_time
         loading_times.append(load_time)
-        
+
         console.print(
             f"  Task {task_id}: [green]{load_time:.4f}s[/green] "
             f"({metadata['num_demonstrations']} demos, "
@@ -366,7 +382,9 @@ def demonstrate_individual_file_loading(parser):
         )
 
     avg_load_time = sum(loading_times) / len(loading_times)
-    console.print(f"\n📊 Average load time per task: [bold green]{avg_load_time:.4f}s[/bold green]")
+    console.print(
+        f"\n📊 Average load time per task: [bold green]{avg_load_time:.4f}s[/bold green]"
+    )
 
     # Show benefits of individual loading
     console.print("\n🎯 Individual File Loading Benefits:")
@@ -409,8 +427,12 @@ def demonstrate_environment_integration(parser):
 
     console.print("🔄 Environment reset with ARC-AGI-1 task")
     console.print(f"  • Observation shape: [cyan]{observation.shape}[/cyan]")
-    console.print(f"  • Initial similarity: [yellow]{state.similarity_score:.3f}[/yellow]")
-    console.print(f"  • Working grid shape: [magenta]{state.working_grid.shape}[/magenta]")
+    console.print(
+        f"  • Initial similarity: [yellow]{state.similarity_score:.3f}[/yellow]"
+    )
+    console.print(
+        f"  • Working grid shape: [magenta]{state.working_grid.shape}[/magenta]"
+    )
 
     # Show task information
     console.print(f"  • Training pairs: [cyan]{arc_task.num_train_pairs}[/cyan]")
@@ -425,7 +447,7 @@ def demonstrate_environment_integration(parser):
             # Fill operations
             action = {
                 "selection": jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
-                .at[step_num*2:step_num*2+3, step_num*2:step_num*2+3]
+                .at[step_num * 2 : step_num * 2 + 3, step_num * 2 : step_num * 2 + 3]
                 .set(True),
                 "operation": jnp.array(1 + step_num, dtype=jnp.int32),
             }
@@ -433,7 +455,7 @@ def demonstrate_environment_integration(parser):
             # Copy operations
             action = {
                 "selection": jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
-                .at[step_num:step_num+2, step_num:step_num+2]
+                .at[step_num : step_num + 2, step_num : step_num + 2]
                 .set(True),
                 "operation": jnp.array(10, dtype=jnp.int32),  # Copy operation
             }
@@ -458,8 +480,8 @@ def demonstrate_performance_comparison():
     """Demonstrate performance comparison between GitHub and Kaggle formats."""
     console.print(
         Panel.fit(
-            "[bold purple]⚡ Performance Comparison[/bold purple]", 
-            border_style="purple"
+            "[bold purple]⚡ Performance Comparison[/bold purple]",
+            border_style="purple",
         )
     )
 
@@ -467,7 +489,7 @@ def demonstrate_performance_comparison():
 
     # Simulate GitHub format performance
     console.print("\n[bold]GitHub Format Performance:[/bold]")
-    
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -476,20 +498,22 @@ def demonstrate_performance_comparison():
         # Simulate GitHub format loading
         task1 = progress.add_task("Loading from GitHub format...", total=None)
         start_time = time.time()
-        
+
         # Simulate individual file loading (faster)
         time.sleep(0.1)  # Simulate fast loading
-        
+
         github_load_time = time.time() - start_time
         progress.update(task1, completed=True)
 
         # Simulate Kaggle format loading
-        task2 = progress.add_task("Loading from Kaggle format (simulated)...", total=None)
+        task2 = progress.add_task(
+            "Loading from Kaggle format (simulated)...", total=None
+        )
         start_time = time.time()
-        
+
         # Simulate combined file parsing + merging (slower)
         time.sleep(0.3)  # Simulate slower loading
-        
+
         kaggle_load_time = time.time() - start_time
         progress.update(task2, completed=True)
 
@@ -500,7 +524,7 @@ def demonstrate_performance_comparison():
 
     # Memory usage comparison
     console.print("\n[bold]Memory Usage Comparison:[/bold]")
-    
+
     # Simulate memory usage (GitHub format is more efficient)
     github_memory = 50  # MB (individual files)
     kaggle_memory = 120  # MB (combined files + parsing overhead)
@@ -508,7 +532,9 @@ def demonstrate_performance_comparison():
 
     console.print(f"  • GitHub format: [green]{github_memory} MB[/green]")
     console.print(f"  • Kaggle format: [red]{kaggle_memory} MB[/red]")
-    console.print(f"  💾 Memory efficiency: [bold]{memory_efficiency:.1f}x less memory[/bold]")
+    console.print(
+        f"  💾 Memory efficiency: [bold]{memory_efficiency:.1f}x less memory[/bold]"
+    )
 
     # Error handling comparison
     console.print("\n[bold]Error Handling Benefits:[/bold]")
@@ -568,8 +594,12 @@ def demonstrate_task_visualization(parser):
         output_colors = jnp.unique(actual_output)
 
         console.print("\n📐 Grid Analysis:")
-        console.print(f"  • Input dimensions: [cyan]{input_height}×{input_width}[/cyan]")
-        console.print(f"  • Output dimensions: [green]{output_height}×{output_width}[/green]")
+        console.print(
+            f"  • Input dimensions: [cyan]{input_height}×{input_width}[/cyan]"
+        )
+        console.print(
+            f"  • Output dimensions: [green]{output_height}×{output_width}[/green]"
+        )
         console.print(f"  • Input colors: [cyan]{list(input_colors)}[/cyan]")
         console.print(f"  • Output colors: [green]{list(output_colors)}[/green]")
 
@@ -654,8 +684,12 @@ def main(
         if performance_comparison:
             perf_results = demonstrate_performance_comparison()
             console.print("\n📊 [bold]Performance Summary:[/bold]")
-            console.print(f"  • Loading speedup: [green]{perf_results['load_speedup']:.2f}x faster[/green]")
-            console.print(f"  • Memory efficiency: [green]{perf_results['memory_efficiency']:.1f}x less memory[/green]")
+            console.print(
+                f"  • Loading speedup: [green]{perf_results['load_speedup']:.2f}x faster[/green]"
+            )
+            console.print(
+                f"  • Memory efficiency: [green]{perf_results['memory_efficiency']:.1f}x less memory[/green]"
+            )
 
         # Demonstrate task visualization
         input_grid, output_grid = demonstrate_task_visualization(parser)
@@ -664,13 +698,19 @@ def main(
 
         # Demonstrate environment integration
         env, final_state = demonstrate_environment_integration(parser)
-        console.print(f"\n🏁 Final similarity score: [yellow]{final_state.similarity_score:.3f}[/yellow]")
+        console.print(
+            f"\n🏁 Final similarity score: [yellow]{final_state.similarity_score:.3f}[/yellow]"
+        )
 
         # Show default demonstration if no specific flags
         if not any([github_benefits, performance_comparison, batch_processing]):
             console.print("\n[dim]💡 Try these options for more demonstrations:[/dim]")
-            console.print("[dim]  • --github-benefits: Show GitHub format advantages[/dim]")
-            console.print("[dim]  • --performance-comparison: Compare with Kaggle format[/dim]")
+            console.print(
+                "[dim]  • --github-benefits: Show GitHub format advantages[/dim]"
+            )
+            console.print(
+                "[dim]  • --performance-comparison: Compare with Kaggle format[/dim]"
+            )
             console.print("[dim]  • --visualize: Save task visualizations[/dim]")
 
         # Show usage suggestions
