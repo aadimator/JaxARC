@@ -34,7 +34,7 @@ grid:
 
 # Task Configuration for JAX Environment - Optimized for smaller dataset
 # MiniARC typically has fewer demonstration pairs and usually 1 test pair per task
-max_train_pairs: 3 # Maximum number of training pairs per task (typical for MiniARC)
+max_train_pairs: 8 # Maximum number of training pairs per task (typical for MiniARC)
 max_test_pairs: 1 # Maximum number of test pairs per task (usually 1 test pair per task)
 
 # MiniARC-specific optimization flags
