@@ -134,6 +134,34 @@ from .analysis_tools import (
     EpisodeAnalysisTools,
 )
 
+# Import JAX integration and performance optimization
+from .jax_callbacks import (
+    jax_debug_callback,
+    jax_log_grid,
+    jax_save_step_visualization,
+    jax_log_episode_summary,
+    serialize_jax_array,
+    serialize_arc_state,
+    serialize_action,
+    get_callback_performance_stats,
+    reset_callback_performance_stats,
+    print_callback_performance_report,
+    CallbackPerformanceMonitor,
+    JAXCallbackError,
+)
+
+from .memory_manager import (
+    MemoryManager,
+    MemoryUsageMonitor,
+    LazyLoader,
+    CompressedStorage,
+    VisualizationCache,
+    GarbageCollectionOptimizer,
+    get_memory_manager,
+    create_lazy_visualization_loader,
+    optimize_array_memory,
+)
+
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Core visualization functions
@@ -210,6 +238,29 @@ __all__ = [
     "FailureModeAnalysis",
     "PerformanceMetrics",
     "EpisodeAnalysisTools",
+    
+    # JAX integration and performance optimization
+    "jax_debug_callback",
+    "jax_log_grid",
+    "jax_save_step_visualization",
+    "jax_log_episode_summary",
+    "serialize_jax_array",
+    "serialize_arc_state",
+    "serialize_action",
+    "get_callback_performance_stats",
+    "reset_callback_performance_stats",
+    "print_callback_performance_report",
+    "CallbackPerformanceMonitor",
+    "JAXCallbackError",
+    "MemoryManager",
+    "MemoryUsageMonitor",
+    "LazyLoader",
+    "CompressedStorage",
+    "VisualizationCache",
+    "GarbageCollectionOptimizer",
+    "get_memory_manager",
+    "create_lazy_visualization_loader",
+    "optimize_array_memory",
     
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
