@@ -89,6 +89,14 @@ from .wandb_sync import (
     check_wandb_status,
 )
 
+# Import enhanced visualization system
+from .enhanced_visualizer import (
+    VisualizationConfig,
+    EnhancedVisualizer,
+    StepVisualizationData,
+    EpisodeSummaryData,
+)
+
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Core visualization functions
@@ -135,6 +143,12 @@ __all__ = [
     "create_sync_manager",
     "sync_offline_wandb_data",
     "check_wandb_status",
+    
+    # Enhanced visualization system
+    "VisualizationConfig",
+    "EnhancedVisualizer",
+    "StepVisualizationData",
+    "EpisodeSummaryData",
     
     # Internal functions (for backward compatibility)
     "_clear_output_directory",

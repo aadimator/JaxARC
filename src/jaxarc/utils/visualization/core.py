@@ -10,6 +10,7 @@ The module works with the core JaxARC data structures including Grid, TaskPair, 
 from __future__ import annotations
 
 import io
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 import drawsvg  # type: ignore[import-untyped]
@@ -2038,3 +2039,1966 @@ def setup_matplotlib_style() -> None:
     # Set up seaborn style
     sns.set_style("whitegrid")
     sns.set_palette("husl")
+
+
+def draw_rl_step_svg_enhanced(
+    before_grid: Grid,
+    after_grid: Grid,
+    action: Dict[str, Any],
+    reward: float,
+    info: Dict[str, Any],
+    step_num: int,
+    operation_name: str = "",
+    changed_cells: Optional[jnp.ndarray] = None,
+    config: Optional[Any] = None,
+    max_width: float = 1400.0,
+    max_height: float = 700.0,
+) -> str:
+    """Generate enhanced SVG visualization of a single RL step with more information.
+
+    This enhanced version shows:
+    - Before and after grids with improved styling
+    - Action selection highlighting
+    - Changed cell highlighting
+    - Reward information and metrics
+    - Operation name and details
+    - Step metadata
+
+    Args:
+        before_grid: Grid state before the action
+        after_grid: Grid state after the action
+        action: Action dictionary containing selection and operation info
+        reward: Reward received for this step
+        info: Additional information dictionary
+        step_num: Step number in the episode
+        operation_name: Human-readable operation name
+        changed_cells: Optional mask of cells that changed
+        config: Optional visualization configuration
+        max_width: Maximum width of the entire visualization
+        max_height: Maximum height of the entire visualization
+
+    Returns:
+        SVG string containing the enhanced visualization
+    """
+    import drawsvg as draw
+
+    # Get color palette from config or use default
+    if config and hasattr(config, 'get_color_palette'):
+        color_palette = config.get_color_palette()
+    else:
+        color_palette = ARC_COLOR_PALETTE
+
+    # Layout parameters
+    top_padding = 100
+    bottom_padding = 120
+    side_padding = 50
+    grid_spacing = 180
+    grid_max_width = 280
+    grid_max_height = 280
+    info_panel_height = 80
+
+    # Calculate total dimensions
+    total_width = 2 * grid_max_width + grid_spacing + 2 * side_padding
+    total_height = grid_max_height + top_padding + bottom_padding + info_panel_height
+
+    # Create main drawing with background
+    drawing = draw.Drawing(total_width, total_height)
+    drawing.append(draw.Rectangle(0, 0, total_width, total_height, fill="#f8f9fa"))
+
+    # Add enhanced title with step info
+    title_text = f"Step {step_num}"
+    if operation_name:
+        title_text += f" - {operation_name}"
+    
+    drawing.append(
+        draw.Text(
+            title_text,
+            font_size=28,
+            x=total_width / 2,
+            y=40,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="600",
+            fill="#2c3e50",
+        )
+    )
+
+    # Add reward information
+    reward_color = "#27ae60" if reward > 0 else "#e74c3c" if reward < 0 else "#95a5a6"
+    reward_text = f"Reward: {reward:.3f}"
+    drawing.append(
+        draw.Text(
+            reward_text,
+            font_size=20,
+            x=total_width / 2,
+            y=70,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="500",
+            fill=reward_color,
+        )
+    )
+
+    # Grid positions
+    before_x = side_padding
+    after_x = side_padding + grid_max_width + grid_spacing
+    grids_y = top_padding
+
+    # Helper function to draw enhanced grid
+    def draw_enhanced_grid(
+        grid: Grid, x: float, y: float, grid_label: str, 
+        selection_mask: Optional[np.ndarray] = None,
+        highlight_changes: bool = False,
+        changed_cells: Optional[np.ndarray] = None
+    ) -> tuple[float, float]:
+        """Draw an enhanced grid with overlays and styling."""
+        grid_data, grid_mask = _extract_grid_data(grid)
+
+        if grid_mask is not None:
+            grid_mask = np.asarray(grid_mask)
+
+        # Extract valid region
+        valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(
+            grid_data, grid_mask
+        )
+
+        if height == 0 or width == 0:
+            return 0, 0
+
+        # Calculate cell size to fit within max dimensions
+        cell_size = min(grid_max_width / width, grid_max_height / height)
+        actual_width = width * cell_size
+        actual_height = height * cell_size
+
+        # Center the grid within the allocated space
+        grid_x = x + (grid_max_width - actual_width) / 2
+        grid_y = y + (grid_max_height - actual_height) / 2
+
+        # Draw grid background
+        drawing.append(
+            draw.Rectangle(
+                grid_x - 5,
+                grid_y - 5,
+                actual_width + 10,
+                actual_height + 10,
+                fill="white",
+                stroke="#dee2e6",
+                stroke_width=1,
+                rx=5,
+            )
+        )
+
+        # Draw grid cells
+        for i in range(height):
+            for j in range(width):
+                color_val = int(valid_grid[i, j])
+                
+                # Check if cell is valid
+                is_valid = True
+                if grid_mask is not None:
+                    actual_row = start_row + i
+                    actual_col = start_col + j
+                    if (
+                        actual_row < grid_mask.shape[0]
+                        and actual_col < grid_mask.shape[1]
+                    ):
+                        is_valid = grid_mask[actual_row, actual_col]
+
+                if is_valid and 0 <= color_val < len(color_palette.keys()):
+                    fill_color = color_palette.get(color_val, "white")
+                else:
+                    fill_color = "#CCCCCC"
+
+                cell_x = grid_x + j * cell_size
+                cell_y = grid_y + i * cell_size
+
+                # Draw cell
+                drawing.append(
+                    draw.Rectangle(
+                        cell_x,
+                        cell_y,
+                        cell_size,
+                        cell_size,
+                        fill=fill_color,
+                        stroke="#6c757d",
+                        stroke_width=0.5,
+                    )
+                )
+
+        # Add changed cell highlighting after all cells are drawn
+        if highlight_changes and changed_cells is not None:
+            changed_mask = np.asarray(changed_cells)
+            change_color = "#FF0080"  # Bright magenta for changes
+            
+            # Draw change highlighting with proper boundaries
+            for i in range(height):
+                for j in range(width):
+                    actual_row = start_row + i
+                    actual_col = start_col + j
+                    if (
+                        actual_row < changed_mask.shape[0]
+                        and actual_col < changed_mask.shape[1]
+                        and changed_mask[actual_row, actual_col]
+                    ):
+                        cell_x = grid_x + j * cell_size
+                        cell_y = grid_y + i * cell_size
+                        
+                        # Add bright border for changed cells
+                        drawing.append(
+                            draw.Rectangle(
+                                cell_x - 1,
+                                cell_y - 1,
+                                cell_size + 2,
+                                cell_size + 2,
+                                fill="none",
+                                stroke=change_color,
+                                stroke_width=3,
+                                stroke_opacity=0.8,
+                            )
+                        )
+                        
+                        # Add inner glow effect
+                        drawing.append(
+                            draw.Rectangle(
+                                cell_x + 2,
+                                cell_y + 2,
+                                cell_size - 4,
+                                cell_size - 4,
+                                fill=change_color,
+                                fill_opacity=0.15,
+                                stroke="none",
+                            )
+                        )
+
+        # Add selection overlay if provided
+        if selection_mask is not None and selection_mask.any():
+            # Use bright neon cyan for better visibility
+            selection_color = "#00FFFF"  # Bright cyan - very visible
+            
+            # First pass: Add fill overlay
+            for display_row in range(height):
+                for display_col in range(width):
+                    orig_row = start_row + display_row
+                    orig_col = start_col + display_col
+
+                    if (
+                        orig_row < selection_mask.shape[0]
+                        and orig_col < selection_mask.shape[1]
+                        and selection_mask[orig_row, orig_col]
+                    ):
+                        cell_x = grid_x + display_col * cell_size
+                        cell_y = grid_y + display_row * cell_size
+                        
+                        # Add bright selection fill
+                        drawing.append(
+                            draw.Rectangle(
+                                cell_x,
+                                cell_y,
+                                cell_size,
+                                cell_size,
+                                fill=selection_color,
+                                fill_opacity=0.4,  # Slightly more opaque
+                                stroke="none",
+                            )
+                        )
+            
+            # Second pass: Add boundary lines for better definition
+            def is_selected_cell(row, col):
+                """Check if a cell is selected, handling bounds."""
+                if (
+                    row < 0 or row >= selection_mask.shape[0] or
+                    col < 0 or col >= selection_mask.shape[1]
+                ):
+                    return False
+                return selection_mask[row, col]
+            
+            for display_row in range(height):
+                for display_col in range(width):
+                    orig_row = start_row + display_row
+                    orig_col = start_col + display_col
+
+                    if (
+                        orig_row < selection_mask.shape[0]
+                        and orig_col < selection_mask.shape[1]
+                        and selection_mask[orig_row, orig_col]
+                    ):
+                        cell_x = grid_x + display_col * cell_size
+                        cell_y = grid_y + display_row * cell_size
+
+                        # Draw boundary lines only on outer edges for clean look
+                        stroke_width = 3
+                        
+                        # Top edge
+                        if not is_selected_cell(orig_row - 1, orig_col):
+                            drawing.append(
+                                draw.Line(
+                                    cell_x, cell_y,
+                                    cell_x + cell_size, cell_y,
+                                    stroke=selection_color,
+                                    stroke_width=stroke_width,
+                                    stroke_opacity=0.9,
+                                )
+                            )
+
+                        # Bottom edge
+                        if not is_selected_cell(orig_row + 1, orig_col):
+                            drawing.append(
+                                draw.Line(
+                                    cell_x, cell_y + cell_size,
+                                    cell_x + cell_size, cell_y + cell_size,
+                                    stroke=selection_color,
+                                    stroke_width=stroke_width,
+                                    stroke_opacity=0.9,
+                                )
+                            )
+
+                        # Left edge
+                        if not is_selected_cell(orig_row, orig_col - 1):
+                            drawing.append(
+                                draw.Line(
+                                    cell_x, cell_y,
+                                    cell_x, cell_y + cell_size,
+                                    stroke=selection_color,
+                                    stroke_width=stroke_width,
+                                    stroke_opacity=0.9,
+                                )
+                            )
+
+                        # Right edge
+                        if not is_selected_cell(orig_row, orig_col + 1):
+                            drawing.append(
+                                draw.Line(
+                                    cell_x + cell_size, cell_y,
+                                    cell_x + cell_size, cell_y + cell_size,
+                                    stroke=selection_color,
+                                    stroke_width=stroke_width,
+                                    stroke_opacity=0.9,
+                                )
+                            )
+
+        # Add enhanced grid border
+        drawing.append(
+            draw.Rectangle(
+                grid_x - 3,
+                grid_y - 3,
+                actual_width + 6,
+                actual_height + 6,
+                fill="none",
+                stroke="#495057",
+                stroke_width=2,
+                rx=3,
+            )
+        )
+
+        # Add enhanced grid label with background
+        label_bg_width = len(grid_label) * 12 + 20
+        drawing.append(
+            draw.Rectangle(
+                grid_x - 5,
+                grid_y + actual_height + 15,
+                label_bg_width,
+                25,
+                fill="#e9ecef",
+                stroke="#dee2e6",
+                stroke_width=1,
+                rx=3,
+            )
+        )
+        
+        drawing.append(
+            draw.Text(
+                grid_label,
+                font_size=16,
+                x=grid_x + 5,
+                y=grid_y + actual_height + 32,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="600",
+                fill="#495057",
+            )
+        )
+
+        return actual_width, actual_height
+
+    # Extract selection mask from action
+    selection_mask = None
+    if "selection" in action:
+        selection_mask = np.asarray(action["selection"])
+
+    # Draw before grid with selection overlay
+    before_width, before_height = draw_enhanced_grid(
+        before_grid, before_x, grids_y, "Before State", 
+        selection_mask=selection_mask
+    )
+
+    # Draw after grid with change highlighting
+    after_width, after_height = draw_enhanced_grid(
+        after_grid, after_x, grids_y, "After State",
+        highlight_changes=True,
+        changed_cells=changed_cells
+    )
+
+    # Add enhanced arrow between grids
+    arrow_y = grids_y + grid_max_height / 2
+    arrow_start_x = before_x + grid_max_width + 30
+    arrow_end_x = after_x - 30
+
+    # Arrow shaft
+    drawing.append(
+        draw.Line(
+            arrow_start_x,
+            arrow_y,
+            arrow_end_x,
+            arrow_y,
+            stroke="#6c757d",
+            stroke_width=3,
+        )
+    )
+    
+    # Arrow head
+    drawing.append(
+        draw.Lines(
+            arrow_end_x - 15,
+            arrow_y - 10,
+            arrow_end_x - 15,
+            arrow_y + 10,
+            arrow_end_x,
+            arrow_y,
+            close=True,
+            fill="#6c757d",
+        )
+    )
+
+    # Arrow label removed - operation name is already in the title
+
+    # Add information panel at bottom
+    info_y = grids_y + grid_max_height + 60
+    
+    # Info panel background
+    drawing.append(
+        draw.Rectangle(
+            side_padding,
+            info_y,
+            total_width - 2 * side_padding,
+            info_panel_height,
+            fill="#ffffff",
+            stroke="#dee2e6",
+            stroke_width=1,
+            rx=5,
+        )
+    )
+
+    # Add metadata information
+    info_items = []
+    
+    # Add step metadata
+    if "similarity" in info:
+        info_items.append(f"Similarity: {info['similarity']:.3f}")
+    
+    if "episode_reward" in info:
+        info_items.append(f"Episode Reward: {info['episode_reward']:.3f}")
+    
+    if "step_count" in info:
+        info_items.append(f"Total Steps: {info['step_count']}")
+
+    # Add action details
+    if "operation" in action:
+        info_items.append(f"Operation ID: {action['operation']}")
+
+    # Display info items
+    info_text = " | ".join(info_items) if info_items else "No additional information"
+    drawing.append(
+        draw.Text(
+            info_text,
+            font_size=14,
+            x=total_width / 2,
+            y=info_y + 25,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="400",
+            fill="#6c757d",
+        )
+    )
+
+    # Add timestamp
+    import time
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    drawing.append(
+        draw.Text(
+            f"Generated: {timestamp}",
+            font_size=12,
+            x=total_width - side_padding,
+            y=info_y + 50,
+            text_anchor="end",
+            font_family="Anuphan",
+            font_weight="300",
+            fill="#adb5bd",
+        )
+    )
+
+    return drawing.as_svg()
+
+
+def draw_episode_summary_svg(
+    summary_data: Any,
+    step_data: List[Any],
+    config: Optional[Any] = None,
+    width: float = 1200.0,
+    height: float = 800.0,
+) -> str:
+    """Generate SVG visualization of episode summary with key metrics.
+
+    Args:
+        summary_data: Episode summary data
+        step_data: List of step visualization data
+        config: Optional visualization configuration
+        width: Width of the visualization
+        height: Height of the visualization
+
+    Returns:
+        SVG string containing the episode summary
+    """
+    import drawsvg as draw
+
+    # Create main drawing
+    drawing = draw.Drawing(width, height)
+    drawing.append(draw.Rectangle(0, 0, width, height, fill="#f8f9fa"))
+
+    # Layout parameters
+    padding = 40
+    title_height = 80
+    chart_height = 200
+    grid_section_height = height - title_height - chart_height - 3 * padding
+
+    # Add title
+    title_text = f"Episode {summary_data.episode_num} Summary"
+    drawing.append(
+        draw.Text(
+            title_text,
+            font_size=32,
+            x=width / 2,
+            y=50,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="600",
+            fill="#2c3e50",
+        )
+    )
+
+    # Add episode metrics
+    metrics_y = title_height + 20
+    metrics = [
+        f"Total Steps: {summary_data.total_steps}",
+        f"Total Reward: {summary_data.total_reward:.3f}",
+        f"Final Similarity: {summary_data.final_similarity:.3f}",
+        f"Success: {'Yes' if summary_data.success else 'No'}",
+    ]
+    
+    metrics_text = " | ".join(metrics)
+    drawing.append(
+        draw.Text(
+            metrics_text,
+            font_size=18,
+            x=width / 2,
+            y=metrics_y,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="500",
+            fill="#495057",
+        )
+    )
+
+    # Draw reward progression chart
+    chart_y = metrics_y + 40
+    chart_width = width - 2 * padding
+    
+    if summary_data.reward_progression:
+        # Chart background
+        drawing.append(
+            draw.Rectangle(
+                padding,
+                chart_y,
+                chart_width,
+                chart_height,
+                fill="white",
+                stroke="#dee2e6",
+                stroke_width=1,
+                rx=5,
+            )
+        )
+
+        # Chart title
+        drawing.append(
+            draw.Text(
+                "Reward Progression",
+                font_size=16,
+                x=padding + 10,
+                y=chart_y + 20,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="600",
+                fill="#495057",
+            )
+        )
+
+        # Draw reward line
+        rewards = summary_data.reward_progression
+        if len(rewards) > 1:
+            max_reward = max(rewards) if max(rewards) > 0 else 1
+            min_reward = min(rewards) if min(rewards) < 0 else 0
+            reward_range = max_reward - min_reward if max_reward != min_reward else 1
+
+            points = []
+            for i, reward in enumerate(rewards):
+                x = padding + 20 + (i / (len(rewards) - 1)) * (chart_width - 40)
+                y = chart_y + chart_height - 40 - ((reward - min_reward) / reward_range) * (chart_height - 80)
+                points.append((x, y))
+
+            # Draw line
+            if len(points) > 1:
+                path_data = f"M {points[0][0]} {points[0][1]}"
+                for x, y in points[1:]:
+                    path_data += f" L {x} {y}"
+                
+                drawing.append(
+                    draw.Path(
+                        d=path_data,
+                        stroke="#3498db",
+                        stroke_width=2,
+                        fill="none",
+                    )
+                )
+
+                # Add points
+                for x, y in points:
+                    drawing.append(
+                        draw.Circle(
+                            x, y, 3,
+                            fill="#3498db",
+                            stroke="white",
+                            stroke_width=1,
+                        )
+                    )
+
+    # Add key moments section if available
+    if summary_data.key_moments:
+        key_moments_y = chart_y + chart_height + 30
+        drawing.append(
+            draw.Text(
+                f"Key Moments: Steps {', '.join(map(str, summary_data.key_moments))}",
+                font_size=14,
+                x=width / 2,
+                y=key_moments_y,
+                text_anchor="middle",
+                font_family="Anuphan",
+                font_weight="400",
+                fill="#6c757d",
+            )
+        )
+
+    # Add task information
+    task_info_y = height - 60
+    task_info = f"Task: {summary_data.task_id}"
+    if hasattr(summary_data, 'start_time') and hasattr(summary_data, 'end_time'):
+        duration = summary_data.end_time - summary_data.start_time
+        task_info += f" | Duration: {duration:.1f}s"
+    
+    drawing.append(
+        draw.Text(
+            task_info,
+            font_size=12,
+            x=width / 2,
+            y=task_info_y,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="300",
+            fill="#adb5bd",
+        )
+    )
+
+    return drawing.as_svg()
+
+
+# Wrapper functions for backward compatibility
+def draw_rl_step_svg(
+    before_grid: Grid,
+    after_grid: Grid,
+    action: Dict[str, Any],
+    reward: float,
+    info: Dict[str, Any],
+    step_num: int,
+    operation_name: str = "",
+    changed_cells: Optional[jnp.ndarray] = None,
+    config: Optional[Any] = None,
+    **kwargs
+) -> str:
+    """Enhanced wrapper for draw_rl_step_svg_enhanced with backward compatibility."""
+    return draw_rl_step_svg_enhanced(
+        before_grid=before_grid,
+        after_grid=after_grid,
+        action=action,
+        reward=reward,
+        info=info,
+        step_num=step_num,
+        operation_name=operation_name,
+        changed_cells=changed_cells,
+        config=config,
+        **kwargs
+    )
+
+
+def detect_changed_cells(
+    before_grid: Grid,
+    after_grid: Grid,
+) -> jnp.ndarray:
+    """Detect which cells changed between before and after grids.
+    
+    Args:
+        before_grid: Grid state before the action
+        after_grid: Grid state after the action
+        
+    Returns:
+        Boolean mask indicating which cells changed
+    """
+    before_data = np.asarray(before_grid.data)
+    after_data = np.asarray(after_grid.data)
+    
+    # Handle different shapes by padding to match
+    max_height = max(before_data.shape[0], after_data.shape[0])
+    max_width = max(before_data.shape[1], after_data.shape[1])
+    
+    # Pad both grids to same size
+    before_padded = np.zeros((max_height, max_width), dtype=before_data.dtype)
+    after_padded = np.zeros((max_height, max_width), dtype=after_data.dtype)
+    
+    before_padded[:before_data.shape[0], :before_data.shape[1]] = before_data
+    after_padded[:after_data.shape[0], :after_data.shape[1]] = after_data
+    
+    # Find changed cells
+    changed = before_padded != after_padded
+    
+    return jnp.array(changed)
+
+
+def get_operation_display_name(operation_id: int, action_data: Dict[str, Any] = None) -> str:
+    """Get human-readable operation name from operation ID with context.
+    
+    Args:
+        operation_id: Integer operation ID
+        action_data: Optional action data for additional context
+        
+    Returns:
+        Human-readable operation name with context
+    """
+    # Map of operation IDs to display names
+    operation_names = {
+        0: "No Operation",
+        1: "Fill Selected",
+        2: "Clear Selected", 
+        3: "Copy Selection",
+        4: "Paste Clipboard",
+        5: "Flood Fill",
+        6: "Move Up",
+        7: "Move Down",
+        8: "Move Left",
+        9: "Move Right",
+        10: "Rotate 90°",
+        11: "Rotate 180°",
+        12: "Rotate 270°",
+        13: "Flip Horizontal",
+        14: "Flip Vertical",
+        15: "Extend Pattern",
+        # Add more operations as needed
+    }
+    
+    base_name = operation_names.get(operation_id, f"Operation {operation_id}")
+    
+    # Add context for fill operations
+    if operation_id == 1 and action_data:  # Fill Selected
+        # Try to determine what color is being filled
+        if "fill_color" in action_data:
+            color_id = action_data["fill_color"]
+            color_name = get_color_name(color_id)
+            return f"Fill Selected with {color_name}"
+        elif "operation_params" in action_data:
+            params = action_data["operation_params"]
+            if isinstance(params, dict) and "color" in params:
+                color_id = params["color"]
+                color_name = get_color_name(color_id)
+                return f"Fill Selected with {color_name}"
+        # If we can't determine the color, try to infer from before/after grids
+        return f"Fill Selected Cells"
+    
+    elif operation_id == 5 and action_data:  # Flood Fill
+        if "fill_color" in action_data:
+            color_id = action_data["fill_color"]
+            color_name = get_color_name(color_id)
+            return f"Flood Fill with {color_name}"
+    
+    return base_name
+
+
+def get_color_name(color_id: int) -> str:
+    """Get human-readable color name from color ID.
+    
+    Args:
+        color_id: Integer color ID
+        
+    Returns:
+        Human-readable color name
+    """
+    color_names = {
+        0: "Black (0)",
+        1: "Blue (1)",
+        2: "Red (2)",
+        3: "Green (3)",
+        4: "Yellow (4)",
+        5: "Grey (5)",
+        6: "Pink (6)",
+        7: "Orange (7)",
+        8: "Light Blue (8)",
+        9: "Brown (9)",
+    }
+    
+    return color_names.get(color_id, f"Color {color_id}")
+
+
+def infer_fill_color_from_grids(before_grid: Grid, after_grid: Grid, selection_mask: np.ndarray) -> int:
+    """Infer what color was used to fill selected cells by comparing grids.
+    
+    Args:
+        before_grid: Grid state before the action
+        after_grid: Grid state after the action
+        selection_mask: Boolean mask of selected cells
+        
+    Returns:
+        Color ID that was used for filling, or -1 if can't determine
+    """
+    try:
+        before_data = np.asarray(before_grid.data)
+        after_data = np.asarray(after_grid.data)
+        
+        # Find cells that were selected and changed
+        for i in range(min(before_data.shape[0], after_data.shape[0])):
+            for j in range(min(before_data.shape[1], after_data.shape[1])):
+                if (i < selection_mask.shape[0] and j < selection_mask.shape[1] and 
+                    selection_mask[i, j] and before_data[i, j] != after_data[i, j]):
+                    # This cell was selected and changed, return the new color
+                    return int(after_data[i, j])
+        
+        return -1  # Couldn't determine
+    except Exception:
+        return -1
+
+
+def add_selection_visualization_overlay(
+    drawing: Any,
+    selection_mask: np.ndarray,
+    grid_x: float,
+    grid_y: float,
+    cell_size: float,
+    start_row: int,
+    start_col: int,
+    display_height: int,
+    display_width: int,
+    selection_color: str = "#3498db",
+    selection_opacity: float = 0.3,
+    border_width: float = 2,
+) -> None:
+    """Add selection visualization overlay to a grid.
+    
+    Args:
+        drawing: DrawSVG drawing object to add overlay to
+        selection_mask: Boolean mask of selected cells
+        grid_x: X position of grid
+        grid_y: Y position of grid
+        cell_size: Size of each cell
+        start_row: Starting row of valid region
+        start_col: Starting column of valid region
+        display_height: Height of display region
+        display_width: Width of display region
+        selection_color: Color for selection highlight
+        selection_opacity: Opacity of selection fill
+        border_width: Width of selection border
+    """
+    import drawsvg as draw
+    
+    if not selection_mask.any():
+        return
+    
+    # First pass: draw filled rectangles
+    for display_row in range(display_height):
+        for display_col in range(display_width):
+            orig_row = start_row + display_row
+            orig_col = start_col + display_col
+
+            if (
+                orig_row < selection_mask.shape[0]
+                and orig_col < selection_mask.shape[1]
+                and selection_mask[orig_row, orig_col]
+            ):
+                cell_x = grid_x + display_col * cell_size
+                cell_y = grid_y + display_row * cell_size
+                
+                drawing.append(
+                    draw.Rectangle(
+                        cell_x,
+                        cell_y,
+                        cell_size,
+                        cell_size,
+                        fill=selection_color,
+                        fill_opacity=selection_opacity,
+                        stroke="none",
+                    )
+                )
+
+    # Second pass: draw boundary lines only on outer edges
+    def is_selected(row, col):
+        """Check if a cell is selected, handling bounds."""
+        if (
+            row < 0
+            or row >= selection_mask.shape[0]
+            or col < 0
+            or col >= selection_mask.shape[1]
+        ):
+            return False
+        return selection_mask[row, col]
+
+    for display_row in range(display_height):
+        for display_col in range(display_width):
+            orig_row = start_row + display_row
+            orig_col = start_col + display_col
+
+            if (
+                orig_row < selection_mask.shape[0]
+                and orig_col < selection_mask.shape[1]
+                and selection_mask[orig_row, orig_col]
+            ):
+                cell_x = grid_x + display_col * cell_size
+                cell_y = grid_y + display_row * cell_size
+
+                # Check each edge and draw border line if it's on the boundary
+                # Top edge
+                if not is_selected(orig_row - 1, orig_col):
+                    drawing.append(
+                        draw.Line(
+                            cell_x,
+                            cell_y,
+                            cell_x + cell_size,
+                            cell_y,
+                            stroke=selection_color,
+                            stroke_width=border_width,
+                            stroke_opacity=0.9,
+                        )
+                    )
+
+                # Bottom edge
+                if not is_selected(orig_row + 1, orig_col):
+                    drawing.append(
+                        draw.Line(
+                            cell_x,
+                            cell_y + cell_size,
+                            cell_x + cell_size,
+                            cell_y + cell_size,
+                            stroke=selection_color,
+                            stroke_width=border_width,
+                            stroke_opacity=0.9,
+                        )
+                    )
+
+                # Left edge
+                if not is_selected(orig_row, orig_col - 1):
+                    drawing.append(
+                        draw.Line(
+                            cell_x,
+                            cell_y,
+                            cell_x,
+                            cell_y + cell_size,
+                            stroke=selection_color,
+                            stroke_width=border_width,
+                            stroke_opacity=0.9,
+                        )
+                    )
+
+                # Right edge
+                if not is_selected(orig_row, orig_col + 1):
+                    drawing.append(
+                        draw.Line(
+                            cell_x + cell_size,
+                            cell_y,
+                            cell_x + cell_size,
+                            cell_y + cell_size,
+                            stroke=selection_color,
+                            stroke_width=border_width,
+                            stroke_opacity=0.9,
+                        )
+                    )
+
+
+def add_change_highlighting(
+    drawing: Any,
+    changed_cells: np.ndarray,
+    grid_x: float,
+    grid_y: float,
+    cell_size: float,
+    start_row: int,
+    start_col: int,
+    display_height: int,
+    display_width: int,
+    change_color: str = "#ff6b6b",
+    border_width: float = 3,
+) -> None:
+    """Add change highlighting overlay to a grid.
+    
+    Args:
+        drawing: DrawSVG drawing object to add overlay to
+        changed_cells: Boolean mask of changed cells
+        grid_x: X position of grid
+        grid_y: Y position of grid
+        cell_size: Size of each cell
+        start_row: Starting row of valid region
+        start_col: Starting column of valid region
+        display_height: Height of display region
+        display_width: Width of display region
+        change_color: Color for change highlight
+        border_width: Width of change border
+    """
+    import drawsvg as draw
+    
+    if not changed_cells.any():
+        return
+    
+    # Add pulsing border for changed cells
+    for display_row in range(display_height):
+        for display_col in range(display_width):
+            orig_row = start_row + display_row
+            orig_col = start_col + display_col
+
+            if (
+                orig_row < changed_cells.shape[0]
+                and orig_col < changed_cells.shape[1]
+                and changed_cells[orig_row, orig_col]
+            ):
+                cell_x = grid_x + display_col * cell_size
+                cell_y = grid_y + display_row * cell_size
+                
+                # Add animated border effect
+                drawing.append(
+                    draw.Rectangle(
+                        cell_x - border_width/2,
+                        cell_y - border_width/2,
+                        cell_size + border_width,
+                        cell_size + border_width,
+                        fill="none",
+                        stroke=change_color,
+                        stroke_width=border_width,
+                        stroke_opacity=0.8,
+                    )
+                )
+                
+                # Add inner glow effect
+                drawing.append(
+                    draw.Rectangle(
+                        cell_x + 1,
+                        cell_y + 1,
+                        cell_size - 2,
+                        cell_size - 2,
+                        fill=change_color,
+                        fill_opacity=0.1,
+                        stroke="none",
+                    )
+                )
+
+
+def create_action_summary_panel(
+    action: Dict[str, Any],
+    reward: float,
+    info: Dict[str, Any],
+    operation_name: str = "",
+    width: float = 400,
+    height: float = 100,
+) -> str:
+    """Create an action summary panel as SVG.
+    
+    Args:
+        action: Action dictionary
+        reward: Reward received
+        info: Additional information
+        operation_name: Human-readable operation name
+        width: Panel width
+        height: Panel height
+        
+    Returns:
+        SVG string for the action summary panel
+    """
+    import drawsvg as draw
+    
+    drawing = draw.Drawing(width, height)
+    
+    # Panel background
+    drawing.append(
+        draw.Rectangle(
+            0, 0, width, height,
+            fill="#ffffff",
+            stroke="#dee2e6",
+            stroke_width=1,
+            rx=8,
+        )
+    )
+    
+    # Title
+    drawing.append(
+        draw.Text(
+            "Action Summary",
+            font_size=16,
+            x=10,
+            y=25,
+            text_anchor="start",
+            font_family="Anuphan",
+            font_weight="600",
+            fill="#2c3e50",
+        )
+    )
+    
+    # Operation info
+    if operation_name:
+        drawing.append(
+            draw.Text(
+                f"Operation: {operation_name}",
+                font_size=14,
+                x=10,
+                y=45,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="400",
+                fill="#495057",
+            )
+        )
+    
+    # Reward info
+    reward_color = "#27ae60" if reward > 0 else "#e74c3c" if reward < 0 else "#95a5a6"
+    drawing.append(
+        draw.Text(
+            f"Reward: {reward:.3f}",
+            font_size=14,
+            x=10,
+            y=65,
+            text_anchor="start",
+            font_family="Anuphan",
+            font_weight="500",
+            fill=reward_color,
+        )
+    )
+    
+    # Additional info
+    if "similarity" in info:
+        drawing.append(
+            draw.Text(
+                f"Similarity: {info['similarity']:.3f}",
+                font_size=12,
+                x=10,
+                y=85,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="400",
+                fill="#6c757d",
+            )
+        )
+    
+    return drawing.as_svg()
+
+
+def create_metrics_visualization(
+    metrics: Dict[str, float],
+    width: float = 300,
+    height: float = 200,
+) -> str:
+    """Create a metrics visualization panel.
+    
+    Args:
+        metrics: Dictionary of metric names to values
+        width: Panel width
+        height: Panel height
+        
+    Returns:
+        SVG string for the metrics panel
+    """
+    import drawsvg as draw
+    
+    drawing = draw.Drawing(width, height)
+    
+    # Panel background
+    drawing.append(
+        draw.Rectangle(
+            0, 0, width, height,
+            fill="#ffffff",
+            stroke="#dee2e6",
+            stroke_width=1,
+            rx=8,
+        )
+    )
+    
+    # Title
+    drawing.append(
+        draw.Text(
+            "Step Metrics",
+            font_size=16,
+            x=10,
+            y=25,
+            text_anchor="start",
+            font_family="Anuphan",
+            font_weight="600",
+            fill="#2c3e50",
+        )
+    )
+    
+    # Display metrics
+    y_pos = 50
+    for name, value in metrics.items():
+        # Metric name
+        drawing.append(
+            draw.Text(
+                f"{name}:",
+                font_size=12,
+                x=10,
+                y=y_pos,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="500",
+                fill="#495057",
+            )
+        )
+        
+        # Metric value
+        drawing.append(
+            draw.Text(
+                f"{value:.3f}",
+                font_size=12,
+                x=width - 10,
+                y=y_pos,
+                text_anchor="end",
+                font_family="Anuphan",
+                font_weight="400",
+                fill="#6c757d",
+            )
+        )
+        
+        y_pos += 20
+        
+        if y_pos > height - 20:
+            break
+    
+    return drawing.as_svg()
+
+
+# Update the enhanced visualizer to use these new functions
+def update_enhanced_visualizer_step_creation():
+    """Update the enhanced visualizer to use the new step visualization functions."""
+    # This is a placeholder function to indicate where the EnhancedVisualizer
+    # would be updated to use the new helper functions above.
+    # The actual integration would happen in the _create_step_svg method.
+    pass
+
+
+def draw_enhanced_episode_summary_svg(
+    summary_data: Any,
+    step_data: List[Any],
+    config: Optional[Any] = None,
+    width: float = 1400.0,
+    height: float = 1000.0,
+) -> str:
+    """Generate enhanced SVG visualization of episode summary with comprehensive metrics.
+
+    This enhanced version includes:
+    - Reward progression chart with key moments highlighted
+    - Similarity progression chart
+    - Grid state thumbnails at key moments
+    - Performance metrics panel
+    - Success/failure analysis
+
+    Args:
+        summary_data: Episode summary data
+        step_data: List of step visualization data
+        config: Optional visualization configuration
+        width: Width of the visualization
+        height: Height of the visualization
+
+    Returns:
+        SVG string containing the enhanced episode summary
+    """
+    import drawsvg as draw
+
+    # Create main drawing
+    drawing = draw.Drawing(width, height)
+    drawing.append(draw.Rectangle(0, 0, width, height, fill="#f8f9fa"))
+
+    # Layout parameters
+    padding = 40
+    title_height = 100
+    metrics_height = 80
+    chart_height = 250
+    thumbnails_height = 200
+    remaining_height = height - title_height - metrics_height - 2 * chart_height - thumbnails_height - 6 * padding
+
+    # Add enhanced title section
+    title_bg_height = title_height - 20
+    drawing.append(
+        draw.Rectangle(
+            padding,
+            padding,
+            width - 2 * padding,
+            title_bg_height,
+            fill="#ffffff",
+            stroke="#dee2e6",
+            stroke_width=1,
+            rx=8,
+        )
+    )
+
+    # Main title
+    title_text = f"Episode {summary_data.episode_num} Summary"
+    drawing.append(
+        draw.Text(
+            title_text,
+            font_size=32,
+            x=width / 2,
+            y=padding + 40,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="600",
+            fill="#2c3e50",
+        )
+    )
+
+    # Success indicator
+    success_color = "#27ae60" if summary_data.success else "#e74c3c"
+    success_text = "SUCCESS" if summary_data.success else "FAILED"
+    drawing.append(
+        draw.Text(
+            success_text,
+            font_size=18,
+            x=width - padding - 20,
+            y=padding + 30,
+            text_anchor="end",
+            font_family="Anuphan",
+            font_weight="700",
+            fill=success_color,
+        )
+    )
+
+    # Task ID
+    drawing.append(
+        draw.Text(
+            f"Task: {summary_data.task_id}",
+            font_size=16,
+            x=padding + 20,
+            y=padding + 70,
+            text_anchor="start",
+            font_family="Anuphan",
+            font_weight="400",
+            fill="#6c757d",
+        )
+    )
+
+    # Metrics panel
+    metrics_y = title_height + 2 * padding
+    drawing.append(
+        draw.Rectangle(
+            padding,
+            metrics_y,
+            width - 2 * padding,
+            metrics_height,
+            fill="#ffffff",
+            stroke="#dee2e6",
+            stroke_width=1,
+            rx=8,
+        )
+    )
+
+    # Metrics grid
+    metrics = [
+        ("Total Steps", summary_data.total_steps, ""),
+        ("Total Reward", summary_data.total_reward, ".3f"),
+        ("Final Similarity", summary_data.final_similarity, ".3f"),
+        ("Avg Reward/Step", summary_data.total_reward / max(summary_data.total_steps, 1), ".3f"),
+    ]
+
+    metric_width = (width - 2 * padding - 60) / len(metrics)
+    for i, (name, value, fmt) in enumerate(metrics):
+        x_pos = padding + 20 + i * metric_width
+        
+        # Metric name
+        drawing.append(
+            draw.Text(
+                name,
+                font_size=14,
+                x=x_pos,
+                y=metrics_y + 25,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="600",
+                fill="#495057",
+            )
+        )
+        
+        # Metric value
+        value_text = f"{value:{fmt}}" if fmt else str(value)
+        drawing.append(
+            draw.Text(
+                value_text,
+                font_size=18,
+                x=x_pos,
+                y=metrics_y + 50,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="500",
+                fill="#2c3e50",
+            )
+        )
+
+    # Reward progression chart
+    chart1_y = metrics_y + metrics_height + padding
+    chart_width = (width - 3 * padding) / 2
+    
+    drawing.append(
+        draw.Rectangle(
+            padding,
+            chart1_y,
+            chart_width,
+            chart_height,
+            fill="white",
+            stroke="#dee2e6",
+            stroke_width=1,
+            rx=8,
+        )
+    )
+
+    # Chart title
+    drawing.append(
+        draw.Text(
+            "Reward Progression",
+            font_size=18,
+            x=padding + 20,
+            y=chart1_y + 30,
+            text_anchor="start",
+            font_family="Anuphan",
+            font_weight="600",
+            fill="#2c3e50",
+        )
+    )
+
+    # Draw reward progression line
+    if summary_data.reward_progression and len(summary_data.reward_progression) > 1:
+        rewards = summary_data.reward_progression
+        chart_inner_width = chart_width - 40
+        chart_inner_height = chart_height - 80
+        
+        max_reward = max(rewards) if max(rewards) > 0 else 1
+        min_reward = min(rewards) if min(rewards) < 0 else 0
+        reward_range = max_reward - min_reward if max_reward != min_reward else 1
+
+        # Draw grid lines
+        for i in range(5):
+            y_grid = chart1_y + 50 + i * (chart_inner_height / 4)
+            drawing.append(
+                draw.Line(
+                    padding + 20,
+                    y_grid,
+                    padding + 20 + chart_inner_width,
+                    y_grid,
+                    stroke="#e9ecef",
+                    stroke_width=1,
+                )
+            )
+
+        # Draw reward line
+        points = []
+        for i, reward in enumerate(rewards):
+            x = padding + 20 + (i / (len(rewards) - 1)) * chart_inner_width
+            y = chart1_y + 50 + chart_inner_height - ((reward - min_reward) / reward_range) * chart_inner_height
+            points.append((x, y))
+
+        if len(points) > 1:
+            path_data = f"M {points[0][0]} {points[0][1]}"
+            for x, y in points[1:]:
+                path_data += f" L {x} {y}"
+            
+            drawing.append(
+                draw.Path(
+                    d=path_data,
+                    stroke="#3498db",
+                    stroke_width=3,
+                    fill="none",
+                )
+            )
+
+            # Add points
+            for i, (x, y) in enumerate(points):
+                # Highlight key moments
+                if i in summary_data.key_moments:
+                    drawing.append(
+                        draw.Circle(
+                            x, y, 6,
+                            fill="#e74c3c",
+                            stroke="white",
+                            stroke_width=2,
+                        )
+                    )
+                else:
+                    drawing.append(
+                        draw.Circle(
+                            x, y, 4,
+                            fill="#3498db",
+                            stroke="white",
+                            stroke_width=1,
+                        )
+                    )
+
+    # Similarity progression chart
+    chart2_x = padding + chart_width + padding
+    
+    drawing.append(
+        draw.Rectangle(
+            chart2_x,
+            chart1_y,
+            chart_width,
+            chart_height,
+            fill="white",
+            stroke="#dee2e6",
+            stroke_width=1,
+            rx=8,
+        )
+    )
+
+    # Chart title
+    drawing.append(
+        draw.Text(
+            "Similarity Progression",
+            font_size=18,
+            x=chart2_x + 20,
+            y=chart1_y + 30,
+            text_anchor="start",
+            font_family="Anuphan",
+            font_weight="600",
+            fill="#2c3e50",
+        )
+    )
+
+    # Draw similarity progression line
+    if summary_data.similarity_progression and len(summary_data.similarity_progression) > 1:
+        similarities = summary_data.similarity_progression
+        chart_inner_width = chart_width - 40
+        chart_inner_height = chart_height - 80
+
+        # Draw grid lines
+        for i in range(5):
+            y_grid = chart1_y + 50 + i * (chart_inner_height / 4)
+            drawing.append(
+                draw.Line(
+                    chart2_x + 20,
+                    y_grid,
+                    chart2_x + 20 + chart_inner_width,
+                    y_grid,
+                    stroke="#e9ecef",
+                    stroke_width=1,
+                )
+            )
+
+        # Draw similarity line
+        points = []
+        for i, similarity in enumerate(similarities):
+            x = chart2_x + 20 + (i / (len(similarities) - 1)) * chart_inner_width
+            y = chart1_y + 50 + chart_inner_height - (similarity * chart_inner_height)
+            points.append((x, y))
+
+        if len(points) > 1:
+            path_data = f"M {points[0][0]} {points[0][1]}"
+            for x, y in points[1:]:
+                path_data += f" L {x} {y}"
+            
+            drawing.append(
+                draw.Path(
+                    d=path_data,
+                    stroke="#27ae60",
+                    stroke_width=3,
+                    fill="none",
+                )
+            )
+
+            # Add points
+            for i, (x, y) in enumerate(points):
+                # Highlight key moments
+                if i in summary_data.key_moments:
+                    drawing.append(
+                        draw.Circle(
+                            x, y, 6,
+                            fill="#e74c3c",
+                            stroke="white",
+                            stroke_width=2,
+                        )
+                    )
+                else:
+                    drawing.append(
+                        draw.Circle(
+                            x, y, 4,
+                            fill="#27ae60",
+                            stroke="white",
+                            stroke_width=1,
+                        )
+                    )
+
+    # Key moments thumbnails section
+    thumbnails_y = chart1_y + chart_height + padding
+    
+    if summary_data.key_moments and step_data:
+        drawing.append(
+            draw.Rectangle(
+                padding,
+                thumbnails_y,
+                width - 2 * padding,
+                thumbnails_height,
+                fill="white",
+                stroke="#dee2e6",
+                stroke_width=1,
+                rx=8,
+            )
+        )
+
+        # Section title
+        drawing.append(
+            draw.Text(
+                "Key Moments",
+                font_size=18,
+                x=padding + 20,
+                y=thumbnails_y + 30,
+                text_anchor="start",
+                font_family="Anuphan",
+                font_weight="600",
+                fill="#2c3e50",
+            )
+        )
+
+        # Draw thumbnails for key moments
+        thumbnail_size = 120
+        thumbnail_spacing = 20
+        thumbnails_per_row = min(len(summary_data.key_moments), 8)
+        
+        for i, step_idx in enumerate(summary_data.key_moments[:thumbnails_per_row]):
+            if step_idx < len(step_data):
+                step = step_data[step_idx]
+                
+                thumb_x = padding + 20 + i * (thumbnail_size + thumbnail_spacing)
+                thumb_y = thumbnails_y + 50
+                
+                # Draw thumbnail background
+                drawing.append(
+                    draw.Rectangle(
+                        thumb_x,
+                        thumb_y,
+                        thumbnail_size,
+                        thumbnail_size,
+                        fill="#f8f9fa",
+                        stroke="#dee2e6",
+                        stroke_width=1,
+                        rx=4,
+                    )
+                )
+                
+                # Draw simplified grid representation
+                if hasattr(step, 'after_grid'):
+                    grid_data = np.asarray(step.after_grid.data)
+                    grid_size = min(thumbnail_size - 20, 80)
+                    cell_size = grid_size / max(grid_data.shape)
+                    
+                    for row in range(min(grid_data.shape[0], 8)):
+                        for col in range(min(grid_data.shape[1], 8)):
+                            color_val = int(grid_data[row, col])
+                            if config and hasattr(config, 'get_color_palette'):
+                                color_palette = config.get_color_palette()
+                            else:
+                                color_palette = ARC_COLOR_PALETTE
+                            
+                            fill_color = color_palette.get(color_val, "#CCCCCC")
+                            
+                            drawing.append(
+                                draw.Rectangle(
+                                    thumb_x + 10 + col * cell_size,
+                                    thumb_y + 10 + row * cell_size,
+                                    cell_size,
+                                    cell_size,
+                                    fill=fill_color,
+                                    stroke="#6c757d",
+                                    stroke_width=0.5,
+                                )
+                            )
+                
+                # Add step label
+                drawing.append(
+                    draw.Text(
+                        f"Step {step_idx}",
+                        font_size=12,
+                        x=thumb_x + thumbnail_size / 2,
+                        y=thumb_y + thumbnail_size + 15,
+                        text_anchor="middle",
+                        font_family="Anuphan",
+                        font_weight="500",
+                        fill="#495057",
+                    )
+                )
+
+    # Add footer with timing information
+    footer_y = height - 40
+    if hasattr(summary_data, 'start_time') and hasattr(summary_data, 'end_time'):
+        duration = summary_data.end_time - summary_data.start_time
+        footer_text = f"Duration: {duration:.1f}s | Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    else:
+        footer_text = f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    drawing.append(
+        draw.Text(
+            footer_text,
+            font_size=12,
+            x=width / 2,
+            y=footer_y,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="300",
+            fill="#adb5bd",
+        )
+    )
+
+    return drawing.as_svg()
+
+
+def create_episode_comparison_visualization(
+    episodes_data: List[Any],
+    comparison_type: str = "reward_progression",
+    width: float = 1200.0,
+    height: float = 600.0,
+) -> str:
+    """Create comparison visualization across multiple episodes.
+
+    Args:
+        episodes_data: List of episode summary data
+        comparison_type: Type of comparison ("reward_progression", "similarity", "performance")
+        width: Width of the visualization
+        height: Height of the visualization
+
+    Returns:
+        SVG string containing the comparison visualization
+    """
+    import drawsvg as draw
+
+    # Create main drawing
+    drawing = draw.Drawing(width, height)
+    drawing.append(draw.Rectangle(0, 0, width, height, fill="#f8f9fa"))
+
+    # Layout parameters
+    padding = 40
+    title_height = 80
+    chart_height = height - title_height - 2 * padding - 60
+
+    # Add title
+    title_text = f"Episode Comparison - {comparison_type.replace('_', ' ').title()}"
+    drawing.append(
+        draw.Text(
+            title_text,
+            font_size=28,
+            x=width / 2,
+            y=50,
+            text_anchor="middle",
+            font_family="Anuphan",
+            font_weight="600",
+            fill="#2c3e50",
+        )
+    )
+
+    # Chart area
+    chart_y = title_height + padding
+    chart_width = width - 2 * padding
+    
+    drawing.append(
+        draw.Rectangle(
+            padding,
+            chart_y,
+            chart_width,
+            chart_height,
+            fill="white",
+            stroke="#dee2e6",
+            stroke_width=1,
+            rx=8,
+        )
+    )
+
+    # Colors for different episodes
+    episode_colors = ["#3498db", "#e74c3c", "#27ae60", "#f39c12", "#9b59b6", "#1abc9c"]
+
+    if comparison_type == "reward_progression":
+        # Draw reward progression for each episode
+        chart_inner_width = chart_width - 60
+        chart_inner_height = chart_height - 60
+        
+        # Find global min/max for scaling
+        all_rewards = []
+        for episode in episodes_data:
+            if hasattr(episode, 'reward_progression') and episode.reward_progression:
+                all_rewards.extend(episode.reward_progression)
+        
+        if all_rewards:
+            max_reward = max(all_rewards)
+            min_reward = min(all_rewards)
+            reward_range = max_reward - min_reward if max_reward != min_reward else 1
+
+            # Draw grid lines
+            for i in range(5):
+                y_grid = chart_y + 30 + i * (chart_inner_height / 4)
+                drawing.append(
+                    draw.Line(
+                        padding + 30,
+                        y_grid,
+                        padding + 30 + chart_inner_width,
+                        y_grid,
+                        stroke="#e9ecef",
+                        stroke_width=1,
+                    )
+                )
+
+            # Draw each episode's progression
+            for ep_idx, episode in enumerate(episodes_data[:len(episode_colors)]):
+                if hasattr(episode, 'reward_progression') and episode.reward_progression:
+                    rewards = episode.reward_progression
+                    color = episode_colors[ep_idx]
+                    
+                    points = []
+                    for i, reward in enumerate(rewards):
+                        x = padding + 30 + (i / (len(rewards) - 1)) * chart_inner_width
+                        y = chart_y + 30 + chart_inner_height - ((reward - min_reward) / reward_range) * chart_inner_height
+                        points.append((x, y))
+
+                    if len(points) > 1:
+                        path_data = f"M {points[0][0]} {points[0][1]}"
+                        for x, y in points[1:]:
+                            path_data += f" L {x} {y}"
+                        
+                        drawing.append(
+                            draw.Path(
+                                d=path_data,
+                                stroke=color,
+                                stroke_width=2,
+                                fill="none",
+                            )
+                        )
+
+                        # Add points
+                        for x, y in points:
+                            drawing.append(
+                                draw.Circle(
+                                    x, y, 3,
+                                    fill=color,
+                                    stroke="white",
+                                    stroke_width=1,
+                                )
+                            )
+
+                    # Add legend entry
+                    legend_y = chart_y + chart_height + 20 + ep_idx * 20
+                    drawing.append(
+                        draw.Line(
+                            padding + 20,
+                            legend_y,
+                            padding + 40,
+                            legend_y,
+                            stroke=color,
+                            stroke_width=3,
+                        )
+                    )
+                    drawing.append(
+                        draw.Text(
+                            f"Episode {episode.episode_num}",
+                            font_size=14,
+                            x=padding + 50,
+                            y=legend_y + 5,
+                            text_anchor="start",
+                            font_family="Anuphan",
+                            font_weight="400",
+                            fill="#495057",
+                        )
+                    )
+
+    elif comparison_type == "performance":
+        # Create bar chart comparing final performance metrics
+        metrics = ["total_reward", "final_similarity", "total_steps"]
+        metric_labels = ["Total Reward", "Final Similarity", "Steps"]
+        
+        chart_inner_width = chart_width - 60
+        chart_inner_height = chart_height - 60
+        
+        bar_width = (chart_width - 100) / (len(episodes_data) * len(metrics) + len(metrics))
+        group_spacing = bar_width * 0.5
+        
+        for metric_idx, (metric, label) in enumerate(zip(metrics, metric_labels)):
+            # Get values for this metric
+            values = []
+            for episode in episodes_data:
+                if hasattr(episode, metric):
+                    values.append(getattr(episode, metric))
+                else:
+                    values.append(0)
+            
+            if values:
+                max_val = max(values) if max(values) > 0 else 1
+                
+                # Draw bars for this metric
+                for ep_idx, (episode, value) in enumerate(zip(episodes_data, values)):
+                    x = padding + 30 + metric_idx * (len(episodes_data) * bar_width + group_spacing) + ep_idx * bar_width
+                    bar_height = (value / max_val) * (chart_inner_height - 40)
+                    y = chart_y + chart_height - 30 - bar_height
+                    
+                    color = episode_colors[ep_idx % len(episode_colors)]
+                    
+                    drawing.append(
+                        draw.Rectangle(
+                            x,
+                            y,
+                            bar_width * 0.8,
+                            bar_height,
+                            fill=color,
+                            stroke="white",
+                            stroke_width=1,
+                        )
+                    )
+                
+                # Add metric label
+                label_x = padding + 30 + metric_idx * (len(episodes_data) * bar_width + group_spacing) + (len(episodes_data) * bar_width) / 2
+                drawing.append(
+                    draw.Text(
+                        label,
+                        font_size=12,
+                        x=label_x,
+                        y=chart_y + chart_height - 10,
+                        text_anchor="middle",
+                        font_family="Anuphan",
+                        font_weight="500",
+                        fill="#495057",
+                    )
+                )
+
+    return drawing.as_svg()
+
+
+# Update the episode summary function to use the enhanced version
+def draw_episode_summary_svg(
+    summary_data: Any,
+    step_data: List[Any],
+    config: Optional[Any] = None,
+    width: float = 1400.0,
+    height: float = 1000.0,
+) -> str:
+    """Generate episode summary visualization (enhanced version)."""
+    return draw_enhanced_episode_summary_svg(
+        summary_data=summary_data,
+        step_data=step_data,
+        config=config,
+        width=width,
+        height=height,
+    )
