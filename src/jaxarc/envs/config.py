@@ -130,6 +130,12 @@ class DebugConfig:
     log_rl_steps: bool = False
     rl_steps_output_dir: str = "output/rl_steps"
     clear_output_dir: bool = True
+    
+    # Enhanced visualization settings
+    enhanced_visualization_enabled: bool = False
+    visualization_level: str = "standard"  # "off", "minimal", "standard", "verbose", "full"
+    async_logging: bool = True
+    wandb_enabled: bool = False
 
     def __post_init__(self) -> None:
         """Validate debug configuration with comprehensive field validation."""
@@ -145,9 +151,26 @@ class DebugConfig:
             if not isinstance(self.clear_output_dir, bool):
                 raise ConfigValidationError(f"clear_output_dir must be a boolean, got {type(self.clear_output_dir).__name__}")
             
+            # Validate enhanced visualization settings
+            if not isinstance(self.enhanced_visualization_enabled, bool):
+                raise ConfigValidationError(f"enhanced_visualization_enabled must be a boolean, got {type(self.enhanced_visualization_enabled).__name__}")
+            
+            valid_levels = ["off", "minimal", "standard", "verbose", "full"]
+            validate_string_choice(self.visualization_level, "visualization_level", valid_levels)
+            
+            if not isinstance(self.async_logging, bool):
+                raise ConfigValidationError(f"async_logging must be a boolean, got {type(self.async_logging).__name__}")
+            
+            if not isinstance(self.wandb_enabled, bool):
+                raise ConfigValidationError(f"wandb_enabled must be a boolean, got {type(self.wandb_enabled).__name__}")
+            
             # Cross-field validation: warn if logging is enabled but directory is empty
             if self.log_rl_steps and not self.rl_steps_output_dir.strip():
                 logger.warning("log_rl_steps is enabled but rl_steps_output_dir is empty")
+                
+            # Warn about conflicting settings
+            if self.enhanced_visualization_enabled and self.visualization_level == "off":
+                logger.warning("enhanced_visualization_enabled=True but visualization_level='off' - no visualization will be generated")
                 
         except ConfigValidationError as e:
             raise ConfigValidationError(f"DebugConfig validation failed: {e}") from e
@@ -159,6 +182,10 @@ class DebugConfig:
             log_rl_steps=cfg.get("log_rl_steps", False),
             rl_steps_output_dir=cfg.get("rl_steps_output_dir", "output/rl_steps"),
             clear_output_dir=cfg.get("clear_output_dir", True),
+            enhanced_visualization_enabled=cfg.get("enhanced_visualization_enabled", False),
+            visualization_level=cfg.get("visualization_level", "standard"),
+            async_logging=cfg.get("async_logging", True),
+            wandb_enabled=cfg.get("wandb_enabled", False),
         )
 
 

@@ -206,50 +206,72 @@ def demo_different_action_formats():
 
 
 def demo_environment_integration():
-    """Demonstrate the environment integration with visualization."""
+    """Demonstrate the environment integration with enhanced visualization."""
     console = Console()
-    console.print("\n[bold blue]Demo 5: Environment Integration[/bold blue]")
+    console.print("\n[bold blue]Demo 5: Enhanced Environment Integration[/bold blue]")
 
-    # Create environment with visualization enabled
-    config = ArcEnvConfig.from_hydra(
-        get_config(
-            overrides=[
-                "debug.log_rl_steps=true",
-                "debug.rl_steps_output_dir=outputs/enhanced_demo",
-                "debug.clear_output_dir=true",
-                "action.selection_format=point",
-            ]
-        )
-    )
-
-    env = ArcEnvironment(config)
+    # Create environment with enhanced visualization enabled
+    config_overrides = [
+        "debug/=on",
+        "visualization/=debug_standard",
+        "storage/=development",
+        "action.selection_format=point",
+        "max_episode_steps=8",
+    ]
+    
+    hydra_config = get_config(overrides=config_overrides)
+    
+    # Add enhanced visualization config
+    from omegaconf import OmegaConf
+    enhanced_config = {
+        "enhanced_visualization": {
+            "enabled": True,
+            "level": "standard",
+        }
+    }
+    hydra_config = OmegaConf.merge(hydra_config, OmegaConf.create(enhanced_config))
+    
+    typed_config = ArcEnvConfig.from_hydra(hydra_config)
+    env = ArcEnvironment(typed_config, hydra_config)
 
     # Run a short episode
-    console.print("\n[green]Running environment with visualization enabled...[/green]")
+    console.print("\n[green]Running environment with enhanced visualization...[/green]")
     key = jr.PRNGKey(42)
     state, obs = env.reset(key)
 
-    # Take a few actions
-    for i in range(3):
+    total_reward = 0.0
+    for i in range(5):
         action_key, key = jr.split(key)
 
         # Create a simple point action
         row, col = jr.randint(action_key, shape=(2,), minval=0, maxval=5)
         action = {
-            "selection": jnp.array([row, col]),
+            "point": jnp.array([row, col]),
             "operation": jr.randint(action_key, shape=(), minval=0, maxval=10),
         }
 
         state, obs, reward, info = env.step(action)
+        total_reward += float(reward)
+        
+        console.print(f"  Step {i+1}: reward={float(reward):.3f}, similarity={float(info['similarity']):.3f}")
 
         if env.is_done:
             console.print(f"Episode finished early at step {i + 1}")
             break
 
-    console.print(
-        f"Episode completed! Visualizations saved to: {config.debug.rl_steps_output_dir}"
-    )
-    console.print("Check the directory for step_*.svg files")
+    console.print(f"[green]Enhanced episode completed! Total reward: {total_reward:.3f}[/green]")
+    
+    # Check if enhanced visualizer was used
+    if hasattr(env, '_enhanced_visualizer') and env._enhanced_visualizer:
+        console.print("✓ Enhanced visualization system was active")
+        console.print("✓ Episode management enabled")
+        console.print("✓ Asynchronous logging enabled")
+    else:
+        console.print("⚠ Using legacy visualization system")
+    
+    # Clean up
+    env.close()
+    console.print("Environment closed and resources cleaned up")
 
 
 def main():
