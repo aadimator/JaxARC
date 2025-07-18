@@ -2,7 +2,7 @@
 # Local-only logging configuration - no wandb integration
 
 defaults:
-  - /visualization: debug_standard
+  - /storage: development
 
 # Wandb integration disabled
 wandb:

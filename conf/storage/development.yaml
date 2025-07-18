@@ -1,0 +1,27 @@
+# @package storage
+# Development-friendly storage settings
+
+# Base storage configuration
+base_output_dir: "outputs/dev_episodes"
+run_name: null  # Auto-generated
+episode_dir_format: "episode_{episode:04d}"
+step_file_format: "step_{step:03d}"
+
+# Development limits (smaller for faster iteration)
+max_episodes_per_run: 50
+max_storage_gb: 1.0
+cleanup_policy: "size_based"
+
+# Quick cleanup for development
+cleanup_frequency: "after_run"
+keep_recent_episodes: 10
+
+# File organization
+create_run_subdirs: true
+timestamp_format: "%Y%m%d_%H%M%S"
+compress_old_files: true
+
+# Development-specific settings
+auto_cleanup: true
+warn_on_storage_limit: true
+fail_on_storage_full: false  # Don't fail, just warn

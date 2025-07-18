@@ -1,0 +1,31 @@
+# @package visualization
+# No visualization - maximum performance
+
+# Core visualization settings
+debug_level: "off"
+enabled: false
+
+# Output settings
+output_formats: []
+image_quality: "low"
+output_dir: "outputs/debug"
+
+# Performance settings
+show_coordinates: false
+show_operation_names: false
+highlight_changes: false
+include_metrics: false
+color_scheme: "default"
+
+# Episode visualization
+visualize_episodes: false
+episode_summaries: false
+step_visualizations: false
+
+# Comparison and analysis
+enable_comparisons: false
+save_intermediate_states: false
+
+# Memory and performance
+lazy_loading: true
+memory_limit_mb: 100

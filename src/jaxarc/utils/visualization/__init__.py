@@ -97,6 +97,29 @@ from .enhanced_visualizer import (
     EpisodeSummaryData,
 )
 
+# Import configuration management utilities
+from .config_validation import (
+    ConfigValidator,
+    ValidationError,
+    validate_config,
+    format_validation_errors,
+    validate_and_raise,
+)
+
+from .config_composition import (
+    ConfigComposer,
+    create_config_composer,
+    quick_compose,
+    get_config_help,
+)
+
+from .config_migration import (
+    ConfigMigrator,
+    migrate_legacy_config,
+    check_config_compatibility,
+    create_config_documentation,
+)
+
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Core visualization functions
@@ -149,6 +172,21 @@ __all__ = [
     "EnhancedVisualizer",
     "StepVisualizationData",
     "EpisodeSummaryData",
+    
+    # Configuration management
+    "ConfigValidator",
+    "ValidationError",
+    "validate_config",
+    "format_validation_errors",
+    "validate_and_raise",
+    "ConfigComposer",
+    "create_config_composer",
+    "quick_compose",
+    "get_config_help",
+    "ConfigMigrator",
+    "migrate_legacy_config",
+    "check_config_compatibility",
+    "create_config_documentation",
     
     # Internal functions (for backward compatibility)
     "_clear_output_directory",

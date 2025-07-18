@@ -2,7 +2,7 @@
 # Full wandb integration configuration for research
 
 defaults:
-  - /visualization: debug_verbose
+  - /storage: research
 
 # Full wandb configuration
 wandb:

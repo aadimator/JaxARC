@@ -4,7 +4,7 @@ defaults:
   - environment: training # Which environment to use (training/evaluation)
   - reward: standard # Which reward configuration to use
   - action: standard # Which action configuration to use
-  - debug: "off"
+  - debug: "off" # Debug level (off, minimal, on/standard, verbose, full)
 
 # Project paths
 paths:

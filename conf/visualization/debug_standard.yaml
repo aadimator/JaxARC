@@ -1,0 +1,37 @@
+# @package visualization
+# Standard visualization - key steps and changes
+
+# Core visualization settings
+debug_level: "standard"
+enabled: true
+
+# Output settings
+output_formats: ["svg"]
+image_quality: "high"
+output_dir: "outputs/debug"
+
+# Performance settings
+show_coordinates: false
+show_operation_names: true
+highlight_changes: true
+include_metrics: true
+color_scheme: "default"
+
+# Episode visualization
+visualize_episodes: true
+episode_summaries: true
+step_visualizations: true
+
+# Log key steps (every 10th step + important moments)
+log_frequency: 10
+log_episode_end: true
+log_episode_start: true
+log_key_moments: true
+
+# Comparison and analysis
+enable_comparisons: true
+save_intermediate_states: false
+
+# Memory and performance
+lazy_loading: true
+memory_limit_mb: 500
