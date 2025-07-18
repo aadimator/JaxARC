@@ -120,6 +120,20 @@ from .config_migration import (
     create_config_documentation,
 )
 
+# Import replay and analysis functionality
+from .replay_system import (
+    ReplayConfig,
+    ReplayValidationResult,
+    EpisodeReplaySystem,
+)
+
+from .analysis_tools import (
+    AnalysisConfig,
+    FailureModeAnalysis,
+    PerformanceMetrics,
+    EpisodeAnalysisTools,
+)
+
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Core visualization functions
@@ -187,6 +201,15 @@ __all__ = [
     "migrate_legacy_config",
     "check_config_compatibility",
     "create_config_documentation",
+    
+    # Replay and analysis functionality
+    "ReplayConfig",
+    "ReplayValidationResult", 
+    "EpisodeReplaySystem",
+    "AnalysisConfig",
+    "FailureModeAnalysis",
+    "PerformanceMetrics",
+    "EpisodeAnalysisTools",
     
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
