@@ -64,6 +64,14 @@ from .episode_manager import (
     EpisodeManager,
 )
 
+# Import async logging functionality
+from .async_logger import (
+    AsyncLogger,
+    AsyncLoggerConfig,
+    LogEntry,
+    AsyncLoggerContext,
+)
+
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Core visualization functions
@@ -91,6 +99,12 @@ __all__ = [
     # Episode management
     "EpisodeConfig",
     "EpisodeManager",
+    
+    # Async logging
+    "AsyncLogger",
+    "AsyncLoggerConfig",
+    "LogEntry",
+    "AsyncLoggerContext",
     
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
