@@ -19,6 +19,8 @@ from omegaconf import DictConfig
 from jaxarc.utils.visualization import (
     _clear_output_directory,
     save_rl_step_visualization,
+    jax_save_step_visualization,
+    jax_log_episode_summary,
 )
 
 from ..state import ArcEnvState
@@ -429,14 +431,26 @@ def arc_step(
                 typed_config.debug.rl_steps_output_dir,
             )
 
-        # Save step visualization
-        jax.debug.callback(
-            save_rl_step_visualization,
-            state,
-            standardized_action,
-            new_state,
-            typed_config.debug.rl_steps_output_dir,
-        )
+        # Use enhanced JAX callback if available, otherwise fallback to legacy
+        try:
+            jax.debug.callback(
+                jax_save_step_visualization,
+                state,
+                standardized_action,
+                new_state,
+                reward,
+                info,
+                typed_config.debug.rl_steps_output_dir,
+            )
+        except Exception:
+            # Fallback to legacy visualization
+            jax.debug.callback(
+                save_rl_step_visualization,
+                state,
+                standardized_action,
+                new_state,
+                typed_config.debug.rl_steps_output_dir,
+            )
 
     return new_state, observation, reward, done, info
 
