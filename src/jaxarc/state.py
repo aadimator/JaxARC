@@ -211,6 +211,67 @@ class ArcEnvState(eqx.Module):
         # Create new instance
         return ArcEnvState(**current_values)
     
+    def get_actual_grid_shape(self) -> tuple[int, int]:
+        """Get the actual shape of the working grid based on the mask.
+        
+        JAX-compatible method that delegates to utility function.
+        
+        Since JAX requires static shapes, working_grid is always padded to max dimensions,
+        but the actual meaningful grid size is determined by working_grid_mask.
+        
+        Returns:
+            Tuple of (height, width) representing the actual grid dimensions
+            
+        Examples:
+            ```python
+            # For a 5x5 actual grid padded to 30x30
+            state = ArcEnvState(...)
+            actual_height, actual_width = state.get_actual_grid_shape()
+            # Returns (5, 5) instead of (30, 30)
+            
+            # Use for extracting the meaningful part of the grid
+            actual_grid = state.get_actual_working_grid()
+            ```
+        """
+        from .utils.grid_utils import get_actual_grid_shape_from_mask
+        return get_actual_grid_shape_from_mask(self.working_grid_mask)
+    
+    def get_actual_working_grid(self) -> GridArray:
+        """Get the actual working grid without padding.
+        
+        JAX-compatible method that delegates to utility function.
+        
+        Returns the working grid cropped to its actual dimensions based on the mask.
+        This is useful for visualization and analysis where you only want the 
+        meaningful part of the grid.
+        
+        Returns:
+            GridArray containing only the actual grid content (no padding)
+            
+        Examples:
+            ```python
+            state = ArcEnvState(...)
+            actual_grid = state.get_actual_working_grid()
+            # Returns a 5x5 grid instead of 30x30 padded grid
+            ```
+        """
+        from .utils.grid_utils import crop_grid_to_mask
+        return crop_grid_to_mask(self.working_grid, self.working_grid_mask)
+    
+    def get_actual_target_grid(self) -> GridArray:
+        """Get the actual target grid without padding.
+        
+        JAX-compatible method that delegates to utility function.
+        
+        Returns the target grid cropped to its actual dimensions based on the mask.
+        Useful for comparing against the working grid or for visualization.
+        
+        Returns:
+            GridArray containing only the actual target grid content (no padding)
+        """
+        from .utils.grid_utils import crop_grid_to_mask
+        return crop_grid_to_mask(self.target_grid, self.working_grid_mask)
+
     @property
     def __dataclass_fields__(self) -> dict:
         """Property to mimic dataclass fields for replace method."""
