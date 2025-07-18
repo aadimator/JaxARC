@@ -153,19 +153,14 @@ class TestWandbIntegration:
         assert integration.run == mock_run
         assert integration.is_initialized
         
-        mock_wandb.init.assert_called_once_with(
-            project="test-project",
-            entity=None,
-            name="test-run",
-            id=None,
-            tags=[],
-            notes=None,
-            group=None,
-            job_type=None,
-            config={"test": "config"},
-            save_code=True,
-            resume=None
-        )
+        # Check that wandb.init was called with enhanced tags and job type
+        mock_wandb.init.assert_called_once()
+        call_args = mock_wandb.init.call_args
+        assert call_args[1]["project"] == "test-project"
+        assert call_args[1]["name"] == "test-run"
+        assert call_args[1]["config"] == {"test": "config"}
+        assert "jaxarc" in call_args[1]["tags"]  # Should have automatic jaxarc tag
+        assert call_args[1]["job_type"] == "experiment"  # Should have automatic job type
     
     def test_log_step_not_available(self) -> None:
         """Test step logging when wandb is not available."""
@@ -441,6 +436,182 @@ class TestWandbIntegrationRetryLogic:
         mock_logger.warning.assert_called_once()  # First retry warning
         mock_logger.error.assert_called_once()    # Final failure error
         mock_sleep.assert_called_once_with(0.1)   # First retry delay
+
+
+class TestWandbImageOptimization:
+    """Test image optimization functionality."""
+    
+    def test_process_basic_image_fallback(self) -> None:
+        """Test basic image processing fallback."""
+        config = WandbConfig(enabled=True)
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            # Test with string path
+            result = integration._process_basic_image("/path/to/image.png", "test_image")
+            mock_wandb.Image.assert_called_with("/path/to/image.png", caption="test_image")
+    
+    def test_convert_to_pil_numpy_array(self) -> None:
+        """Test converting numpy array to PIL image."""
+        config = WandbConfig(enabled=True)
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            # Mock PIL and numpy
+            mock_pil = MagicMock()
+            mock_np = MagicMock()
+            mock_np.uint8 = int
+            
+            # Test that the method handles numpy arrays
+            # We'll just test that it doesn't crash and returns something
+            grayscale_array = MagicMock()
+            grayscale_array.shape = (100, 100)
+            
+            result = integration._convert_to_pil(grayscale_array, mock_pil, mock_np)
+            
+            # The method should attempt to process the array
+            # Since we're mocking, we just verify it doesn't return None due to errors
+            assert result is not None
+    
+    def test_optimize_image_resize(self) -> None:
+        """Test image resizing optimization."""
+        config = WandbConfig(enabled=True, max_image_size=(400, 300))
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            # Mock PIL image that needs resizing
+            mock_pil_image = MagicMock()
+            mock_pil_image.size = (800, 600)  # Larger than max_image_size
+            mock_pil_image.resize = MagicMock(return_value=mock_pil_image)
+            
+            mock_pil_class = MagicMock()
+            mock_pil_class.Resampling.LANCZOS = "LANCZOS"
+            
+            result = integration._optimize_image(mock_pil_image, mock_pil_class)
+            
+            # Should resize to maintain aspect ratio
+            mock_pil_image.resize.assert_called_once()
+            call_args = mock_pil_image.resize.call_args[0][0]
+            assert call_args == (400, 300)  # Scaled down proportionally
+
+
+class TestWandbExperimentTagging:
+    """Test experiment tagging and organization functionality."""
+    
+    def test_generate_experiment_tags_basic(self) -> None:
+        """Test basic experiment tag generation."""
+        config = WandbConfig(enabled=True, tags=["base-tag"])
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            experiment_config = {
+                "dataset": {"name": "arc_agi_1", "split": "train"},
+                "action": {"format": "mask"},
+                "debug": {"level": "verbose"}
+            }
+            
+            tags = integration._generate_experiment_tags(experiment_config)
+            
+            assert "base-tag" in tags
+            assert "dataset:arc_agi_1" in tags
+            assert "split:train" in tags
+            assert "action:mask" in tags
+            assert "debug:verbose" in tags
+            assert "jaxarc" in tags
+    
+    def test_generate_experiment_group(self) -> None:
+        """Test experiment group generation."""
+        config = WandbConfig(enabled=True)
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            experiment_config = {
+                "dataset": {"name": "arc_agi_1"},
+                "algorithm": {"name": "ppo"},
+                "action": {"format": "mask"}
+            }
+            
+            group = integration._generate_experiment_group(experiment_config)
+            
+            assert group == "arc_agi_1-ppo-mask"
+    
+    def test_generate_job_type_training(self) -> None:
+        """Test job type generation for training."""
+        config = WandbConfig(enabled=True)
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            experiment_config = {
+                "debug": {"level": "minimal"},
+                "algorithm": {"name": "ppo"}
+            }
+            
+            job_type = integration._generate_job_type(experiment_config)
+            
+            assert job_type == "training"
+    
+    def test_generate_job_type_debugging(self) -> None:
+        """Test job type generation for debugging."""
+        config = WandbConfig(enabled=True)
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            experiment_config = {
+                "debug": {"level": "verbose"}
+            }
+            
+            job_type = integration._generate_job_type(experiment_config)
+            
+            assert job_type == "debugging"
+    
+    def test_generate_run_name(self) -> None:
+        """Test run name generation."""
+        config = WandbConfig(enabled=True)
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            experiment_config = {
+                "dataset": {"name": "arc_agi_1"},
+                "algorithm": {"name": "ppo"},
+                "debug": {"level": "verbose"}
+            }
+            
+            run_name = integration._generate_run_name(experiment_config, None)
+            
+            assert run_name == "arc_agi_1-ppo-debug-verbose"
+    
+    def test_generate_run_name_provided_name_takes_precedence(self) -> None:
+        """Test that provided run name takes precedence."""
+        config = WandbConfig(enabled=True)
+        mock_wandb = MagicMock()
+        
+        with patch.dict('sys.modules', {'wandb': mock_wandb}):
+            integration = WandbIntegration(config)
+            
+            experiment_config = {
+                "dataset": {"name": "arc_agi_1"},
+                "algorithm": {"name": "ppo"}
+            }
+            
+            run_name = integration._generate_run_name(experiment_config, "custom-run-name")
+            
+            assert run_name == "custom-run-name"
 
 
 if __name__ == "__main__":
