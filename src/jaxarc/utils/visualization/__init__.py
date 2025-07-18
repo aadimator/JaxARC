@@ -81,6 +81,14 @@ from .wandb_integration import (
     create_development_wandb_config,
 )
 
+# Import wandb sync utilities
+from .wandb_sync import (
+    WandbSyncManager,
+    create_sync_manager,
+    sync_offline_wandb_data,
+    check_wandb_status,
+)
+
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Core visualization functions
@@ -121,6 +129,12 @@ __all__ = [
     "create_wandb_config",
     "create_research_wandb_config",
     "create_development_wandb_config",
+    
+    # Wandb sync utilities
+    "WandbSyncManager",
+    "create_sync_manager",
+    "sync_offline_wandb_data",
+    "check_wandb_status",
     
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
