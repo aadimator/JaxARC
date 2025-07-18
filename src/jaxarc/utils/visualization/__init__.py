@@ -72,6 +72,15 @@ from .async_logger import (
     AsyncLoggerContext,
 )
 
+# Import wandb integration functionality
+from .wandb_integration import (
+    WandbConfig,
+    WandbIntegration,
+    create_wandb_config,
+    create_research_wandb_config,
+    create_development_wandb_config,
+)
+
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Core visualization functions
@@ -105,6 +114,13 @@ __all__ = [
     "AsyncLoggerConfig",
     "LogEntry",
     "AsyncLoggerContext",
+    
+    # Wandb integration
+    "WandbConfig",
+    "WandbIntegration",
+    "create_wandb_config",
+    "create_research_wandb_config",
+    "create_development_wandb_config",
     
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
