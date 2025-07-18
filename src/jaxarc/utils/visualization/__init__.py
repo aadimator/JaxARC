@@ -58,6 +58,12 @@ from .core import (
     _extract_grid_data,
 )
 
+# Import episode management functionality
+from .episode_manager import (
+    EpisodeConfig,
+    EpisodeManager,
+)
+
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Core visualization functions
@@ -81,6 +87,10 @@ __all__ = [
     
     # Constants
     "ARC_COLOR_PALETTE",
+    
+    # Episode management
+    "EpisodeConfig",
+    "EpisodeManager",
     
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
