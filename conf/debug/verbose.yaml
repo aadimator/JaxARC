@@ -1,0 +1,17 @@
+# @package _global_
+# Debug mode verbose - all steps and detailed logging
+
+defaults:
+  - /visualization: debug_verbose
+  - /storage: research
+  - /logging: local_only
+
+# Legacy settings (for backward compatibility)
+log_rl_steps: true
+rl_steps_output_dir: "outputs/rl_steps_verbose"
+clear_output_dir: false  # Don't clear for verbose mode
+
+# Enhanced visualization settings
+enhanced_visualization:
+  enabled: true
+  level: "verbose"

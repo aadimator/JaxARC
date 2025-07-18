@@ -1,0 +1,36 @@
+# @package visualization
+# Minimal visualization - episode summaries only
+
+# Core visualization settings
+debug_level: "minimal"
+enabled: true
+
+# Output settings
+output_formats: ["svg"]
+image_quality: "medium"
+output_dir: "outputs/debug"
+
+# Performance settings
+show_coordinates: false
+show_operation_names: false
+highlight_changes: false
+include_metrics: true
+color_scheme: "default"
+
+# Episode visualization
+visualize_episodes: true
+episode_summaries: true
+step_visualizations: false
+
+# Only log final states and episode summaries
+log_frequency: 0  # No step logging
+log_episode_end: true
+log_episode_start: true
+
+# Comparison and analysis
+enable_comparisons: false
+save_intermediate_states: false
+
+# Memory and performance
+lazy_loading: true
+memory_limit_mb: 200

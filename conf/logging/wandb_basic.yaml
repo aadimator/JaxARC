@@ -2,7 +2,7 @@
 # Basic wandb integration configuration
 
 defaults:
-  - /visualization: debug_standard
+  - /storage: research
 
 # Basic wandb configuration
 wandb:
