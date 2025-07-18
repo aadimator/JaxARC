@@ -38,7 +38,7 @@ except ImportError:
 
 from jaxarc.types import Grid
 from jaxarc.utils.task_manager import extract_task_id_from_index
-from .jax_types import (
+from jaxarc.utils.jax_types import (
     ColorHex,
     GridArray,
     MaskArray,
