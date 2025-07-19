@@ -1,0 +1,74 @@
+# @package visualization
+# Production visualization configuration - minimal overhead, essential logging only
+
+# Core visualization settings
+debug_level: "minimal"
+enabled: true
+
+# Output settings (minimal for production)
+output_formats: ["svg"]
+image_quality: "medium"
+output_dir: "outputs/production"
+
+# Minimal visual features for performance
+show_coordinates: false
+show_operation_names: false
+highlight_changes: true  # Keep for essential debugging
+include_metrics: false
+color_scheme: "default"
+
+# Episode visualization (reduced)
+visualize_episodes: true
+episode_summaries: true
+step_visualizations: false  # Disable step-by-step for performance
+
+# Production logging (very infrequent)
+log_frequency: 100
+log_episode_end: true
+log_episode_start: false
+log_key_moments: false
+
+# Disable expensive features
+enable_comparisons: false
+save_intermediate_states: false
+
+# Strict memory and performance limits
+lazy_loading: true
+memory_limit_mb: 200
+max_storage_gb: 2.0
+
+# Minimal async processing
+async_processing:
+  enabled: true
+  queue_size: 500
+  worker_threads: 1
+  batch_size: 50
+  flush_interval: 30.0
+
+# Episode management with strict cleanup
+episode_management:
+  base_output_dir: "outputs/production"
+  run_name: null
+  episode_dir_format: "ep_{episode:04d}"
+  step_file_format: "step_{step:03d}"
+  max_episodes_per_run: 50
+  cleanup_policy: "oldest_first"
+
+# Performance monitoring with strict limits
+performance_monitoring:
+  enabled: true
+  target_overhead: 0.05  # Very low overhead target
+  measurement_window: 100
+  auto_adjust: true  # Auto-adjust to maintain performance
+
+# Wandb integration for production monitoring
+wandb:
+  enabled: true
+  project_name: "jaxarc-production"
+  tags: ["production", "monitoring"]
+  log_frequency: 50
+  offline_mode: false
+  image_format: "png"
+  max_image_size: [600, 450]
+  log_gradients: false
+  log_model_topology: false
