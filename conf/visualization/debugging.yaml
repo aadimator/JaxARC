@@ -1,0 +1,84 @@
+# @package visualization
+# Debugging visualization configuration - maximum detail for troubleshooting
+
+# Core visualization settings
+debug_level: "full"
+enabled: true
+
+# Output settings (all formats for debugging)
+output_formats: ["svg", "png"]
+image_quality: "high"
+output_dir: "outputs/debugging"
+
+# All visual features enabled
+show_coordinates: true
+show_operation_names: true
+highlight_changes: true
+include_metrics: true
+color_scheme: "high_contrast"  # Better visibility for debugging
+
+# Comprehensive episode visualization
+visualize_episodes: true
+episode_summaries: true
+step_visualizations: true
+
+# Maximum logging frequency
+log_frequency: 1  # Every single step
+log_episode_end: true
+log_episode_start: true
+log_key_moments: true
+
+# Enable all analysis features
+enable_comparisons: true
+save_intermediate_states: true
+
+# No memory limits for debugging
+lazy_loading: false
+memory_limit_mb: 5000  # Very high limit
+max_storage_gb: 20.0   # Very high storage limit
+
+# Synchronous processing for debugging (no async complexity)
+async_processing:
+  enabled: false  # Disable async for simpler debugging
+  queue_size: 0
+  worker_threads: 0
+  batch_size: 1
+  flush_interval: 0
+
+# Debugging episode management
+episode_management:
+  base_output_dir: "outputs/debugging"
+  run_name: "debug_session"
+  episode_dir_format: "debug_episode_{episode:04d}"
+  step_file_format: "debug_step_{step:04d}"
+  max_episodes_per_run: 10  # Small number for focused debugging
+  cleanup_policy: "manual"  # Keep everything for analysis
+
+# No performance monitoring during debugging
+performance_monitoring:
+  enabled: false  # Don't interfere with debugging
+  target_overhead: 1.0  # Allow any overhead
+  measurement_window: 1
+  auto_adjust: false
+
+# Wandb for debugging (offline mode)
+wandb:
+  enabled: true
+  project_name: "jaxarc-debugging"
+  tags: ["debugging", "troubleshooting"]
+  log_frequency: 1  # Log every step
+  offline_mode: true  # Offline to avoid network issues
+  image_format: "both"
+  max_image_size: [1600, 1200]  # High resolution for debugging
+  log_gradients: true
+  log_model_topology: true
+  log_system_metrics: true
+
+# Special debugging features
+debugging_features:
+  enable_stack_traces: true
+  save_error_states: true
+  detailed_timing: true
+  memory_profiling: true
+  validate_all_operations: true
+  log_internal_state: true
