@@ -231,8 +231,10 @@ def demo_environment_integration():
     }
     hydra_config = OmegaConf.merge(hydra_config, OmegaConf.create(enhanced_config))
     
-    typed_config = ArcEnvConfig.from_hydra(hydra_config)
-    env = ArcEnvironment(typed_config, hydra_config)
+    # Convert to unified config
+    from jaxarc.envs.equinox_config import JaxArcConfig
+    unified_config = JaxArcConfig.from_hydra(hydra_config)
+    env = ArcEnvironment(unified_config)
 
     # Run a short episode
     console.print("\n[green]Running environment with enhanced visualization...[/green]")

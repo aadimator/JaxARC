@@ -14,19 +14,27 @@ Key Features:
 Examples:
     ```python
     import jax
-    from jaxarc import ArcEnvironment, create_standard_config
-    
-    # Create environment with standard configuration
-    config = create_standard_config()
+    from jaxarc import ArcEnvironment
+    from jaxarc.envs.equinox_config import JaxArcConfig
+    from jaxarc.envs.factory import create_standard_config
+    from jaxarc.envs.equinox_config import convert_arc_env_config_to_jax_arc_config
+
+    # Create environment with unified configuration
+    legacy_config = create_standard_config()
+    config = convert_arc_env_config_to_jax_arc_config(legacy_config)
     env = ArcEnvironment(config)
-    
+
+    # Or create directly with JaxArcConfig
+    config = JaxArcConfig()  # Uses defaults
+    env = ArcEnvironment(config)
+
     # Reset environment
     key = jax.random.PRNGKey(42)
-    state = env.reset(key)
-    
+    state, obs = env.reset(key)
+
     # Take a step
-    action = {"operation": 0, "point": [5, 5]}
-    state, reward, done, info = env.step(state, action, key)
+    action = {"operation": 0, "selection": [5, 5, 7, 7]}
+    state, obs, reward, info = env.step(action)
     ```
 """
 
@@ -51,31 +59,33 @@ from .envs import (
     ArcEnvConfig,
 )
 
+# Unified configuration system
+from .envs.equinox_config import JaxArcConfig, convert_arc_env_config_to_jax_arc_config
+
 # Functional API
 from .envs import arc_reset, arc_step
 
 __all__ = [
     # Version
     "__version__",
-    
     # Core environment and state
-    "ArcEnvironment", 
+    "ArcEnvironment",
     "ArcEnvState",
-    
     # Core types
     "Grid",
-    "JaxArcTask", 
+    "JaxArcTask",
     "ARCLEAction",
     "TaskPair",
-    
     # Configuration
     "ArcEnvConfig",
     "create_standard_config",
-    "create_raw_config", 
+    "create_raw_config",
     "create_full_config",
     "create_point_config",
     "create_bbox_config",
-    
+    # Unified configuration
+    "JaxArcConfig",
+    "convert_arc_env_config_to_jax_arc_config",
     # Functional API
     "arc_reset",
     "arc_step",

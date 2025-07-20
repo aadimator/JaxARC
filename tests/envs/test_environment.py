@@ -8,26 +8,31 @@ import pytest
 
 from jaxarc.envs.config import ActionConfig, ArcEnvConfig, GridConfig, RewardConfig
 from jaxarc.envs.environment import ArcEnvironment
+from jaxarc.envs.equinox_config import JaxArcConfig, convert_arc_env_config_to_jax_arc_config
 from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 
 
 class TestArcEnvironment:
     """Test the ArcEnvironment class."""
+    
+    def _create_test_env(self, **kwargs) -> ArcEnvironment:
+        """Helper to create test environment with unified config."""
+        legacy_config = ArcEnvConfig(**kwargs)
+        config = convert_arc_env_config_to_jax_arc_config(legacy_config)
+        return ArcEnvironment(config)
 
     def test_init(self):
         """Test environment initialization."""
-        config = ArcEnvConfig(max_episode_steps=50)
-        env = ArcEnvironment(config)
+        env = self._create_test_env(max_episode_steps=50)
 
-        assert env.config is config
+        assert env.config.environment.max_episode_steps == 50
         assert env._state is None
         assert env.is_done is True
 
     def test_reset(self):
         """Test environment reset."""
-        config = ArcEnvConfig(max_episode_steps=50)
-        env = ArcEnvironment(config)
+        env = self._create_test_env(max_episode_steps=50)
         key = jax.random.PRNGKey(42)
 
         state, obs = env.reset(key)
@@ -39,8 +44,7 @@ class TestArcEnvironment:
 
     def test_reset_with_task_data(self):
         """Test reset with specific task data."""
-        config = ArcEnvConfig(max_episode_steps=50)
-        env = ArcEnvironment(config)
+        env = self._create_test_env(max_episode_steps=50)
         key = jax.random.PRNGKey(42)
 
         # Create dummy task data
@@ -67,8 +71,7 @@ class TestArcEnvironment:
 
     def test_step_without_reset(self):
         """Test step without reset raises error."""
-        config = ArcEnvConfig(max_episode_steps=50)
-        env = ArcEnvironment(config)
+        env = self._create_test_env(max_episode_steps=50)
         action = 0
 
         with pytest.raises(
@@ -78,9 +81,10 @@ class TestArcEnvironment:
 
     def test_step_after_reset(self):
         """Test step after reset."""
-        config = ArcEnvConfig(
+        legacy_config = ArcEnvConfig(
             max_episode_steps=50, action=ActionConfig(selection_format="bbox")
         )
+        config = convert_arc_env_config_to_jax_arc_config(legacy_config)
         env = ArcEnvironment(config)
         key = jax.random.PRNGKey(42)
 
@@ -105,8 +109,7 @@ class TestArcEnvironment:
 
     def test_properties(self):
         """Test environment properties."""
-        config = ArcEnvConfig(max_episode_steps=50)
-        env = ArcEnvironment(config)
+        env = self._create_test_env(max_episode_steps=50)
 
         # Before reset
         assert env.state is None
@@ -196,8 +199,7 @@ class TestArcEnvironment:
 
     def test_episode_termination(self):
         """Test episode termination handling."""
-        config = ArcEnvConfig(max_episode_steps=2)  # Very short episode
-        env = ArcEnvironment(config)
+        env = self._create_test_env(max_episode_steps=2)  # Very short episode
         key = jax.random.PRNGKey(42)
 
         # Reset
@@ -225,8 +227,7 @@ class TestArcEnvironment:
 
     def test_integration_with_functional_api(self):
         """Test that class-based API produces same results as functional API."""
-        config = ArcEnvConfig(max_episode_steps=50)
-        env = ArcEnvironment(config)
+        env = self._create_test_env(max_episode_steps=50)
         key = jax.random.PRNGKey(42)
 
         # Reset both
@@ -243,21 +244,21 @@ class TestArcEnvironment:
 
     def test_config_immutability(self):
         """Test that environment doesn't modify the config."""
-        config = ArcEnvConfig(max_episode_steps=50)
-        original_steps = config.max_episode_steps
+        legacy_config = ArcEnvConfig(max_episode_steps=50)
+        config = convert_arc_env_config_to_jax_arc_config(legacy_config)
+        original_steps = config.environment.max_episode_steps
 
         env = ArcEnvironment(config)
         key = jax.random.PRNGKey(42)
         env.reset(key)
 
         # Config should remain unchanged
-        assert config.max_episode_steps == original_steps
+        assert config.environment.max_episode_steps == original_steps
         assert env.config.max_episode_steps == original_steps
 
     def test_state_consistency(self):
         """Test that internal state remains consistent."""
-        config = ArcEnvConfig(max_episode_steps=50)
-        env = ArcEnvironment(config)
+        env = self._create_test_env(max_episode_steps=50)
         key = jax.random.PRNGKey(42)
 
         # Before reset

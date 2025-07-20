@@ -414,8 +414,10 @@ def demonstrate_environment_integration(parser):
         step_penalty=-0.005,
     )
 
-    # Create environment
-    env = ArcEnvironment(config)
+    # Convert to unified config and create environment
+    from jaxarc.envs.equinox_config import convert_arc_env_config_to_jax_arc_config
+    unified_config = convert_arc_env_config_to_jax_arc_config(config)
+    env = ArcEnvironment(unified_config)
 
     # Get a task from ARC-AGI-1
     key = jax.random.PRNGKey(123)

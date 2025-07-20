@@ -15,6 +15,7 @@ from omegaconf import DictConfig
 
 from jaxarc.envs.actions import get_action_handler
 from jaxarc.envs.config import ArcEnvConfig
+from jaxarc.envs.equinox_config import JaxArcConfig
 from jaxarc.envs.functional import arc_reset, arc_step
 from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
@@ -28,7 +29,6 @@ from jaxarc.utils.visualization import (
     AsyncLoggerConfig,
     WandbIntegration,
     WandbConfig,
-    create_development_wandb_config,
 )
 
 
@@ -40,7 +40,9 @@ class ArcEnvironment:
 
     Example:
         ```python
-        config = ArcEnvConfig(max_episode_steps=100)
+        from jaxarc.envs.equinox_config import JaxArcConfig
+
+        config = JaxArcConfig()  # Uses default configuration
         env = ArcEnvironment(config)
 
         key = jax.random.PRNGKey(42)
@@ -51,15 +53,22 @@ class ArcEnvironment:
         ```
     """
 
-    def __init__(self, config: ArcEnvConfig, hydra_config: Optional[DictConfig] = None):
-        """Initialize environment with configuration.
+    config: JaxArcConfig
+    _state: Optional[ArcEnvState]
+    _episode_count: int
+    action_handler: Any  # Action handler type depends on selection format
+    _enhanced_visualizer: Optional[EnhancedVisualizer]
+    _episode_manager: Optional[EpisodeManager]
+    _async_logger: Optional[AsyncLogger]
+    _wandb_integration: Optional[WandbIntegration]
+
+    def __init__(self, config: JaxArcConfig):
+        """Initialize environment with unified configuration.
 
         Args:
-            config: Typed configuration for the environment
-            hydra_config: Optional Hydra configuration for enhanced visualization
+            config: Unified JaxArcConfig containing all configuration parameters
         """
         self.config = config
-        self.hydra_config = hydra_config
         self._state: Optional[ArcEnvState] = None
         self._episode_count = 0
 
@@ -71,116 +80,98 @@ class ArcEnvironment:
         self._episode_manager: Optional[EpisodeManager] = None
         self._async_logger: Optional[AsyncLogger] = None
         self._wandb_integration: Optional[WandbIntegration] = None
-        
+
         self._setup_enhanced_visualization()
 
-        logger.info(f"ArcEnvironment initialized with config: {self.config}")
+        logger.info(f"ArcEnvironment initialized with unified JaxArcConfig")
         logger.info(f"Using {config.action.selection_format} selection format")
-        
+
         if self._enhanced_visualizer is not None:
             logger.info("Enhanced visualization system enabled")
 
     def _setup_enhanced_visualization(self) -> None:
         """Setup enhanced visualization system based on configuration."""
-        # Check if enhanced visualization is enabled
-        enhanced_enabled = False
-        
-        if self.hydra_config is not None:
-            enhanced_enabled = self.hydra_config.get("enhanced_visualization", {}).get("enabled", False)
-        
-        # Fallback to legacy debug settings if no enhanced config
-        if not enhanced_enabled and self.config.debug.log_rl_steps:
+        # Check if enhanced visualization is enabled based on unified config
+        enhanced_enabled = self.config.visualization.enabled
+
+        # Also enable if debug level indicates visualization should be active
+        if not enhanced_enabled and self.config.environment.debug_level in [
+            "standard",
+            "verbose",
+            "research",
+        ]:
             enhanced_enabled = True
-            
+
         if not enhanced_enabled:
             return
-            
+
         try:
             # Create visualization configuration
             vis_config = self._create_visualization_config()
-            
+
             # Create episode manager
             episode_config = self._create_episode_config()
             self._episode_manager = EpisodeManager(episode_config)
-            
+
             # Create async logger
             async_config = self._create_async_logger_config()
             self._async_logger = AsyncLogger(async_config)
-            
+
             # Create wandb integration if configured
             self._wandb_integration = self._create_wandb_integration()
-            
+
             # Create enhanced visualizer
             self._enhanced_visualizer = EnhancedVisualizer(
                 vis_config=vis_config,
                 episode_manager=self._episode_manager,
                 async_logger=self._async_logger,
-                wandb_integration=self._wandb_integration
+                wandb_integration=self._wandb_integration,
             )
-            
+
         except Exception as e:
             logger.warning(f"Failed to setup enhanced visualization: {e}")
             logger.warning("Falling back to legacy visualization")
             self._enhanced_visualizer = None
 
     def _create_visualization_config(self) -> VisualizationConfig:
-        """Create visualization configuration from Hydra config or defaults."""
-        if self.hydra_config is not None and "visualization" in self.hydra_config:
-            vis_cfg = self.hydra_config.visualization
-            return VisualizationConfig(
-                debug_level=vis_cfg.get("debug_level", "standard"),
-                output_formats=vis_cfg.get("output_formats", ["svg"]),
-                image_quality=vis_cfg.get("image_quality", "high"),
-                show_coordinates=vis_cfg.get("show_coordinates", False),
-                show_operation_names=vis_cfg.get("show_operation_names", True),
-                highlight_changes=vis_cfg.get("highlight_changes", True),
-                include_metrics=vis_cfg.get("include_metrics", True),
-                color_scheme=vis_cfg.get("color_scheme", "default"),
-            )
-        else:
-            # Use defaults based on legacy debug settings
-            debug_level = "standard" if self.config.debug.log_rl_steps else "off"
-            return VisualizationConfig(debug_level=debug_level)
+        """Create visualization configuration from unified config."""
+        vis_cfg = self.config.visualization
+        return VisualizationConfig(
+            debug_level=self.config.environment.computed_visualization_level,
+            output_formats=vis_cfg.output_formats or ["svg"],
+            image_quality=vis_cfg.image_quality,
+            show_coordinates=vis_cfg.show_coordinates,
+            show_operation_names=vis_cfg.show_operation_names,
+            highlight_changes=vis_cfg.highlight_changes,
+            include_metrics=vis_cfg.include_metrics,
+            color_scheme=vis_cfg.color_scheme,
+        )
 
     def _create_episode_config(self) -> EpisodeConfig:
-        """Create episode configuration from Hydra config or defaults."""
-        base_dir = self.config.debug.rl_steps_output_dir
-        
-        if self.hydra_config is not None and "storage" in self.hydra_config:
-            storage_cfg = self.hydra_config.storage
-            return EpisodeConfig(
-                base_output_dir=storage_cfg.get("base_output_dir", base_dir),
-                cleanup_policy=storage_cfg.get("cleanup_policy", "size_based"),
-                max_storage_gb=storage_cfg.get("max_storage_gb", 5.0),
-            )
-        else:
-            return EpisodeConfig(base_output_dir=base_dir)
+        """Create episode configuration from unified config."""
+        storage_cfg = self.config.storage
+        base_dir = f"{storage_cfg.base_output_dir}/{storage_cfg.episodes_dir}"
+
+        return EpisodeConfig(
+            base_output_dir=base_dir,
+            cleanup_policy=storage_cfg.cleanup_policy,
+            max_storage_gb=storage_cfg.max_storage_gb,
+        )
 
     def _create_async_logger_config(self) -> AsyncLoggerConfig:
-        """Create async logger configuration from Hydra config or defaults."""
-        if self.hydra_config is not None and "logging" in self.hydra_config:
-            log_cfg = self.hydra_config.logging
-            return AsyncLoggerConfig(
-                queue_size=log_cfg.get("queue_size", 1000),
-                worker_threads=log_cfg.get("worker_threads", 2),
-                enable_compression=log_cfg.get("enable_compression", True),
-            )
-        else:
-            return AsyncLoggerConfig()
+        """Create async logger configuration from unified config."""
+        log_cfg = self.config.logging
+        return AsyncLoggerConfig(
+            queue_size=log_cfg.queue_size,
+            worker_threads=log_cfg.worker_threads,
+            enable_compression=log_cfg.enable_compression,
+        )
 
     def _create_wandb_integration(self) -> Optional[WandbIntegration]:
         """Create wandb integration if configured."""
-        if self.hydra_config is not None and "wandb" in self.hydra_config:
-            wandb_cfg = self.hydra_config.wandb
-            if wandb_cfg.get("enabled", False):
-                config = WandbConfig(
-                    enabled=True,
-                    project_name=wandb_cfg.get("project_name", "jaxarc-experiments"),
-                    entity=wandb_cfg.get("entity"),
-                    tags=wandb_cfg.get("tags", []),
-                    log_frequency=wandb_cfg.get("log_frequency", 10),
-                )
-                return WandbIntegration(config)
+        wandb_cfg = self.config.wandb
+        if wandb_cfg.enabled:
+            return WandbIntegration(wandb_cfg)
         return None
 
     def reset(
@@ -201,19 +192,22 @@ class ArcEnvironment:
             self._enhanced_visualizer.start_episode(self._episode_count)
         else:
             # Legacy visualization directory clearing
-            if self.config.debug.log_rl_steps and self.config.debug.clear_output_dir:
+            if (
+                self.config.environment.debug_level != "off"
+                and self.config.storage.clear_output_on_start
+            ):
                 self._clear_visualization_directory()
 
         self._state, obs = arc_reset(key, self.config, task_data)
-        
+
         # Log episode start with enhanced visualization
         if self._enhanced_visualizer is not None:
             self._enhanced_visualizer.log_episode_start(
                 episode_num=self._episode_count,
                 task_data=self._state.task_data,
-                initial_state=self._state
+                initial_state=self._state,
             )
-        
+
         return self._state, obs
 
     def step(
@@ -243,7 +237,7 @@ class ArcEnvironment:
         self._state, obs, reward, done, info = arc_step(
             self._state, action, self.config
         )
-        
+
         # Enhanced visualization step logging
         if self._enhanced_visualizer is not None:
             self._enhanced_visualizer.log_step(
@@ -252,31 +246,30 @@ class ArcEnvironment:
                 action=action,
                 after_state=self._state,
                 reward=float(reward),
-                info=info
+                info=info,
             )
-            
+
             # Log episode end if done
             if done:
                 self._enhanced_visualizer.log_episode_end(
                     episode_num=self._episode_count,
                     final_state=self._state,
                     total_reward=info.get("total_reward", float(reward)),
-                    success=info.get("success", False)
+                    success=info.get("success", False),
                 )
-        
+
         return self._state, obs, reward, info
 
     def _clear_visualization_directory(self) -> None:
         """Clear the visualization output directory.
 
-        This method safely clears the RL steps visualization directory
+        This method safely clears the visualization directory
         to ensure clean output for each episode.
         """
         try:
-            _clear_output_directory(self.config.debug.rl_steps_output_dir)
-            logger.debug(
-                f"Cleared visualization directory: {self.config.debug.rl_steps_output_dir}"
-            )
+            viz_dir = f"{self.config.storage.base_output_dir}/{self.config.storage.visualization_dir}"
+            _clear_output_directory(viz_dir)
+            logger.debug(f"Cleared visualization directory: {viz_dir}")
         except Exception as e:
             logger.warning(f"Failed to clear visualization directory: {e}")
 
@@ -287,7 +280,7 @@ class ArcEnvironment:
                 self._async_logger.close()
             except Exception as e:
                 logger.warning(f"Error closing async logger: {e}")
-                
+
         if self._wandb_integration is not None:
             try:
                 self._wandb_integration.finish_run()
@@ -316,10 +309,10 @@ class ArcEnvironment:
         """Get observation space information."""
         return {
             "grid_shape": (
-                self.config.grid.max_grid_height,
-                self.config.grid.max_grid_width,
+                self.config.dataset.max_grid_height,
+                self.config.dataset.max_grid_width,
             ),
-            "max_colors": self.config.grid.max_colors,
+            "max_colors": self.config.dataset.max_colors,
             "selection_format": self.config.action.selection_format,
         }
 
@@ -332,8 +325,8 @@ class ArcEnvironment:
                 "selection_bounds": (
                     0,
                     max(
-                        self.config.grid.max_grid_height,
-                        self.config.grid.max_grid_width,
+                        self.config.dataset.max_grid_height,
+                        self.config.dataset.max_grid_width,
                     ),
                 ),
                 "operation_range": (0, self.config.action.num_operations),
@@ -345,8 +338,8 @@ class ArcEnvironment:
                 "bounds": (
                     0,
                     max(
-                        self.config.grid.max_grid_height,
-                        self.config.grid.max_grid_width,
+                        self.config.dataset.max_grid_height,
+                        self.config.dataset.max_grid_width,
                         self.config.action.num_operations,
                     ),
                 ),
@@ -357,7 +350,10 @@ class ArcEnvironment:
             "bbox_shape": (4,),  # [x1, y1, x2, y2]
             "bbox_bounds": (
                 0,
-                max(self.config.grid.max_grid_height, self.config.grid.max_grid_width),
+                max(
+                    self.config.dataset.max_grid_height,
+                    self.config.dataset.max_grid_width,
+                ),
             ),
             "operation_range": (0, self.config.action.num_operations),
         }

@@ -323,7 +323,10 @@ def demonstrate_rapid_prototyping_workflow(parser):
         step_penalty=-0.001,  # Lower penalty for experimentation
         success_bonus=3.0,  # Quick feedback
     )
-    env = ArcEnvironment(config)
+    # Convert to unified config and create environment
+    from jaxarc.envs.equinox_config import convert_arc_env_config_to_jax_arc_config
+    unified_config = convert_arc_env_config_to_jax_arc_config(config)
+    env = ArcEnvironment(unified_config)
 
     setup_time = time.time() - start_time
     console.print(f"  ✅ Environment ready in [green]{setup_time:.4f}s[/green]")
@@ -424,14 +427,16 @@ def demonstrate_performance_comparison():
         # MiniARC environment creation
         task1 = progress.add_task("Creating MiniARC environment...", total=None)
         start_time = time.time()
-        miniarc_env = ArcEnvironment(miniarc_config)
+        unified_miniarc_config = convert_arc_env_config_to_jax_arc_config(miniarc_config)
+        miniarc_env = ArcEnvironment(unified_miniarc_config)
         miniarc_creation_time = time.time() - start_time
         progress.update(task1, completed=True)
 
         # Standard ARC environment creation
         task2 = progress.add_task("Creating Standard ARC environment...", total=None)
         start_time = time.time()
-        standard_env = ArcEnvironment(standard_config)
+        unified_standard_config = convert_arc_env_config_to_jax_arc_config(standard_config)
+        standard_env = ArcEnvironment(unified_standard_config)
         standard_creation_time = time.time() - start_time
         progress.update(task2, completed=True)
 
