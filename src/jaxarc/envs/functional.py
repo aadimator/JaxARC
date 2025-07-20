@@ -37,17 +37,95 @@ from ..utils.jax_types import (
 )
 from .actions import get_action_handler
 from .config import ArcEnvConfig
+from .equinox_config import JaxArcConfig, convert_arc_env_config_to_jax_arc_config
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
 # Type aliases for cleaner signatures
-ConfigType = Union[ArcEnvConfig, DictConfig]
+ConfigType = Union[ArcEnvConfig, JaxArcConfig, DictConfig]
 ActionType = Union[Dict[str, Any], ARCLEAction]
+
+
+def _convert_jax_arc_config_to_arc_env_config(jax_config: JaxArcConfig) -> ArcEnvConfig:
+    """Convert JaxArcConfig back to ArcEnvConfig for functional API compatibility.
+    
+    This is a temporary bridge function until we fully migrate the functional API
+    to use the unified configuration system.
+    """
+    from .config import (
+        ActionConfig as LegacyActionConfig,
+        DatasetConfig as LegacyDatasetConfig, 
+        DebugConfig as LegacyDebugConfig,
+        GridConfig as LegacyGridConfig,
+        RewardConfig as LegacyRewardConfig,
+    )
+    
+    # Convert back to legacy config structure
+    reward_config = LegacyRewardConfig(
+        reward_on_submit_only=jax_config.reward.reward_on_submit_only,
+        step_penalty=jax_config.reward.step_penalty,
+        success_bonus=jax_config.reward.success_bonus,
+        similarity_weight=jax_config.reward.similarity_weight,
+        progress_bonus=jax_config.reward.progress_bonus,
+        invalid_action_penalty=jax_config.reward.invalid_action_penalty,
+    )
+    
+    grid_config = LegacyGridConfig(
+        max_grid_height=jax_config.dataset.max_grid_height,
+        max_grid_width=jax_config.dataset.max_grid_width,
+        min_grid_height=jax_config.dataset.min_grid_height,
+        min_grid_width=jax_config.dataset.min_grid_width,
+        max_colors=jax_config.dataset.max_colors,
+        background_color=jax_config.dataset.background_color,
+    )
+    
+    action_config = LegacyActionConfig(
+        selection_format=jax_config.action.selection_format,
+        selection_threshold=jax_config.action.selection_threshold,
+        allow_partial_selection=jax_config.action.allow_partial_selection,
+        num_operations=jax_config.action.num_operations,
+        allowed_operations=jax_config.action.allowed_operations,
+        validate_actions=jax_config.action.validate_actions,
+        clip_invalid_actions=jax_config.action.clip_invalid_actions,
+    )
+    
+    dataset_config = LegacyDatasetConfig(
+        dataset_name=jax_config.dataset.dataset_name,
+        dataset_path=jax_config.dataset.dataset_path,
+        task_split=jax_config.dataset.task_split,
+        shuffle_tasks=jax_config.dataset.shuffle_tasks,
+    )
+    
+    debug_config = LegacyDebugConfig(
+        log_rl_steps=jax_config.visualization.enabled,
+        rl_steps_output_dir=f"{jax_config.storage.base_output_dir}/{jax_config.storage.visualization_dir}",
+        clear_output_dir=jax_config.storage.clear_output_on_start,
+    )
+    
+    return ArcEnvConfig(
+        max_episode_steps=jax_config.environment.max_episode_steps,
+        auto_reset=jax_config.environment.auto_reset,
+        log_operations=jax_config.logging.log_operations,
+        log_grid_changes=jax_config.logging.log_grid_changes,
+        log_rewards=jax_config.logging.log_rewards,
+        strict_validation=jax_config.environment.strict_validation,
+        allow_invalid_actions=jax_config.environment.allow_invalid_actions,
+        reward=reward_config,
+        grid=grid_config,
+        action=action_config,
+        dataset=dataset_config,
+        debug=debug_config,
+        parser=None,  # Parser will be set separately if needed
+    )
 
 
 def _ensure_config(config: ConfigType) -> ArcEnvConfig:
     """Convert config to typed ArcEnvConfig if needed."""
     if isinstance(config, DictConfig):
         return ArcEnvConfig.from_hydra(config)
+    elif isinstance(config, JaxArcConfig):
+        # Convert JaxArcConfig back to ArcEnvConfig for compatibility
+        # This is a temporary bridge until we fully migrate the functional API
+        return _convert_jax_arc_config_to_arc_env_config(config)
     return config
 
 

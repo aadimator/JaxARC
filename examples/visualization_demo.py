@@ -48,8 +48,10 @@ def main():
         )
     )
 
-    # Create environment
-    env = ArcEnvironment(config)
+    # Convert to unified config and create environment
+    from jaxarc.envs.equinox_config import convert_arc_env_config_to_jax_arc_config
+    unified_config = convert_arc_env_config_to_jax_arc_config(config)
+    env = ArcEnvironment(unified_config)
 
     # Run a short episode with visualization
     # We don't pass task_data to reset, so it uses the internal demo task.

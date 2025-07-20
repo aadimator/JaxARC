@@ -359,8 +359,10 @@ def demonstrate_environment_integration(parser: ConceptArcParser, concept: str):
         step_penalty=-0.01,
     )
 
-    # Create environment with ConceptARC parser
-    env = ArcEnvironment(config)
+    # Convert to unified config and create environment with ConceptARC parser
+    from jaxarc.envs.equinox_config import convert_arc_env_config_to_jax_arc_config
+    unified_config = convert_arc_env_config_to_jax_arc_config(config)
+    env = ArcEnvironment(unified_config)
 
     # Get a task from the specific concept
     key = jax.random.PRNGKey(123)

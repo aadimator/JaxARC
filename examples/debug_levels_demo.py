@@ -53,8 +53,10 @@ def demo_debug_level(level: str, console: Console) -> dict:
                 })
                 hydra_config = OmegaConf.merge(hydra_config, vis_config)
             
-            # Create environment
-            env = ArcEnvironment(typed_config, hydra_config)
+            # Convert to unified config and create environment
+            from jaxarc.envs.equinox_config import JaxArcConfig
+            unified_config = JaxArcConfig.from_hydra(hydra_config)
+            env = ArcEnvironment(unified_config)
             
             # Measure performance
             start_time = time.time()
@@ -279,7 +281,8 @@ def demo_performance_impact():
                         })
                         hydra_config = OmegaConf.merge(hydra_config, vis_config)
                     
-                    env = ArcEnvironment(typed_config, hydra_config)
+                    unified_config = JaxArcConfig.from_hydra(hydra_config)
+                    env = ArcEnvironment(unified_config)
                     
                     start_time = time.time()
                     

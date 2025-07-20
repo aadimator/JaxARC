@@ -1262,3 +1262,112 @@ class JaxArcConfig(eqx.Module):
             logging=logging,
             wandb=wandb,
         )
+
+
+# Conversion utilities for legacy ArcEnvConfig
+def convert_arc_env_config_to_jax_arc_config(arc_env_config) -> JaxArcConfig:
+    """Convert legacy ArcEnvConfig to unified JaxArcConfig.
+    
+    This function provides a migration path from the old dual configuration
+    pattern to the new unified configuration system.
+    
+    Args:
+        arc_env_config: Legacy ArcEnvConfig instance
+        
+    Returns:
+        JaxArcConfig instance with equivalent configuration
+    """
+    # Import here to avoid circular imports
+    from jaxarc.envs.config import ArcEnvConfig
+    
+    if not isinstance(arc_env_config, ArcEnvConfig):
+        raise ConfigValidationError(f"Expected ArcEnvConfig, got {type(arc_env_config).__name__}")
+    
+    # Convert environment settings
+    environment = EnvironmentConfig(
+        max_episode_steps=arc_env_config.max_episode_steps,
+        auto_reset=arc_env_config.auto_reset,
+        strict_validation=arc_env_config.strict_validation,
+        allow_invalid_actions=arc_env_config.allow_invalid_actions,
+        debug_level="standard" if (arc_env_config.log_operations or arc_env_config.log_grid_changes) else "minimal"
+    )
+    
+    # Convert dataset settings
+    dataset = DatasetConfig(
+        dataset_name=arc_env_config.dataset.dataset_name,
+        dataset_path=arc_env_config.dataset.dataset_path,
+        max_grid_height=arc_env_config.grid.max_grid_height,
+        max_grid_width=arc_env_config.grid.max_grid_width,
+        min_grid_height=arc_env_config.grid.min_grid_height,
+        min_grid_width=arc_env_config.grid.min_grid_width,
+        max_colors=arc_env_config.grid.max_colors,
+        background_color=arc_env_config.grid.background_color,
+        task_split=arc_env_config.dataset.task_split,
+        shuffle_tasks=arc_env_config.dataset.shuffle_tasks,
+        # Use defaults for fields not in legacy config
+        max_train_pairs=10,
+        max_test_pairs=3,
+    )
+    
+    # Convert action settings
+    action = ActionConfig(
+        selection_format=arc_env_config.action.selection_format,
+        selection_threshold=arc_env_config.action.selection_threshold,
+        allow_partial_selection=arc_env_config.action.allow_partial_selection,
+        num_operations=arc_env_config.action.num_operations,
+        allowed_operations=arc_env_config.action.allowed_operations,
+        validate_actions=arc_env_config.action.validate_actions,
+        clip_invalid_actions=arc_env_config.action.clip_invalid_actions,
+    )
+    
+    # Convert reward settings
+    reward = RewardConfig(
+        reward_on_submit_only=arc_env_config.reward.reward_on_submit_only,
+        step_penalty=arc_env_config.reward.step_penalty,
+        invalid_action_penalty=arc_env_config.reward.invalid_action_penalty,
+        success_bonus=arc_env_config.reward.success_bonus,
+        similarity_weight=arc_env_config.reward.similarity_weight,
+        progress_bonus=arc_env_config.reward.progress_bonus,
+    )
+    
+    # Convert visualization settings
+    visualization = VisualizationConfig(
+        enabled=arc_env_config.debug.log_rl_steps,
+        level=environment.computed_visualization_level,
+        output_formats=["svg"],  # Default format
+        show_coordinates=False,
+        show_operation_names=True,
+        highlight_changes=True,
+        include_metrics=True,
+        color_scheme="default",
+    )
+    
+    # Convert storage settings
+    storage = StorageConfig(
+        policy=environment.computed_storage_policy,
+        base_output_dir=arc_env_config.debug.rl_steps_output_dir,
+        clear_output_on_start=arc_env_config.debug.clear_output_dir,
+    )
+    
+    # Convert logging settings
+    logging = LoggingConfig(
+        log_operations=arc_env_config.log_operations,
+        log_grid_changes=arc_env_config.log_grid_changes,
+        log_rewards=arc_env_config.log_rewards,
+        log_level="INFO",
+        structured_logging=True,
+    )
+    
+    # Create default wandb config (disabled by default)
+    wandb = WandbConfig(enabled=False)
+    
+    return JaxArcConfig(
+        environment=environment,
+        dataset=dataset,
+        action=action,
+        reward=reward,
+        visualization=visualization,
+        storage=storage,
+        logging=logging,
+        wandb=wandb,
+    )

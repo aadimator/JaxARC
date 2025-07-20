@@ -60,8 +60,10 @@ def demo_enhanced_visualization_levels():
         hydra_config = get_config(overrides=config_overrides)
         typed_config = ArcEnvConfig.from_hydra(hydra_config)
         
-        # Create environment with enhanced visualization
-        env = ArcEnvironment(typed_config, hydra_config)
+        # Convert to unified config and create environment with enhanced visualization
+        from jaxarc.envs.equinox_config import JaxArcConfig
+        unified_config = JaxArcConfig.from_hydra(hydra_config)
+        env = ArcEnvironment(unified_config)
         
         # Run a short episode
         key = jr.PRNGKey(42 + hash(level) % 1000)
@@ -124,8 +126,9 @@ def demo_wandb_integration():
     console.print("[green]Creating environment with wandb integration...[/green]")
     
     try:
-        # Create environment with wandb integration
-        env = ArcEnvironment(typed_config, hydra_config)
+        # Convert to unified config and create environment with wandb integration
+        unified_config = JaxArcConfig.from_hydra(hydra_config)
+        env = ArcEnvironment(unified_config)
         
         # Run episode
         key = jr.PRNGKey(123)
@@ -318,8 +321,9 @@ def demo_performance_monitoring():
     
     console.print("[green]Running environment with performance monitoring...[/green]")
     
-    # Create environment
-    env = ArcEnvironment(typed_config, hydra_config)
+    # Convert to unified config and create environment
+    unified_config = JaxArcConfig.from_hydra(hydra_config)
+    env = ArcEnvironment(unified_config)
     
     # Run episode with timing
     import time
