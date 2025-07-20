@@ -20,7 +20,7 @@ def create_random_action(key: jr.PRNGKey, config: ArcEnvConfig) -> dict:
     op_key, sel_key = jr.split(key)
 
     # Create a random operation
-    op = jr.randint(op_key, shape=(), minval=0, maxval=config.action.num_operations)
+    op = jr.randint(op_key, shape=(), minval=0, maxval=config.action.max_operations)  # Standardized naming
 
     # Create a random selection based on the selection format
     if config.action.selection_format == "bbox":

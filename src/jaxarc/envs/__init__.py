@@ -27,6 +27,33 @@ from .config import (
     validate_config,
 )
 
+# Unified configuration system (Equinox-based)
+from .equinox_config import (
+    JaxArcConfig,
+    EnvironmentConfig,
+    DatasetConfig as UnifiedDatasetConfig,
+    ActionConfig as UnifiedActionConfig,
+    RewardConfig as UnifiedRewardConfig,
+    VisualizationConfig,
+    StorageConfig,
+    LoggingConfig,
+    WandbConfig,
+    ConfigValidationError,
+    convert_arc_env_config_to_jax_arc_config,
+)
+
+# Configuration factory system
+from .config_factory import (
+    ConfigFactory,
+    ConfigPresets,
+    create_development_config,
+    create_research_config,
+    create_production_config,
+    from_hydra,
+    from_preset,
+    get_available_presets,
+)
+
 # Core environment classes
 from .environment import ArcEnvironment
 
@@ -83,12 +110,33 @@ __all__ = [
     # Core environment classes
     "ArcEnvironment",
     "ArcEnvState",
-    # Configuration classes
+    # Configuration classes (legacy)
     "ArcEnvConfig",
     "RewardConfig",
     "GridConfig",
     "ActionConfig",
     "DatasetConfig",
+    # Unified configuration classes
+    "JaxArcConfig",
+    "EnvironmentConfig",
+    "UnifiedDatasetConfig",
+    "UnifiedActionConfig",
+    "UnifiedRewardConfig",
+    "VisualizationConfig",
+    "StorageConfig",
+    "LoggingConfig",
+    "WandbConfig",
+    "ConfigValidationError",
+    "convert_arc_env_config_to_jax_arc_config",
+    # Configuration factory system
+    "ConfigFactory",
+    "ConfigPresets",
+    "create_development_config",
+    "create_research_config",
+    "create_production_config",
+    "from_hydra",
+    "from_preset",
+    "get_available_presets",
     # Config utilities
     "validate_config",
     "get_config_summary",

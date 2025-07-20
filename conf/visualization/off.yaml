@@ -25,4 +25,4 @@ save_intermediate_states: false
 
 # Memory and performance
 lazy_loading: true
-memory_limit_mb: 100
+max_memory_mb: 100  # Standardized naming: max_* pattern
