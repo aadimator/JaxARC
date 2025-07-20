@@ -117,23 +117,114 @@ stats = parser.get_dataset_statistics()  # Performance metrics
 **Performance Benefits:** 36x less memory, 10-50x faster processing, larger
 batch sizes
 
-## Configuration Factory Functions
+## Unified Configuration System
 
-Quick configuration creation for different datasets and use cases.
+### ConfigFactory
+
+Centralized factory for creating configurations with consistent patterns.
 
 ```python
-from jaxarc.envs.factory import create_conceptarc_config, create_miniarc_config
+from jaxarc.envs.factory import ConfigFactory
+from jaxarc.envs.config import JaxArcConfig
 
-# Environment configurations
-conceptarc_env = create_conceptarc_config(max_episode_steps=150, success_bonus=20.0)
-miniarc_env = create_miniarc_config(max_episode_steps=50, success_bonus=5.0)
+# Preset-based configuration creation
+dev_config = ConfigFactory.create_development_config()
+research_config = ConfigFactory.create_research_config()
+production_config = ConfigFactory.create_production_config()
 
-# Parser configurations
-from jaxarc.utils.config import create_conceptarc_config, create_miniarc_config
+# Flexible preset system with overrides
+config = ConfigFactory.from_preset("development", {
+    "environment.max_episode_steps": 200,
+    "debug.level": "verbose",
+    "visualization.show_coordinates": True
+})
 
-conceptarc_parser = create_conceptarc_config(max_episode_steps=100)
-miniarc_parser = create_miniarc_config(max_episode_steps=80)
+# Convert from Hydra configuration
+@hydra.main(config_path="conf", config_name="config")
+def main(cfg: DictConfig):
+    config = ConfigFactory.from_hydra(cfg)
+    env = ArcEnvironment(config)
+
+# Load from YAML file
+config = ConfigFactory.from_yaml("my_config.yaml")
 ```
+
+**Factory Methods:**
+
+- `create_development_config(**overrides) -> JaxArcConfig`: Development preset with debugging enabled
+- `create_research_config(**overrides) -> JaxArcConfig`: Research preset with full logging
+- `create_production_config(**overrides) -> JaxArcConfig`: Production preset with minimal overhead
+- `from_preset(name: str, overrides: dict) -> JaxArcConfig`: Load named preset with overrides
+- `from_hydra(hydra_config: DictConfig) -> JaxArcConfig`: Convert Hydra config to unified config
+- `from_yaml(yaml_path: str) -> JaxArcConfig`: Load configuration from YAML file
+
+### JaxArcConfig
+
+Unified configuration object containing all system parameters in logical groups.
+
+```python
+from jaxarc.envs.config import (
+    JaxArcConfig, EnvironmentConfig, DebugConfig, 
+    VisualizationConfig, StorageConfig, LoggingConfig, WandbConfig
+)
+
+# Complete configuration with all groups
+config = JaxArcConfig(
+    environment=EnvironmentConfig(
+        max_episode_steps=100,
+        grid_size=(30, 30),
+        reward_on_submit_only=False
+    ),
+    debug=DebugConfig(
+        level="standard",  # off, minimal, standard, verbose, research
+        log_steps=True,
+        log_grids=False,
+        save_episodes=False
+    ),
+    visualization=VisualizationConfig(
+        enabled=True,
+        level="standard",
+        show_grids=True,
+        show_actions=True,
+        color_scheme="default"
+    ),
+    storage=StorageConfig(
+        policy="standard",  # none, minimal, standard, research
+        max_size_gb=5.0,
+        cleanup_on_exit=True,
+        compression=True
+    ),
+    logging=LoggingConfig(
+        level="INFO",
+        console_logging=True,
+        file_logging=False
+    ),
+    wandb=WandbConfig(
+        enabled=False,
+        project="jaxarc",
+        entity=None
+    )
+)
+
+# Configuration validation
+validation_result = config.validate()
+if validation_result.errors:
+    for error in validation_result.errors:
+        print(f"Error: {error}")
+
+# YAML export/import
+yaml_content = config.to_yaml()
+loaded_config = JaxArcConfig.from_yaml("config.yaml")
+```
+
+**Configuration Groups:**
+
+- `EnvironmentConfig`: Core environment parameters (steps, grid size, rewards)
+- `DebugConfig`: Debug levels and logging options
+- `VisualizationConfig`: Visualization settings and output formats
+- `StorageConfig`: Storage policies and resource limits
+- `LoggingConfig`: Logging levels and output destinations
+- `WandbConfig`: Weights & Biases integration settings
 
 ## Core Data Types
 
@@ -318,78 +409,100 @@ print(f"Total elements: {memory_info['total_elements']:,}")
 - `create_state_diff(old, new) -> dict`: Create diff between two states
 - `module_memory_usage(module) -> dict`: Analyze memory usage of Equinox module
 
-## Enhanced Configuration System
+## Configuration Validation and Error Handling
 
-Comprehensive configuration with validation and error handling:
+Comprehensive validation system with clear error messages and suggestions.
 
 ```python
-from jaxarc.envs.config import (
-    ArcEnvConfig, RewardConfig, ActionConfig, GridConfig,
-    ConfigValidationError
-)
+from jaxarc.envs.config import JaxArcConfig, ConfigValidationError
 
-# Create configuration with validation
+# Configuration validation
 try:
-    config = ArcEnvConfig(
-        max_episode_steps=100,
-        reward=RewardConfig(
-            success_bonus=10.0,
-            step_penalty=-0.01,
-            similarity_weight=1.5
-        ),
-        action=ActionConfig(
-            selection_format="point",
-            num_operations=35,
-            allowed_operations=[0, 1, 2, 3, 4, 5]
-        ),
-        grid=GridConfig(
-            max_grid_height=30,
-            max_grid_width=30,
-            max_colors=10
-        )
+    config = JaxArcConfig(
+        environment=EnvironmentConfig(max_episode_steps=-10),  # Invalid
+        debug=DebugConfig(level="invalid_level"),  # Invalid
+        storage=StorageConfig(max_size_gb=-1.0)  # Invalid
     )
-    print("✅ Configuration validation passed")
-    
 except ConfigValidationError as e:
-    print(f"❌ Configuration validation failed: {e}")
+    print("Configuration validation failed:")
+    for field, error in e.field_errors.items():
+        print(f"  {field}: {error}")
+    
+    # Example output:
+    # environment.max_episode_steps: Must be positive, got -10
+    # debug.level: Must be one of ['off', 'minimal', 'standard', 'verbose', 'research'], got 'invalid_level'
+    # storage.max_size_gb: Must be non-negative, got -1.0
 
-# Create from Hydra config
-from omegaconf import OmegaConf
+# Validation with warnings
+validation_result = config.validate()
+for warning in validation_result.warnings:
+    print(f"Warning: {warning}")
+for error in validation_result.errors:
+    print(f"Error: {error}")
 
-hydra_config = OmegaConf.create({
-    "max_episode_steps": 100,
-    "reward": {"success_bonus": 15.0},
-    "action": {"selection_format": "mask"}
-})
-
-typed_config = ArcEnvConfig.from_hydra(hydra_config)
+# Cross-configuration validation
+if config.debug.level == "off" and config.visualization.enabled:
+    print("Warning: Visualization enabled but debug level is 'off'")
 ```
-
-**Configuration Classes:**
-
-- `ArcEnvConfig`: Main environment configuration
-- `RewardConfig`: Reward calculation settings
-- `ActionConfig`: Action space and validation
-- `GridConfig`: Grid dimensions and constraints
-- `DatasetConfig`: Dataset-specific settings
-- `DebugConfig`: Debug and logging options
 
 **Validation Features:**
 
-- Field-level validation with clear error messages
-- Cross-field consistency checking
-- Range validation for numeric values
-- Choice validation for string values
-- Helpful warnings for potentially problematic configurations
+- **Field-level validation**: Range checking, type validation, choice validation
+- **Cross-field consistency**: Detect conflicting parameter combinations
+- **Clear error messages**: Specific field names and expected values
+- **Helpful warnings**: Potentially problematic but valid configurations
+- **Validation reports**: Structured validation results with errors and warnings
+
+**Configuration Migration:**
+
+```python
+from jaxarc.envs.migration import ConfigMigrator
+
+# Migrate legacy configurations
+migrator = ConfigMigrator()
+
+# Migrate dual config pattern
+legacy_env_config = {"max_episode_steps": 100}
+legacy_hydra_config = {"debug": {"enabled": True}}
+
+new_config = migrator.migrate_dual_config(legacy_env_config, legacy_hydra_config)
+
+# Migration report
+report = migrator.create_migration_report(legacy_config)
+for warning in report.warnings:
+    print(f"Migration warning: {warning}")
+```
 
 ## Environment Integration
+
+### Unified Configuration Pattern
+
+```python
+from jaxarc.envs import ArcEnvironment
+from jaxarc.envs.factory import ConfigFactory
+
+# Single configuration object (replaces dual config pattern)
+config = ConfigFactory.create_development_config(
+    max_episode_steps=100,
+    debug_level="standard",
+    visualization_enabled=True
+)
+
+# Environment uses single config
+env = ArcEnvironment(config)  # No hydra_config parameter needed
+
+# Access configuration parameters through logical groups
+max_steps = config.environment.max_episode_steps
+debug_level = config.debug.level
+viz_enabled = config.visualization.enabled
+```
 
 ### Functional API
 
 ```python
 from jaxarc.envs import arc_reset, arc_step
 
-# Reset environment
+# Reset environment with unified config
 state, obs = arc_reset(key, config, task_data=task)
 
 # Step environment
@@ -401,9 +514,14 @@ state, obs, reward, done, info = arc_step(state, action, config)
 ```python
 from jaxarc.envs import ArcEnvironment
 
+# Single configuration parameter
 env = ArcEnvironment(config)
 state, obs = env.reset(key, task_data=task)
 state, obs, reward, info = env.step(action)
+
+# Configuration access within environment
+assert env.config.environment.max_episode_steps == config.environment.max_episode_steps
+assert env.config.debug.level == config.debug.level
 ```
 
 ## Usage Examples
@@ -413,7 +531,8 @@ state, obs, reward, info = env.step(action)
 ```python
 import jax
 from jaxarc.parsers import ConceptArcParser
-from jaxarc.envs import create_conceptarc_config, ArcEnvironment
+from jaxarc.envs import ArcEnvironment
+from jaxarc.envs.factory import ConfigFactory
 from omegaconf import DictConfig
 
 # Create parser configuration
@@ -437,12 +556,21 @@ print(f"Available concepts: {concepts}")
 key = jax.random.PRNGKey(42)
 task = parser.get_random_task_from_concept("Center", key)
 
-# Create environment configuration
-env_config = create_conceptarc_config(max_episode_steps=150, success_bonus=20.0)
+# Create unified environment configuration
+config = ConfigFactory.create_research_config(
+    max_episode_steps=150,
+    debug_level="verbose",
+    visualization_enabled=True
+)
 
-# Run environment
-env = ArcEnvironment(env_config)
+# Run environment with single config
+env = ArcEnvironment(config)
 state, obs = env.reset(key, task_data=task)
+
+# Access configuration parameters through groups
+print(f"Max steps: {config.environment.max_episode_steps}")
+print(f"Debug level: {config.debug.level}")
+print(f"Visualization: {config.visualization.enabled}")
 ```
 
 ### MiniARC Example
@@ -450,7 +578,8 @@ state, obs = env.reset(key, task_data=task)
 ```python
 import jax
 from jaxarc.parsers import MiniArcParser
-from jaxarc.envs import create_miniarc_config, ArcEnvironment
+from jaxarc.envs import ArcEnvironment
+from jaxarc.envs.factory import ConfigFactory
 from omegaconf import DictConfig
 
 # Create parser configuration
@@ -470,14 +599,51 @@ parser = MiniArcParser(parser_config)
 key = jax.random.PRNGKey(42)
 task = parser.get_random_task(key)
 
-# Create optimized environment configuration
-env_config = create_miniarc_config(
-    max_episode_steps=50, success_bonus=5.0  # Shorter for rapid iteration
-)
+# Create optimized configuration for rapid iteration
+config = ConfigFactory.from_preset("development", {
+    "environment.max_episode_steps": 50,
+    "environment.grid_size": (5, 5),
+    "debug.level": "minimal",
+    "storage.policy": "minimal"
+})
 
 # Run environment (10-50x faster than standard ARC)
-env = ArcEnvironment(env_config)
+env = ArcEnvironment(config)
 state, obs = env.reset(key, task_data=task)
+
+# Configuration is optimized for MiniARC
+assert config.environment.grid_size == (5, 5)
+assert config.debug.level == "minimal"
+```
+
+### Hydra Integration Example
+
+```python
+import hydra
+from omegaconf import DictConfig
+from jaxarc.envs import ArcEnvironment
+from jaxarc.envs.factory import ConfigFactory
+
+@hydra.main(config_path="conf", config_name="config")
+def main(cfg: DictConfig) -> None:
+    # Convert Hydra config to unified JaxArcConfig
+    config = ConfigFactory.from_hydra(cfg)
+    
+    # Single configuration object contains all parameters
+    env = ArcEnvironment(config)
+    
+    # Access parameters through logical groups
+    print(f"Environment: max_steps={config.environment.max_episode_steps}")
+    print(f"Debug: level={config.debug.level}")
+    print(f"Visualization: enabled={config.visualization.enabled}")
+    print(f"Storage: policy={config.storage.policy}")
+    
+    # Run environment
+    key = jax.random.PRNGKey(42)
+    state, obs = env.reset(key)
+
+if __name__ == "__main__":
+    main()
 ```
 
 ## Performance Considerations
