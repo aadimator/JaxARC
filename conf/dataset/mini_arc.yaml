@@ -24,13 +24,12 @@ parser:
     smaller data structures"
 
 # Grid Configuration - Optimized for 5x5 grids
-grid:
-  max_grid_height: 5 # Maximum height optimized for MiniARC (5x5 constraint)
-  max_grid_width: 5 # Maximum width optimized for MiniARC (5x5 constraint)
-  min_grid_height: 1 # Minimum height for valid grids
-  min_grid_width: 1 # Minimum width for valid grids
-  max_colors: 10 # Maximum number of colors (ARC uses 0-9)
-  background_color: 0 # Default background color (black in ARC)
+max_grid_height: 5 # Maximum height optimized for MiniARC (5x5 constraint)
+max_grid_width: 5 # Maximum width optimized for MiniARC (5x5 constraint)
+min_grid_height: 1 # Minimum height for valid grids
+min_grid_width: 1 # Minimum width for valid grids
+max_colors: 10 # Maximum number of colors (ARC uses 0-9)
+background_color: 0 # Default background color (black in ARC)
 
 # Task Configuration for JAX Environment - Optimized for smaller dataset
 # MiniARC typically has fewer demonstration pairs and usually 1 test pair per task
@@ -46,10 +45,6 @@ optimization:
 
 # MiniARC-specific metadata
 metadata:
-  total_training_tasks: 400
-  total_evaluation_tasks: 400
-  total_tasks: 800
-  grid_constraint: "5x5 maximum"
   repository_url: "https://github.com/KSB21ST/MINI-ARC"
   purpose: "Rapid prototyping and testing with compact ARC tasks"
   performance_benefits:

@@ -2,15 +2,12 @@
 # No visualization - maximum performance
 
 # Core visualization settings
-debug_level: "off"
 enabled: false
-
-# Output settings
+level: "off"
 output_formats: []
 image_quality: "low"
-output_dir: "outputs/debug"
 
-# Performance settings
+# Display settings
 show_coordinates: false
 show_operation_names: false
 highlight_changes: false

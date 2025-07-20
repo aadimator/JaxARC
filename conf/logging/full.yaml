@@ -1,0 +1,27 @@
+# @package logging
+# Full logging configuration for research
+
+# Core logging settings
+structured_logging: true
+log_format: "json"
+log_level: "DEBUG"
+compression: true
+include_full_states: true  # Full state logging for research
+
+# What to log
+log_operations: true
+log_grid_changes: true
+log_rewards: true
+log_episode_start: true
+log_episode_end: true
+log_key_moments: true
+
+# Logging frequency and timing
+log_frequency: 5
+
+# Async logging settings
+queue_size: 2000
+worker_threads: 4
+batch_size: 20
+flush_interval: 2.0
+enable_compression: true

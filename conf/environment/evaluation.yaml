@@ -1,22 +1,14 @@
+# @package environment
 # Evaluation Environment Configuration
 # Optimized configuration for evaluating ARC agents
-# Uses evaluation-specific sub-configurations for accurate performance assessment
-
-# Environment target class (for backward compatibility)
-_target_: jaxarc.envs.ArcEnvironment
 
 # Episode Settings - Optimized for Evaluation
 max_episode_steps: 150 # Longer episodes to allow complete solutions
 auto_reset: true # Automatically reset environment after episode ends
 
-# Logging and Debugging - Minimal for Evaluation
-log_operations: false # Disable operation logging for clean evaluation
-log_grid_changes: false # Disable detailed grid change logging
-log_rewards: false # Disable reward logging (focus on final results)
-
 # Environment Behavior - Strict for Evaluation
 strict_validation: true # Strict validation for realistic evaluation
 allow_invalid_actions: false # No invalid actions allowed during evaluation
 
-# Legacy Settings (for backward compatibility with existing code)
-similarity_threshold: 1.0 # Threshold for considering task solved
+# Debug Level - Minimal for Evaluation
+debug_level: "minimal" # Minimal debugging for clean evaluation

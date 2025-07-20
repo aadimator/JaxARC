@@ -2,15 +2,12 @@
 # Full visualization - complete state dumps and analysis
 
 # Core visualization settings
-debug_level: "full"
 enabled: true
-
-# Output settings
+level: "full"
 output_formats: ["svg", "png", "html"]
 image_quality: "high"
-output_dir: "outputs/debug"
 
-# Performance settings
+# Display settings
 show_coordinates: true
 show_operation_names: true
 highlight_changes: true
@@ -22,26 +19,10 @@ visualize_episodes: true
 episode_summaries: true
 step_visualizations: true
 
-# Log everything with maximum detail
-log_frequency: 1  # Every step
-log_episode_end: true
-log_episode_start: true
-log_key_moments: true
-log_action_details: true
-log_state_transitions: true
-log_performance_metrics: true
-log_memory_usage: true
-
 # Comparison and analysis
 enable_comparisons: true
 save_intermediate_states: true
-generate_analysis_reports: true
 
 # Memory and performance (relaxed for full logging)
 lazy_loading: false
 memory_limit_mb: 2000
-
-# Additional full-mode features
-save_raw_states: true
-include_timing_info: true
-detailed_error_logging: true
