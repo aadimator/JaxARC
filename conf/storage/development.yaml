@@ -2,17 +2,18 @@
 # Development-friendly storage settings
 
 # Base storage configuration
-base_output_dir: "outputs/dev_episodes"
+policy: "standard"
+base_output_dir: "outputs/dev"
 run_name: null  # Auto-generated
-episode_dir_format: "episode_{episode:04d}"
-step_file_format: "step_{step:03d}"
+episodes_dir: "episodes"
+debug_dir: "debug"
+visualization_dir: "visualizations"
+logs_dir: "logs"
 
 # Development limits (smaller for faster iteration)
 max_episodes_per_run: 50
 max_storage_gb: 1.0
 cleanup_policy: "size_based"
-
-# Quick cleanup for development
 cleanup_frequency: "after_run"
 keep_recent_episodes: 10
 
@@ -20,6 +21,7 @@ keep_recent_episodes: 10
 create_run_subdirs: true
 timestamp_format: "%Y%m%d_%H%M%S"
 compress_old_files: true
+clear_output_on_start: true
 
 # Development-specific settings
 auto_cleanup: true

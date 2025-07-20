@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "JAX Compliance Analyzer",
+  "description": "Analyzes the codebase for JAX compatibility, performance optimization opportunities, and identifies areas that may cause issues with JIT compilation or vectorization",
+  "version": "1",
+  "when": {
+    "type": "userTriggered",
+    "patterns": [
+      "src/jaxarc/**/*.py",
+      "tests/**/*.py",
+      "examples/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Analyze the JAX codebase for compliance and performance optimization. Focus on:\n\n1. **JAX Compliance Assessment**:\n   - Identify functions that are JAX-compatible vs those that aren't\n   - Check for proper use of pure functions (no side effects)\n   - Verify PRNG key management patterns\n   - Look for static vs dynamic shape handling\n\n2. **Performance Analysis**:\n   - Identify areas suitable for JIT compilation\n   - Find opportunities for vectorization with jax.vmap\n   - Check for efficient batch processing patterns\n   - Analyze memory usage patterns\n\n3. **Problem Areas**:\n   - Functions that may break JIT compilation\n   - Dynamic shape operations that could cause performance issues\n   - Side effects that prevent functional purity\n   - Inefficient array operations or data structures\n\n4. **Optimization Recommendations**:\n   - Suggest specific JAX transformations (jit, vmap, pmap)\n   - Recommend static shape alternatives\n   - Propose functional refactoring for impure functions\n   - Identify bottlenecks and optimization opportunities\n\n5. **Code Quality Assessment**:\n   - Evaluate use of chex dataclasses and assertions\n   - Check for proper type annotations\n   - Assess JAX debug callback usage\n   - Review immutable state management\n\nProvide specific code examples and actionable recommendations for improving JAX compatibility and performance."
+  }
+}

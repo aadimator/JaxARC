@@ -39,13 +39,12 @@ parser:
     "ConceptARC parser with concept group organization and metadata handling"
 
 # Grid Configuration - Standard ARC dimensions
-grid:
-  max_grid_height: 30 # Maximum height for JAX array padding (same as standard ARC)
-  max_grid_width: 30 # Maximum width for JAX array padding (same as standard ARC)
-  min_grid_height: 1 # Minimum height for valid grids
-  min_grid_width: 1 # Minimum width for valid grids
-  max_colors: 10 # Maximum number of colors (ARC uses 0-9)
-  background_color: 0 # Default background color (black in ARC)
+max_grid_height: 30 # Maximum height for JAX array padding (same as standard ARC)
+max_grid_width: 30 # Maximum width for JAX array padding (same as standard ARC)
+min_grid_height: 1 # Minimum height for valid grids
+min_grid_width: 1 # Minimum width for valid grids
+max_colors: 10 # Maximum number of colors (ARC uses 0-9)
+background_color: 0 # Default background color (black in ARC)
 
 # Task Configuration for JAX Environment
 # ConceptARC has 1-4 demonstration pairs per task, 3 test inputs per task

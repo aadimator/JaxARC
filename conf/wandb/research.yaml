@@ -1,0 +1,21 @@
+# @package wandb
+# Research WandB configuration
+
+enabled: true
+project_name: "jaxarc-research"
+entity: null  # Set via environment variable or override
+tags: ["jaxarc", "research", "full-logging"]
+notes: "Full JaxARC experiment with comprehensive wandb logging"
+group: "research-experiments"
+job_type: "research"
+log_frequency: 5
+image_format: "both"  # Both PNG and SVG
+max_image_size: [1024, 768]
+log_gradients: true
+log_model_topology: true
+log_system_metrics: true
+offline_mode: false
+retry_attempts: 5
+retry_delay: 2.0
+save_code: true
+save_config: true

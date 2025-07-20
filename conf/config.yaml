@@ -2,11 +2,14 @@ defaults:
   - _self_
   - dataset: arc_agi_2 # Which dataset to use
   - environment: training # Which environment to use (training/evaluation)
-  - reward: standard # Which reward configuration to use
-  - action: standard # Which action configuration to use
-  - debug: "off" # Debug level (off, minimal, on/standard, verbose, full)
+  - reward: standard # Which reward configuration to use (standard/training/evaluation)
+  - action: standard # Which action configuration to use (standard/full/raw)
+  - logging: full # Which logging configuration to use (basic/full)
+  - storage: research # Which storage configuration to use (development/production/research)
+  - visualization: standard # Which visualization configuration to use (off/minimal/standard/full)
+  - wandb: disabled # Which wandb configuration to use (disabled/basic/research)
 
-# Project paths
+# Project paths (legacy - kept for backward compatibility)
 paths:
   data_raw: "data/raw"
   data_processed: "data/processed"
@@ -16,7 +19,7 @@ paths:
 # Global settings
 seed: 42 # Global random seed
 
-# Output directory for demo visualizations
+# Output directory for demo visualizations (legacy - use storage.base_output_dir instead)
 output_dir: "outputs/arc_demo"
 
 # Hydra configuration

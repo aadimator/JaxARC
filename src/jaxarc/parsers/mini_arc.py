@@ -353,11 +353,6 @@ class MiniArcParser(ArcDataParserBase):
             raise
 
 
-
-
-
-
-
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         """Get a random task from the dataset.
 

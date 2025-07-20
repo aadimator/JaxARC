@@ -19,6 +19,7 @@ drawsvg = ">=2.4.0,<3"
 cairosvg = ">=2.8.2,<3"
 seaborn = ">=0.13.2,<0.14"
 marimo = ">=0.13.6,<0.15"
+wandb = ">=0.21.0,<0.22"
 
 [pypi-dependencies]
 JaxARC = { path = ".", editable = true }
