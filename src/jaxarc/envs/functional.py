@@ -82,10 +82,10 @@ def _convert_jax_arc_config_to_arc_env_config(jax_config: JaxArcConfig) -> ArcEn
         selection_format=jax_config.action.selection_format,
         selection_threshold=jax_config.action.selection_threshold,
         allow_partial_selection=jax_config.action.allow_partial_selection,
-        num_operations=jax_config.action.num_operations,
+        num_operations=jax_config.action.max_operations,  # Use max_operations from unified config
         allowed_operations=jax_config.action.allowed_operations,
         validate_actions=jax_config.action.validate_actions,
-        clip_invalid_actions=jax_config.action.clip_invalid_actions,
+        clip_invalid_actions=not jax_config.action.allow_invalid_actions,  # Inverted logic
     )
     
     dataset_config = LegacyDatasetConfig(

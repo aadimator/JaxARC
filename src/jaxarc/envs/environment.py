@@ -329,7 +329,7 @@ class ArcEnvironment:
                         self.config.dataset.max_grid_width,
                     ),
                 ),
-                "operation_range": (0, self.config.action.num_operations),
+                "operation_range": (0, self.config.action.max_operations),
             }
         if self.config.action.selection_format == "point":
             return {
@@ -340,7 +340,7 @@ class ArcEnvironment:
                     max(
                         self.config.dataset.max_grid_height,
                         self.config.dataset.max_grid_width,
-                        self.config.action.num_operations,
+                        self.config.action.max_operations,
                     ),
                 ),
             }
@@ -355,5 +355,5 @@ class ArcEnvironment:
                     self.config.dataset.max_grid_width,
                 ),
             ),
-            "operation_range": (0, self.config.action.num_operations),
+            "operation_range": (0, self.config.action.max_operations),
         }
