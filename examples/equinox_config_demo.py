@@ -113,10 +113,10 @@ def demo_visualization_config():
         level="full",
         output_formats=["svg", "png"],
         show_coordinates=True,
-        memory_limit_mb=1000,
+        max_memory_mb=1000,  # Standardized naming
     )
     print(
-        f"Custom: level={custom_config.level}, formats={custom_config.output_formats}, memory_mb={custom_config.memory_limit_mb}"
+        f"Custom: level={custom_config.level}, formats={custom_config.output_formats}, memory_mb={custom_config.max_memory_mb}"
     )
 
     # Validate

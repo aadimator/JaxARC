@@ -10,7 +10,7 @@ selection_threshold: 0.5 # Threshold for converting continuous selections to boo
 allow_partial_selection: true # Allow partial grid selections
 
 # Operation Settings
-num_operations: 35 # Maximum operation ID + 1 (to allow operation 34)
+max_operations: 35 # Maximum operation ID + 1 (to allow operation 34) - standardized naming
 allowed_operations: # Only basic operations using ARCLEOperationType IDs
   - 0 # FILL_0 (black)
   - 1 # FILL_1 (blue)
@@ -27,4 +27,4 @@ allowed_operations: # Only basic operations using ARCLEOperationType IDs
 
 # Validation Settings
 validate_actions: true # Validate actions before execution
-clip_invalid_actions: false # Raise error for invalid actions
+allow_invalid_actions: false # Allow invalid actions (standardized naming)

@@ -88,7 +88,7 @@ def demo_config_validation():
         "visualization": {
             "debug_level": "invalid_level",
             "output_formats": ["invalid_format"],
-            "memory_limit_mb": -100
+            "max_memory_mb": -100  # Standardized naming
         },
         "storage": {
             "cleanup_policy": "invalid_policy",
