@@ -3,7 +3,7 @@
 
 enabled: true
 project_name: "jaxarc-experiments"
-entity: null  # Use default entity
+entity: null # Use default entity
 tags: ["jaxarc", "basic"]
 notes: "Basic JaxARC experiment with wandb logging"
 group: null

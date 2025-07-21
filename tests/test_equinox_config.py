@@ -4,8 +4,10 @@ Tests for Equinox-based configuration classes.
 This module tests the new unified configuration system using Equinox and JaxTyping.
 """
 
+from __future__ import annotations
+
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from src.jaxarc.envs.equinox_config import (
     ConfigValidationError,
@@ -20,17 +22,17 @@ from src.jaxarc.envs.equinox_config import (
 
 class TestEnvironmentConfig:
     """Test EnvironmentConfig class."""
-    
+
     def test_default_creation(self):
         """Test creating EnvironmentConfig with defaults."""
         config = EnvironmentConfig()
-        
+
         assert config.max_episode_steps == 100
         assert config.auto_reset is True
         assert config.strict_validation is True
         assert config.allow_invalid_actions is False
         assert config.debug_level == "standard"
-    
+
     def test_custom_creation(self):
         """Test creating EnvironmentConfig with custom values."""
         config = EnvironmentConfig(
@@ -40,39 +42,41 @@ class TestEnvironmentConfig:
             allow_invalid_actions=True,
             debug_level="verbose",
         )
-        
+
         assert config.max_episode_steps == 200
         assert config.auto_reset is False
         assert config.strict_validation is False
         assert config.allow_invalid_actions is True
         assert config.debug_level == "verbose"
-    
+
     def test_validation_success(self):
         """Test successful validation."""
         config = EnvironmentConfig()
         errors = config.validate()
         assert errors == []
-    
+
     def test_validation_errors(self):
         """Test validation errors."""
         config = EnvironmentConfig(
             debug_level="invalid",  # Invalid debug level
         )
-        
+
         errors = config.validate()
         assert len(errors) >= 1
         assert any("debug_level must be one of" in error for error in errors)
-    
+
     def test_from_hydra(self):
         """Test creating from Hydra DictConfig."""
-        hydra_cfg = OmegaConf.create({
-            "max_episode_steps": 150,
-            "auto_reset": False,
-            "debug_level": "verbose",
-        })
-        
+        hydra_cfg = OmegaConf.create(
+            {
+                "max_episode_steps": 150,
+                "auto_reset": False,
+                "debug_level": "verbose",
+            }
+        )
+
         config = EnvironmentConfig.from_hydra(hydra_cfg)
-        
+
         assert config.max_episode_steps == 150
         assert config.auto_reset is False
         assert config.debug_level == "verbose"
@@ -83,11 +87,11 @@ class TestEnvironmentConfig:
 
 class TestDatasetConfig:
     """Test DatasetConfig class."""
-    
+
     def test_default_creation(self):
         """Test creating DatasetConfig with defaults."""
         config = DatasetConfig()
-        
+
         assert config.dataset_name == "arc-agi-1"
         assert config.dataset_path == ""
         assert config.max_grid_height == 30
@@ -99,7 +103,7 @@ class TestDatasetConfig:
         assert config.task_split == "train"
         assert config.max_tasks is None
         assert config.shuffle_tasks is True
-    
+
     def test_custom_creation(self):
         """Test creating DatasetConfig with custom values."""
         config = DatasetConfig(
@@ -114,7 +118,7 @@ class TestDatasetConfig:
             max_tasks=100,
             shuffle_tasks=False,
         )
-        
+
         assert config.dataset_name == "custom-dataset"
         assert config.max_grid_height == 50
         assert config.max_grid_width == 40
@@ -125,13 +129,13 @@ class TestDatasetConfig:
         assert config.task_split == "eval"
         assert config.max_tasks == 100
         assert config.shuffle_tasks is False
-    
+
     def test_validation_success(self):
         """Test successful validation."""
         config = DatasetConfig()
         errors = config.validate()
         assert errors == []
-    
+
     def test_validation_errors(self):
         """Test validation errors."""
         config = DatasetConfig(
@@ -141,27 +145,36 @@ class TestDatasetConfig:
             max_grid_height=2,  # < min_grid_height
             max_grid_width=2,  # < min_grid_width
         )
-        
+
         errors = config.validate()
         assert len(errors) >= 4
         assert any("dataset_name cannot be empty" in error for error in errors)
         assert any("max_colors must be at least 2" in error for error in errors)
-        assert any("background_color" in error and "max_colors" in error for error in errors)
-        assert any("max_grid_height" in error and "min_grid_height" in error for error in errors)
-        assert any("max_grid_width" in error and "min_grid_width" in error for error in errors)
-    
+        assert any(
+            "background_color" in error and "max_colors" in error for error in errors
+        )
+        assert any(
+            "max_grid_height" in error and "min_grid_height" in error
+            for error in errors
+        )
+        assert any(
+            "max_grid_width" in error and "min_grid_width" in error for error in errors
+        )
+
     def test_from_hydra(self):
         """Test creating from Hydra DictConfig."""
-        hydra_cfg = OmegaConf.create({
-            "dataset_name": "test-dataset",
-            "max_grid_height": 25,
-            "max_colors": 8,
-            "task_split": "eval",
-            "max_tasks": 50,
-        })
-        
+        hydra_cfg = OmegaConf.create(
+            {
+                "dataset_name": "test-dataset",
+                "max_grid_height": 25,
+                "max_colors": 8,
+                "task_split": "eval",
+                "max_tasks": 50,
+            }
+        )
+
         config = DatasetConfig.from_hydra(hydra_cfg)
-        
+
         assert config.dataset_name == "test-dataset"
         assert config.max_grid_height == 25
         assert config.max_colors == 8
@@ -174,11 +187,11 @@ class TestDatasetConfig:
 
 class TestVisualizationConfig:
     """Test VisualizationConfig class."""
-    
+
     def test_default_creation(self):
         """Test creating VisualizationConfig with defaults."""
         config = VisualizationConfig()
-        
+
         assert config.enabled is True
         assert config.level == "standard"
         assert config.output_formats == ["svg"]
@@ -195,33 +208,35 @@ class TestVisualizationConfig:
         assert config.save_intermediate_states is False
         assert config.lazy_loading is True
         assert config.memory_limit_mb == 500
-    
+
     def test_validation_success(self):
         """Test successful validation."""
         config = VisualizationConfig()
         errors = config.validate()
         assert errors == []
-    
+
     def test_validation_invalid_formats(self):
         """Test validation with invalid output formats."""
         config = VisualizationConfig(output_formats=["invalid_format"])
         errors = config.validate()
         assert len(errors) >= 1
         assert any("Invalid output format" in error for error in errors)
-    
+
     def test_from_hydra(self):
         """Test creating from Hydra DictConfig."""
-        hydra_cfg = OmegaConf.create({
-            "enabled": False,
-            "level": "verbose",
-            "output_formats": ["svg", "png"],
-            "image_quality": "medium",
-            "show_coordinates": True,
-            "memory_limit_mb": 1000,
-        })
-        
+        hydra_cfg = OmegaConf.create(
+            {
+                "enabled": False,
+                "level": "verbose",
+                "output_formats": ["svg", "png"],
+                "image_quality": "medium",
+                "show_coordinates": True,
+                "memory_limit_mb": 1000,
+            }
+        )
+
         config = VisualizationConfig.from_hydra(hydra_cfg)
-        
+
         assert config.enabled is False
         assert config.level == "verbose"
         assert config.output_formats == ["svg", "png"]
@@ -232,11 +247,11 @@ class TestVisualizationConfig:
 
 class TestStorageConfig:
     """Test StorageConfig class."""
-    
+
     def test_default_creation(self):
         """Test creating StorageConfig with defaults."""
         config = StorageConfig()
-        
+
         assert config.policy == "standard"
         assert config.base_output_dir == "outputs"
         assert config.run_name is None
@@ -256,35 +271,37 @@ class TestStorageConfig:
         assert config.auto_cleanup is True
         assert config.warn_on_storage_limit is True
         assert config.fail_on_storage_full is False
-    
+
     def test_validation_success(self):
         """Test successful validation."""
         config = StorageConfig()
         errors = config.validate()
         assert errors == []
-    
+
     def test_validation_invalid_policy(self):
         """Test validation with invalid policy."""
         config = StorageConfig(policy="invalid")
         errors = config.validate()
         assert len(errors) >= 1
         assert any("policy must be one of" in error for error in errors)
-    
+
     def test_from_hydra(self):
         """Test creating from Hydra DictConfig."""
-        hydra_cfg = OmegaConf.create({
-            "policy": "research",
-            "base_output_dir": "custom",
-            "episodes_dir": "custom_episodes",
-            "debug_dir": "custom_debug",
-            "max_episodes_per_run": 500,
-            "max_storage_gb": 20.0,
-            "cleanup_policy": "manual",
-            "auto_cleanup": False,
-        })
-        
+        hydra_cfg = OmegaConf.create(
+            {
+                "policy": "research",
+                "base_output_dir": "custom",
+                "episodes_dir": "custom_episodes",
+                "debug_dir": "custom_debug",
+                "max_episodes_per_run": 500,
+                "max_storage_gb": 20.0,
+                "cleanup_policy": "manual",
+                "auto_cleanup": False,
+            }
+        )
+
         config = StorageConfig.from_hydra(hydra_cfg)
-        
+
         assert config.policy == "research"
         assert config.base_output_dir == "custom"
         assert config.episodes_dir == "custom_episodes"
@@ -297,11 +314,11 @@ class TestStorageConfig:
 
 class TestLoggingConfig:
     """Test LoggingConfig class."""
-    
+
     def test_default_creation(self):
         """Test creating LoggingConfig with defaults."""
         config = LoggingConfig()
-        
+
         assert config.structured_logging is True
         assert config.log_format == "json"
         assert config.log_level == "INFO"
@@ -319,37 +336,39 @@ class TestLoggingConfig:
         assert config.batch_size == 5
         assert config.flush_interval == 10.0
         assert config.enable_compression is True
-    
+
     def test_validation_success(self):
         """Test successful validation."""
         config = LoggingConfig()
         errors = config.validate()
         assert errors == []
-    
+
     def test_validation_invalid_format(self):
         """Test validation with invalid log format."""
         config = LoggingConfig(log_format="invalid")
         errors = config.validate()
         assert len(errors) >= 1
         assert any("log_format must be one of" in error for error in errors)
-    
+
     def test_from_hydra(self):
         """Test creating from Hydra DictConfig."""
-        hydra_cfg = OmegaConf.create({
-            "structured_logging": False,
-            "log_format": "text",
-            "log_level": "DEBUG",
-            "include_full_states": True,
-            "log_operations": True,
-            "log_rewards": True,
-            "log_frequency": 5,
-            "queue_size": 1000,
-            "worker_threads": 2,
-            "flush_interval": 5.0,
-        })
-        
+        hydra_cfg = OmegaConf.create(
+            {
+                "structured_logging": False,
+                "log_format": "text",
+                "log_level": "DEBUG",
+                "include_full_states": True,
+                "log_operations": True,
+                "log_rewards": True,
+                "log_frequency": 5,
+                "queue_size": 1000,
+                "worker_threads": 2,
+                "flush_interval": 5.0,
+            }
+        )
+
         config = LoggingConfig.from_hydra(hydra_cfg)
-        
+
         assert config.structured_logging is False
         assert config.log_format == "text"
         assert config.log_level == "DEBUG"
@@ -364,11 +383,11 @@ class TestLoggingConfig:
 
 class TestWandbConfig:
     """Test WandbConfig class."""
-    
+
     def test_default_creation(self):
         """Test creating WandbConfig with defaults."""
         config = WandbConfig()
-        
+
         assert config.enabled is False
         assert config.project_name == "jaxarc-experiments"
         assert config.entity is None
@@ -387,47 +406,49 @@ class TestWandbConfig:
         assert config.retry_delay == 1.0
         assert config.save_code is True
         assert config.save_config is True
-    
+
     def test_validation_success(self):
         """Test successful validation."""
         config = WandbConfig()
         errors = config.validate()
         assert errors == []
-    
+
     def test_validation_empty_project_name(self):
         """Test validation with empty project name."""
         config = WandbConfig(project_name="")
         errors = config.validate()
         assert len(errors) >= 1
         assert any("project_name cannot be empty" in error for error in errors)
-    
+
     def test_validation_invalid_image_format(self):
         """Test validation with invalid image format."""
         config = WandbConfig(image_format="invalid")
         errors = config.validate()
         assert len(errors) >= 1
         assert any("image_format must be one of" in error for error in errors)
-    
+
     def test_from_hydra(self):
         """Test creating from Hydra DictConfig."""
-        hydra_cfg = OmegaConf.create({
-            "enabled": True,
-            "project_name": "custom-project",
-            "entity": "my-team",
-            "tags": ["custom", "experiment"],
-            "notes": "Custom experiment notes",
-            "group": "experiment-group",
-            "job_type": "research",
-            "log_frequency": 5,
-            "image_format": "svg",
-            "max_image_size": [1024, 768],
-            "log_gradients": True,
-            "offline_mode": True,
-            "retry_attempts": 5,
-        })
-        
+        hydra_cfg = OmegaConf.create(
+            {
+                "enabled": True,
+                "project_name": "custom-project",
+                "entity": "my-team",
+                "tags": ["custom", "experiment"],
+                "notes": "Custom experiment notes",
+                "group": "experiment-group",
+                "job_type": "research",
+                "log_frequency": 5,
+                "image_format": "svg",
+                "max_image_size": [1024, 768],
+                "log_gradients": True,
+                "offline_mode": True,
+                "retry_attempts": 5,
+            }
+        )
+
         config = WandbConfig.from_hydra(hydra_cfg)
-        
+
         assert config.enabled is True
         assert config.project_name == "custom-project"
         assert config.entity == "my-team"
@@ -441,25 +462,23 @@ class TestWandbConfig:
         assert config.log_gradients is True
         assert config.offline_mode is True
         assert config.retry_attempts == 5
-    
+
     def test_from_hydra_string_tags(self):
         """Test creating from Hydra with string tags (should convert to list)."""
-        hydra_cfg = OmegaConf.create({
-            "tags": "single-tag"
-        })
-        
+        hydra_cfg = OmegaConf.create({"tags": "single-tag"})
+
         config = WandbConfig.from_hydra(hydra_cfg)
         assert config.tags == ["single-tag"]
 
 
 class TestConfigValidationError:
     """Test ConfigValidationError exception."""
-    
+
     def test_config_validation_error(self):
         """Test ConfigValidationError can be raised and caught."""
         with pytest.raises(ConfigValidationError) as exc_info:
             raise ConfigValidationError("Test error message")
-        
+
         assert str(exc_info.value) == "Test error message"
         assert isinstance(exc_info.value, ValueError)
 

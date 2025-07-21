@@ -12,6 +12,7 @@ from enum import IntEnum
 from typing import NewType
 
 import chex
+import equinox as eqx
 import jax.numpy as jnp
 
 # Import JAXTyping definitions
@@ -28,10 +29,12 @@ from jaxarc.utils.jax_types import (
 )
 
 
-@chex.dataclass
-class Grid:
+class Grid(eqx.Module):
     """
-    Represents a grid in the ARC challenge.
+    Represents a grid in the ARC challenge using Equinox Module.
+
+    Equinox provides better JAX integration with automatic PyTree registration
+    and improved compatibility with JAX transformations.
 
     Attributes:
         data: The grid data as a 2D integer array with JAXTyping shape annotation
@@ -41,8 +44,24 @@ class Grid:
     data: GridArray  # JAXTyping: Int[Array, "height width"]
     mask: MaskArray  # JAXTyping: Bool[Array, "height width"]
 
-    def __post_init__(self) -> None:
-        """Validate grid structure with enhanced JAXTyping validation."""
+    @property
+    def shape(self) -> tuple[int, int]:
+        """
+        Get the shape of the valid region in the grid.
+
+        Uses the mask to determine the actual meaningful grid dimensions,
+        not the padded dimensions.
+
+        Returns:
+            Tuple of (height, width) representing the valid region dimensions
+        """
+        from .utils.grid_utils import get_actual_grid_shape_from_mask
+
+        height, width = get_actual_grid_shape_from_mask(self.mask)
+        return (int(height), int(width))
+
+    def __check_init__(self) -> None:
+        """Equinox validation method for grid structure."""
         if hasattr(self.data, "shape") and hasattr(self.mask, "shape"):
             # JAXTyping provides compile-time shape validation, but we keep runtime checks
             # for compatibility and additional safety during development
@@ -54,18 +73,18 @@ class Grid:
 
             # Additional JAXTyping-aware validation
             # Ensure grid values are in valid ARC color range (0-9)
+            # Also, -1 for background masking as well
             if hasattr(self.data, "min") and hasattr(self.data, "max"):
                 min_val = int(jnp.min(self.data))
                 max_val = int(jnp.max(self.data))
-                if not (0 <= min_val <= max_val <= 9):
-                    msg = f"Grid color values must be in [0, 9], got [{min_val}, {max_val}]"
+                if not -1 <= min_val <= max_val <= 9:
+                    msg = f"Grid color values must be in [-1, 9], got [{min_val}, {max_val}]"
                     raise ValueError(msg)
 
 
-@chex.dataclass
-class TaskPair:
+class TaskPair(eqx.Module):
     """
-    Represents a single input-output pair in an ARC task.
+    Represents a single input-output pair in an ARC task using Equinox Module.
 
     Attributes:
         input_grid: Input grid for this pair
@@ -76,10 +95,9 @@ class TaskPair:
     output_grid: Grid
 
 
-@chex.dataclass
-class JaxArcTask:
+class JaxArcTask(eqx.Module):
     """
-    JAX-compatible ARC task data with fixed-size arrays for efficient processing.
+    JAX-compatible ARC task data with fixed-size arrays for efficient processing using Equinox Module.
 
     This structure contains all task data with fixed-size arrays padded to
     maximum dimensions for efficient batch processing and JAX transformations.
@@ -121,8 +139,8 @@ class JaxArcTask:
     # Task metadata - JAXTyping: Int[Array, ""]
     task_index: TaskIndex
 
-    def __post_init__(self) -> None:
-        """Validate parsed task data structure."""
+    def __check_init__(self) -> None:
+        """Equinox validation method for parsed task data structure."""
         # Skip validation during JAX transformations
         if not hasattr(self.input_grids_examples, "shape"):
             return
@@ -171,11 +189,11 @@ class JaxArcTask:
             max_train_pairs = train_shape[0]
             max_test_pairs = test_shape[0]
 
-            if not (0 <= self.num_train_pairs <= max_train_pairs):
+            if not 0 <= self.num_train_pairs <= max_train_pairs:
                 msg = f"Invalid num_train_pairs: {self.num_train_pairs} not in [0, {max_train_pairs}]"
                 raise ValueError(msg)
 
-            if not (0 <= self.num_test_pairs <= max_test_pairs):
+            if not 0 <= self.num_test_pairs <= max_test_pairs:
                 msg = f"Invalid num_test_pairs: {self.num_test_pairs} not in [0, {max_test_pairs}]"
                 raise ValueError(msg)
 
@@ -314,10 +332,9 @@ class ARCLEOperationType:
     SUBMIT = 34
 
 
-@chex.dataclass
-class ARCLEAction:
+class ARCLEAction(eqx.Module):
     """
-    ARCLE-specific action representation.
+    ARCLE-specific action representation using Equinox Module.
 
     Attributes:
         selection: Continuous selection mask for the grid
@@ -331,8 +348,8 @@ class ARCLEAction:
     agent_id: int
     timestamp: int
 
-    def __post_init__(self) -> None:
-        """Validate ARCLE action structure."""
+    def __check_init__(self) -> None:
+        """Equinox validation method for ARCLE action structure."""
         if not hasattr(self.selection, "shape"):
             return
         try:

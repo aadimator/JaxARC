@@ -8,18 +8,18 @@ of Equinox integration.
 
 from __future__ import annotations
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-import equinox as eqx
 
 from jaxarc.state import ArcEnvState
-from jaxarc.types import JaxArcTask, Grid
+from jaxarc.types import Grid, JaxArcTask
 from jaxarc.utils.equinox_utils import (
+    check_jax_transformations,
+    create_state_diff,
     tree_map_with_path,
     validate_state_shapes,
-    create_state_diff,
-    check_jax_transformations,
 )
 
 
@@ -209,45 +209,47 @@ class TestJAXTransformations:
 
     def test_vmap_compatibility(self, sample_state):
         """Test vmap compatibility with simple operations on scalar fields."""
+
         # Test vmap with simple scalar operations instead of complex state structures
         @jax.vmap
         def increment_step_counts(step_counts):
             return step_counts + 1
-        
+
         # Create batch of step counts
         batch_step_counts = jnp.array([0, 1, 2, 3, 4])
         result = increment_step_counts(batch_step_counts)
-        
+
         expected = jnp.array([1, 2, 3, 4, 5])
         assert jnp.array_equal(result, expected)
-        
+
         # Test with similarity scores
         @jax.vmap
         def scale_similarity_scores(scores):
             return scores * 2.0
-        
+
         batch_scores = jnp.array([0.0, 0.1, 0.5, 0.8, 1.0])
         result = scale_similarity_scores(batch_scores)
-        
+
         expected = jnp.array([0.0, 0.2, 1.0, 1.6, 2.0])
         assert jnp.allclose(result, expected)
 
     def test_grad_compatibility(self, sample_state):
         """Test grad compatibility with simple scalar operations."""
+
         # Test grad with simple scalar operations instead of complex state structures
         def simple_loss(similarity_score):
-            return similarity_score ** 2
-        
+            return similarity_score**2
+
         grad_fn = jax.grad(simple_loss)
-        
+
         # Test with a simple float value
         test_score = jnp.array(0.5)
         gradient = grad_fn(test_score)
-        
+
         # Gradient of x^2 is 2x
         expected_gradient = 2.0 * test_score
         assert jnp.allclose(gradient, expected_gradient)
-        
+
         # Test with different values
         test_scores = jnp.array([0.0, 0.25, 0.5, 0.75, 1.0])
         for score in test_scores:

@@ -34,7 +34,6 @@ import jax.numpy as jnp
 from ..utils.jax_types import (
     ColorValue,
     GridArray,
-    MaskArray,
     OperationId,
     SelectionArray,
     SimilarityScore,
@@ -97,7 +96,9 @@ def apply_within_bounds(
 
 
 @jax.jit
-def fill_color(state: ArcEnvState, selection: SelectionArray, color: ColorValue) -> ArcEnvState:
+def fill_color(
+    state: ArcEnvState, selection: SelectionArray, color: ColorValue
+) -> ArcEnvState:
     """Fill selected region with specified color."""
     new_grid = apply_within_bounds(state.working_grid, selection, color)
     return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
@@ -108,7 +109,10 @@ def fill_color(state: ArcEnvState, selection: SelectionArray, color: ColorValue)
 
 @jax.jit
 def simple_flood_fill(
-    grid: GridArray, selection: SelectionArray, fill_color: ColorValue, max_iterations: int = 64
+    grid: GridArray,
+    selection: SelectionArray,
+    fill_color: ColorValue,
+    max_iterations: int = 64,
 ) -> GridArray:
     """Simple flood fill with fixed iterations for JAX compatibility."""
     # Find the first selected pixel as starting point
@@ -267,7 +271,9 @@ def rotate_object(
 
 
 @jax.jit
-def flip_object(state: ArcEnvState, selection: SelectionArray, axis: int) -> ArcEnvState:
+def flip_object(
+    state: ArcEnvState, selection: SelectionArray, axis: int
+) -> ArcEnvState:
     """Flip selected region (0=horizontal, 1=vertical)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -385,9 +391,7 @@ def cut_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvSta
 
     # Update both working_grid and clipboard using Equinox tree_at
     return eqx.tree_at(
-        lambda s: (s.working_grid, s.clipboard),
-        state,
-        (new_grid, new_clipboard)
+        lambda s: (s.working_grid, s.clipboard), state, (new_grid, new_clipboard)
     )
 
 
@@ -448,9 +452,7 @@ def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
         )  # New inactive areas = padding
 
         return eqx.tree_at(
-            lambda s: (s.working_grid, s.working_grid_mask),
-            state,
-            (new_grid, new_mask)
+            lambda s: (s.working_grid, s.working_grid_mask), state, (new_grid, new_mask)
         )
 
     def no_resize():

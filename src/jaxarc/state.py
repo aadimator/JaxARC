@@ -16,7 +16,7 @@ Examples:
     ```python
     import jax
     from jaxarc.state import ArcEnvState
-    
+
     # Create state (typically done by environment)
     state = ArcEnvState(
         task_data=task,
@@ -24,15 +24,12 @@ Examples:
         working_grid_mask=mask,
         # ... other fields
     )
-    
+
     # Update state using Equinox patterns
     new_state = eqx.tree_at(lambda s: s.step_count, state, state.step_count + 1)
-    
+
     # Or use replace method for multiple updates
-    new_state = state.replace(
-        step_count=state.step_count + 1,
-        episode_done=True
-    )
+    new_state = state.replace(step_count=state.step_count + 1, episode_done=True)
     ```
 """
 
@@ -55,18 +52,18 @@ from .utils.jax_types import (
 
 class ArcEnvState(eqx.Module):
     """ARC environment state with Equinox Module for better JAX integration.
-    
+
     This is the canonical definition of ArcEnvState using Equinox Module for automatic
     PyTree registration and JAXTyping annotations for better type safety and documentation.
     All other modules should import this definition rather than defining their own.
-    
+
     Equinox provides several advantages over chex dataclass:
     - Automatic PyTree registration for JAX transformations
     - Better error messages for shape mismatches
     - Cleaner functional patterns for state updates
     - Improved compatibility with JAX transformations (jit, vmap, pmap)
     - Built-in validation through __check_init__
-    
+
     Attributes:
         task_data: The current ARC task data
         working_grid: Current grid being modified
@@ -78,7 +75,7 @@ class ArcEnvState(eqx.Module):
         selected: Selection mask for operations
         clipboard: Grid data for copy/paste operations
         similarity_score: Grid similarity to target (0.0 to 1.0)
-        
+
     Examples:
         ```python
         # Create new state
@@ -92,21 +89,17 @@ class ArcEnvState(eqx.Module):
             current_example_idx=jnp.array(0),
             selected=jnp.zeros_like(grid, dtype=bool),
             clipboard=jnp.zeros_like(grid),
-            similarity_score=jnp.array(0.0)
+            similarity_score=jnp.array(0.0),
         )
-        
+
         # Update state using Equinox tree_at
-        new_state = eqx.tree_at(
-            lambda s: s.step_count, 
-            state, 
-            state.step_count + 1
-        )
-        
+        new_state = eqx.tree_at(lambda s: s.step_count, state, state.step_count + 1)
+
         # Update multiple fields
         new_state = eqx.tree_at(
             lambda s: (s.step_count, s.episode_done),
             state,
-            (state.step_count + 1, jnp.array(True))
+            (state.step_count + 1, jnp.array(True)),
         )
         ```
     """
@@ -129,11 +122,11 @@ class ArcEnvState(eqx.Module):
 
     def __check_init__(self) -> None:
         """Equinox validation method for state structure.
-        
+
         This validation ensures that all arrays have the correct shapes and types.
         It's designed to work with JAX transformations by gracefully handling
         cases where arrays don't have concrete shapes during tracing.
-        
+
         Equinox automatically calls this method during module creation, providing
         better error messages and validation than manual __post_init__ methods.
         """
@@ -144,7 +137,7 @@ class ArcEnvState(eqx.Module):
         try:
             # Import chex here to avoid circular imports
             import chex
-            
+
             # Validate grid shapes and types
             chex.assert_rank(self.working_grid, 2)
             chex.assert_rank(self.working_grid_mask, 2)
@@ -169,7 +162,7 @@ class ArcEnvState(eqx.Module):
             chex.assert_type(self.step_count, jnp.integer)
             chex.assert_type(self.episode_done, jnp.bool_)
             chex.assert_type(self.current_example_idx, jnp.integer)
-            
+
             # Validate scalar shapes
             chex.assert_shape(self.step_count, ())
             chex.assert_shape(self.episode_done, ())
@@ -179,75 +172,73 @@ class ArcEnvState(eqx.Module):
         except (AttributeError, TypeError):
             # Skip validation during JAX transformations
             pass
-    
-    def replace(self, **kwargs) -> 'ArcEnvState':
+
+    def replace(self, **kwargs) -> ArcEnvState:
         """Create a new state with updated fields.
-        
+
         This method provides a convenient way to update multiple fields at once,
         similar to the dataclass replace method but using Equinox patterns.
-        
+
         Args:
             **kwargs: Fields to update with their new values
-            
+
         Returns:
             New ArcEnvState with updated fields
-            
+
         Examples:
             ```python
-            new_state = state.replace(
-                step_count=state.step_count + 1,
-                episode_done=True
-            )
+            new_state = state.replace(step_count=state.step_count + 1, episode_done=True)
             ```
         """
         # Get current field values
         current_values = {}
         for field_name in self.__dataclass_fields__:
             current_values[field_name] = getattr(self, field_name)
-        
+
         # Update with provided kwargs
         current_values.update(kwargs)
-        
+
         # Create new instance
         return ArcEnvState(**current_values)
-    
+
     def get_actual_grid_shape(self) -> tuple[int, int]:
         """Get the actual shape of the working grid based on the mask.
-        
+
         JAX-compatible method that delegates to utility function.
-        
+
         Since JAX requires static shapes, working_grid is always padded to max dimensions,
         but the actual meaningful grid size is determined by working_grid_mask.
-        
+
         Returns:
             Tuple of (height, width) representing the actual grid dimensions
-            
+
         Examples:
             ```python
             # For a 5x5 actual grid padded to 30x30
             state = ArcEnvState(...)
             actual_height, actual_width = state.get_actual_grid_shape()
             # Returns (5, 5) instead of (30, 30)
-            
+
             # Use for extracting the meaningful part of the grid
             actual_grid = state.get_actual_working_grid()
             ```
         """
         from .utils.grid_utils import get_actual_grid_shape_from_mask
+
         return get_actual_grid_shape_from_mask(self.working_grid_mask)
-    
+
     def get_actual_working_grid(self) -> GridArray:
         """Get the actual working grid without padding.
-        
+
         JAX-compatible method that delegates to utility function.
-        
+
         Returns the working grid cropped to its actual dimensions based on the mask.
-        This is useful for visualization and analysis where you only want the 
+        This is useful for visualization and analysis where you only want the
         meaningful part of the grid.
-        
+
         Returns:
             GridArray containing only the actual grid content (no padding)
-            
+
         Examples:
             ```python
             state = ArcEnvState(...)
@@ -256,34 +247,36 @@ class ArcEnvState(eqx.Module):
             ```
         """
         from .utils.grid_utils import crop_grid_to_mask
+
         return crop_grid_to_mask(self.working_grid, self.working_grid_mask)
-    
+
     def get_actual_target_grid(self) -> GridArray:
         """Get the actual target grid without padding.
-        
+
         JAX-compatible method that delegates to utility function.
-        
+
         Returns the target grid cropped to its actual dimensions based on the mask.
         Useful for comparing against the working grid or for visualization.
-        
+
         Returns:
             GridArray containing only the actual target grid content (no padding)
         """
         from .utils.grid_utils import crop_grid_to_mask
+
         return crop_grid_to_mask(self.target_grid, self.working_grid_mask)
 
     @property
     def __dataclass_fields__(self) -> dict:
         """Property to mimic dataclass fields for replace method."""
         return {
-            'task_data': None,
-            'working_grid': None,
-            'working_grid_mask': None,
-            'target_grid': None,
-            'step_count': None,
-            'episode_done': None,
-            'current_example_idx': None,
-            'selected': None,
-            'clipboard': None,
-            'similarity_score': None,
+            "task_data": None,
+            "working_grid": None,
+            "working_grid_mask": None,
+            "target_grid": None,
+            "step_count": None,
+            "episode_done": None,
+            "current_example_idx": None,
+            "selected": None,
+            "clipboard": None,
+            "similarity_score": None,
         }

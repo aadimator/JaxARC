@@ -27,28 +27,13 @@ from .config import (
     validate_config,
 )
 
-# Unified configuration system (Equinox-based)
-from .equinox_config import (
-    JaxArcConfig,
-    EnvironmentConfig,
-    DatasetConfig as UnifiedDatasetConfig,
-    ActionConfig as UnifiedActionConfig,
-    RewardConfig as UnifiedRewardConfig,
-    VisualizationConfig,
-    StorageConfig,
-    LoggingConfig,
-    WandbConfig,
-    ConfigValidationError,
-    convert_arc_env_config_to_jax_arc_config,
-)
-
 # Configuration factory system
 from .config_factory import (
     ConfigFactory,
     ConfigPresets,
     create_development_config,
-    create_research_config,
     create_production_config,
+    create_research_config,
     from_hydra,
     from_preset,
     get_available_presets,
@@ -56,6 +41,27 @@ from .config_factory import (
 
 # Core environment classes
 from .environment import ArcEnvironment
+from .equinox_config import (
+    ActionConfig as UnifiedActionConfig,
+)
+
+# Unified configuration system (Equinox-based)
+from .equinox_config import (
+    ConfigValidationError,
+    EnvironmentConfig,
+    JaxArcConfig,
+    LoggingConfig,
+    StorageConfig,
+    VisualizationConfig,
+    WandbConfig,
+    convert_arc_env_config_to_jax_arc_config,
+)
+from .equinox_config import (
+    DatasetConfig as UnifiedDatasetConfig,
+)
+from .equinox_config import (
+    RewardConfig as UnifiedRewardConfig,
+)
 
 # Factory functions for creating configurations
 from .factory import (
@@ -95,16 +101,16 @@ from .grid_operations import execute_grid_operation
 # Operation definitions and utilities
 from .operations import (
     OPERATION_NAMES,
-    get_operation_name,
-    get_operation_display_text,
-    is_valid_operation_id,
     get_all_operation_ids,
-    get_operations_by_category,
     get_operation_category,
+    get_operation_display_text,
+    get_operation_name,
+    get_operations_by_category,
+    is_valid_operation_id,
 )
 
 # Action and observation spaces
-from .spaces import Space, MultiBinary
+from .spaces import MultiBinary, Space
 
 __all__ = [
     # Core environment classes

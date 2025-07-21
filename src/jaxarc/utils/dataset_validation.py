@@ -23,12 +23,12 @@ def validate_dataset_config(config: ArcEnvConfig, dataset_name: str) -> None:
 
     Raises:
         ValueError: If configuration is invalid for the specified dataset
-        
+
     Example:
         ```python
         from jaxarc.utils.dataset_validation import validate_dataset_config
         from jaxarc.envs import create_conceptarc_config
-        
+
         config = create_conceptarc_config()
         validate_dataset_config(config, "ConceptARC")
         ```
@@ -105,39 +105,43 @@ def _validate_miniarc_config(config: ArcEnvConfig) -> None:
 
 def get_dataset_recommendations(dataset_name: str) -> dict[str, str]:
     """Get recommended configuration settings for a dataset.
-    
+
     Args:
         dataset_name: Name of the dataset
-        
+
     Returns:
         Dictionary of recommended configuration overrides
-        
+
     Example:
         ```python
         from jaxarc.utils.dataset_validation import get_dataset_recommendations
-        
+
         recommendations = get_dataset_recommendations("MiniARC")
         print(recommendations)
         # {'grid.max_grid_height': '5', 'grid.max_grid_width': '5', 'action.selection_format': 'point'}
         ```
     """
     recommendations = {}
-    
+
     if dataset_name.lower() == "conceptarc":
-        recommendations.update({
-            "grid.max_grid_height": "30",
-            "grid.max_grid_width": "30", 
-            "action.selection_format": "mask",
-            "dataset.dataset_name": "ConceptARC"
-        })
+        recommendations.update(
+            {
+                "grid.max_grid_height": "30",
+                "grid.max_grid_width": "30",
+                "action.selection_format": "mask",
+                "dataset.dataset_name": "ConceptARC",
+            }
+        )
     elif dataset_name.lower() == "miniarc":
-        recommendations.update({
-            "grid.max_grid_height": "5",
-            "grid.max_grid_width": "5",
-            "action.selection_format": "point", 
-            "dataset.dataset_name": "MiniARC"
-        })
+        recommendations.update(
+            {
+                "grid.max_grid_height": "5",
+                "grid.max_grid_width": "5",
+                "action.selection_format": "point",
+                "dataset.dataset_name": "MiniARC",
+            }
+        )
     else:
         logger.warning(f"No recommendations available for dataset: {dataset_name}")
-    
+
     return recommendations

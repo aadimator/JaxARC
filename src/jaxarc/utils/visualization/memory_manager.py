@@ -183,10 +183,7 @@ class CompressedStorage:
     def list_files(self) -> list[str]:
         """List all compressed files."""
         try:
-            return [
-                f.stem.replace(".pkl", "")
-                for f in self.base_path.glob("*.pkl.gz")
-            ]
+            return [f.stem.replace(".pkl", "") for f in self.base_path.glob("*.pkl.gz")]
         except Exception as e:
             logger.warning(f"Failed to list compressed files: {e}")
             return []
@@ -254,7 +251,9 @@ class VisualizationCache:
         """Add item to memory cache with cleanup if necessary."""
         # Estimate memory usage (rough approximation)
         try:
-            memory_mb = len(pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)) / (1024 * 1024)
+            memory_mb = len(pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)) / (
+                1024 * 1024
+            )
         except Exception:
             memory_mb = 1.0  # Default estimate
 
@@ -387,7 +386,9 @@ class GarbageCollectionOptimizer:
         return {
             "total_gc_runs": len(self.gc_stats),
             "recent_total_collected": total_collected,
-            "avg_collected_per_run": total_collected / len(recent_stats) if recent_stats else 0,
+            "avg_collected_per_run": total_collected / len(recent_stats)
+            if recent_stats
+            else 0,
             "last_gc_time": self.last_gc_time,
             "current_counts": gc.get_count(),
             "current_thresholds": gc.get_threshold(),
@@ -420,6 +421,7 @@ class MemoryManager:
         """Check current memory usage and trigger cleanup if needed."""
         try:
             import psutil
+
             process = psutil.Process()
             memory_mb = process.memory_info().rss / (1024 * 1024)
             self.monitor.record_memory_usage(memory_mb)
@@ -470,7 +472,9 @@ class MemoryManager:
             "monitor_stats": self.monitor.get_memory_stats(),
             "cache_stats": self.cache.get_stats(),
             "gc_stats": self.gc_optimizer.get_gc_stats(),
-            "active_lazy_loaders": len([ref for ref in self.lazy_loaders if ref() is not None]),
+            "active_lazy_loaders": len(
+                [ref for ref in self.lazy_loaders if ref() is not None]
+            ),
             "max_total_memory_mb": self.max_total_memory_mb,
         }
 
@@ -511,6 +515,7 @@ def create_lazy_visualization_loader(
     Returns:
         LazyLoader instance
     """
+
     def load_data() -> Any:
         return loader_func(data_path)
 
@@ -532,9 +537,9 @@ def optimize_array_memory(arr: np.ndarray) -> np.ndarray:
     if arr.dtype == np.int64:
         if np.all((arr >= -128) & (arr <= 127)):
             return arr.astype(np.int8)
-        elif np.all((arr >= -32768) & (arr <= 32767)):
+        if np.all((arr >= -32768) & (arr <= 32767)):
             return arr.astype(np.int16)
-        elif np.all((arr >= -2147483648) & (arr <= 2147483647)):
+        if np.all((arr >= -2147483648) & (arr <= 2147483647)):
             return arr.astype(np.int32)
 
     elif arr.dtype == np.float64:

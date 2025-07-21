@@ -6,12 +6,10 @@ This example shows how to use the enhanced visualization system with JAX transfo
 while maintaining performance and proper error handling.
 """
 
-import tempfile
-from pathlib import Path
+from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from loguru import logger
 
 from jaxarc.utils.visualization import (
@@ -30,7 +28,9 @@ def demo_basic_jax_callbacks():
 
     # Create sample grid data
     grid_data = jnp.array([[1, 2, 0], [3, 4, 1], [0, 2, 3]])
-    mask_data = jnp.array([[True, True, False], [True, True, True], [False, True, True]])
+    mask_data = jnp.array(
+        [[True, True, False], [True, True, True], [False, True, True]]
+    )
 
     @jax.jit
     def process_grid(grid, mask):
@@ -63,6 +63,7 @@ def demo_performance_monitoring():
     def slow_callback(x):
         """Simulate a slow callback."""
         import time
+
         time.sleep(0.01)  # 10ms delay
         logger.info(f"Slow callback processed: {x}")
 
@@ -106,11 +107,13 @@ def demo_batch_processing():
         return jnp.sum(grid)
 
     # Create batch of grids
-    batch_grids = jnp.array([
-        [[1, 2], [3, 4]],
-        [[5, 6], [7, 8]],
-        [[9, 0], [1, 2]],
-    ])
+    batch_grids = jnp.array(
+        [
+            [[1, 2], [3, 4]],
+            [[5, 6], [7, 8]],
+            [[9, 0], [1, 2]],
+        ]
+    )
 
     # Process batch with vmap
     batch_process = jax.vmap(process_single_grid)
@@ -179,7 +182,9 @@ def demo_error_handling():
             logger.error(f"Error processing {val}: {e}")
             results.append(None)
 
-    logger.info("Error handling demo completed - JAX execution continued despite callback errors")
+    logger.info(
+        "Error handling demo completed - JAX execution continued despite callback errors"
+    )
     return results
 
 

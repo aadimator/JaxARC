@@ -185,7 +185,9 @@ class TestParserInheritanceBehavior:
             with patch.object(
                 ArcDataParserBase, "_process_training_pairs"
             ) as mock_train:
-                with patch.object(ArcDataParserBase, "_process_test_pairs") as mock_test:
+                with patch.object(
+                    ArcDataParserBase, "_process_test_pairs"
+                ) as mock_test:
                     with patch.object(
                         ArcDataParserBase, "_pad_and_create_masks"
                     ) as mock_pad:
@@ -205,7 +207,9 @@ class TestParserInheritanceBehavior:
                                 "train_inputs": jnp.zeros((4, 30, 30)),
                                 "train_input_masks": jnp.zeros((4, 30, 30), dtype=bool),
                                 "train_outputs": jnp.zeros((4, 30, 30)),
-                                "train_output_masks": jnp.zeros((4, 30, 30), dtype=bool),
+                                "train_output_masks": jnp.zeros(
+                                    (4, 30, 30), dtype=bool
+                                ),
                                 "test_inputs": jnp.zeros((3, 30, 30)),
                                 "test_input_masks": jnp.zeros((3, 30, 30), dtype=bool),
                                 "test_outputs": jnp.zeros((3, 30, 30)),
@@ -332,9 +336,7 @@ class TestParserFunctionalityRegression:
 
             yield temp_dir
 
-    def test_arc_agi_parser_data_loading_regression(
-        self, temp_comprehensive_directory
-    ):
+    def test_arc_agi_parser_data_loading_regression(self, temp_comprehensive_directory):
         """Test that ArcAgiParser data loading hasn't regressed."""
         config = DictConfig(
             {
@@ -433,7 +435,9 @@ class TestParserFunctionalityRegression:
             concept_task = parser.get_random_task_from_concept("TestConcept", key)
             assert isinstance(concept_task, JaxArcTask)
 
-    def test_mini_arc_parser_data_loading_regression(self, temp_comprehensive_directory):
+    def test_mini_arc_parser_data_loading_regression(
+        self, temp_comprehensive_directory
+    ):
         """Test that MiniArcParser data loading hasn't regressed."""
         # Create only 5x5 compatible tasks for MiniARC
         mini_tasks_dir = Path(temp_comprehensive_directory) / "mini"
@@ -520,16 +524,16 @@ class TestParserMethodDuplicationElimination:
                 import inspect
 
                 source = inspect.getsource(method)
-                assert (
-                    "super()" in source
-                ), f"{parser_class.__name__} should call super()"
+                assert "super()" in source, (
+                    f"{parser_class.__name__} should call super()"
+                )
 
     def test_no_duplicate_pad_and_create_masks_implementations(self):
         """Test that _pad_and_create_masks is only implemented in base class."""
         # This method should only exist in the base class
         for parser_class in [ArcAgiParser, ConceptArcParser, MiniArcParser]:
             assert not hasattr(parser_class, "_pad_and_create_masks") or (
-                getattr(parser_class, "_pad_and_create_masks")
+                parser_class._pad_and_create_masks
                 is ArcDataParserBase._pad_and_create_masks
             ), f"{parser_class.__name__} should not override _pad_and_create_masks"
 
@@ -538,7 +542,7 @@ class TestParserMethodDuplicationElimination:
         # This method should only exist in the base class
         for parser_class in [ArcAgiParser, ConceptArcParser, MiniArcParser]:
             assert not hasattr(parser_class, "_validate_grid_colors") or (
-                getattr(parser_class, "_validate_grid_colors")
+                parser_class._validate_grid_colors
                 is ArcDataParserBase._validate_grid_colors
             ), f"{parser_class.__name__} should not override _validate_grid_colors"
 
@@ -553,9 +557,9 @@ class TestParserMethodDuplicationElimination:
         ]
 
         for method_name in base_methods:
-            assert hasattr(
-                ArcDataParserBase, method_name
-            ), f"Base class should have {method_name}"
+            assert hasattr(ArcDataParserBase, method_name), (
+                f"Base class should have {method_name}"
+            )
             method = getattr(ArcDataParserBase, method_name)
             assert callable(method), f"{method_name} should be callable"
 
@@ -608,7 +612,9 @@ class TestParserMethodDuplicationElimination:
         # Test ConceptArcParser MRO
         concept_mro = ConceptArcParser.__mro__
         assert ArcDataParserBase in concept_mro
-        assert concept_mro.index(ConceptArcParser) < concept_mro.index(ArcDataParserBase)
+        assert concept_mro.index(ConceptArcParser) < concept_mro.index(
+            ArcDataParserBase
+        )
 
         # Test MiniArcParser MRO
         mini_mro = MiniArcParser.__mro__

@@ -10,7 +10,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-import chex
 from omegaconf import DictConfig
 
 from jaxarc.types import JaxArcTask
@@ -69,12 +68,12 @@ class ArcDataParserBase(ABC):
         # Extract configuration settings
         try:
             # Grid configuration
-            max_grid_height = cfg.grid.max_grid_height
-            max_grid_width = cfg.grid.max_grid_width
-            min_grid_height = cfg.grid.min_grid_height
-            min_grid_width = cfg.grid.min_grid_width
-            max_colors = cfg.grid.max_colors
-            background_color = cfg.grid.background_color
+            max_grid_height = cfg.max_grid_height
+            max_grid_width = cfg.max_grid_width
+            min_grid_height = cfg.min_grid_height
+            min_grid_width = cfg.min_grid_width
+            max_colors = cfg.max_colors
+            background_color = cfg.background_color
 
             # Task configuration
             max_train_pairs = cfg.max_train_pairs
@@ -257,7 +256,7 @@ class ArcDataParserBase(ABC):
             ValueError: If training data is invalid
         """
         from .utils import convert_grid_to_jax
-        
+
         train_pairs_data = task_content.get("train", [])
 
         if not train_pairs_data:
@@ -307,7 +306,7 @@ class ArcDataParserBase(ABC):
             Dictionary containing padded arrays and masks
         """
         from .utils import pad_array_sequence
-        
+
         # Pad all arrays to maximum dimensions
         padded_train_inputs, train_input_masks = pad_array_sequence(
             train_input_grids,
@@ -362,7 +361,7 @@ class ArcDataParserBase(ABC):
             ValueError: If any color value is outside the valid range
         """
         import jax.numpy as jnp
-        
+
         # Get unique color values in the grid
         unique_colors = jnp.unique(grid)
 
@@ -394,7 +393,7 @@ class ArcDataParserBase(ABC):
             task_id: Task identifier
         """
         from .utils import log_parsing_stats
-        
+
         max_train_dims = max(
             (grid.shape for grid in train_input_grids + train_output_grids),
             default=(0, 0),
@@ -424,9 +423,10 @@ class ArcDataParserBase(ABC):
         Raises:
             ValueError: If test data is invalid
         """
-        from .utils import convert_grid_to_jax
         import jax.numpy as jnp
-        
+
+        from .utils import convert_grid_to_jax
+
         test_pairs_data = task_content.get("test", [])
 
         if not test_pairs_data:

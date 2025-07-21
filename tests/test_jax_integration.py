@@ -1,20 +1,17 @@
 """Integration tests for JAX callback system with existing visualization."""
 
+from __future__ import annotations
+
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
-from jaxarc.state import ArcEnvState
-from jaxarc.types import Grid
 from jaxarc.utils.visualization import (
-    jax_log_grid,
-    jax_save_step_visualization,
     get_callback_performance_stats,
+    jax_log_grid,
     reset_callback_performance_stats,
 )
 
@@ -42,7 +39,9 @@ class TestJAXVisualizationIntegration:
 
         # Create test data
         grid_data = jnp.array([[1, 2, 0], [3, 4, 1], [0, 2, 3]])
-        mask_data = jnp.array([[True, True, False], [True, True, True], [False, True, True]])
+        mask_data = jnp.array(
+            [[True, True, False], [True, True, True], [False, True, True]]
+        )
 
         # Process with JAX
         result = process_and_log_grid(grid_data, mask_data)
@@ -70,7 +69,9 @@ class TestJAXVisualizationIntegration:
                 }
 
                 # Mock the save function to avoid complex state serialization in JIT
-                def mock_save_callback(before_grid, after_grid, action, output_dir, step_label):
+                def mock_save_callback(
+                    before_grid, after_grid, action, output_dir, step_label
+                ):
                     # This would normally save the visualization
                     pass
 
@@ -110,11 +111,13 @@ class TestJAXVisualizationIntegration:
             return jax.vmap(process_single)(batch_grids)
 
         # Create batch data
-        batch_grids = jnp.array([
-            [[1, 2], [3, 4]],
-            [[5, 6], [7, 8]],
-            [[9, 0], [1, 2]],
-        ])
+        batch_grids = jnp.array(
+            [
+                [[1, 2], [3, 4]],
+                [[5, 6], [7, 8]],
+                [[9, 0], [1, 2]],
+            ]
+        )
 
         # Process batch
         results = process_batch_with_logging(batch_grids)
@@ -337,8 +340,10 @@ class TestRealWorldScenarios:
 
         # Check callback statistics
         stats = get_callback_performance_stats()
-        assert len(stats) >= 2  # Should have at least current and updated state callbacks
-        
+        assert (
+            len(stats) >= 2
+        )  # Should have at least current and updated state callbacks
+
         # Check that we have the expected callback types
         callback_names = list(stats.keys())
         assert any("Current State" in name for name in callback_names)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import marimo
 
 __generated_with = "0.13.6"
@@ -7,6 +9,7 @@ app = marimo.App(width="medium")
 @app.cell(hide_code=True)
 def _():
     import marimo as mo
+
     mo.md(
         r"""
         # JaxARC MiniArc Demo with Enhanced Visualization & Wandb
@@ -30,15 +33,13 @@ def _():
 def _():
     # Core imports
     import time
-    from pathlib import Path
-    from typing import Any, Dict, NamedTuple, Tuple
+    from typing import Dict, NamedTuple, Tuple
 
     import jax
     import jax.numpy as jnp
     import jax.random as jr
 
     # Standard imports
-    import numpy as np
     from loguru import logger
     from omegaconf import OmegaConf
     from rich.console import Console
@@ -47,17 +48,11 @@ def _():
 
     # JaxARC imports
     from jaxarc.envs import (
-        ActionConfig,
         ArcEnvConfig,
-        GridConfig,
-        RewardConfig,
         arc_reset,
         arc_step,
-        create_bbox_config,
-        get_preset_config,
     )
     from jaxarc.parsers import MiniArcParser
-    from jaxarc.types import ARCLEAction, Grid, JaxArcTask
     from jaxarc.utils.config import get_config
     from jaxarc.utils.visualization import (
         EnhancedVisualizer,
@@ -66,8 +61,6 @@ def _():
         WandbConfig,
         WandbIntegration,
         create_research_wandb_config,
-        draw_grid_svg,
-        log_grid_to_console,
     )
 
     console = Console()
@@ -112,7 +105,6 @@ def _(mo):
     - **MiniArc dataset** optimized for 5x5 grids
     """
     )
-    return
 
 
 @app.cell
@@ -122,7 +114,7 @@ def _(ArcEnvConfig, Table, console, get_config):
         "action=raw",
         "action.selection_format=bbox",
         "action.allow_partial_selection=false",
-        "reward=training"
+        "reward=training",
     ]
 
     miniarc_config = get_config(overrides=config_overrides)
@@ -133,8 +125,13 @@ def _(ArcEnvConfig, Table, console, get_config):
     config_table.add_column("Setting", style="cyan")
     config_table.add_column("Value", style="green")
 
-    config_table.add_row("Max Episode Steps", str(miniarc_config.environment.max_episode_steps))
-    config_table.add_row("Grid Size", f"{miniarc_config.dataset.grid.max_grid_height}x{miniarc_config.dataset.grid.max_grid_width}")
+    config_table.add_row(
+        "Max Episode Steps", str(miniarc_config.environment.max_episode_steps)
+    )
+    config_table.add_row(
+        "Grid Size",
+        f"{miniarc_config.dataset.grid.max_grid_height}x{miniarc_config.dataset.grid.max_grid_width}",
+    )
     config_table.add_row("Action Format", miniarc_config.action.selection_format)
     config_table.add_row("Operations", str(miniarc_config.action.num_operations))
     config_table.add_row("Success Bonus", str(miniarc_config.reward.success_bonus))
@@ -159,7 +156,6 @@ def _(mo):
     - **Episode management** for organized storage
     """
     )
-    return
 
 
 @app.cell
@@ -183,7 +179,7 @@ def _(
             show_operation_names=True,
             highlight_changes=True,
             include_metrics=True,
-            color_scheme="default"
+            color_scheme="default",
         )
 
         # Episode management for organized output
@@ -192,13 +188,12 @@ def _(
             run_name=f"miniarc_demo_{int(time.time())}",
             max_episodes_per_run=10,
             cleanup_policy="size_based",
-            max_storage_gb=1.0
+            max_storage_gb=1.0,
         )
 
         # Create enhanced visualizer
         visualizer = EnhancedVisualizer(
-            vis_config=vis_config,
-            episode_manager=episode_manager
+            vis_config=vis_config, episode_manager=episode_manager
         )
 
         return visualizer, vis_config, episode_manager
@@ -206,14 +201,16 @@ def _(
     # Set up visualization
     visualizer, vis_config, episode_manager = create_visualization_setup()
 
-    console.print(Panel(
-        f"[green]Enhanced Visualization Setup Complete[/green]\n\n"
-        f"• Debug Level: {vis_config.debug_level}\n"
-        f"• Output Directory: {episode_manager.get_current_run_dir()}\n"
-        f"• Log Frequency: Every {vis_config.log_frequency} step(s)\n"
-        f"• Image Quality: {vis_config.image_quality}",
-        title="Visualization Configuration"
-    ))
+    console.print(
+        Panel(
+            f"[green]Enhanced Visualization Setup Complete[/green]\n\n"
+            f"• Debug Level: {vis_config.debug_level}\n"
+            f"• Output Directory: {episode_manager.get_current_run_dir()}\n"
+            f"• Log Frequency: Every {vis_config.log_frequency} step(s)\n"
+            f"• Image Quality: {vis_config.image_quality}",
+            title="Visualization Configuration",
+        )
+    )
 
     visualizer
     return episode_manager, visualizer
@@ -231,7 +228,6 @@ def _(mo):
     - **Image logging** for grid visualizations
     """
     )
-    return
 
 
 @app.cell
@@ -249,7 +245,7 @@ def _(
         # Create research-optimized wandb config
         wandb_config = create_research_wandb_config(
             project_name="jaxarc-miniarc-demo",
-            entity=None  # Use default entity
+            entity=None,  # Use default entity
         )
 
         # Override for demo - use offline mode
@@ -260,7 +256,7 @@ def _(
             log_frequency=5,
             image_format="png",
             tags=["demo", "miniarc", "bbox", "raw"],
-            save_code=True
+            save_code=True,
         )
 
         # Create wandb integration
@@ -271,15 +267,17 @@ def _(
     # Set up wandb
     wandb_integration, wandb_config = create_wandb_setup()
 
-    console.print(Panel(
-        f"[blue]Wandb Integration Setup Complete[/blue]\n\n"
-        f"• Project: {wandb_config.project_name}\n"
-        f"• Offline Mode: {wandb_config.offline_mode}\n"
-        f"• Log Frequency: Every {wandb_config.log_frequency} steps\n"
-        f"• Tags: {', '.join(wandb_config.tags)}\n"
-        f"• Available: {wandb_integration.is_available}",
-        title="Wandb Configuration"
-    ))
+    console.print(
+        Panel(
+            f"[blue]Wandb Integration Setup Complete[/blue]\n\n"
+            f"• Project: {wandb_config.project_name}\n"
+            f"• Offline Mode: {wandb_config.offline_mode}\n"
+            f"• Log Frequency: Every {wandb_config.log_frequency} steps\n"
+            f"• Tags: {', '.join(wandb_config.tags)}\n"
+            f"• Available: {wandb_integration.is_available}",
+            title="Wandb Configuration",
+        )
+    )
 
     wandb_integration
     return (wandb_integration,)
@@ -297,7 +295,6 @@ def _(mo):
     - **JAX-compatible data structures** for efficient processing
     """
     )
-    return
 
 
 @app.cell
@@ -305,11 +302,12 @@ def _(MiniArcParser, OmegaConf, Panel, console, miniarc_config):
     # Load dataset
     parser = MiniArcParser(miniarc_config.dataset)
 
-    console.print(Panel(
-        OmegaConf.to_yaml(parser.get_dataset_statistics()),
-        title="MiniARC Dataset Summary"
-    ))
-    return
+    console.print(
+        Panel(
+            OmegaConf.to_yaml(parser.get_dataset_statistics()),
+            title="MiniARC Dataset Summary",
+        )
+    )
 
 
 @app.cell(hide_code=True)
@@ -325,7 +323,6 @@ def _(mo):
     - **Maintains pure functional design** for JIT compilation
     """
     )
-    return
 
 
 @app.cell
@@ -333,6 +330,7 @@ def _(Dict, NamedTuple, Panel, Tuple, console, jax, jnp, jr):
     # JAX-compliant Random Agent
     class AgentState(NamedTuple):
         """Agent state for JAX compatibility."""
+
         key: jax.Array
         step_count: jax.Array
         total_reward: jax.Array
@@ -340,7 +338,9 @@ def _(Dict, NamedTuple, Panel, Tuple, console, jax, jnp, jr):
     class RandomAgent:
         """JAX-compliant random agent for MiniArc environment."""
 
-        def __init__(self, grid_size: Tuple[int, int] = (5, 5), num_operations: int = 10):
+        def __init__(
+            self, grid_size: Tuple[int, int] = (5, 5), num_operations: int = 10
+        ):
             self.grid_height, self.grid_width = grid_size
             self.num_operations = num_operations
 
@@ -351,11 +351,13 @@ def _(Dict, NamedTuple, Panel, Tuple, console, jax, jnp, jr):
             return AgentState(
                 key=key,
                 step_count=jnp.array(0, dtype=jnp.int32),
-                total_reward=jnp.array(0.0, dtype=jnp.float32)
+                total_reward=jnp.array(0.0, dtype=jnp.float32),
             )
 
         @jax.jit
-        def select_action(self, agent_state: AgentState, observation: jax.Array) -> Tuple[Dict[str, jax.Array], AgentState]:
+        def select_action(
+            self, agent_state: AgentState, observation: jax.Array
+        ) -> Tuple[Dict[str, jax.Array], AgentState]:
             """Select random bbox action."""
             key, subkey = jr.split(agent_state.key)
 
@@ -385,27 +387,26 @@ def _(Dict, NamedTuple, Panel, Tuple, console, jax, jnp, jr):
             operation = jr.randint(op_key, (), 0, self.num_operations)
 
             # Create action
-            action = {
-                "bbox": bbox,
-                "operation": operation
-            }
+            action = {"bbox": bbox, "operation": operation}
 
             # Update agent state
             new_agent_state = AgentState(
                 key=key,
                 step_count=agent_state.step_count + 1,
-                total_reward=agent_state.total_reward  # Will be updated after step
+                total_reward=agent_state.total_reward,  # Will be updated after step
             )
 
             return action, new_agent_state
 
         @jax.jit
-        def update_reward(self, agent_state: AgentState, reward: jax.Array) -> AgentState:
+        def update_reward(
+            self, agent_state: AgentState, reward: jax.Array
+        ) -> AgentState:
             """Update agent state with received reward."""
             return AgentState(
                 key=agent_state.key,
                 step_count=agent_state.step_count,
-                total_reward=agent_state.total_reward + reward
+                total_reward=agent_state.total_reward + reward,
             )
 
     # Create agent instance
@@ -415,15 +416,17 @@ def _(Dict, NamedTuple, Panel, Tuple, console, jax, jnp, jr):
     test_key = jr.PRNGKey(42)
     test_agent_state = RandomAgent.init_agent(test_key)
 
-    console.print(Panel(
-        f"[green]JAX-Compliant Random Agent Created![/green]\n\n"
-        f"• Grid Size: {random_agent.grid_height}x{random_agent.grid_width}\n"
-        f"• Operations: {random_agent.num_operations}\n"
-        f"• JIT Compiled: ✓\n"
-        f"• Batch Compatible: ✓\n"
-        f"• Initial State: {test_agent_state}",
-        title="Random Agent"
-    ))
+    console.print(
+        Panel(
+            f"[green]JAX-Compliant Random Agent Created![/green]\n\n"
+            f"• Grid Size: {random_agent.grid_height}x{random_agent.grid_width}\n"
+            f"• Operations: {random_agent.num_operations}\n"
+            f"• JIT Compiled: ✓\n"
+            f"• Batch Compatible: ✓\n"
+            f"• Initial State: {test_agent_state}",
+            title="Random Agent",
+        )
+    )
 
     random_agent
     return (random_agent,)
@@ -442,7 +445,6 @@ def _(mo):
     - **Visualize results** with enhanced logging
     """
     )
-    return
 
 
 @app.cell
@@ -496,7 +498,9 @@ def _(
             action, agent_state = random_agent.select_action(agent_state, observation)
 
             # Environment step
-            new_state, new_obs, reward, done, info = arc_step(state, action, miniarc_config)
+            new_state, new_obs, reward, done, info = arc_step(
+                state, action, miniarc_config
+            )
 
             # Update agent with reward
             agent_state = random_agent.update_reward(agent_state, reward)
@@ -507,7 +511,7 @@ def _(
                 "action": action,
                 "reward": float(reward),
                 "similarity": float(info.get("similarity", 0.0)),
-                "done": bool(done)
+                "done": bool(done),
             }
             episode_data.append(step_data)
 
@@ -518,10 +522,12 @@ def _(
                 after_state=new_state,
                 reward=reward,
                 info=info,
-                step_num=step
+                step_num=step,
             )
 
-            logger.info(f"Step {step}: Reward={reward:.3f}, Similarity={info.get('similarity', 0.0):.3f}")
+            logger.info(
+                f"Step {step}: Reward={reward:.3f}, Similarity={info.get('similarity', 0.0):.3f}"
+            )
 
             # Update state
             state, observation = new_state, new_obs
@@ -541,17 +547,18 @@ def _(
     if test_results is not None:
         episode_data, final_agent_state, final_env_state = test_results
 
-        console.print(Panel(
-            f"[green]Environment Test Completed![/green]\n\n"
-            f"• Steps Executed: {len(episode_data)}\n"
-            f"• Total Reward: {final_agent_state.total_reward:.3f}\n"
-            f"• Final Similarity: {final_env_state.similarity_score:.3f}\n"
-            f"• Episode Done: {episode_data[-1]['done'] if episode_data else False}",
-            title="Test Results"
-        ))
+        console.print(
+            Panel(
+                f"[green]Environment Test Completed![/green]\n\n"
+                f"• Steps Executed: {len(episode_data)}\n"
+                f"• Total Reward: {final_agent_state.total_reward:.3f}\n"
+                f"• Final Similarity: {final_env_state.similarity_score:.3f}\n"
+                f"• Episode Done: {episode_data[-1]['done'] if episode_data else False}",
+                title="Test Results",
+            )
+        )
 
     test_results
-    return
 
 
 @app.cell(hide_code=True)
@@ -568,7 +575,6 @@ def _(mo):
     - **JAX-optimized execution** with batch processing
     """
     )
-    return
 
 
 @app.cell
@@ -603,12 +609,12 @@ def _(
             "num_episodes": num_episodes,
             "max_steps": max_steps_per_episode,
             "grid_size": "5x5",
-            "dataset": "MiniArc"
+            "dataset": "MiniArc",
         }
 
         wandb_integration.initialize_run(
             experiment_config=experiment_config,
-            run_name=f"miniarc_random_agent_{int(time.time())}"
+            run_name=f"miniarc_random_agent_{int(time.time())}",
         )
 
         # Training loop
@@ -641,10 +647,14 @@ def _(
             # Episode loop
             for step in range(max_steps_per_episode):
                 # Agent action
-                action, agent_state = random_agent.select_action(agent_state, observation)
+                action, agent_state = random_agent.select_action(
+                    agent_state, observation
+                )
 
                 # Environment step
-                new_state, new_obs, reward, done, info = arc_step(state, action, miniarc_config)
+                new_state, new_obs, reward, done, info = arc_step(
+                    state, action, miniarc_config
+                )
 
                 # Update agent
                 agent_state = random_agent.update_reward(agent_state, reward)
@@ -660,7 +670,7 @@ def _(
                     after_state=new_state,
                     reward=reward,
                     info=info,
-                    step_num=step
+                    step_num=step,
                 )
 
                 # Log to wandb
@@ -669,12 +679,12 @@ def _(
                     "cumulative_reward": float(agent_state.total_reward),
                     "similarity": float(info.get("similarity", 0.0)),
                     "episode": episode,
-                    "task_id": task_idx
+                    "task_id": task_idx,
                 }
 
                 wandb_integration.log_step(
                     step_num=episode * max_steps_per_episode + step,
-                    metrics=step_metrics
+                    metrics=step_metrics,
                 )
 
                 # Update state
@@ -690,7 +700,7 @@ def _(
                 "episode_steps": step + 1,
                 "final_similarity": float(state.similarity_score),
                 "success": float(state.similarity_score) > 0.9,
-                "task_id": task_idx
+                "task_id": task_idx,
             }
 
             training_results.append(episode_summary)
@@ -701,8 +711,10 @@ def _(
             # Log episode summary to wandb
             wandb_integration.log_episode_summary(episode, episode_summary)
 
-            logger.info(f"Episode {episode}: Reward={episode_summary['episode_reward']:.3f}, "
-                       f"Similarity={episode_summary['final_similarity']:.3f}")
+            logger.info(
+                f"Episode {episode}: Reward={episode_summary['episode_reward']:.3f}, "
+                f"Similarity={episode_summary['final_similarity']:.3f}"
+            )
 
         # Finish wandb run
         wandb_integration.finish_run()
@@ -710,11 +722,13 @@ def _(
         return training_results
 
     # Run training loop
-    console.print(Panel(
-        "[yellow]Starting Training Loop...[/yellow]\n\n"
-        "This will run 3 episodes with enhanced visualization and Wandb logging.",
-        title="Training Loop"
-    ))
+    console.print(
+        Panel(
+            "[yellow]Starting Training Loop...[/yellow]\n\n"
+            "This will run 3 episodes with enhanced visualization and Wandb logging.",
+            title="Training Loop",
+        )
+    )
 
     training_results = run_training_loop(num_episodes=3, max_steps_per_episode=10)
 
@@ -731,15 +745,14 @@ def _(
             results_table.add_row(
                 str(i),
                 f"{result['episode_reward']:.3f}",
-                str(result['episode_steps']),
+                str(result["episode_steps"]),
                 f"{result['final_similarity']:.3f}",
-                "✓" if result['success'] else "✗"
+                "✓" if result["success"] else "✗",
             )
 
         console.print(results_table)
 
     training_results
-    return
 
 
 @app.cell
@@ -754,7 +767,6 @@ def _(mo):
     - **Performance comparison** between single and batch execution
     """
     )
-    return
 
 
 @app.cell
@@ -776,7 +788,9 @@ def _(
         """Demonstrate JAX batch processing capabilities."""
 
         if training_tasks is None:
-            console.print("[red]Cannot demo batch processing - dataset not loaded[/red]")
+            console.print(
+                "[red]Cannot demo batch processing - dataset not loaded[/red]"
+            )
             return None
 
         logger.info("=== Batch Processing Demo ===")
@@ -795,8 +809,12 @@ def _(
             # Run episode
             total_reward = 0.0
             for step in range(5):  # Short episodes for demo
-                action, agent_state = random_agent.select_action(agent_state, observation)
-                state, observation, reward, done, info = arc_step(state, action, miniarc_config)
+                action, agent_state = random_agent.select_action(
+                    agent_state, observation
+                )
+                state, observation, reward, done, info = arc_step(
+                    state, action, miniarc_config
+                )
                 agent_state = random_agent.update_reward(agent_state, reward)
                 total_reward += reward
 
@@ -832,7 +850,7 @@ def _(
         batch_time = time.perf_counter() - start_time
 
         # Results
-        speedup = single_time / batch_time if batch_time > 0 else float('inf')
+        speedup = single_time / batch_time if batch_time > 0 else float("inf")
 
         results = {
             "single_time": single_time,
@@ -840,7 +858,7 @@ def _(
             "compile_time": compile_time,
             "speedup": speedup,
             "single_rewards": single_rewards,
-            "batch_rewards": batch_rewards.tolist()
+            "batch_rewards": batch_rewards.tolist(),
         }
 
         return results
@@ -849,19 +867,20 @@ def _(
     batch_results = demo_batch_processing()
 
     if batch_results:
-        console.print(Panel(
-            f"[green]Batch Processing Results[/green]\n\n"
-            f"• Single Execution: {batch_results['single_time']:.4f}s\n"
-            f"• Batch Execution: {batch_results['batch_time']:.4f}s\n"
-            f"• Compile Time: {batch_results['compile_time']:.4f}s\n"
-            f"• Speedup: {batch_results['speedup']:.2f}x\n"
-            f"• Batch Size: 4 episodes\n"
-            f"• Rewards Match: {abs(sum(batch_results['single_rewards']) - sum(batch_results['batch_rewards'])) < 1e-6}",
-            title="JAX Batch Processing"
-        ))
+        console.print(
+            Panel(
+                f"[green]Batch Processing Results[/green]\n\n"
+                f"• Single Execution: {batch_results['single_time']:.4f}s\n"
+                f"• Batch Execution: {batch_results['batch_time']:.4f}s\n"
+                f"• Compile Time: {batch_results['compile_time']:.4f}s\n"
+                f"• Speedup: {batch_results['speedup']:.2f}x\n"
+                f"• Batch Size: 4 episodes\n"
+                f"• Rewards Match: {abs(sum(batch_results['single_rewards']) - sum(batch_results['batch_rewards'])) < 1e-6}",
+                title="JAX Batch Processing",
+            )
+        )
 
     batch_results
-    return
 
 
 @app.cell
@@ -872,13 +891,13 @@ def _(mo):
 
     This notebook demonstrated the complete JaxARC workflow with:
 
-    ✅ **MiniArc Dataset Integration** - 5x5 grid tasks for rapid prototyping  
-    ✅ **Enhanced Visualization** - Rich SVG rendering and debug logging  
-    ✅ **Wandb Integration** - Experiment tracking and metrics logging  
-    ✅ **JAX-Compliant Random Agent** - Fully vectorized implementation  
-    ✅ **Bbox Actions** - Intuitive rectangular selection format  
-    ✅ **Raw Environment** - Minimal operations for focused learning  
-    ✅ **Batch Processing** - Parallel execution with significant speedups  
+    ✅ **MiniArc Dataset Integration** - 5x5 grid tasks for rapid prototyping
+    ✅ **Enhanced Visualization** - Rich SVG rendering and debug logging
+    ✅ **Wandb Integration** - Experiment tracking and metrics logging
+    ✅ **JAX-Compliant Random Agent** - Fully vectorized implementation
+    ✅ **Bbox Actions** - Intuitive rectangular selection format
+    ✅ **Raw Environment** - Minimal operations for focused learning
+    ✅ **Batch Processing** - Parallel execution with significant speedups
 
     ### Next Steps:
 
@@ -891,7 +910,6 @@ def _(mo):
     The foundation is now ready for advanced RL research on abstract reasoning!
     """
     )
-    return
 
 
 @app.cell
@@ -903,22 +921,23 @@ def _(Panel, console, episode_manager):
         # Get output directory info
         output_dir = episode_manager.get_current_run_dir()
 
-        console.print(Panel(
-            f"[bold green]JaxARC MiniArc Demo Complete![/bold green]\n\n"
-            f"📁 **Output Directory**: {output_dir}\n"
-            f"🎨 **Visualizations**: Check SVG files in the output directory\n"
-            f"📊 **Wandb Logs**: Experiment data logged (offline mode)\n"
-            f"🚀 **JAX Performance**: Batch processing demonstrated\n"
-            f"🎯 **Ready for Research**: Foundation set for advanced RL\n\n"
-            f"[yellow]Tip:[/yellow] Open the SVG files in your browser to see detailed grid visualizations!",
-            title="Demo Summary"
-        ))
+        console.print(
+            Panel(
+                f"[bold green]JaxARC MiniArc Demo Complete![/bold green]\n\n"
+                f"📁 **Output Directory**: {output_dir}\n"
+                f"🎨 **Visualizations**: Check SVG files in the output directory\n"
+                f"📊 **Wandb Logs**: Experiment data logged (offline mode)\n"
+                f"🚀 **JAX Performance**: Batch processing demonstrated\n"
+                f"🎯 **Ready for Research**: Foundation set for advanced RL\n\n"
+                f"[yellow]Tip:[/yellow] Open the SVG files in your browser to see detailed grid visualizations!",
+                title="Demo Summary",
+            )
+        )
 
         return str(output_dir)
 
     output_directory = display_final_summary()
     output_directory
-    return
 
 
 if __name__ == "__main__":

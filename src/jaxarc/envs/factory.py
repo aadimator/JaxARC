@@ -35,7 +35,7 @@ def create_raw_config(
     Create minimal configuration for basic ARC environment.
 
     DEPRECATED: Use Hydra configuration instead. See migration guide in docs/configuration.md
-    
+
     Hydra equivalent:
         @hydra.main(config_path="conf", config_name="presets/raw")
         def main(cfg: DictConfig):
@@ -58,7 +58,7 @@ def create_raw_config(
         "create_raw_config() is deprecated. Use Hydra configuration with "
         "create_complete_hydra_config() instead. See docs/configuration.md for migration guide.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
     reward_config = RewardConfig(
         reward_on_submit_only=False,
@@ -144,7 +144,7 @@ def create_standard_config(
     Create standard configuration for ARC environment.
 
     DEPRECATED: Use Hydra configuration instead. See migration guide in docs/configuration.md
-    
+
     Hydra equivalent:
         @hydra.main(config_path="conf", config_name="presets/standard")
         def main(cfg: DictConfig):
@@ -168,7 +168,7 @@ def create_standard_config(
         "create_standard_config() is deprecated. Use Hydra configuration with "
         "create_complete_hydra_config() instead. See docs/configuration.md for migration guide.",
         DeprecationWarning,
-        stacklevel=2
+        stacklevel=2,
     )
     reward_config = RewardConfig(
         reward_on_submit_only=reward_on_submit_only,

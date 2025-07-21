@@ -21,10 +21,10 @@ JAXTyping Modifiers Used:
 Examples:
     # Single grid
     grid: GridArray = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)  # shape: (2, 2)
-    
-    # Batched grids  
+
+    # Batched grids
     batch: GridArray = jnp.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], dtype=jnp.int32)  # shape: (2, 2, 2)
-    
+
     # Both work with the same type annotation!
 """
 
@@ -40,7 +40,7 @@ from jaxtyping import Array, Bool, Float, Int
 
 # Grid types that can handle both single grids and batched grids
 GridArray: TypeAlias = Int[Array, "*batch height width"]
-"""Integer array representing ARC grid(s) with color values 0-9. 
+"""Integer array representing ARC grid(s) with color values 0-9.
 Supports both single grids (height, width) and batched grids (*batch, height, width)."""
 
 MaskArray: TypeAlias = Bool[Array, "*batch height width"]

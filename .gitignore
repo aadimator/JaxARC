@@ -3,6 +3,7 @@
 /outputs/
 /.kiro/specs
 /wandb
+/presentations
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

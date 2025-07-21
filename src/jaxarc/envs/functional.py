@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple, Union
 
-import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -18,26 +17,22 @@ from omegaconf import DictConfig
 
 from jaxarc.utils.visualization import (
     _clear_output_directory,
-    save_rl_step_visualization,
     jax_save_step_visualization,
-    jax_log_episode_summary,
+    save_rl_step_visualization,
 )
 
 from ..state import ArcEnvState
 from ..types import ARCLEAction, JaxArcTask
 from ..utils.jax_types import (
     EpisodeDone,
-    GridArray,
     ObservationArray,
     OperationId,
     PRNGKey,
     RewardValue,
-    SelectionArray,
-    SimilarityScore,
 )
 from .actions import get_action_handler
 from .config import ArcEnvConfig
-from .equinox_config import JaxArcConfig, convert_arc_env_config_to_jax_arc_config
+from .equinox_config import JaxArcConfig
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
 # Type aliases for cleaner signatures
@@ -47,18 +42,26 @@ ActionType = Union[Dict[str, Any], ARCLEAction]
 
 def _convert_jax_arc_config_to_arc_env_config(jax_config: JaxArcConfig) -> ArcEnvConfig:
     """Convert JaxArcConfig back to ArcEnvConfig for functional API compatibility.
-    
+
     This is a temporary bridge function until we fully migrate the functional API
     to use the unified configuration system.
     """
     from .config import (
         ActionConfig as LegacyActionConfig,
-        DatasetConfig as LegacyDatasetConfig, 
+    )
+    from .config import (
+        DatasetConfig as LegacyDatasetConfig,
+    )
+    from .config import (
         DebugConfig as LegacyDebugConfig,
+    )
+    from .config import (
         GridConfig as LegacyGridConfig,
+    )
+    from .config import (
         RewardConfig as LegacyRewardConfig,
     )
-    
+
     # Convert back to legacy config structure
     reward_config = LegacyRewardConfig(
         reward_on_submit_only=jax_config.reward.reward_on_submit_only,
@@ -68,7 +71,7 @@ def _convert_jax_arc_config_to_arc_env_config(jax_config: JaxArcConfig) -> ArcEn
         progress_bonus=jax_config.reward.progress_bonus,
         invalid_action_penalty=jax_config.reward.invalid_action_penalty,
     )
-    
+
     grid_config = LegacyGridConfig(
         max_grid_height=jax_config.dataset.max_grid_height,
         max_grid_width=jax_config.dataset.max_grid_width,
@@ -77,7 +80,7 @@ def _convert_jax_arc_config_to_arc_env_config(jax_config: JaxArcConfig) -> ArcEn
         max_colors=jax_config.dataset.max_colors,
         background_color=jax_config.dataset.background_color,
     )
-    
+
     action_config = LegacyActionConfig(
         selection_format=jax_config.action.selection_format,
         selection_threshold=jax_config.action.selection_threshold,
@@ -87,20 +90,20 @@ def _convert_jax_arc_config_to_arc_env_config(jax_config: JaxArcConfig) -> ArcEn
         validate_actions=jax_config.action.validate_actions,
         clip_invalid_actions=not jax_config.action.allow_invalid_actions,  # Inverted logic
     )
-    
+
     dataset_config = LegacyDatasetConfig(
         dataset_name=jax_config.dataset.dataset_name,
         dataset_path=jax_config.dataset.dataset_path,
         task_split=jax_config.dataset.task_split,
         shuffle_tasks=jax_config.dataset.shuffle_tasks,
     )
-    
+
     debug_config = LegacyDebugConfig(
         log_rl_steps=jax_config.visualization.enabled,
         rl_steps_output_dir=f"{jax_config.storage.base_output_dir}/{jax_config.storage.visualization_dir}",
         clear_output_dir=jax_config.storage.clear_output_on_start,
     )
-    
+
     return ArcEnvConfig(
         max_episode_steps=jax_config.environment.max_episode_steps,
         auto_reset=jax_config.environment.auto_reset,
@@ -122,7 +125,7 @@ def _ensure_config(config: ConfigType) -> ArcEnvConfig:
     """Convert config to typed ArcEnvConfig if needed."""
     if isinstance(config, DictConfig):
         return ArcEnvConfig.from_hydra(config)
-    elif isinstance(config, JaxArcConfig):
+    if isinstance(config, JaxArcConfig):
         # Convert JaxArcConfig back to ArcEnvConfig for compatibility
         # This is a temporary bridge until we fully migrate the functional API
         return _convert_jax_arc_config_to_arc_env_config(config)
@@ -135,11 +138,11 @@ def _validate_operation(operation: Any, config: ArcEnvConfig) -> OperationId:
         operation = jnp.array(operation, dtype=jnp.int32)
     elif not isinstance(operation, jnp.ndarray):
         raise ValueError(f"Operation must be int or jnp.ndarray, got {type(operation)}")
-    
+
     # Validate operation range (JAX-compatible)
     if config.action.validate_actions and config.action.clip_invalid_actions:
         operation = jnp.clip(operation, 0, config.action.num_operations - 1)
-    
+
     return operation
 
 
@@ -382,7 +385,7 @@ def arc_step(
 
     # Get the appropriate action handler based on configuration
     handler = get_action_handler(typed_config.action.selection_format)
-    
+
     # Extract action data based on selection format
     if typed_config.action.selection_format == "point":
         if "point" not in action:
@@ -432,23 +435,24 @@ def arc_step(
                     )
                 action_data = selection
             else:
-                raise ValueError(f"Selection must be 1D or 2D array, got shape {selection.shape}")
+                raise ValueError(
+                    f"Selection must be 1D or 2D array, got shape {selection.shape}"
+                )
         else:
             raise ValueError("Action must contain 'selection' field")
     else:
-        raise ValueError(f"Unknown selection format: {typed_config.action.selection_format}")
+        raise ValueError(
+            f"Unknown selection format: {typed_config.action.selection_format}"
+        )
 
     # Handler creates standardized selection mask
     selection_mask = handler(action_data, state.working_grid_mask)
-    
+
     # Validate and normalize operation
     operation = _validate_operation(action["operation"], typed_config)
-    
+
     # Create standardized action dictionary
-    standardized_action = {
-        "selection": selection_mask,
-        "operation": operation
-    }
+    standardized_action = {"selection": selection_mask, "operation": operation}
 
     # Update selection in state using Equinox tree_at for better performance
     state = eqx.tree_at(lambda s: s.selected, state, standardized_action["selection"])

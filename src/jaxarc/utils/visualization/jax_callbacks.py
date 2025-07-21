@@ -23,9 +23,9 @@ import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 
-from jaxarc.types import Grid
 from jaxarc.state import ArcEnvState
-from jaxarc.utils.jax_types import GridArray, MaskArray, PRNGKey
+from jaxarc.types import Grid
+from jaxarc.utils.jax_types import GridArray, MaskArray
 
 # Type variables for generic callback wrapping
 F = TypeVar("F", bound=Callable[..., Any])
@@ -33,8 +33,6 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 class JAXCallbackError(Exception):
     """Exception raised when JAX callback encounters an error."""
-
-    pass
 
 
 class CallbackPerformanceMonitor:
@@ -45,7 +43,9 @@ class CallbackPerformanceMonitor:
         self.error_counts: dict[str, int] = {}
         self.total_calls: dict[str, int] = {}
 
-    def record_call(self, callback_name: str, duration: float, had_error: bool = False) -> None:
+    def record_call(
+        self, callback_name: str, duration: float, had_error: bool = False
+    ) -> None:
         """Record a callback execution."""
         if callback_name not in self.callback_times:
             self.callback_times[callback_name] = []
@@ -72,7 +72,9 @@ class CallbackPerformanceMonitor:
             "total_time_ms": np.sum(times) * 1000,
         }
 
-    def should_reduce_logging(self, callback_name: str, max_avg_time_ms: float = 10.0) -> bool:
+    def should_reduce_logging(
+        self, callback_name: str, max_avg_time_ms: float = 10.0
+    ) -> bool:
         """Determine if logging should be reduced due to performance impact."""
         stats = self.get_stats(callback_name)
         if not stats:
@@ -97,10 +99,9 @@ def serialize_jax_array(arr: jnp.ndarray | np.ndarray) -> np.ndarray:
     try:
         if isinstance(arr, jnp.ndarray):
             return np.asarray(arr)
-        elif isinstance(arr, np.ndarray):
+        if isinstance(arr, np.ndarray):
             return arr.copy()
-        else:
-            return np.asarray(arr)
+        return np.asarray(arr)
     except Exception as e:
         logger.warning(f"Failed to serialize array: {e}")
         return np.array([])
@@ -218,9 +219,7 @@ def jax_debug_callback(
     jax.debug.callback(wrapped_func, *args, **kwargs)
 
 
-def create_grid_from_arrays(
-    data: GridArray, mask: MaskArray | None = None
-) -> Grid:
+def create_grid_from_arrays(data: GridArray, mask: MaskArray | None = None) -> Grid:
     """Create a Grid object from JAX arrays with proper serialization.
 
     Args:
@@ -378,9 +377,7 @@ def adaptive_visualization_callback(
         if stats["total_calls"] % 10 != 0:
             return
 
-    jax_debug_callback(
-        callback_func, *args, callback_name=callback_name, **kwargs
-    )
+    jax_debug_callback(callback_func, *args, callback_name=callback_name, **kwargs)
 
 
 # Convenience functions for common patterns

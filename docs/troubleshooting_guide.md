@@ -1,6 +1,7 @@
 # Troubleshooting Guide
 
-This guide covers common issues with JaxARC's enhanced visualization and logging system, along with solutions and debugging techniques.
+This guide covers common issues with JaxARC's enhanced visualization and logging
+system, along with solutions and debugging techniques.
 
 ## Quick Diagnostics
 
@@ -16,7 +17,9 @@ print("🔍 System Diagnostics:")
 print(f"JAX version: {diagnostics['jax_version']}")
 print(f"Memory available: {diagnostics['memory_gb']:.1f} GB")
 print(f"Disk space: {diagnostics['disk_space_gb']:.1f} GB")
-print(f"Visualization system: {'✅ OK' if diagnostics['viz_system_ok'] else '❌ Error'}")
+print(
+    f"Visualization system: {'✅ OK' if diagnostics['viz_system_ok'] else '❌ Error'}"
+)
 print(f"Async logging: {'✅ OK' if diagnostics['async_logging_ok'] else '❌ Error'}")
 print(f"Wandb connection: {'✅ OK' if diagnostics['wandb_ok'] else '❌ Error'}")
 ```
@@ -47,21 +50,24 @@ visualizer.run_self_test()
 #### High Visualization Overhead
 
 **Symptoms:**
+
 - Training significantly slower with visualization enabled
 - High CPU usage during visualization
 - Memory usage growing rapidly
 
 **Diagnosis:**
+
 ```python
 # Check performance impact
 perf_report = visualizer.get_performance_report()
 print(f"Overhead: {perf_report['visualization_overhead']:.1f}%")
 
-if perf_report['visualization_overhead'] > 10:
+if perf_report["visualization_overhead"] > 10:
     print("⚠️  High visualization overhead detected")
 ```
 
 **Solutions:**
+
 ```python
 # 1. Reduce debug level
 visualizer.set_debug_level("minimal")
@@ -85,11 +91,13 @@ visualizer.enable_compression()
 #### Slow JAX Compilation
 
 **Symptoms:**
+
 - Long delays when starting training
 - "Compiling..." messages taking too long
 - JIT compilation errors with visualization
 
 **Diagnosis:**
+
 ```python
 # Check if visualization breaks JIT
 @jax.jit
@@ -97,6 +105,7 @@ def test_jit_compatibility(state, action, config):
     new_state, obs, reward, done, info = arc_step(state, action, config)
     # This should work without issues
     return new_state, reward
+
 
 # Test compilation
 try:
@@ -107,19 +116,20 @@ except Exception as e:
 ```
 
 **Solutions:**
+
 ```python
 # 1. Use JAX debug callbacks properly
 @jax.jit
 def step_with_proper_callback(state, action, config):
     new_state, obs, reward, done, info = arc_step(state, action, config)
-    
+
     # Proper debug callback usage
     jax.debug.callback(
-        visualizer.jax_callback_function,
-        state, action, new_state, reward
+        visualizer.jax_callback_function, state, action, new_state, reward
     )
-    
+
     return new_state, obs, reward, done, info
+
 
 # 2. Mark visualization config as static
 @jax.jit
@@ -127,12 +137,15 @@ def step_with_static_config(state, action, env_config, viz_config):
     # Implementation with static viz_config
     pass
 
+
 jit_step = jax.jit(step_with_static_config, static_argnums=(3,))
+
 
 # 3. Separate visualization from core computation
 @jax.jit
 def core_step(state, action, config):
     return arc_step(state, action, config)
+
 
 # Visualize outside JIT
 new_state, obs, reward, done, info = core_step(state, action, config)
@@ -144,52 +157,57 @@ visualizer.visualize_step(state, action, new_state, reward, info, step_num)
 #### Memory Leaks
 
 **Symptoms:**
+
 - Memory usage continuously growing
 - Out of memory errors during long training runs
 - System becoming unresponsive
 
 **Diagnosis:**
+
 ```python
 import psutil
 import gc
 
+
 def diagnose_memory_leak():
     """Diagnose memory leak issues."""
-    
+
     # Check system memory
     memory = psutil.virtual_memory()
     print(f"System memory: {memory.percent}% used")
-    
+
     # Check visualization memory
     viz_memory = visualizer.get_memory_usage()
     print(f"Visualization memory: {viz_memory['current_mb']:.1f} MB")
-    
+
     # Check for unreleased objects
     gc.collect()
     objects_before = len(gc.get_objects())
-    
+
     # Run a few visualization steps
     for i in range(10):
         visualizer.visualize_step(state, action, new_state, reward, info, i)
-    
+
     gc.collect()
     objects_after = len(gc.get_objects())
-    
+
     print(f"Objects created: {objects_after - objects_before}")
-    
+
     # Check for circular references
     if gc.garbage:
         print(f"⚠️  Circular references detected: {len(gc.garbage)}")
+
 
 diagnose_memory_leak()
 ```
 
 **Solutions:**
+
 ```python
 # 1. Enable automatic cleanup
 visualizer.enable_auto_cleanup(
     cleanup_frequency=100,  # Every 100 steps
-    memory_threshold=0.8    # At 80% memory usage
+    memory_threshold=0.8,  # At 80% memory usage
 )
 
 # 2. Set memory limits
@@ -213,42 +231,46 @@ visualizer.disable_caching()
 #### Out of Disk Space
 
 **Symptoms:**
+
 - "No space left on device" errors
 - Visualization files not being saved
 - System warnings about disk space
 
 **Diagnosis:**
+
 ```python
 import shutil
 
+
 def check_disk_space():
     """Check available disk space."""
-    
+
     # Check output directory space
     output_dir = visualizer.get_output_directory()
     total, used, free = shutil.disk_usage(output_dir)
-    
+
     print(f"Disk space in {output_dir}:")
     print(f"Total: {total // (1024**3)} GB")
     print(f"Used: {used // (1024**3)} GB")
     print(f"Free: {free // (1024**3)} GB")
-    
+
     # Check visualization storage usage
     viz_storage = visualizer.get_storage_stats()
     print(f"Visualization storage: {viz_storage['used_gb']:.1f} GB")
-    
+
     if free < 1024**3:  # Less than 1 GB free
         print("⚠️  Low disk space!")
+
 
 check_disk_space()
 ```
 
 **Solutions:**
+
 ```python
 # 1. Enable automatic cleanup
 visualizer.enable_storage_cleanup(
-    max_storage_gb=5.0,     # Limit to 5 GB
-    cleanup_policy="oldest_first"
+    max_storage_gb=5.0, cleanup_policy="oldest_first"  # Limit to 5 GB
 )
 
 # 2. Use compression
@@ -265,6 +287,7 @@ visualizer.set_output_directory("/path/to/larger/disk")
 
 # 6. Use temporary storage
 import tempfile
+
 temp_dir = tempfile.mkdtemp()
 visualizer.set_output_directory(temp_dir)
 ```
@@ -274,11 +297,13 @@ visualizer.set_output_directory(temp_dir)
 #### Async Workers Not Starting
 
 **Symptoms:**
+
 - Visualization queue growing without processing
 - No background processing happening
 - Async logger errors
 
 **Diagnosis:**
+
 ```python
 # Check async worker status
 async_status = visualizer.get_async_status()
@@ -286,17 +311,19 @@ print(f"Workers running: {async_status['workers_running']}")
 print(f"Queue size: {async_status['queue_size']}")
 print(f"Processed items: {async_status['processed_count']}")
 
-if async_status['workers_running'] == 0:
+if async_status["workers_running"] == 0:
     print("❌ No async workers running")
 ```
 
 **Solutions:**
+
 ```python
 # 1. Restart async workers
 visualizer.restart_async_workers()
 
 # 2. Check thread limits
 import threading
+
 print(f"Active threads: {threading.active_count()}")
 
 # 3. Reduce worker count if too many threads
@@ -312,22 +339,25 @@ visualizer.disable_async_processing()
 #### Queue Overflow
 
 **Symptoms:**
+
 - "Queue full" warnings
 - Visualization data being dropped
 - Slow processing of visualization queue
 
 **Diagnosis:**
+
 ```python
 queue_stats = visualizer.get_queue_stats()
 print(f"Queue size: {queue_stats['current_size']}")
 print(f"Max size: {queue_stats['max_size']}")
 print(f"Drop count: {queue_stats['dropped_items']}")
 
-if queue_stats['current_size'] > queue_stats['max_size'] * 0.8:
+if queue_stats["current_size"] > queue_stats["max_size"] * 0.8:
     print("⚠️  Queue nearly full")
 ```
 
 **Solutions:**
+
 ```python
 # 1. Increase queue size
 visualizer.set_queue_size(2000)
@@ -350,11 +380,13 @@ visualizer.enable_priority_queue()
 #### Authentication Failures
 
 **Symptoms:**
+
 - "Authentication failed" errors
 - Unable to log to wandb
 - API key errors
 
 **Diagnosis:**
+
 ```python
 import wandb
 
@@ -367,7 +399,8 @@ except Exception as e:
 
 # Check API key
 import os
-api_key = os.environ.get('WANDB_API_KEY')
+
+api_key = os.environ.get("WANDB_API_KEY")
 if api_key:
     print(f"API key found: {api_key[:8]}...")
 else:
@@ -375,14 +408,17 @@ else:
 ```
 
 **Solutions:**
+
 ```python
 # 1. Set API key explicitly
 import os
-os.environ['WANDB_API_KEY'] = 'your_api_key_here'
+
+os.environ["WANDB_API_KEY"] = "your_api_key_here"
 
 # 2. Login manually
 import wandb
-wandb.login(key='your_api_key_here')
+
+wandb.login(key="your_api_key_here")
 
 # 3. Use offline mode
 visualizer.set_wandb_offline_mode(True)
@@ -392,8 +428,9 @@ visualizer.disable_wandb()
 
 # 5. Check network connectivity
 import requests
+
 try:
-    response = requests.get('https://api.wandb.ai/health', timeout=5)
+    response = requests.get("https://api.wandb.ai/health", timeout=5)
     print(f"Wandb API status: {response.status_code}")
 except Exception as e:
     print(f"Network issue: {e}")
@@ -402,11 +439,13 @@ except Exception as e:
 #### Sync Issues
 
 **Symptoms:**
+
 - Offline runs not syncing
 - Data not appearing in wandb dashboard
 - Sync errors
 
 **Diagnosis:**
+
 ```python
 # Check offline runs
 offline_runs = visualizer.get_offline_runs()
@@ -417,12 +456,13 @@ for run in offline_runs:
 ```
 
 **Solutions:**
+
 ```python
 # 1. Manual sync
 visualizer.sync_offline_runs()
 
 # 2. Sync specific run
-visualizer.sync_run('run_id_here')
+visualizer.sync_run("run_id_here")
 
 # 3. Check sync status
 sync_status = visualizer.get_sync_status()
@@ -440,18 +480,21 @@ visualizer.clear_sync_cache()
 #### Permission Errors
 
 **Symptoms:**
+
 - "Permission denied" errors
 - Unable to create output directories
 - File access errors
 
 **Diagnosis:**
+
 ```python
 import os
 import stat
 
+
 def check_permissions(path):
     """Check file system permissions."""
-    
+
     try:
         # Check if path exists
         if os.path.exists(path):
@@ -461,21 +504,22 @@ def check_permissions(path):
             print(f"Path: {path}")
             print(f"Permissions: {permissions}")
             print(f"Owner: {st.st_uid}")
-            
+
             # Test write access
-            test_file = os.path.join(path, 'test_write.tmp')
+            test_file = os.path.join(path, "test_write.tmp")
             try:
-                with open(test_file, 'w') as f:
-                    f.write('test')
+                with open(test_file, "w") as f:
+                    f.write("test")
                 os.remove(test_file)
                 print("✅ Write access OK")
             except Exception as e:
                 print(f"❌ Write access failed: {e}")
         else:
             print(f"❌ Path does not exist: {path}")
-            
+
     except Exception as e:
         print(f"❌ Permission check failed: {e}")
+
 
 # Check output directory permissions
 output_dir = visualizer.get_output_directory()
@@ -483,19 +527,23 @@ check_permissions(output_dir)
 ```
 
 **Solutions:**
+
 ```python
 # 1. Change output directory
 import tempfile
+
 temp_dir = tempfile.mkdtemp()
 visualizer.set_output_directory(temp_dir)
 
 # 2. Fix permissions (Unix/Linux)
 import os
+
 output_dir = visualizer.get_output_directory()
 os.chmod(output_dir, 0o755)
 
 # 3. Use user home directory
 import os
+
 home_dir = os.path.expanduser("~/jaxarc_output")
 os.makedirs(home_dir, exist_ok=True)
 visualizer.set_output_directory(home_dir)
@@ -510,43 +558,47 @@ visualizer.set_output_directory("./outputs")
 #### File Corruption
 
 **Symptoms:**
+
 - Corrupted visualization files
 - Unable to load saved episodes
 - Incomplete file writes
 
 **Diagnosis:**
+
 ```python
 def check_file_integrity():
     """Check integrity of visualization files."""
-    
+
     output_dir = visualizer.get_output_directory()
-    
+
     for root, dirs, files in os.walk(output_dir):
         for file in files:
             filepath = os.path.join(root, file)
-            
+
             try:
                 # Check file size
                 size = os.path.getsize(filepath)
                 if size == 0:
                     print(f"❌ Empty file: {filepath}")
-                
+
                 # Try to read file
-                if filepath.endswith('.svg'):
-                    with open(filepath, 'r') as f:
+                if filepath.endswith(".svg"):
+                    with open(filepath, "r") as f:
                         content = f.read()
                         if not content.strip():
                             print(f"❌ Empty SVG: {filepath}")
-                        elif not content.startswith('<svg'):
+                        elif not content.startswith("<svg"):
                             print(f"❌ Invalid SVG: {filepath}")
-                
+
             except Exception as e:
                 print(f"❌ Corrupted file {filepath}: {e}")
+
 
 check_file_integrity()
 ```
 
 **Solutions:**
+
 ```python
 # 1. Enable atomic writes
 visualizer.enable_atomic_writes()
@@ -569,11 +621,13 @@ visualizer.cleanup_corrupted_files()
 #### Invalid Configuration
 
 **Symptoms:**
+
 - Configuration validation errors
 - Unexpected behavior
 - Missing required settings
 
 **Diagnosis:**
+
 ```python
 from jaxarc.utils.visualization import validate_configuration
 
@@ -591,6 +645,7 @@ for issue in config_issues:
 ```
 
 **Solutions:**
+
 ```python
 # 1. Reset to default configuration
 visualizer.reset_to_default_config()
@@ -604,8 +659,10 @@ if "output_formats" in config_issues:
 
 # 3. Use configuration templates
 from jaxarc.utils.visualization import get_config_template
+
 template = get_config_template("training")
 visualizer.apply_config(template)
+
 
 # 4. Validate before applying
 def safe_config_update(visualizer, new_config):
@@ -616,17 +673,20 @@ def safe_config_update(visualizer, new_config):
     except Exception as e:
         print(f"❌ Configuration update failed: {e}")
 
+
 safe_config_update(visualizer, new_config)
 ```
 
 #### Hydra Configuration Issues
 
 **Symptoms:**
+
 - Hydra config loading errors
 - Override failures
 - Missing configuration files
 
 **Diagnosis:**
+
 ```python
 import hydra
 from omegaconf import OmegaConf
@@ -635,7 +695,7 @@ from omegaconf import OmegaConf
 config_path = "conf/visualization/debug_standard.yaml"
 if os.path.exists(config_path):
     print(f"✅ Config file found: {config_path}")
-    
+
     # Try to load config
     try:
         cfg = OmegaConf.load(config_path)
@@ -648,28 +708,28 @@ else:
 ```
 
 **Solutions:**
+
 ```python
 # 1. Create missing config files
 from jaxarc.utils.visualization import create_default_configs
+
 create_default_configs("conf/visualization/")
 
 # 2. Fix YAML syntax
 # Check for indentation, quotes, and structure issues
 
 # 3. Use programmatic config
-config_dict = {
-    "debug_level": "standard",
-    "output_formats": ["svg"],
-    "enabled": True
-}
+config_dict = {"debug_level": "standard", "output_formats": ["svg"], "enabled": True}
 cfg = OmegaConf.create(config_dict)
 visualizer = create_visualizer_from_config(cfg)
+
 
 # 4. Validate Hydra overrides
 @hydra.main(config_path="conf", config_name="config", version_base=None)
 def test_config(cfg):
     print("Config loaded successfully")
     print(OmegaConf.to_yaml(cfg))
+
 
 # 5. Use absolute paths
 config_path = os.path.abspath("conf/visualization/debug_standard.yaml")
@@ -692,7 +752,7 @@ logging.getLogger("jaxarc.utils.visualization.wandb_sync").setLevel(logging.DEBU
 # Create debug handler
 debug_handler = logging.StreamHandler()
 debug_handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 debug_handler.setFormatter(formatter)
 
 # Add handler to loggers
@@ -705,14 +765,15 @@ logging.getLogger("jaxarc.utils.visualization").addHandler(debug_handler)
 import functools
 import time
 
+
 def trace_calls(func):
     """Decorator to trace function calls."""
-    
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.perf_counter()
         print(f"🔍 Calling {func.__name__}")
-        
+
         try:
             result = func(*args, **kwargs)
             end_time = time.perf_counter()
@@ -722,8 +783,9 @@ def trace_calls(func):
             end_time = time.perf_counter()
             print(f"❌ {func.__name__} failed in {end_time - start_time:.3f}s: {e}")
             raise
-    
+
     return wrapper
+
 
 # Apply to visualization methods
 visualizer.visualize_step = trace_calls(visualizer.visualize_step)
@@ -736,17 +798,19 @@ visualizer.visualize_episode_summary = trace_calls(visualizer.visualize_episode_
 import tracemalloc
 import linecache
 
-def display_top_memory_usage(snapshot, key_type='lineno', limit=10):
+
+def display_top_memory_usage(snapshot, key_type="lineno", limit=10):
     """Display top memory usage."""
-    
+
     top_stats = snapshot.statistics(key_type)
-    
+
     print(f"Top {limit} lines:")
     for index, stat in enumerate(top_stats[:limit], 1):
         frame = stat.traceback.format()[-1]
         print(f"#{index}: {frame}")
         print(f"    {stat.size / 1024 / 1024:.1f} MB")
         print()
+
 
 # Start memory tracing
 tracemalloc.start()
@@ -765,27 +829,28 @@ display_top_memory_usage(snapshot)
 import cProfile
 import pstats
 
+
 def profile_visualization(func, *args, **kwargs):
     """Profile visualization function."""
-    
+
     profiler = cProfile.Profile()
     profiler.enable()
-    
+
     result = func(*args, **kwargs)
-    
+
     profiler.disable()
-    
+
     # Print stats
     stats = pstats.Stats(profiler)
-    stats.sort_stats('cumulative')
+    stats.sort_stats("cumulative")
     stats.print_stats(20)  # Top 20 functions
-    
+
     return result
+
 
 # Profile visualization step
 result = profile_visualization(
-    visualizer.visualize_step,
-    state, action, new_state, reward, info, step_num
+    visualizer.visualize_step, state, action, new_state, reward, info, step_num
 )
 ```
 
@@ -796,30 +861,30 @@ result = profile_visualization(
 ```python
 def recover_visualization_system():
     """Recover from visualization system failure."""
-    
+
     print("🔧 Starting system recovery...")
-    
+
     try:
         # 1. Stop all async workers
         visualizer.stop_async_workers()
         print("✅ Stopped async workers")
-        
+
         # 2. Clear all queues
         visualizer.clear_all_queues()
         print("✅ Cleared queues")
-        
+
         # 3. Clean up memory
         visualizer.force_memory_cleanup()
         print("✅ Cleaned up memory")
-        
+
         # 4. Reset configuration
         visualizer.reset_to_safe_config()
         print("✅ Reset configuration")
-        
+
         # 5. Restart async workers
         visualizer.restart_async_workers()
         print("✅ Restarted async workers")
-        
+
         # 6. Test basic functionality
         if visualizer.run_self_test():
             print("✅ System recovery successful")
@@ -827,10 +892,11 @@ def recover_visualization_system():
         else:
             print("❌ System recovery failed")
             return False
-            
+
     except Exception as e:
         print(f"❌ Recovery failed: {e}")
         return False
+
 
 # Use recovery procedure
 if not recover_visualization_system():
@@ -842,34 +908,35 @@ if not recover_visualization_system():
 ```python
 def recover_corrupted_data():
     """Recover from corrupted visualization data."""
-    
+
     print("🔧 Starting data recovery...")
-    
+
     # 1. Backup current data
     backup_dir = visualizer.create_backup()
     print(f"✅ Created backup: {backup_dir}")
-    
+
     # 2. Scan for corrupted files
     corrupted_files = visualizer.scan_for_corruption()
     print(f"Found {len(corrupted_files)} corrupted files")
-    
+
     # 3. Attempt to repair files
     repaired_count = 0
     for file_path in corrupted_files:
         if visualizer.attempt_file_repair(file_path):
             repaired_count += 1
-    
+
     print(f"✅ Repaired {repaired_count}/{len(corrupted_files)} files")
-    
+
     # 4. Remove unrecoverable files
     removed_count = visualizer.remove_corrupted_files()
     print(f"✅ Removed {removed_count} unrecoverable files")
-    
+
     # 5. Rebuild indices
     visualizer.rebuild_episode_indices()
     print("✅ Rebuilt episode indices")
-    
+
     return repaired_count, removed_count
+
 
 # Use data recovery
 repaired, removed = recover_corrupted_data()
@@ -882,32 +949,29 @@ repaired, removed = recover_corrupted_data()
 ```python
 def setup_monitoring():
     """Set up monitoring to prevent issues."""
-    
+
     # 1. Performance monitoring
     visualizer.enable_performance_monitoring(
-        check_interval=100,  # Every 100 steps
-        alert_threshold=0.1  # 10% overhead
+        check_interval=100, alert_threshold=0.1  # Every 100 steps  # 10% overhead
     )
-    
+
     # 2. Memory monitoring
     visualizer.enable_memory_monitoring(
-        check_interval=50,   # Every 50 steps
-        alert_threshold=0.8  # 80% memory usage
+        check_interval=50, alert_threshold=0.8  # Every 50 steps  # 80% memory usage
     )
-    
+
     # 3. Disk space monitoring
     visualizer.enable_disk_monitoring(
-        check_interval=1000, # Every 1000 steps
-        alert_threshold=0.9  # 90% disk usage
+        check_interval=1000, alert_threshold=0.9  # Every 1000 steps  # 90% disk usage
     )
-    
+
     # 4. Queue monitoring
     visualizer.enable_queue_monitoring(
-        check_interval=10,   # Every 10 steps
-        alert_threshold=0.8  # 80% queue full
+        check_interval=10, alert_threshold=0.8  # Every 10 steps  # 80% queue full
     )
-    
+
     print("✅ Monitoring enabled")
+
 
 setup_monitoring()
 ```
@@ -917,32 +981,23 @@ setup_monitoring()
 ```python
 def setup_automated_recovery():
     """Set up automated recovery procedures."""
-    
+
     # 1. Auto-cleanup on memory pressure
-    visualizer.enable_auto_cleanup(
-        memory_threshold=0.8,
-        cleanup_frequency=100
-    )
-    
+    visualizer.enable_auto_cleanup(memory_threshold=0.8, cleanup_frequency=100)
+
     # 2. Auto-restart workers on failure
-    visualizer.enable_worker_auto_restart(
-        failure_threshold=3,
-        restart_delay=5.0
-    )
-    
+    visualizer.enable_worker_auto_restart(failure_threshold=3, restart_delay=5.0)
+
     # 3. Auto-sync offline data
-    visualizer.enable_auto_sync(
-        sync_interval=300,  # Every 5 minutes
-        max_retries=3
-    )
-    
+    visualizer.enable_auto_sync(sync_interval=300, max_retries=3)  # Every 5 minutes
+
     # 4. Auto-backup critical data
     visualizer.enable_auto_backup(
-        backup_interval=1000,  # Every 1000 steps
-        keep_backups=5
+        backup_interval=1000, keep_backups=5  # Every 1000 steps
     )
-    
+
     print("✅ Automated recovery enabled")
+
 
 setup_automated_recovery()
 ```
@@ -954,36 +1009,37 @@ setup_automated_recovery()
 ```python
 def collect_debug_info():
     """Collect comprehensive debug information."""
-    
+
     debug_info = {
         "system": {
             "platform": platform.platform(),
             "python_version": sys.version,
             "jax_version": jax.__version__,
             "memory_gb": psutil.virtual_memory().total / (1024**3),
-            "cpu_count": multiprocessing.cpu_count()
+            "cpu_count": multiprocessing.cpu_count(),
         },
         "visualization": {
             "config": visualizer.get_config_dict(),
             "status": visualizer.get_system_status(),
             "performance": visualizer.get_performance_stats(),
             "memory": visualizer.get_memory_stats(),
-            "errors": visualizer.get_recent_errors()
+            "errors": visualizer.get_recent_errors(),
         },
         "environment": {
             "output_dir": visualizer.get_output_directory(),
             "disk_space": shutil.disk_usage(visualizer.get_output_directory()),
-            "permissions": check_permissions(visualizer.get_output_directory())
-        }
+            "permissions": check_permissions(visualizer.get_output_directory()),
+        },
     }
-    
+
     # Save debug info
     debug_file = "debug_info.json"
-    with open(debug_file, 'w') as f:
+    with open(debug_file, "w") as f:
         json.dump(debug_info, f, indent=2, default=str)
-    
+
     print(f"✅ Debug info saved to {debug_file}")
     return debug_info
+
 
 # Collect debug information
 debug_info = collect_debug_info()
@@ -1007,4 +1063,6 @@ When reporting issues, please include:
 - **Examples**: Review working examples in the `examples/` directory
 - **Tests**: Look at test cases for usage patterns
 
-This troubleshooting guide covers the most common issues you might encounter with JaxARC's enhanced visualization system. For issues not covered here, please refer to the community resources or file a detailed bug report.
+This troubleshooting guide covers the most common issues you might encounter
+with JaxARC's enhanced visualization system. For issues not covered here, please
+refer to the community resources or file a detailed bug report.

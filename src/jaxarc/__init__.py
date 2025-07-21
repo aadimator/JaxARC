@@ -43,27 +43,26 @@ from __future__ import annotations
 from ._version import version as __version__
 
 # Core environment and state
-from .envs import ArcEnvironment
-from .state import ArcEnvState
-
-# Core types
-from .types import Grid, JaxArcTask, ARCLEAction, TaskPair
-
 # Configuration system - most commonly used factory functions
+# Functional API
 from .envs import (
-    create_standard_config,
-    create_raw_config,
+    ArcEnvConfig,
+    ArcEnvironment,
+    arc_reset,
+    arc_step,
+    create_bbox_config,
     create_full_config,
     create_point_config,
-    create_bbox_config,
-    ArcEnvConfig,
+    create_raw_config,
+    create_standard_config,
 )
 
 # Unified configuration system
 from .envs.equinox_config import JaxArcConfig, convert_arc_env_config_to_jax_arc_config
+from .state import ArcEnvState
 
-# Functional API
-from .envs import arc_reset, arc_step
+# Core types
+from .types import ARCLEAction, Grid, JaxArcTask, TaskPair
 
 __all__ = [
     # Version

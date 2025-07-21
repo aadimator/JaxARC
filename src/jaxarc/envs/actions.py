@@ -21,11 +21,9 @@ from loguru import logger
 
 from ..utils.jax_types import (
     BboxActionData,
-    BboxCoords,
     MaskActionData,
     MaskArray,
     PointActionData,
-    PointCoords,
     SelectionArray,
 )
 
@@ -157,7 +155,9 @@ def get_action_handler(selection_format: str):
 
 
 def validate_action_data(
-    action_data: PointActionData | BboxActionData | MaskActionData, selection_format: str, grid_shape: tuple = None
+    action_data: PointActionData | BboxActionData | MaskActionData,
+    selection_format: str,
+    grid_shape: tuple = None,
 ) -> None:
     """Validate action data format and shape.
 
