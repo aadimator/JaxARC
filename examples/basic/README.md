@@ -1,17 +1,21 @@
 # Basic Examples
 
-This directory contains fundamental examples that demonstrate core JaxARC concepts and are ideal for getting started.
+This directory contains fundamental examples that demonstrate core JaxARC
+concepts and are ideal for getting started.
 
 ## Examples
 
 ### Configuration System
-- **`config_factory_demo.py`** - Comprehensive demonstration of the unified configuration system
+
+- **`config_factory_demo.py`** - Comprehensive demonstration of the unified
+  configuration system
   - Shows how to use ConfigFactory for creating configurations
   - Demonstrates preset system and configuration validation
   - Illustrates the elimination of dual configuration patterns
   - **Run with**: `pixi run python examples/basic/config_factory_demo.py`
 
 ### Environment Testing
+
 - **`test_config_environments.py`** - Tests different environment configurations
   - Validates various environment setups (raw, standard, full)
   - Tests different action formats (mask, point, bbox)
@@ -37,5 +41,8 @@ If you're new to JaxARC, start with these examples in order:
 ## Next Steps
 
 After mastering these basic examples, explore:
-- **Advanced Examples** (`examples/advanced/`) for performance optimization and complex features
-- **Integration Examples** (`examples/integration/`) for external tool integrations
+
+- **Advanced Examples** (`examples/advanced/`) for performance optimization and
+  complex features
+- **Integration Examples** (`examples/integration/`) for external tool
+  integrations

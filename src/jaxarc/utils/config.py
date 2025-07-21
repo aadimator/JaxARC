@@ -17,20 +17,20 @@ from pyprojroot import here
 
 def get_config(overrides: list[str] | None = None) -> DictConfig:
     """Load the default Hydra configuration.
-    
+
     Args:
         overrides: List of configuration overrides in Hydra format
-        
+
     Returns:
         Loaded Hydra configuration
-        
+
     Example:
         ```python
         from jaxarc.utils.config import get_config
-        
+
         # Load default config
         cfg = get_config()
-        
+
         # Load with overrides
         cfg = get_config(["dataset.dataset_name=ConceptARC", "action.selection_format=point"])
         ```
@@ -52,24 +52,26 @@ def get_path(path_type: str, create: bool = False) -> Path:
 
     Returns:
         Path object for the requested path type
-        
+
     Raises:
         KeyError: If path_type is not found in configuration
-        
+
     Example:
         ```python
         from jaxarc.utils.config import get_path
-        
+
         # Get raw data path
         raw_path = get_path("data_raw", create=True)
         ```
     """
     cfg = get_config()
-    
+
     if path_type not in cfg.paths:
         available_paths = list(cfg.paths.keys())
-        raise KeyError(f"Path type '{path_type}' not found. Available: {available_paths}")
-    
+        raise KeyError(
+            f"Path type '{path_type}' not found. Available: {available_paths}"
+        )
+
     path_str = cfg.paths[path_type]
     path: Path = here(path_str)
 
@@ -82,10 +84,10 @@ def get_path(path_type: str, create: bool = False) -> Path:
 
 def get_raw_path(create: bool = False) -> Path:
     """Get the raw data path.
-    
+
     Args:
         create: Whether to create the directory if it doesn't exist
-        
+
     Returns:
         Path to raw data directory
     """
@@ -94,10 +96,10 @@ def get_raw_path(create: bool = False) -> Path:
 
 def get_processed_path(create: bool = False) -> Path:
     """Get the processed data path.
-    
+
     Args:
         create: Whether to create the directory if it doesn't exist
-        
+
     Returns:
         Path to processed data directory
     """
@@ -106,10 +108,10 @@ def get_processed_path(create: bool = False) -> Path:
 
 def get_interim_path(create: bool = False) -> Path:
     """Get the interim data path.
-    
+
     Args:
         create: Whether to create the directory if it doesn't exist
-        
+
     Returns:
         Path to interim data directory
     """
@@ -118,12 +120,11 @@ def get_interim_path(create: bool = False) -> Path:
 
 def get_external_path(create: bool = False) -> Path:
     """Get the external data path.
-    
+
     Args:
         create: Whether to create the directory if it doesn't exist
-        
+
     Returns:
         Path to external data directory
     """
     return get_path("data_external", create=create)
-

@@ -1,5 +1,7 @@
 """Tests for memory management system."""
 
+from __future__ import annotations
+
 import gc
 import tempfile
 import time
@@ -151,7 +153,10 @@ class TestCompressedStorage:
         with tempfile.TemporaryDirectory() as temp_dir:
             storage = CompressedStorage(Path(temp_dir))
 
-            test_data = {"arrays": [np.array([1, 2, 3]), np.array([4, 5, 6])], "metadata": "test"}
+            test_data = {
+                "arrays": [np.array([1, 2, 3]), np.array([4, 5, 6])],
+                "metadata": "test",
+            }
 
             # Save data
             filepath = storage.save(test_data, "test_file")

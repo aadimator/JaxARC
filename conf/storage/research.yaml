@@ -4,7 +4,7 @@
 # Base storage configuration
 policy: "research"
 base_output_dir: "outputs/research"
-run_name: null  # Auto-generated with experiment info
+run_name: null # Auto-generated with experiment info
 episodes_dir: "episodes"
 debug_dir: "debug"
 visualization_dir: "visualizations"
@@ -13,7 +13,7 @@ logs_dir: "logs"
 # Research limits (larger for comprehensive studies)
 max_episodes_per_run: 1000
 max_storage_gb: 50.0
-cleanup_policy: "manual"  # Manual cleanup for research data
+cleanup_policy: "manual" # Manual cleanup for research data
 cleanup_frequency: "manual"
 keep_recent_episodes: 100
 
@@ -21,9 +21,9 @@ keep_recent_episodes: 100
 create_run_subdirs: true
 timestamp_format: "%Y%m%d_%H%M%S"
 compress_old_files: true
-clear_output_on_start: false  # Preserve research data
+clear_output_on_start: false # Preserve research data
 
 # Research-specific settings
-auto_cleanup: false  # Manual control
+auto_cleanup: false # Manual control
 warn_on_storage_limit: true
-fail_on_storage_full: true  # Fail to prevent data loss
+fail_on_storage_full: true # Fail to prevent data loss

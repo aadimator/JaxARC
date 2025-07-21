@@ -1,7 +1,8 @@
 """Tests for JAX callback system."""
 
+from __future__ import annotations
+
 import tempfile
-import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -10,18 +11,16 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from jaxarc.types import Grid
 from jaxarc.state import ArcEnvState
+from jaxarc.types import Grid
 from jaxarc.utils.visualization.jax_callbacks import (
     CallbackPerformanceMonitor,
-    JAXCallbackError,
     adaptive_visualization_callback,
     create_grid_from_arrays,
     get_callback_performance_stats,
     jax_debug_callback,
     jax_log_episode_summary,
     jax_log_grid,
-    jax_save_step_visualization,
     log_episode_summary_callback,
     log_grid_callback,
     print_callback_performance_report,
@@ -191,7 +190,9 @@ class TestJAXCallbacks:
             }
 
             # Mock the draw_rl_step_svg function
-            with patch("jaxarc.utils.visualization.jax_callbacks.draw_rl_step_svg") as mock_draw:
+            with patch(
+                "jaxarc.utils.visualization.jax_callbacks.draw_rl_step_svg"
+            ) as mock_draw:
                 mock_draw.return_value = "<svg>test</svg>"
 
                 save_step_visualization_callback(
@@ -203,7 +204,7 @@ class TestJAXCallbacks:
                 assert expected_file.exists()
 
                 # Check file content
-                with open(expected_file, "r") as f:
+                with open(expected_file) as f:
                     content = f.read()
                 assert content == "<svg>test</svg>"
 
@@ -250,19 +251,25 @@ class TestJAXCallbacks:
         """Test adaptive visualization callback."""
         mock_func = Mock()
 
-        with patch("jaxarc.utils.visualization.jax_callbacks._performance_monitor") as mock_monitor:
+        with patch(
+            "jaxarc.utils.visualization.jax_callbacks._performance_monitor"
+        ) as mock_monitor:
             # Test normal case (should call)
             mock_monitor.should_reduce_logging.return_value = False
             mock_monitor.get_stats.return_value = {"total_calls": 5}
 
-            with patch("jaxarc.utils.visualization.jax_callbacks.jax_debug_callback") as mock_jax_debug:
+            with patch(
+                "jaxarc.utils.visualization.jax_callbacks.jax_debug_callback"
+            ) as mock_jax_debug:
                 adaptive_visualization_callback(mock_func, "arg1", "arg2")
                 mock_jax_debug.assert_called_once()
 
             # Test reduced logging case (should skip most calls)
             mock_jax_debug.reset_mock()
             mock_monitor.should_reduce_logging.return_value = True
-            mock_monitor.get_stats.return_value = {"total_calls": 15}  # Not divisible by 10
+            mock_monitor.get_stats.return_value = {
+                "total_calls": 15
+            }  # Not divisible by 10
 
             adaptive_visualization_callback(mock_func, "arg1", "arg2")
             mock_jax_debug.assert_not_called()
@@ -319,7 +326,9 @@ class TestPerformanceStatsAPI:
         with patch("jaxarc.utils.visualization.jax_callbacks.logger") as mock_logger:
             # Test with no data
             print_callback_performance_report()
-            mock_logger.info.assert_called_with("No callback performance data available")
+            mock_logger.info.assert_called_with(
+                "No callback performance data available"
+            )
 
             # Add some data and test report
             from jaxarc.utils.visualization.jax_callbacks import _performance_monitor

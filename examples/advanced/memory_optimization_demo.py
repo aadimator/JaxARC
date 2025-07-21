@@ -9,11 +9,12 @@ This example shows how to use the memory management features including:
 - Garbage collection optimization
 """
 
+from __future__ import annotations
+
 import tempfile
 import time
 from pathlib import Path
 
-import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 
@@ -22,10 +23,8 @@ from jaxarc.utils.visualization import (
     GarbageCollectionOptimizer,
     LazyLoader,
     MemoryManager,
-    MemoryUsageMonitor,
     VisualizationCache,
     create_lazy_visualization_loader,
-    get_memory_manager,
     optimize_array_memory,
 )
 
@@ -113,7 +112,10 @@ def demo_compressed_storage():
 
         # Verify data integrity
         logger.info("Verifying data integrity...")
-        assert loaded_data["metadata"]["description"] == test_data["metadata"]["description"]
+        assert (
+            loaded_data["metadata"]["description"]
+            == test_data["metadata"]["description"]
+        )
         assert loaded_data["config"]["param1"] == test_data["config"]["param1"]
         np.testing.assert_array_equal(loaded_data["arrays"][0], test_data["arrays"][0])
         np.testing.assert_array_equal(loaded_data["arrays"][1], test_data["arrays"][1])
@@ -190,7 +192,11 @@ def demo_gc_optimization():
 
     # Optimize for visualization
     optimizer.optimize_for_visualization()
-    optimized_thresholds = optimizer.gc_optimizer.get_threshold() if hasattr(optimizer, 'gc_optimizer') else None
+    optimized_thresholds = (
+        optimizer.gc_optimizer.get_threshold()
+        if hasattr(optimizer, "gc_optimizer")
+        else None
+    )
     logger.info(f"Optimized GC thresholds: {optimized_thresholds}")
 
     # Create some garbage to collect
@@ -213,7 +219,11 @@ def demo_gc_optimization():
 
     # Restore original settings
     optimizer.restore_original_settings()
-    restored_thresholds = optimizer.gc_optimizer.get_threshold() if hasattr(optimizer, 'gc_optimizer') else None
+    restored_thresholds = (
+        optimizer.gc_optimizer.get_threshold()
+        if hasattr(optimizer, "gc_optimizer")
+        else None
+    )
     logger.info(f"Restored GC thresholds: {restored_thresholds}")
 
     return collected
@@ -329,7 +339,6 @@ def demo_integration_workflow():
             max_total_memory_mb=100.0,
             storage_path=Path(temp_dir),
         ) as manager:
-
             # Create lazy loader for large visualization dataset
             def load_visualization_data():
                 logger.info("Loading large visualization dataset...")

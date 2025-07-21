@@ -2,7 +2,7 @@
 """
 Test script to verify different environment configurations work correctly.
 
-This script tests the unified configuration system by creating different 
+This script tests the unified configuration system by creating different
 environment types and verifying they work with the ArcEnvironment class.
 
 Usage:
@@ -15,8 +15,7 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 
-from jaxarc.envs import ConfigFactory, ArcEnvironment
-from jaxarc.types import ARCLEOperationType
+from jaxarc.envs import ArcEnvironment, ConfigFactory
 
 
 def test_raw_environment():
@@ -28,7 +27,7 @@ def test_raw_environment():
         max_episode_steps=50,
         debug_level="off",  # Disable debugging to avoid visualization issues
         max_operations=12,  # Limited operations for raw environment
-        allowed_operations=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34]
+        allowed_operations=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 33, 34],
     )
 
     # Create environment with unified config
@@ -61,10 +60,33 @@ def test_standard_environment():
 
     # Use standard action set (27 operations)
     standard_operations = [
-        0, 1, 2, 3, 4, 5, 6, 7, 8, 9,  # Fill operations
-        10, 11, 12, 13, 14, 15, 16, 17, 18, 19,  # Flood fill operations
-        20, 21, 22, 23,  # Movement operations
-        24, 25, 26,  # Transformation operations
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,  # Fill operations
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,  # Flood fill operations
+        20,
+        21,
+        22,
+        23,  # Movement operations
+        24,
+        25,
+        26,  # Transformation operations
     ]
 
     # Create standard configuration with more operations
@@ -72,7 +94,7 @@ def test_standard_environment():
         max_episode_steps=100,
         debug_level="off",  # Disable debugging to avoid visualization issues
         max_operations=27,
-        allowed_operations=standard_operations
+        allowed_operations=standard_operations,
     )
 
     # Create environment
@@ -82,7 +104,9 @@ def test_standard_environment():
 
     logger.info("Standard environment created successfully")
     logger.info(f"Grid shape: {obs.shape}")
-    logger.info(f"Number of allowed operations: {len(config.action.allowed_operations)}")
+    logger.info(
+        f"Number of allowed operations: {len(config.action.allowed_operations)}"
+    )
 
     # Test flood fill action
     selection = jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
@@ -108,7 +132,7 @@ def test_full_environment():
         max_episode_steps=150,
         debug_level="off",  # Disable debugging to avoid visualization issues
         max_operations=35,
-        allowed_operations=list(range(35))  # All operations 0-34
+        allowed_operations=list(range(35)),  # All operations 0-34
     )
 
     # Create environment
@@ -118,7 +142,9 @@ def test_full_environment():
 
     logger.info("Full environment created successfully")
     logger.info(f"Grid shape: {obs.shape}")
-    logger.info(f"Number of allowed operations: {len(config.action.allowed_operations)}")
+    logger.info(
+        f"Number of allowed operations: {len(config.action.allowed_operations)}"
+    )
 
     # Test movement action
     selection = jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
@@ -147,7 +173,7 @@ def test_training_rewards():
         step_penalty=-0.005,
         success_bonus=20.0,
         similarity_weight=2.0,
-        progress_bonus=0.1
+        progress_bonus=0.1,
     )
 
     # Create environment
@@ -222,7 +248,7 @@ def test_config_validation():
     try:
         config = ConfigFactory.create_development_config(
             max_episode_steps=50,
-            debug_level="off"  # Disable debugging to avoid visualization issues
+            debug_level="off",  # Disable debugging to avoid visualization issues
         )
         env = ArcEnvironment(config)
         logger.info("✓ Valid configuration accepted successfully")
@@ -289,12 +315,12 @@ def main():
     ]
 
     results = {}
-    
+
     for test_name, test_func in tests:
         logger.info(f"\n{'=' * 50}")
         logger.info(f"Running: {test_name}")
         logger.info(f"{'=' * 50}")
-        
+
         try:
             success = test_func()
             results[test_name] = "PASS" if success else "FAIL"
@@ -307,19 +333,21 @@ def main():
     logger.info(f"\n{'=' * 50}")
     logger.info("TEST SUMMARY")
     logger.info(f"{'=' * 50}")
-    
+
     passed = sum(1 for result in results.values() if result == "PASS")
     total = len(results)
-    
+
     for test_name, result in results.items():
         logger.info(f"{test_name}: {result}")
-    
+
     logger.info(f"\nTotal: {passed}/{total} tests passed")
-    
+
     if passed == total:
         logger.info("🎉 All tests passed! Configuration system is working correctly.")
     else:
-        logger.error(f"❌ {total - passed} tests failed. Please check the configuration system.")
+        logger.error(
+            f"❌ {total - passed} tests failed. Please check the configuration system."
+        )
 
 
 if __name__ == "__main__":

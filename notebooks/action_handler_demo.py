@@ -35,8 +35,6 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
-from matplotlib import patches
 from matplotlib.gridspec import GridSpec
 
 from jaxarc.envs.actions import get_action_handler
@@ -45,15 +43,12 @@ from jaxarc.envs.actions import get_action_handler
 from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.envs.environment import ArcEnvironment
 from jaxarc.utils.visualization import (
-    ARC_COLOR_PALETTE,
+    create_action_demonstration_figure,
+    create_grid_matplotlib,
     draw_grid_svg,
     draw_task_pair_svg,
     save_svg_drawing,
-    create_grid_matplotlib,
-    create_action_demonstration_figure,
     setup_matplotlib_style,
-    create_performance_comparison_figure,
-    create_batch_processing_figure,
 )
 
 # Set up matplotlib styling using JaxARC utilities

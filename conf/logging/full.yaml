@@ -6,7 +6,7 @@ structured_logging: true
 log_format: "json"
 log_level: "DEBUG"
 compression: true
-include_full_states: true  # Full state logging for research
+include_full_states: true # Full state logging for research
 
 # What to log
 log_operations: true

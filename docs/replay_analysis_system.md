@@ -1,33 +1,38 @@
 # Episode Replay and Analysis System
 
-The JaxARC episode replay and analysis system provides comprehensive tools for analyzing training episodes, identifying failure modes, and debugging agent behavior.
+The JaxARC episode replay and analysis system provides comprehensive tools for
+analyzing training episodes, identifying failure modes, and debugging agent
+behavior.
 
 ## Overview
 
 The system consists of two main components:
 
-1. **Episode Replay System** (`EpisodeReplaySystem`): Loads and replays episodes from structured logs
-2. **Analysis Tools** (`EpisodeAnalysisTools`): Provides statistical analysis and debugging capabilities
+1. **Episode Replay System** (`EpisodeReplaySystem`): Loads and replays episodes
+   from structured logs
+2. **Analysis Tools** (`EpisodeAnalysisTools`): Provides statistical analysis
+   and debugging capabilities
 
 ## Quick Start
 
 ```python
 from jaxarc.utils.logging.structured_logger import StructuredLogger, LoggingConfig
 from jaxarc.utils.visualization.replay_system import EpisodeReplaySystem, ReplayConfig
-from jaxarc.utils.visualization.analysis_tools import EpisodeAnalysisTools, AnalysisConfig
+from jaxarc.utils.visualization.analysis_tools import (
+    EpisodeAnalysisTools,
+    AnalysisConfig,
+)
 
 # Initialize structured logger (should be done during training)
 logging_config = LoggingConfig(
     output_dir="outputs/logs",
-    include_full_states=False  # Set to True for full state reconstruction
+    include_full_states=False,  # Set to True for full state reconstruction
 )
 structured_logger = StructuredLogger(logging_config)
 
 # Initialize replay system
 replay_config = ReplayConfig(
-    output_dir="outputs/replay",
-    validate_integrity=True,
-    regenerate_visualizations=True
+    output_dir="outputs/replay", validate_integrity=True, regenerate_visualizations=True
 )
 replay_system = EpisodeReplaySystem(structured_logger, replay_config)
 
@@ -36,7 +41,7 @@ analysis_config = AnalysisConfig(
     output_dir="outputs/analysis",
     generate_plots=True,
     failure_threshold=0.1,
-    success_threshold=0.9
+    success_threshold=0.9,
 )
 analysis_tools = EpisodeAnalysisTools(replay_system, analysis_config)
 ```
@@ -72,13 +77,11 @@ if not validation.is_valid:
 ```python
 # Find episodes by criteria
 successful_episodes = replay_system.find_episodes_by_criteria(
-    min_similarity=0.8,
-    min_reward=0.5
+    min_similarity=0.8, min_reward=0.5
 )
 
 failed_episodes = replay_system.find_episodes_by_criteria(
-    max_similarity=0.2,
-    task_id="specific_task"
+    max_similarity=0.2, task_id="specific_task"
 )
 ```
 
@@ -87,9 +90,7 @@ failed_episodes = replay_system.find_episodes_by_criteria(
 ```python
 # Replay episode with validation and visualization regeneration
 replay_result = replay_system.replay_episode(
-    episode_num=1,
-    validate=True,
-    regenerate_visualizations=True
+    episode_num=1, validate=True, regenerate_visualizations=True
 )
 
 if replay_result:
@@ -127,11 +128,10 @@ print(f"Failure distribution: {failure_analysis.failure_step_distribution}")
 ```python
 # Compare specific episodes
 comparison = analysis_tools.compare_episodes(
-    episode_nums=[1, 2, 3],
-    metrics=['reward', 'similarity', 'steps']
+    episode_nums=[1, 2, 3], metrics=["reward", "similarity", "steps"]
 )
 
-for metric, data in comparison['metrics'].items():
+for metric, data in comparison["metrics"].items():
     print(f"{metric}: best={data['best_episode']}, range={data['range']}")
 ```
 
@@ -140,8 +140,7 @@ for metric, data in comparison['metrics'].items():
 ```python
 # Detailed step analysis for debugging
 step_analysis = analysis_tools.generate_step_by_step_analysis(
-    episode_num=1,
-    focus_on_failures=True
+    episode_num=1, focus_on_failures=True
 )
 
 print(f"Key moments: {step_analysis['key_moments']}")
@@ -153,8 +152,7 @@ print(f"Potential issues: {step_analysis['potential_issues']}")
 ```python
 # Generate complete analysis report
 report_path = analysis_tools.export_analysis_report(
-    episode_nums=None,  # All episodes
-    include_plots=True
+    episode_nums=None, include_plots=True  # All episodes
 )
 print(f"Report saved to: {report_path}")
 ```
@@ -219,7 +217,7 @@ for step in training_loop:
         after_state=new_state,
         reward=reward,
         info=info,
-        visualization_path=viz_path  # Optional
+        visualization_path=viz_path,  # Optional
     )
 
 structured_logger.end_episode(summary_visualization_path)
@@ -236,13 +234,18 @@ report_path = analysis_tools.export_analysis_report()
 
 ## Best Practices
 
-1. **Enable Full State Logging**: Set `include_full_states=True` in `LoggingConfig` for complete replay capability
-2. **Regular Analysis**: Run analysis after training batches to identify issues early
+1. **Enable Full State Logging**: Set `include_full_states=True` in
+   `LoggingConfig` for complete replay capability
+2. **Regular Analysis**: Run analysis after training batches to identify issues
+   early
 3. **Filter Episodes**: Use filtering to focus analysis on specific scenarios
 4. **Validate Data**: Always validate episode integrity before analysis
-5. **Export Reports**: Generate comprehensive reports for documentation and sharing
-6. **Monitor Failure Modes**: Track common failure patterns to guide training improvements
+5. **Export Reports**: Generate comprehensive reports for documentation and
+   sharing
+6. **Monitor Failure Modes**: Track common failure patterns to guide training
+   improvements
 
 ## Example Usage
 
-See `examples/replay_analysis_demo.py` for a complete working example demonstrating all features of the replay and analysis system.
+See `examples/replay_analysis_demo.py` for a complete working example
+demonstrating all features of the replay and analysis system.

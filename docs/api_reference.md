@@ -133,11 +133,15 @@ research_config = ConfigFactory.create_research_config()
 production_config = ConfigFactory.create_production_config()
 
 # Flexible preset system with overrides
-config = ConfigFactory.from_preset("development", {
-    "environment.max_episode_steps": 200,
-    "debug.level": "verbose",
-    "visualization.show_coordinates": True
-})
+config = ConfigFactory.from_preset(
+    "development",
+    {
+        "environment.max_episode_steps": 200,
+        "debug.level": "verbose",
+        "visualization.show_coordinates": True,
+    },
+)
+
 
 # Convert from Hydra configuration
 @hydra.main(config_path="conf", config_name="config")
@@ -145,17 +149,23 @@ def main(cfg: DictConfig):
     config = ConfigFactory.from_hydra(cfg)
     env = ArcEnvironment(config)
 
+
 # Load from YAML file
 config = ConfigFactory.from_yaml("my_config.yaml")
 ```
 
 **Factory Methods:**
 
-- `create_development_config(**overrides) -> JaxArcConfig`: Development preset with debugging enabled
-- `create_research_config(**overrides) -> JaxArcConfig`: Research preset with full logging
-- `create_production_config(**overrides) -> JaxArcConfig`: Production preset with minimal overhead
-- `from_preset(name: str, overrides: dict) -> JaxArcConfig`: Load named preset with overrides
-- `from_hydra(hydra_config: DictConfig) -> JaxArcConfig`: Convert Hydra config to unified config
+- `create_development_config(**overrides) -> JaxArcConfig`: Development preset
+  with debugging enabled
+- `create_research_config(**overrides) -> JaxArcConfig`: Research preset with
+  full logging
+- `create_production_config(**overrides) -> JaxArcConfig`: Production preset
+  with minimal overhead
+- `from_preset(name: str, overrides: dict) -> JaxArcConfig`: Load named preset
+  with overrides
+- `from_hydra(hydra_config: DictConfig) -> JaxArcConfig`: Convert Hydra config
+  to unified config
 - `from_yaml(yaml_path: str) -> JaxArcConfig`: Load configuration from YAML file
 
 ### JaxArcConfig
@@ -164,46 +174,41 @@ Unified configuration object containing all system parameters in logical groups.
 
 ```python
 from jaxarc.envs.config import (
-    JaxArcConfig, EnvironmentConfig, DebugConfig, 
-    VisualizationConfig, StorageConfig, LoggingConfig, WandbConfig
+    JaxArcConfig,
+    EnvironmentConfig,
+    DebugConfig,
+    VisualizationConfig,
+    StorageConfig,
+    LoggingConfig,
+    WandbConfig,
 )
 
 # Complete configuration with all groups
 config = JaxArcConfig(
     environment=EnvironmentConfig(
-        max_episode_steps=100,
-        grid_size=(30, 30),
-        reward_on_submit_only=False
+        max_episode_steps=100, grid_size=(30, 30), reward_on_submit_only=False
     ),
     debug=DebugConfig(
         level="standard",  # off, minimal, standard, verbose, research
         log_steps=True,
         log_grids=False,
-        save_episodes=False
+        save_episodes=False,
     ),
     visualization=VisualizationConfig(
         enabled=True,
         level="standard",
         show_grids=True,
         show_actions=True,
-        color_scheme="default"
+        color_scheme="default",
     ),
     storage=StorageConfig(
         policy="standard",  # none, minimal, standard, research
         max_size_gb=5.0,
         cleanup_on_exit=True,
-        compression=True
+        compression=True,
     ),
-    logging=LoggingConfig(
-        level="INFO",
-        console_logging=True,
-        file_logging=False
-    ),
-    wandb=WandbConfig(
-        enabled=False,
-        project="jaxarc",
-        entity=None
-    )
+    logging=LoggingConfig(level="INFO", console_logging=True, file_logging=False),
+    wandb=WandbConfig(enabled=False, project="jaxarc", entity=None),
 )
 
 # Configuration validation
@@ -237,24 +242,26 @@ from jaxarc.state import ArcEnvState
 from jaxarc.utils.jax_types import GridArray, MaskArray, SimilarityScore
 import equinox as eqx
 
+
 class ArcEnvState(eqx.Module):
     """ARC environment state with Equinox Module for better JAX integration."""
-    
+
     # Core ARC state with JAXTyping annotations
     task_data: JaxArcTask
-    working_grid: GridArray          # Int[Array, "height width"]
-    working_grid_mask: MaskArray     # Bool[Array, "height width"]
+    working_grid: GridArray  # Int[Array, "height width"]
+    working_grid_mask: MaskArray  # Bool[Array, "height width"]
     target_grid: GridArray
-    
+
     # Episode management
-    step_count: StepCount            # Int[Array, ""]
-    episode_done: EpisodeDone        # Bool[Array, ""]
+    step_count: StepCount  # Int[Array, ""]
+    episode_done: EpisodeDone  # Bool[Array, ""]
     current_example_idx: EpisodeIndex
-    
+
     # Grid operations
-    selected: SelectionArray         # Bool[Array, "height width"]
+    selected: SelectionArray  # Bool[Array, "height width"]
     clipboard: GridArray
-    similarity_score: SimilarityScore # Float[Array, ""]
+    similarity_score: SimilarityScore  # Float[Array, ""]
+
 
 # Usage examples
 import jax.numpy as jnp
@@ -270,7 +277,7 @@ state = ArcEnvState(
     current_example_idx=jnp.array(0, dtype=jnp.int32),
     selected=jnp.zeros((2, 2), dtype=bool),
     clipboard=jnp.zeros((2, 2), dtype=jnp.int32),
-    similarity_score=jnp.array(0.0, dtype=jnp.float32)
+    similarity_score=jnp.array(0.0, dtype=jnp.float32),
 )
 
 # Update state using Equinox patterns
@@ -283,14 +290,11 @@ new_state = eqx.tree_at(lambda s: s.step_count, state, state.step_count + 1)
 new_state = eqx.tree_at(
     lambda s: (s.step_count, s.episode_done),
     state,
-    (state.step_count + 1, jnp.array(True))
+    (state.step_count + 1, jnp.array(True)),
 )
 
 # Convenience replace method
-new_state = state.replace(
-    step_count=state.step_count + 1,
-    episode_done=True
-)
+new_state = state.replace(step_count=state.step_count + 1, episode_done=True)
 ```
 
 ### JAXTyping Type Definitions
@@ -300,21 +304,20 @@ Precise array type annotations for better type safety:
 ```python
 from jaxarc.utils.jax_types import (
     # Grid types (support both single and batched operations)
-    GridArray,        # Int[Array, "*batch height width"]
-    MaskArray,        # Bool[Array, "*batch height width"]
-    SelectionArray,   # Bool[Array, "*batch height width"]
-    
+    GridArray,  # Int[Array, "*batch height width"]
+    MaskArray,  # Bool[Array, "*batch height width"]
+    SelectionArray,  # Bool[Array, "*batch height width"]
     # Action types
-    PointCoords,      # Int[Array, "2"] - [row, col]
-    BboxCoords,       # Int[Array, "4"] - [r1, c1, r2, c2]
-    OperationId,      # Int[Array, ""] - scalar operation ID
-    
+    PointCoords,  # Int[Array, "2"] - [row, col]
+    BboxCoords,  # Int[Array, "4"] - [r1, c1, r2, c2]
+    OperationId,  # Int[Array, ""] - scalar operation ID
     # Scoring and state types
     SimilarityScore,  # Float[Array, "*batch"]
-    StepCount,        # Int[Array, ""]
-    EpisodeIndex,     # Int[Array, ""]
-    EpisodeDone,      # Bool[Array, ""]
+    StepCount,  # Int[Array, ""]
+    EpisodeIndex,  # Int[Array, ""]
+    EpisodeDone,  # Bool[Array, ""]
 )
+
 
 # Usage with precise type annotations
 def compute_similarity(grid1: GridArray, grid2: GridArray) -> SimilarityScore:
@@ -322,19 +325,21 @@ def compute_similarity(grid1: GridArray, grid2: GridArray) -> SimilarityScore:
     diff = jnp.abs(grid1 - grid2)
     return 1.0 - jnp.mean(diff) / 9.0
 
+
 def process_point_action(
-    point: PointCoords,
-    operation: OperationId,
-    grid_shape: tuple[int, int]
+    point: PointCoords, operation: OperationId, grid_shape: tuple[int, int]
 ) -> SelectionArray:
     """Convert point action to selection mask."""
     row, col = point
     selection = jnp.zeros(grid_shape, dtype=bool)
     return selection.at[row, col].set(True)
 
+
 # Batch operations work with the same types
 batch_grids: GridArray = jnp.stack([grid1, grid2])  # Shape: (2, height, width)
-batch_similarities: SimilarityScore = jax.vmap(compute_similarity)(batch_grids, batch_grids)
+batch_similarities: SimilarityScore = jax.vmap(compute_similarity)(
+    batch_grids, batch_grids
+)
 ```
 
 ### JaxArcTask
@@ -344,6 +349,7 @@ Main data structure for ARC tasks with static shapes for JAX compatibility:
 ```python
 from jaxarc.types import JaxArcTask
 import chex
+
 
 @chex.dataclass
 class JaxArcTask:
@@ -364,8 +370,11 @@ Enhanced utilities for working with Equinox modules and state debugging:
 
 ```python
 from jaxarc.utils.equinox_utils import (
-    tree_map_with_path, validate_state_shapes, create_state_diff,
-    print_state_summary, module_memory_usage
+    tree_map_with_path,
+    validate_state_shapes,
+    create_state_diff,
+    print_state_summary,
+    module_memory_usage,
 )
 
 # State validation
@@ -377,11 +386,13 @@ else:
 # State debugging
 print_state_summary(state, "Current State")
 
+
 # Tree traversal with path information
 def debug_arrays(path: str, value: Any) -> Any:
-    if hasattr(value, 'shape'):
+    if hasattr(value, "shape"):
         print(f"{path}: shape={value.shape}, dtype={value.dtype}")
     return value
+
 
 tree_map_with_path(debug_arrays, state)
 
@@ -390,9 +401,9 @@ diff = create_state_diff(old_state, new_state)
 for path, change_info in diff.items():
     print(f"Changed: {path}")
     print(f"  Type: {change_info['type']}")
-    if 'old' in change_info:
+    if "old" in change_info:
         print(f"  Old: {change_info['old']}")
-    if 'new' in change_info:
+    if "new" in change_info:
         print(f"  New: {change_info['new']}")
 
 # Memory analysis
@@ -421,13 +432,13 @@ try:
     config = JaxArcConfig(
         environment=EnvironmentConfig(max_episode_steps=-10),  # Invalid
         debug=DebugConfig(level="invalid_level"),  # Invalid
-        storage=StorageConfig(max_size_gb=-1.0)  # Invalid
+        storage=StorageConfig(max_size_gb=-1.0),  # Invalid
     )
 except ConfigValidationError as e:
     print("Configuration validation failed:")
     for field, error in e.field_errors.items():
         print(f"  {field}: {error}")
-    
+
     # Example output:
     # environment.max_episode_steps: Must be positive, got -10
     # debug.level: Must be one of ['off', 'minimal', 'standard', 'verbose', 'research'], got 'invalid_level'
@@ -483,9 +494,7 @@ from jaxarc.envs.factory import ConfigFactory
 
 # Single configuration object (replaces dual config pattern)
 config = ConfigFactory.create_development_config(
-    max_episode_steps=100,
-    debug_level="standard",
-    visualization_enabled=True
+    max_episode_steps=100, debug_level="standard", visualization_enabled=True
 )
 
 # Environment uses single config
@@ -558,9 +567,7 @@ task = parser.get_random_task_from_concept("Center", key)
 
 # Create unified environment configuration
 config = ConfigFactory.create_research_config(
-    max_episode_steps=150,
-    debug_level="verbose",
-    visualization_enabled=True
+    max_episode_steps=150, debug_level="verbose", visualization_enabled=True
 )
 
 # Run environment with single config
@@ -600,12 +607,15 @@ key = jax.random.PRNGKey(42)
 task = parser.get_random_task(key)
 
 # Create optimized configuration for rapid iteration
-config = ConfigFactory.from_preset("development", {
-    "environment.max_episode_steps": 50,
-    "environment.grid_size": (5, 5),
-    "debug.level": "minimal",
-    "storage.policy": "minimal"
-})
+config = ConfigFactory.from_preset(
+    "development",
+    {
+        "environment.max_episode_steps": 50,
+        "environment.grid_size": (5, 5),
+        "debug.level": "minimal",
+        "storage.policy": "minimal",
+    },
+)
 
 # Run environment (10-50x faster than standard ARC)
 env = ArcEnvironment(config)
@@ -624,23 +634,25 @@ from omegaconf import DictConfig
 from jaxarc.envs import ArcEnvironment
 from jaxarc.envs.factory import ConfigFactory
 
+
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg: DictConfig) -> None:
     # Convert Hydra config to unified JaxArcConfig
     config = ConfigFactory.from_hydra(cfg)
-    
+
     # Single configuration object contains all parameters
     env = ArcEnvironment(config)
-    
+
     # Access parameters through logical groups
     print(f"Environment: max_steps={config.environment.max_episode_steps}")
     print(f"Debug: level={config.debug.level}")
     print(f"Visualization: enabled={config.visualization.enabled}")
     print(f"Storage: policy={config.storage.policy}")
-    
+
     # Run environment
     key = jax.random.PRNGKey(42)
     state, obs = env.reset(key)
+
 
 if __name__ == "__main__":
     main()

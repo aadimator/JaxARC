@@ -11,24 +11,21 @@ from typing import Any, Dict, Optional, Tuple
 import chex
 import jax.numpy as jnp
 from loguru import logger
-from omegaconf import DictConfig
 
 from jaxarc.envs.actions import get_action_handler
-from jaxarc.envs.config import ArcEnvConfig
 from jaxarc.envs.equinox_config import JaxArcConfig
 from jaxarc.envs.functional import arc_reset, arc_step
 from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.visualization import (
-    _clear_output_directory,
-    EnhancedVisualizer,
-    VisualizationConfig,
-    EpisodeManager,
-    EpisodeConfig,
     AsyncLogger,
     AsyncLoggerConfig,
+    EnhancedVisualizer,
+    EpisodeConfig,
+    EpisodeManager,
+    VisualizationConfig,
     WandbIntegration,
-    WandbConfig,
+    _clear_output_directory,
 )
 
 
@@ -83,7 +80,7 @@ class ArcEnvironment:
 
         self._setup_enhanced_visualization()
 
-        logger.info(f"ArcEnvironment initialized with unified JaxArcConfig")
+        logger.info("ArcEnvironment initialized with unified JaxArcConfig")
         logger.info(f"Using {config.action.selection_format} selection format")
 
         if self._enhanced_visualizer is not None:
@@ -190,13 +187,12 @@ class ArcEnvironment:
         if self._enhanced_visualizer is not None:
             self._episode_count += 1
             self._enhanced_visualizer.start_episode(self._episode_count)
-        else:
-            # Legacy visualization directory clearing
-            if (
-                self.config.environment.debug_level != "off"
-                and self.config.storage.clear_output_on_start
-            ):
-                self._clear_visualization_directory()
+        # Legacy visualization directory clearing
+        elif (
+            self.config.environment.debug_level != "off"
+            and self.config.storage.clear_output_on_start
+        ):
+            self._clear_visualization_directory()
 
         self._state, obs = arc_reset(key, self.config, task_data)
 

@@ -10,8 +10,10 @@ on abstract reasoning puzzles.
 - **JAX-Native**: Pure functional API with full JIT compilation support
 - **Modern JAX Patterns**: Equinox modules and JAXTyping for better integration
 - **Multiple Datasets**: Support for ARC-AGI, ConceptARC, and MiniARC datasets
-- **Enhanced Type Safety**: Precise array type annotations with runtime validation
-- **Streamlined Configuration**: Hydra-first approach with comprehensive validation
+- **Enhanced Type Safety**: Precise array type annotations with runtime
+  validation
+- **Streamlined Configuration**: Hydra-first approach with comprehensive
+  validation
 - **Rich Visualization**: Terminal and SVG grid rendering utilities
 - **Centralized State Management**: Single source of truth with Equinox modules
 
@@ -59,11 +61,16 @@ pixi run test
 ### Core Documentation
 
 - **[Getting Started](getting-started.md)**: Quick start guide and installation
-- **[API Reference](api_reference.md)**: Complete API documentation with new Equinox and JAXTyping patterns
-- **[Configuration Guide](configuration.md)**: Enhanced configuration system with Hydra composition
-- **[Datasets Guide](datasets.md)**: Comprehensive guide for using ARC dataset parsers
-- **[Migration Guide](migration_guide.md)**: Step-by-step guide for upgrading to new patterns
-- **[Equinox & JAXTyping Guide](equinox_jaxtyping_guide.md)**: Modern JAX patterns and best practices
+- **[API Reference](api_reference.md)**: Complete API documentation with new
+  Equinox and JAXTyping patterns
+- **[Configuration Guide](configuration.md)**: Enhanced configuration system
+  with Hydra composition
+- **[Datasets Guide](datasets.md)**: Comprehensive guide for using ARC dataset
+  parsers
+- **[Migration Guide](migration_guide.md)**: Step-by-step guide for upgrading to
+  new patterns
+- **[Equinox & JAXTyping Guide](equinox_jaxtyping_guide.md)**: Modern JAX
+  patterns and best practices
 
 ### Dataset Support
 
@@ -85,10 +92,14 @@ JaxARC supports multiple ARC dataset variants with dedicated parsers:
 ### Examples and Demos
 
 - **Basic Usage**: `examples/config_api_demo.py`
-- **Modern JAX Patterns**: `examples/equinox_jaxtyping_demo.py` - Equinox and JAXTyping demonstration
-- **Hydra Composition**: `examples/hydra_composition_demo.py` - Enhanced configuration system
-- **ConceptARC Usage**: `examples/conceptarc_usage_example.py` - Comprehensive ConceptARC demonstration
-- **MiniARC Usage**: `examples/miniarc_usage_example.py` - Rapid prototyping and performance comparison
+- **Modern JAX Patterns**: `examples/equinox_jaxtyping_demo.py` - Equinox and
+  JAXTyping demonstration
+- **Hydra Composition**: `examples/hydra_composition_demo.py` - Enhanced
+  configuration system
+- **ConceptARC Usage**: `examples/conceptarc_usage_example.py` - Comprehensive
+  ConceptARC demonstration
+- **MiniARC Usage**: `examples/miniarc_usage_example.py` - Rapid prototyping and
+  performance comparison
 - **Hydra Integration**: `examples/hydra_integration_example.py`
 - **Visualization**: `examples/visualization_demo.py`
 

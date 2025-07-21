@@ -25,4 +25,4 @@ save_intermediate_states: true
 
 # Memory and performance (relaxed for full logging)
 lazy_loading: false
-max_memory_mb: 2000  # Standardized naming: max_* pattern
+max_memory_mb: 2000 # Standardized naming: max_* pattern

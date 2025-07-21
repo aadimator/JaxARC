@@ -13,7 +13,6 @@ from typing import Any
 
 import chex
 import jax
-import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
 from pyprojroot import here
@@ -22,7 +21,6 @@ from jaxarc.types import JaxArcTask
 from jaxarc.utils.task_manager import create_jax_task_index
 
 from .base_parser import ArcDataParserBase
-from .utils import convert_grid_to_jax, log_parsing_stats
 
 
 class MiniArcParser(ArcDataParserBase):
@@ -351,7 +349,6 @@ class MiniArcParser(ArcDataParserBase):
                 msg = "MiniARC task must have at least one test pair"
                 raise ValueError(msg) from e
             raise
-
 
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
         """Get a random task from the dataset.

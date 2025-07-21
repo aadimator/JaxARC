@@ -8,14 +8,16 @@ import pytest
 
 from jaxarc.envs.config import ActionConfig, ArcEnvConfig, GridConfig, RewardConfig
 from jaxarc.envs.environment import ArcEnvironment
-from jaxarc.envs.equinox_config import JaxArcConfig, convert_arc_env_config_to_jax_arc_config
+from jaxarc.envs.equinox_config import (
+    convert_arc_env_config_to_jax_arc_config,
+)
 from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 
 
 class TestArcEnvironment:
     """Test the ArcEnvironment class."""
-    
+
     def _create_test_env(self, **kwargs) -> ArcEnvironment:
         """Helper to create test environment with unified config."""
         legacy_config = ArcEnvConfig(**kwargs)

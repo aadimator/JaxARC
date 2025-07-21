@@ -18,11 +18,11 @@ Each configuration class has a single, clear responsibility:
 
 from __future__ import annotations
 
-import yaml
 from pathlib import Path
-from typing import Literal, Optional, Union, Any, Dict, List
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import equinox as eqx
+import yaml
 from jaxtyping import Bool, Float, Int
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
@@ -31,8 +31,6 @@ from omegaconf import DictConfig, OmegaConf
 # Validation utilities
 class ConfigValidationError(ValueError):
     """Custom exception for configuration validation errors."""
-
-    pass
 
 
 def validate_positive_int(value: int, field_name: str) -> None:
@@ -280,7 +278,9 @@ class DatasetConfig(eqx.Module):
         """Create dataset config from Hydra DictConfig."""
         return cls(
             dataset_name=cfg.get("dataset_name", "arc-agi-1"),
-            dataset_path=cfg.get("dataset_path", cfg.get("data_root", "")),  # Support both keys
+            dataset_path=cfg.get(
+                "dataset_path", cfg.get("data_root", "")
+            ),  # Support both keys
             max_grid_height=cfg.get("max_grid_height", 30),
             max_grid_width=cfg.get("max_grid_width", 30),
             min_grid_height=cfg.get("min_grid_height", 3),
@@ -329,8 +329,6 @@ class VisualizationConfig(eqx.Module):
     lazy_loading: Bool = True
     max_memory_mb: Int = 500  # Standardized naming: max_* pattern
 
-
-
     def validate(self) -> list[str]:
         """Validate visualization configuration and return list of errors."""
         errors = []
@@ -354,7 +352,7 @@ class VisualizationConfig(eqx.Module):
 
             # Validate output formats
             valid_formats = ["svg", "png", "html", "console"]
-            if hasattr(self.output_formats, '__iter__'):
+            if hasattr(self.output_formats, "__iter__"):
                 for fmt in self.output_formats:
                     if fmt not in valid_formats:
                         errors.append(
@@ -660,8 +658,6 @@ class WandbConfig(eqx.Module):
     save_code: Bool = True
     save_config: Bool = True
 
-
-
     def validate(self) -> list[str]:
         """Validate wandb configuration and return list of errors."""
         errors = []
@@ -742,51 +738,61 @@ class WandbConfig(eqx.Module):
 
 class RewardConfig(eqx.Module):
     """Configuration for reward calculation.
-    
+
     This config contains all settings related to reward computation,
     penalties, bonuses, and reward shaping.
     """
-    
+
     # Basic reward settings
     reward_on_submit_only: Bool = True
     step_penalty: Float = -0.01
     success_bonus: Float = 10.0
     similarity_weight: Float = 1.0
-    
+
     # Additional reward shaping
     progress_bonus: Float = 0.0
     invalid_action_penalty: Float = -0.1
-    
+
     def validate(self) -> list[str]:
         """Validate reward configuration and return list of errors."""
         errors = []
-        
+
         try:
             # Validate numeric fields with reasonable ranges
             validate_float_range(self.step_penalty, "step_penalty", -10.0, 1.0)
             validate_float_range(self.success_bonus, "success_bonus", -100.0, 1000.0)
             validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 10.0)
             validate_float_range(self.progress_bonus, "progress_bonus", -10.0, 10.0)
-            validate_float_range(self.invalid_action_penalty, "invalid_action_penalty", -10.0, 1.0)
-            
+            validate_float_range(
+                self.invalid_action_penalty, "invalid_action_penalty", -10.0, 1.0
+            )
+
             # Issue warnings for potentially problematic configurations
             if self.reward_on_submit_only and self.progress_bonus != 0.0:
-                logger.warning("progress_bonus is ignored when reward_on_submit_only=True")
-            
+                logger.warning(
+                    "progress_bonus is ignored when reward_on_submit_only=True"
+                )
+
             if self.step_penalty > 0:
-                logger.warning(f"step_penalty should typically be negative or zero for proper learning, got {self.step_penalty}")
-            
+                logger.warning(
+                    f"step_penalty should typically be negative or zero for proper learning, got {self.step_penalty}"
+                )
+
             if self.success_bonus < 0:
-                logger.warning(f"success_bonus should typically be positive for proper learning, got {self.success_bonus}")
-            
+                logger.warning(
+                    f"success_bonus should typically be positive for proper learning, got {self.success_bonus}"
+                )
+
             if self.invalid_action_penalty > 0:
-                logger.warning(f"invalid_action_penalty should typically be negative or zero, got {self.invalid_action_penalty}")
-                
+                logger.warning(
+                    f"invalid_action_penalty should typically be negative or zero, got {self.invalid_action_penalty}"
+                )
+
         except ConfigValidationError as e:
             errors.append(str(e))
-        
+
         return errors
-    
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> RewardConfig:
         """Create reward config from Hydra DictConfig."""
@@ -802,43 +808,47 @@ class RewardConfig(eqx.Module):
 
 class ActionConfig(eqx.Module):
     """Configuration for action space and validation.
-    
+
     This config contains all settings related to action handling,
     validation, and operation constraints.
     """
-    
+
     # Selection format
     selection_format: Literal["mask", "point", "bbox"] = "mask"
-    
+
     # Selection parameters
     selection_threshold: Float = 0.5
     allow_partial_selection: Bool = True
-    
+
     # Operation parameters
     max_operations: Int = 35  # Standardized naming: max_* pattern
     allowed_operations: Optional[List[Int]] = None
-    
+
     # Validation settings
     validate_actions: Bool = True
     allow_invalid_actions: Bool = False  # Standardized naming: allow_* pattern
-    
+
     def validate(self) -> list[str]:
         """Validate action configuration and return list of errors."""
         errors = []
-        
+
         try:
             # Validate selection format
             valid_formats = ["mask", "point", "bbox"]
-            validate_string_choice(self.selection_format, "selection_format", valid_formats)
-            
+            validate_string_choice(
+                self.selection_format, "selection_format", valid_formats
+            )
+
             # Validate selection threshold
-            validate_float_range(self.selection_threshold, "selection_threshold", 0.0, 1.0)
-            
+            validate_float_range(
+                self.selection_threshold, "selection_threshold", 0.0, 1.0
+            )
+
             # Validate operation parameters
             validate_positive_int(self.max_operations, "max_operations")
             if self.max_operations > 100:
                 logger.warning(f"max_operations is very large: {self.max_operations}")
-            
+
             # Validate allowed operations list if provided
             if self.allowed_operations is not None:
                 if not isinstance(self.allowed_operations, list):
@@ -850,25 +860,39 @@ class ActionConfig(eqx.Module):
                         if not isinstance(op, int):
                             errors.append(f"allowed_operations[{i}] must be an integer")
                         elif not 0 <= op < self.max_operations:
-                            errors.append(f"allowed_operations[{i}] must be in range [0, {self.max_operations})")
-                    
+                            errors.append(
+                                f"allowed_operations[{i}] must be in range [0, {self.max_operations})"
+                            )
+
                     # Check for duplicates
-                    if len(set(self.allowed_operations)) != len(self.allowed_operations):
-                        duplicates = [op for op in set(self.allowed_operations) if self.allowed_operations.count(op) > 1]
-                        errors.append(f"allowed_operations contains duplicate operations: {duplicates}")
-            
+                    if len(set(self.allowed_operations)) != len(
+                        self.allowed_operations
+                    ):
+                        duplicates = [
+                            op
+                            for op in set(self.allowed_operations)
+                            if self.allowed_operations.count(op) > 1
+                        ]
+                        errors.append(
+                            f"allowed_operations contains duplicate operations: {duplicates}"
+                        )
+
             # Cross-field validation warnings
             if self.selection_format != "mask" and self.allow_partial_selection:
-                logger.warning(f"allow_partial_selection is ignored for selection_format='{self.selection_format}'")
-            
+                logger.warning(
+                    f"allow_partial_selection is ignored for selection_format='{self.selection_format}'"
+                )
+
             if not self.validate_actions and not self.allow_invalid_actions:
-                logger.warning("allow_invalid_actions has no effect when validate_actions=False")
-                
+                logger.warning(
+                    "allow_invalid_actions has no effect when validate_actions=False"
+                )
+
         except ConfigValidationError as e:
             errors.append(str(e))
-        
+
         return errors
-    
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> ActionConfig:
         """Create action config from Hydra DictConfig."""
@@ -883,59 +907,71 @@ class ActionConfig(eqx.Module):
             max_operations=cfg.get("num_operations", 35),  # Map from legacy name
             allowed_operations=allowed_ops,
             validate_actions=cfg.get("validate_actions", True),
-            allow_invalid_actions=not cfg.get("clip_invalid_actions", True),  # Map from legacy name with inverted logic
+            allow_invalid_actions=not cfg.get(
+                "clip_invalid_actions", True
+            ),  # Map from legacy name with inverted logic
         )
 
 
 class RewardConfig(eqx.Module):
     """Configuration for reward calculation.
-    
+
     This config contains all settings related to reward computation,
     penalties, bonuses, and reward shaping.
     """
-    
+
     # Basic reward settings
     reward_on_submit_only: Bool = True
     step_penalty: Float = -0.01
     success_bonus: Float = 10.0
     similarity_weight: Float = 1.0
-    
+
     # Additional reward shaping
     progress_bonus: Float = 0.0
     invalid_action_penalty: Float = -0.1
-    
+
     def validate(self) -> List[str]:
         """Validate reward configuration and return list of errors."""
         errors = []
-        
+
         try:
             # Validate numeric fields with reasonable ranges
             validate_float_range(self.step_penalty, "step_penalty", -10.0, 1.0)
             validate_float_range(self.success_bonus, "success_bonus", -100.0, 1000.0)
             validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 10.0)
             validate_float_range(self.progress_bonus, "progress_bonus", -10.0, 10.0)
-            validate_float_range(self.invalid_action_penalty, "invalid_action_penalty", -10.0, 1.0)
-            
+            validate_float_range(
+                self.invalid_action_penalty, "invalid_action_penalty", -10.0, 1.0
+            )
+
             # Issue warnings for potentially problematic configurations
             if self.reward_on_submit_only and self.progress_bonus != 0.0:
-                logger.warning("progress_bonus is ignored when reward_on_submit_only=True")
-            
+                logger.warning(
+                    "progress_bonus is ignored when reward_on_submit_only=True"
+                )
+
             if self.step_penalty > 0:
-                logger.warning(f"step_penalty should typically be negative or zero for proper learning, got {self.step_penalty}")
-            
+                logger.warning(
+                    f"step_penalty should typically be negative or zero for proper learning, got {self.step_penalty}"
+                )
+
             if self.success_bonus < 0:
-                logger.warning(f"success_bonus should typically be positive for proper learning, got {self.success_bonus}")
-            
+                logger.warning(
+                    f"success_bonus should typically be positive for proper learning, got {self.success_bonus}"
+                )
+
             if self.invalid_action_penalty > 0:
-                logger.warning(f"invalid_action_penalty should typically be negative or zero, got {self.invalid_action_penalty}")
-                
+                logger.warning(
+                    f"invalid_action_penalty should typically be negative or zero, got {self.invalid_action_penalty}"
+                )
+
         except ConfigValidationError as e:
             errors.append(str(e))
-        
+
         return errors
-    
+
     @classmethod
-    def from_hydra(cls, cfg: DictConfig) -> "RewardConfig":
+    def from_hydra(cls, cfg: DictConfig) -> RewardConfig:
         """Create reward config from Hydra DictConfig."""
         return cls(
             reward_on_submit_only=cfg.get("reward_on_submit_only", True),
@@ -949,16 +985,16 @@ class RewardConfig(eqx.Module):
 
 class JaxArcConfig(eqx.Module):
     """Unified configuration for JaxARC using Equinox.
-    
+
     This is the main configuration container that unifies all configuration aspects
     into a single, typed, JAX-compatible configuration object. It eliminates the
     dual configuration pattern and provides a single source of truth.
-    
+
     All configuration parameters are organized into logical groups with clear
     separation of concerns. The configuration supports YAML serialization,
     Hydra integration, and comprehensive validation.
     """
-    
+
     # Core configuration components
     environment: EnvironmentConfig
     dataset: DatasetConfig
@@ -968,7 +1004,7 @@ class JaxArcConfig(eqx.Module):
     storage: StorageConfig
     logging: LoggingConfig
     wandb: WandbConfig
-    
+
     def __init__(
         self,
         environment: Optional[EnvironmentConfig] = None,
@@ -985,19 +1021,21 @@ class JaxArcConfig(eqx.Module):
         self.dataset = dataset or DatasetConfig()
         self.action = action or ActionConfig()
         self.reward = reward or RewardConfig()
-        self.visualization = visualization or VisualizationConfig.from_hydra(DictConfig({}))
+        self.visualization = visualization or VisualizationConfig.from_hydra(
+            DictConfig({})
+        )
         self.storage = storage or StorageConfig()
         self.logging = logging or LoggingConfig()
         self.wandb = wandb or WandbConfig.from_hydra(DictConfig({}))
-    
+
     def validate(self) -> List[str]:
         """Comprehensive validation method that checks cross-config consistency.
-        
+
         Returns:
             List of validation error messages. Empty list means validation passed.
         """
         all_errors = []
-        
+
         # Validate each configuration component
         all_errors.extend(self.environment.validate())
         all_errors.extend(self.dataset.validate())
@@ -1007,220 +1045,322 @@ class JaxArcConfig(eqx.Module):
         all_errors.extend(self.storage.validate())
         all_errors.extend(self.logging.validate())
         all_errors.extend(self.wandb.validate())
-        
+
         # Cross-configuration validation
         cross_validation_errors = self._validate_cross_config_consistency()
         all_errors.extend(cross_validation_errors)
-        
+
         return all_errors
-    
+
     def _validate_cross_config_consistency(self) -> List[str]:
         """Validate consistency between different configuration sections."""
         errors = []
         warnings = []
-        
+
         try:
             # 1. Debug level consistency validation
             self._validate_debug_level_consistency(errors, warnings)
-            
+
             # 2. Storage and output consistency validation
             self._validate_storage_consistency(errors, warnings)
-            
+
             # 3. Performance and resource consistency validation
             self._validate_performance_consistency(errors, warnings)
-            
+
             # 4. WandB integration consistency validation
             self._validate_wandb_consistency(errors, warnings)
-            
+
             # 5. Action space and environment consistency validation
             self._validate_action_environment_consistency(errors, warnings)
-            
+
             # 6. Reward and learning consistency validation
             self._validate_reward_consistency(errors, warnings)
-            
+
             # 7. Dataset and environment consistency validation
             self._validate_dataset_consistency(errors, warnings)
-            
+
             # 8. Logging and storage consistency validation
             self._validate_logging_consistency(errors, warnings)
-            
+
             # Log all warnings
             for warning in warnings:
                 logger.warning(warning)
-                
+
         except Exception as e:
             errors.append(f"Cross-configuration validation error: {e}")
-        
+
         return errors
-    
-    def _validate_debug_level_consistency(self, errors: List[str], warnings: List[str]) -> None:
+
+    def _validate_debug_level_consistency(
+        self, errors: List[str], warnings: List[str]
+    ) -> None:
         """Validate debug level consistency across configurations."""
         debug_level = self.environment.debug_level
-        
+
         # Debug level vs visualization consistency
         if debug_level == "off":
             if self.visualization.enabled and self.visualization.level != "off":
-                warnings.append("Debug level is 'off' but visualization is enabled - consider disabling visualization for better performance")
-            if self.logging.log_operations or self.logging.log_grid_changes or self.logging.log_rewards:
-                warnings.append("Debug level is 'off' but detailed logging is enabled - consider reducing log level")
-        
+                warnings.append(
+                    "Debug level is 'off' but visualization is enabled - consider disabling visualization for better performance"
+                )
+            if (
+                self.logging.log_operations
+                or self.logging.log_grid_changes
+                or self.logging.log_rewards
+            ):
+                warnings.append(
+                    "Debug level is 'off' but detailed logging is enabled - consider reducing log level"
+                )
+
         # Debug level vs storage policy consistency
         expected_storage_policy = self.environment.computed_storage_policy
         if self.storage.policy != expected_storage_policy:
-            warnings.append(f"Storage policy '{self.storage.policy}' doesn't match debug level '{debug_level}' (expected '{expected_storage_policy}')")
-        
+            warnings.append(
+                f"Storage policy '{self.storage.policy}' doesn't match debug level '{debug_level}' (expected '{expected_storage_policy}')"
+            )
+
         # Debug level vs visualization level consistency
         expected_viz_level = self.environment.computed_visualization_level
-        if self.visualization.enabled and self.visualization.level != expected_viz_level:
-            warnings.append(f"Visualization level '{self.visualization.level}' doesn't match debug level '{debug_level}' (expected '{expected_viz_level}')")
-    
-    def _validate_storage_consistency(self, errors: List[str], warnings: List[str]) -> None:
+        if (
+            self.visualization.enabled
+            and self.visualization.level != expected_viz_level
+        ):
+            warnings.append(
+                f"Visualization level '{self.visualization.level}' doesn't match debug level '{debug_level}' (expected '{expected_viz_level}')"
+            )
+
+    def _validate_storage_consistency(
+        self, errors: List[str], warnings: List[str]
+    ) -> None:
         """Validate storage configuration consistency."""
         # Storage policy vs features consistency
         if self.storage.policy == "none":
             if self.visualization.save_intermediate_states:
-                errors.append("Cannot save intermediate states when storage policy is 'none'")
+                errors.append(
+                    "Cannot save intermediate states when storage policy is 'none'"
+                )
             if self.logging.structured_logging:
-                warnings.append("Structured logging enabled but storage policy is 'none' - logs may not be persisted")
+                warnings.append(
+                    "Structured logging enabled but storage policy is 'none' - logs may not be persisted"
+                )
             if self.storage.max_episodes_per_run > 0:
-                warnings.append("Storage policy is 'none' but max_episodes_per_run > 0 - episodes won't be saved")
-        
+                warnings.append(
+                    "Storage policy is 'none' but max_episodes_per_run > 0 - episodes won't be saved"
+                )
+
         # Storage limits vs debug level consistency
         if self.environment.debug_level in ["verbose", "research"]:
             if self.storage.max_storage_gb < 5.0:
-                warnings.append(f"Debug level '{self.environment.debug_level}' may require more storage than {self.storage.max_storage_gb}GB")
-        
+                warnings.append(
+                    f"Debug level '{self.environment.debug_level}' may require more storage than {self.storage.max_storage_gb}GB"
+                )
+
         # Directory configuration consistency
         if self.visualization.enabled and self.storage.policy != "none":
             if not self.storage.visualization_dir.strip():
                 errors.append("Visualization enabled but visualization_dir is empty")
-        
+
         if self.logging.structured_logging and self.storage.policy != "none":
             if not self.storage.logs_dir.strip():
                 errors.append("Structured logging enabled but logs_dir is empty")
-    
-    def _validate_performance_consistency(self, errors: List[str], warnings: List[str]) -> None:
+
+    def _validate_performance_consistency(
+        self, errors: List[str], warnings: List[str]
+    ) -> None:
         """Validate performance-related configuration consistency."""
         # Memory limits vs visualization level
-        if self.visualization.max_memory_mb < 100 and self.visualization.level in ["verbose", "full"]:
-            warnings.append("Low memory limit with verbose visualization may cause performance issues")
-        
+        if self.visualization.max_memory_mb < 100 and self.visualization.level in [
+            "verbose",
+            "full",
+        ]:
+            warnings.append(
+                "Low memory limit with verbose visualization may cause performance issues"
+            )
+
         # Episode count vs storage limits
-        total_expected_storage = (
-            self.storage.max_episodes_per_run * 
-            (self.visualization.max_memory_mb / 1000 if self.visualization.save_intermediate_states else 0.1)
+        total_expected_storage = self.storage.max_episodes_per_run * (
+            self.visualization.max_memory_mb / 1000
+            if self.visualization.save_intermediate_states
+            else 0.1
         )
         if total_expected_storage > self.storage.max_storage_gb:
-            warnings.append(f"Expected storage usage ({total_expected_storage:.1f}GB) exceeds limit ({self.storage.max_storage_gb}GB)")
-        
+            warnings.append(
+                f"Expected storage usage ({total_expected_storage:.1f}GB) exceeds limit ({self.storage.max_storage_gb}GB)"
+            )
+
         # Logging frequency vs performance
         if self.logging.log_frequency == 1 and self.environment.max_episode_steps > 100:
-            warnings.append("Logging every step with long episodes may impact performance")
-        
+            warnings.append(
+                "Logging every step with long episodes may impact performance"
+            )
+
         # Queue size vs worker threads consistency
         if self.logging.queue_size < self.logging.worker_threads * 10:
-            warnings.append("Logging queue size may be too small for the number of worker threads")
-    
-    def _validate_wandb_consistency(self, errors: List[str], warnings: List[str]) -> None:
+            warnings.append(
+                "Logging queue size may be too small for the number of worker threads"
+            )
+
+    def _validate_wandb_consistency(
+        self, errors: List[str], warnings: List[str]
+    ) -> None:
         """Validate WandB integration consistency."""
         if self.wandb.enabled:
             # Required fields validation
             if not self.wandb.project_name.strip():
                 errors.append("WandB enabled but project_name is empty")
-            
+
             # Logging level consistency
             if self.logging.log_level == "ERROR":
-                warnings.append("WandB enabled but log level is ERROR - may miss important metrics")
-            
+                warnings.append(
+                    "WandB enabled but log level is ERROR - may miss important metrics"
+                )
+
             # Offline mode consistency
             if self.wandb.offline_mode and self.wandb.log_frequency < 10:
-                warnings.append("WandB offline mode with frequent logging may create large local files")
-            
+                warnings.append(
+                    "WandB offline mode with frequent logging may create large local files"
+                )
+
             # Image logging consistency
-            if self.wandb.image_format in ["png", "both"] and not self.visualization.enabled:
-                warnings.append("WandB image logging enabled but visualization is disabled")
-    
-    def _validate_action_environment_consistency(self, errors: List[str], warnings: List[str]) -> None:
+            if (
+                self.wandb.image_format in ["png", "both"]
+                and not self.visualization.enabled
+            ):
+                warnings.append(
+                    "WandB image logging enabled but visualization is disabled"
+                )
+
+    def _validate_action_environment_consistency(
+        self, errors: List[str], warnings: List[str]
+    ) -> None:
         """Validate action space and environment consistency."""
         # Action space vs episode length
         if self.action.max_operations > 50 and self.environment.max_episode_steps < 20:
-            warnings.append("Many operations available but few episode steps - may not explore action space effectively")
-        
+            warnings.append(
+                "Many operations available but few episode steps - may not explore action space effectively"
+            )
+
         # Action validation vs environment strictness
         if not self.action.validate_actions and self.environment.strict_validation:
-            warnings.append("Environment strict validation enabled but action validation disabled - may cause inconsistencies")
-        
+            warnings.append(
+                "Environment strict validation enabled but action validation disabled - may cause inconsistencies"
+            )
+
         # Invalid actions handling consistency
         if self.action.allow_invalid_actions and self.environment.strict_validation:
-            warnings.append("Allowing invalid actions conflicts with strict environment validation")
-        
+            warnings.append(
+                "Allowing invalid actions conflicts with strict environment validation"
+            )
+
         # Selection format vs episode length
-        if self.action.selection_format == "mask" and self.environment.max_episode_steps < 30:
-            warnings.append("Mask selection with short episodes may not provide enough time for complex selections")
-    
-    def _validate_reward_consistency(self, errors: List[str], warnings: List[str]) -> None:
+        if (
+            self.action.selection_format == "mask"
+            and self.environment.max_episode_steps < 30
+        ):
+            warnings.append(
+                "Mask selection with short episodes may not provide enough time for complex selections"
+            )
+
+    def _validate_reward_consistency(
+        self, errors: List[str], warnings: List[str]
+    ) -> None:
         """Validate reward configuration consistency."""
         # Reward timing vs episode length
-        if self.reward.reward_on_submit_only and self.environment.max_episode_steps < 10:
-            warnings.append("Submit-only rewards with very few steps may not provide enough exploration time")
-        
+        if (
+            self.reward.reward_on_submit_only
+            and self.environment.max_episode_steps < 10
+        ):
+            warnings.append(
+                "Submit-only rewards with very few steps may not provide enough exploration time"
+            )
+
         # Step penalty vs episode length
-        if abs(self.reward.step_penalty) * self.environment.max_episode_steps > abs(self.reward.success_bonus):
-            warnings.append("Cumulative step penalties may exceed success bonus - consider adjusting reward balance")
-        
+        if abs(self.reward.step_penalty) * self.environment.max_episode_steps > abs(
+            self.reward.success_bonus
+        ):
+            warnings.append(
+                "Cumulative step penalties may exceed success bonus - consider adjusting reward balance"
+            )
+
         # Progress bonus vs reward timing
         if self.reward.progress_bonus != 0.0 and self.reward.reward_on_submit_only:
             warnings.append("Progress bonus is ignored when reward_on_submit_only=True")
-        
+
         # Invalid action penalty vs action validation
-        if self.reward.invalid_action_penalty != 0.0 and not self.action.validate_actions:
-            warnings.append("Invalid action penalty set but action validation is disabled")
-    
-    def _validate_dataset_consistency(self, errors: List[str], warnings: List[str]) -> None:
+        if (
+            self.reward.invalid_action_penalty != 0.0
+            and not self.action.validate_actions
+        ):
+            warnings.append(
+                "Invalid action penalty set but action validation is disabled"
+            )
+
+    def _validate_dataset_consistency(
+        self, errors: List[str], warnings: List[str]
+    ) -> None:
         """Validate dataset configuration consistency."""
         # Grid size vs episode length
         max_grid_area = self.dataset.max_grid_height * self.dataset.max_grid_width
         if max_grid_area > 400 and self.environment.max_episode_steps < 100:
-            warnings.append("Large grids with short episodes may not provide enough time for complex tasks")
-        
+            warnings.append(
+                "Large grids with short episodes may not provide enough time for complex tasks"
+            )
+
         # Color count vs operations
         if self.dataset.max_colors > 10 and self.action.allowed_operations:
             fill_ops = [op for op in self.action.allowed_operations if 0 <= op <= 9]
             if len(fill_ops) < self.dataset.max_colors:
-                warnings.append(f"Dataset allows {self.dataset.max_colors} colors but only {len(fill_ops)} fill operations available")
-        
+                warnings.append(
+                    f"Dataset allows {self.dataset.max_colors} colors but only {len(fill_ops)} fill operations available"
+                )
+
         # Task pairs vs memory
         total_pairs = self.dataset.max_train_pairs + self.dataset.max_test_pairs
         if total_pairs > 20 and self.visualization.max_memory_mb < 500:
-            warnings.append("Many task pairs with low memory limit may cause visualization issues")
-    
-    def _validate_logging_consistency(self, errors: List[str], warnings: List[str]) -> None:
+            warnings.append(
+                "Many task pairs with low memory limit may cause visualization issues"
+            )
+
+    def _validate_logging_consistency(
+        self, errors: List[str], warnings: List[str]
+    ) -> None:
         """Validate logging configuration consistency."""
         # Structured logging vs format
-        if self.logging.structured_logging and self.logging.log_format not in ["json", "structured"]:
-            warnings.append(f"Structured logging enabled but format is '{self.logging.log_format}' - consider using 'json' or 'structured'")
-        
+        if self.logging.structured_logging and self.logging.log_format not in [
+            "json",
+            "structured",
+        ]:
+            warnings.append(
+                f"Structured logging enabled but format is '{self.logging.log_format}' - consider using 'json' or 'structured'"
+            )
+
         # Compression vs performance
         if self.logging.enable_compression and self.logging.log_frequency < 5:
-            warnings.append("Log compression with frequent logging may impact performance")
-        
+            warnings.append(
+                "Log compression with frequent logging may impact performance"
+            )
+
         # Async logging configuration
         if self.logging.batch_size > self.logging.queue_size / 2:
-            warnings.append("Logging batch size is large relative to queue size - may cause blocking")
-        
+            warnings.append(
+                "Logging batch size is large relative to queue size - may cause blocking"
+            )
+
         # Content-specific logging consistency
         detailed_logging = (
-            self.logging.log_operations or 
-            self.logging.log_grid_changes or 
-            self.logging.log_rewards
+            self.logging.log_operations
+            or self.logging.log_grid_changes
+            or self.logging.log_rewards
         )
         if detailed_logging and self.logging.log_level in ["ERROR", "WARNING"]:
-            warnings.append("Detailed content logging enabled but log level may suppress the logs")
+            warnings.append(
+                "Detailed content logging enabled but log level may suppress the logs"
+            )
         return errors
-    
+
     def to_yaml(self) -> str:
         """Export configuration to YAML format.
-        
+
         Returns:
             YAML string representation of the configuration.
         """
@@ -1236,93 +1376,98 @@ class JaxArcConfig(eqx.Module):
                 "logging": self._config_to_dict(self.logging),
                 "wandb": self._config_to_dict(self.wandb),
             }
-            
+
             return yaml.dump(
-                config_dict, 
-                default_flow_style=False, 
+                config_dict,
+                default_flow_style=False,
                 sort_keys=False,
                 allow_unicode=True,
-                encoding=None
+                encoding=None,
             )
-            
+
         except Exception as e:
-            raise ConfigValidationError(f"Failed to export configuration to YAML: {e}") from e
-    
+            raise ConfigValidationError(
+                f"Failed to export configuration to YAML: {e}"
+            ) from e
+
     def to_yaml_file(self, yaml_path: Union[str, Path]) -> None:
         """Save configuration to YAML file.
-        
+
         Args:
             yaml_path: Path where to save the YAML configuration file.
-            
+
         Raises:
             ConfigValidationError: If YAML saving fails.
         """
         try:
             yaml_path = Path(yaml_path)
             yaml_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             yaml_content = self.to_yaml()
-            
-            with open(yaml_path, 'w', encoding='utf-8') as f:
+
+            with open(yaml_path, "w", encoding="utf-8") as f:
                 f.write(yaml_content)
-                
+
         except Exception as e:
-            raise ConfigValidationError(f"Failed to save configuration to YAML file: {e}") from e
-    
+            raise ConfigValidationError(
+                f"Failed to save configuration to YAML file: {e}"
+            ) from e
+
     def _config_to_dict(self, config: eqx.Module) -> Dict[str, Any]:
         """Convert an Equinox module to a dictionary with proper serialization."""
         result = {}
-        
+
         # Get all fields from the module
         for field_name in config.__annotations__.keys():
             if hasattr(config, field_name):
                 value = getattr(config, field_name)
-                
+
                 # Handle special cases for YAML serialization
                 if value is None:
                     result[field_name] = None
                 elif isinstance(value, (list, tuple)):
                     # Convert to plain list, handling nested OmegaConf objects
                     result[field_name] = self._serialize_value(list(value))
-                elif hasattr(value, '__dict__') and hasattr(value, '_content'):
+                elif hasattr(value, "__dict__") and hasattr(value, "_content"):
                     # Handle OmegaConf objects
                     result[field_name] = self._serialize_value(value)
                 else:
                     result[field_name] = self._serialize_value(value)
-        
+
         return result
-    
+
     def _serialize_value(self, value: Any) -> Any:
         """Recursively serialize values for YAML compatibility."""
         if value is None:
             return None
-        elif isinstance(value, (str, int, float, bool)):
+        if isinstance(value, (str, int, float, bool)):
             return value
-        elif isinstance(value, (list, tuple)):
+        if isinstance(value, (list, tuple)):
             return [self._serialize_value(item) for item in value]
-        elif isinstance(value, dict):
+        if isinstance(value, dict):
             return {k: self._serialize_value(v) for k, v in value.items()}
-        elif hasattr(value, '_content'):
+        if hasattr(value, "_content"):
             # Handle OmegaConf objects by converting to container
             try:
                 from omegaconf import OmegaConf
+
                 return OmegaConf.to_container(value, resolve=True)
             except:
                 return str(value)
         else:
             # For any other type, convert to string representation
             return str(value)
-    
+
     @classmethod
-    def from_yaml(cls, yaml_path: Union[str, Path]) -> "JaxArcConfig":
+    def from_yaml(cls, yaml_path: Union[str, Path]) -> JaxArcConfig:
         """Load configuration from YAML file with validation.
-        
+
         Args:
             yaml_path: Path to YAML configuration file.
-            
+
         Returns:
             JaxArcConfig instance loaded from YAML.
-            
+
         Raises:
             ConfigValidationError: If YAML loading or validation fails.
         """
@@ -1330,85 +1475,93 @@ class JaxArcConfig(eqx.Module):
             yaml_path = Path(yaml_path)
             if not yaml_path.exists():
                 raise ConfigValidationError(f"YAML file does not exist: {yaml_path}")
-            
-            with open(yaml_path, 'r', encoding='utf-8') as f:
+
+            with open(yaml_path, encoding="utf-8") as f:
                 yaml_content = f.read()
-            
+
             return cls.from_yaml_string(yaml_content)
-            
+
         except Exception as e:
             if isinstance(e, ConfigValidationError):
                 raise
-            raise ConfigValidationError(f"Failed to load configuration from YAML file: {e}") from e
-    
+            raise ConfigValidationError(
+                f"Failed to load configuration from YAML file: {e}"
+            ) from e
+
     @classmethod
-    def from_yaml_string(cls, yaml_string: str) -> "JaxArcConfig":
+    def from_yaml_string(cls, yaml_string: str) -> JaxArcConfig:
         """Load configuration from YAML string with validation.
-        
+
         Args:
             yaml_string: YAML configuration as string.
-            
+
         Returns:
             JaxArcConfig instance loaded from YAML string.
-            
+
         Raises:
             ConfigValidationError: If YAML parsing or validation fails.
         """
         try:
             config_dict = yaml.safe_load(yaml_string)
-            
+
             if not isinstance(config_dict, dict):
-                raise ConfigValidationError("YAML string must contain a dictionary at root level")
-            
+                raise ConfigValidationError(
+                    "YAML string must contain a dictionary at root level"
+                )
+
             # Create config from dictionary
             config = cls._from_dict(config_dict)
-            
+
             # Validate the loaded configuration
             validation_errors = config.validate()
             if validation_errors:
                 error_msg = f"Configuration validation failed with {len(validation_errors)} errors:\n"
                 error_msg += "\n".join(f"  - {error}" for error in validation_errors)
                 raise ConfigValidationError(error_msg)
-            
+
             return config
-            
+
         except Exception as e:
             if isinstance(e, ConfigValidationError):
                 raise
-            raise ConfigValidationError(f"Failed to load configuration from YAML string: {e}") from e
-    
+            raise ConfigValidationError(
+                f"Failed to load configuration from YAML string: {e}"
+            ) from e
+
     @classmethod
-    def from_hydra(cls, hydra_config: DictConfig) -> "JaxArcConfig":
+    def from_hydra(cls, hydra_config: DictConfig) -> JaxArcConfig:
         """Create JaxArcConfig from Hydra configuration.
-        
+
         This method eliminates the dual configuration pattern by converting
         Hydra DictConfig directly to typed JaxArcConfig.
-        
+
         Args:
             hydra_config: Hydra DictConfig object.
-            
+
         Returns:
             JaxArcConfig instance created from Hydra config.
-            
+
         Raises:
             ConfigValidationError: If conversion or validation fails.
         """
         try:
             # Convert DictConfig to regular dict for processing
             config_dict = OmegaConf.to_container(hydra_config, resolve=True)
-            
+
             if not isinstance(config_dict, dict):
                 raise ConfigValidationError("Hydra config must be a dictionary")
-            
+
             return cls._from_dict(config_dict)
-            
+
         except Exception as e:
             if isinstance(e, ConfigValidationError):
                 raise
-            raise ConfigValidationError(f"Failed to create configuration from Hydra: {e}") from e
-    
+            raise ConfigValidationError(
+                f"Failed to create configuration from Hydra: {e}"
+            ) from e
+
     @classmethod
-    def _from_dict(cls, config_dict: Dict[str, Any]) -> "JaxArcConfig":
+    def _from_dict(cls, config_dict: Dict[str, Any]) -> JaxArcConfig:
         """Create JaxArcConfig from dictionary."""
         # Create individual config components from dictionary sections
         environment_cfg = config_dict.get("environment", {})
@@ -1419,14 +1572,35 @@ class JaxArcConfig(eqx.Module):
         storage_cfg = config_dict.get("storage", {})
         logging_cfg = config_dict.get("logging", {})
         wandb_cfg = config_dict.get("wandb", {})
-        
+
         # Handle legacy config structure - merge top-level keys into appropriate sections
         for key, value in config_dict.items():
-            if key not in ["environment", "dataset", "action", "reward", "visualization", "storage", "logging", "wandb"]:
+            if key not in [
+                "environment",
+                "dataset",
+                "action",
+                "reward",
+                "visualization",
+                "storage",
+                "logging",
+                "wandb",
+            ]:
                 # Try to map legacy keys to appropriate config sections
-                if key in ["max_episode_steps", "auto_reset", "strict_validation", "allow_invalid_actions", "debug_level"]:
+                if key in [
+                    "max_episode_steps",
+                    "auto_reset",
+                    "strict_validation",
+                    "allow_invalid_actions",
+                    "debug_level",
+                ]:
                     environment_cfg[key] = value
-                elif key in ["dataset_name", "dataset_path", "max_grid_height", "max_grid_width", "task_split"]:
+                elif key in [
+                    "dataset_name",
+                    "dataset_path",
+                    "max_grid_height",
+                    "max_grid_width",
+                    "task_split",
+                ]:
                     dataset_cfg[key] = value
                 elif key in ["selection_format", "num_operations", "validate_actions"]:
                     action_cfg[key] = value
@@ -1434,7 +1608,7 @@ class JaxArcConfig(eqx.Module):
                     reward_cfg[key] = value
                 elif key in ["log_operations", "log_grid_changes", "log_rewards"]:
                     logging_cfg[key] = value
-        
+
         # Handle Hydra debug configuration mapping
         # If we have a debug config but no explicit debug_level in environment, infer it
         if "environment" in config_dict and "debug_level" not in environment_cfg:
@@ -1449,7 +1623,7 @@ class JaxArcConfig(eqx.Module):
                 environment_cfg["debug_level"] = "standard"
             else:
                 environment_cfg["debug_level"] = "off"
-        
+
         # Create config components using from_hydra methods
         environment = EnvironmentConfig.from_hydra(DictConfig(environment_cfg))
         dataset = DatasetConfig.from_hydra(DictConfig(dataset_cfg))
@@ -1459,7 +1633,7 @@ class JaxArcConfig(eqx.Module):
         storage = StorageConfig.from_hydra(DictConfig(storage_cfg))
         logging = LoggingConfig.from_hydra(DictConfig(logging_cfg))
         wandb = WandbConfig.from_hydra(DictConfig(wandb_cfg))
-        
+
         return cls(
             environment=environment,
             dataset=dataset,
@@ -1475,31 +1649,35 @@ class JaxArcConfig(eqx.Module):
 # Conversion utilities for legacy ArcEnvConfig
 def convert_arc_env_config_to_jax_arc_config(arc_env_config) -> JaxArcConfig:
     """Convert legacy ArcEnvConfig to unified JaxArcConfig.
-    
+
     This function provides a migration path from the old dual configuration
     pattern to the new unified configuration system.
-    
+
     Args:
         arc_env_config: Legacy ArcEnvConfig instance
-        
+
     Returns:
         JaxArcConfig instance with equivalent configuration
     """
     # Import here to avoid circular imports
     from jaxarc.envs.config import ArcEnvConfig
-    
+
     if not isinstance(arc_env_config, ArcEnvConfig):
-        raise ConfigValidationError(f"Expected ArcEnvConfig, got {type(arc_env_config).__name__}")
-    
+        raise ConfigValidationError(
+            f"Expected ArcEnvConfig, got {type(arc_env_config).__name__}"
+        )
+
     # Convert environment settings
     environment = EnvironmentConfig(
         max_episode_steps=arc_env_config.max_episode_steps,
         auto_reset=arc_env_config.auto_reset,
         strict_validation=arc_env_config.strict_validation,
         allow_invalid_actions=arc_env_config.allow_invalid_actions,
-        debug_level="standard" if (arc_env_config.log_operations or arc_env_config.log_grid_changes) else "minimal"
+        debug_level="standard"
+        if (arc_env_config.log_operations or arc_env_config.log_grid_changes)
+        else "minimal",
     )
-    
+
     # Convert dataset settings
     dataset = DatasetConfig(
         dataset_name=arc_env_config.dataset.dataset_name,
@@ -1516,7 +1694,7 @@ def convert_arc_env_config_to_jax_arc_config(arc_env_config) -> JaxArcConfig:
         max_train_pairs=10,
         max_test_pairs=3,
     )
-    
+
     # Convert action settings
     action = ActionConfig(
         selection_format=arc_env_config.action.selection_format,
@@ -1527,7 +1705,7 @@ def convert_arc_env_config_to_jax_arc_config(arc_env_config) -> JaxArcConfig:
         validate_actions=arc_env_config.action.validate_actions,
         allow_invalid_actions=not arc_env_config.action.clip_invalid_actions,  # Inverted logic with standardized naming
     )
-    
+
     # Convert reward settings
     reward = RewardConfig(
         reward_on_submit_only=arc_env_config.reward.reward_on_submit_only,
@@ -1537,7 +1715,7 @@ def convert_arc_env_config_to_jax_arc_config(arc_env_config) -> JaxArcConfig:
         similarity_weight=arc_env_config.reward.similarity_weight,
         progress_bonus=arc_env_config.reward.progress_bonus,
     )
-    
+
     # Convert visualization settings
     visualization = VisualizationConfig(
         enabled=arc_env_config.debug.log_rl_steps,
@@ -1549,14 +1727,14 @@ def convert_arc_env_config_to_jax_arc_config(arc_env_config) -> JaxArcConfig:
         include_metrics=True,
         color_scheme="default",
     )
-    
+
     # Convert storage settings
     storage = StorageConfig(
         policy=environment.computed_storage_policy,
         base_output_dir=arc_env_config.debug.rl_steps_output_dir,
         clear_output_on_start=arc_env_config.debug.clear_output_dir,
     )
-    
+
     # Convert logging settings
     logging = LoggingConfig(
         log_operations=arc_env_config.log_operations,
@@ -1565,10 +1743,10 @@ def convert_arc_env_config_to_jax_arc_config(arc_env_config) -> JaxArcConfig:
         log_level="INFO",
         structured_logging=True,
     )
-    
+
     # Create default wandb config (disabled by default)
     wandb = WandbConfig(enabled=False)
-    
+
     return JaxArcConfig(
         environment=environment,
         dataset=dataset,

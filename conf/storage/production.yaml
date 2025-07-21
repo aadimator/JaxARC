@@ -4,7 +4,7 @@
 # Base storage configuration
 policy: "standard"
 base_output_dir: "outputs/production"
-run_name: null  # Auto-generated
+run_name: null # Auto-generated
 episodes_dir: "episodes"
 debug_dir: "debug"
 visualization_dir: "visualizations"
@@ -21,9 +21,9 @@ keep_recent_episodes: 50
 create_run_subdirs: true
 timestamp_format: "%Y%m%d_%H%M%S"
 compress_old_files: true
-clear_output_on_start: false  # Don't clear in production
+clear_output_on_start: false # Don't clear in production
 
 # Production-specific settings
 auto_cleanup: true
 warn_on_storage_limit: true
-fail_on_storage_full: true  # Prevent system issues
+fail_on_storage_full: true # Prevent system issues

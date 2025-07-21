@@ -1,6 +1,10 @@
 # Enhanced Visualization and Logging System
 
-JaxARC's enhanced visualization and logging system provides comprehensive episode management, performance optimization, and integration with experiment tracking tools like Weights & Biases (wandb). This system maintains JAX performance while offering rich visualization capabilities for research and debugging.
+JaxARC's enhanced visualization and logging system provides comprehensive
+episode management, performance optimization, and integration with experiment
+tracking tools like Weights & Biases (wandb). This system maintains JAX
+performance while offering rich visualization capabilities for research and
+debugging.
 
 ## Quick Start
 
@@ -15,7 +19,7 @@ vis_config = VisualizationConfig(
     debug_level="standard",
     output_formats=["svg"],
     show_operation_names=True,
-    highlight_changes=True
+    highlight_changes=True,
 )
 
 # Initialize enhanced visualizer
@@ -28,10 +32,10 @@ state, obs = arc_reset(key, config)
 for step in range(100):
     # Your action selection logic here
     action = {"selection": selection_mask, "operation": operation_id}
-    
+
     # Step environment
     new_state, obs, reward, done, info = arc_step(state, action, config)
-    
+
     # Visualize step (async, minimal performance impact)
     visualizer.visualize_step(
         before_state=state,
@@ -39,9 +43,9 @@ for step in range(100):
         after_state=new_state,
         reward=reward,
         info=info,
-        step_num=step
+        step_num=step,
     )
-    
+
     state = new_state
     if done:
         # Generate episode summary
@@ -53,15 +57,16 @@ for step in range(100):
 
 ### 1. Enhanced Visualizer
 
-The `EnhancedVisualizer` is the main interface that integrates all visualization components:
+The `EnhancedVisualizer` is the main interface that integrates all visualization
+components:
 
 ```python
 from jaxarc.utils.visualization import (
-    EnhancedVisualizer, 
+    EnhancedVisualizer,
     VisualizationConfig,
     EpisodeManager,
     AsyncLogger,
-    WandbIntegration
+    WandbIntegration,
 )
 
 # Configure visualization
@@ -73,7 +78,7 @@ vis_config = VisualizationConfig(
     show_operation_names=True,
     highlight_changes=True,
     include_metrics=True,
-    color_scheme="default"  # "default", "colorblind", "high_contrast"
+    color_scheme="default",  # "default", "colorblind", "high_contrast"
 )
 
 # Initialize components
@@ -86,13 +91,14 @@ visualizer = EnhancedVisualizer(
     vis_config=vis_config,
     episode_manager=episode_manager,
     async_logger=async_logger,
-    wandb_integration=wandb_integration
+    wandb_integration=wandb_integration,
 )
 ```
 
 ### 2. Episode Management
 
-The episode management system organizes visualizations by training runs and episodes:
+The episode management system organizes visualizations by training runs and
+episodes:
 
 ```python
 from jaxarc.utils.visualization import EpisodeManager, EpisodeConfig
@@ -105,7 +111,7 @@ episode_config = EpisodeConfig(
     step_file_format="step_{step:03d}",
     max_episodes_per_run=1000,
     cleanup_policy="size_based",  # "oldest_first", "size_based", "manual"
-    max_storage_gb=10.0
+    max_storage_gb=10.0,
 )
 
 episode_manager = EpisodeManager(episode_config)
@@ -136,7 +142,7 @@ logger_config = AsyncLoggerConfig(
     worker_threads=2,
     batch_size=10,
     flush_interval=5.0,  # seconds
-    enable_compression=True
+    enable_compression=True,
 )
 
 async_logger = AsyncLogger(logger_config)
@@ -148,7 +154,7 @@ step_data = {
     "after_grid": after_grid,
     "action": action,
     "reward": reward,
-    "info": info
+    "info": info,
 }
 async_logger.log_step_visualization(step_data, priority=0)
 
@@ -176,31 +182,27 @@ wandb_config = WandbConfig(
     image_format="png",  # "png", "svg", "both"
     max_image_size=(800, 600),
     log_gradients=False,
-    log_model_topology=False
+    log_model_topology=False,
 )
 
 wandb_integration = WandbIntegration(wandb_config)
 
 # Initialize wandb run
-experiment_config = {
-    "learning_rate": 0.001,
-    "batch_size": 32,
-    "max_episodes": 1000
-}
+experiment_config = {"learning_rate": 0.001, "batch_size": 32, "max_episodes": 1000}
 wandb_integration.initialize_run(experiment_config, run_name="baseline_run_1")
 
 # Log step metrics and visualizations
 wandb_integration.log_step(
     step_num=10,
     metrics={"reward": 0.5, "similarity": 0.8},
-    images={"step_visualization": step_image}
+    images={"step_visualization": step_image},
 )
 
 # Log episode summary
 wandb_integration.log_episode_summary(
     episode_num=0,
     summary_data={"total_reward": 10.0, "steps": 50, "success": True},
-    summary_image=episode_summary_image
+    summary_image=episode_summary_image,
 )
 
 # Finish run
@@ -211,29 +213,35 @@ wandb_integration.finish_run()
 
 ### Debug Levels
 
-The system supports multiple debug levels with different visualization granularity:
+The system supports multiple debug levels with different visualization
+granularity:
 
 #### Off (`debug_level: "off"`)
+
 - No visualizations generated
 - Minimal performance impact
 - Use for production training
 
 #### Minimal (`debug_level: "minimal"`)
+
 - Episode summaries only
 - Final state visualizations
 - Low storage requirements
 
 #### Standard (`debug_level: "standard"`)
+
 - Key steps and state changes
 - Action effect highlighting
 - Balanced information/performance
 
 #### Verbose (`debug_level: "verbose"`)
+
 - All steps and actions logged
 - Detailed intermediate states
 - Rich debugging information
 
 #### Full (`debug_level: "full"`)
+
 - Complete state dumps
 - Timing information
 - Maximum debugging detail
@@ -280,13 +288,15 @@ import hydra
 from omegaconf import DictConfig
 from jaxarc.utils.visualization import create_visualizer_from_config
 
+
 @hydra.main(config_path="conf", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
     # Create visualizer from Hydra config
     visualizer = create_visualizer_from_config(cfg.visualization)
-    
+
     # Your training code here
     # ...
+
 
 if __name__ == "__main__":
     main()
@@ -309,11 +319,13 @@ python train.py visualization.output_dir=custom/output/path
 
 ### JAX Compatibility
 
-The visualization system is designed to work seamlessly with JAX transformations:
+The visualization system is designed to work seamlessly with JAX
+transformations:
 
 ```python
 import jax
 from jaxarc.utils.visualization import jax_debug_callback_visualizer
+
 
 # Create JAX-compatible visualization callback
 @jax_debug_callback_visualizer
@@ -321,15 +333,17 @@ def visualize_callback(state, action, reward, step_num):
     # This runs outside JAX transformations
     visualizer.visualize_step(state, action, reward, step_num)
 
+
 # Use in JIT-compiled functions
 @jax.jit
 def training_step(state, action, config):
     new_state, obs, reward, done, info = arc_step(state, action, config)
-    
+
     # Visualization callback (doesn't break JIT)
     jax.debug.callback(visualize_callback, new_state, action, reward, step_num)
-    
+
     return new_state, reward, done
+
 
 # Batch processing with vmap
 batch_step = jax.vmap(training_step, in_axes=(0, 0, None))
@@ -347,7 +361,7 @@ memory_manager = MemoryManager(
     max_memory_mb=1000,
     cleanup_threshold=0.8,
     enable_lazy_loading=True,
-    compression_level=6
+    compression_level=6,
 )
 
 # Monitor memory usage
@@ -369,12 +383,14 @@ from jaxarc.utils.visualization import PerformanceMonitor
 
 performance_monitor = PerformanceMonitor()
 
+
 # Measure step performance with visualization
 @performance_monitor.measure_step_impact
 def step_with_visualization(state, action, config):
     new_state, obs, reward, done, info = arc_step(state, action, config)
     visualizer.visualize_step(state, action, new_state, reward, info, step_num)
     return new_state, reward, done
+
 
 # Get performance report
 report = performance_monitor.get_performance_report()
@@ -399,11 +415,7 @@ from jaxarc.utils.logging import StructuredLogger
 logger = StructuredLogger(output_dir="outputs/logs")
 
 # Start episode logging
-logger.start_episode(
-    episode_num=0,
-    task_id="task_001",
-    config_hash="abc123"
-)
+logger.start_episode(episode_num=0, task_id="task_001", config_hash="abc123")
 
 # Log each step
 logger.log_step(
@@ -413,11 +425,13 @@ logger.log_step(
     after_state=after_state,
     reward=reward,
     info=info,
-    visualization_path="outputs/episodes/episode_0000/step_005.svg"
+    visualization_path="outputs/episodes/episode_0000/step_005.svg",
 )
 
 # End episode
-logger.end_episode(summary_visualization_path="outputs/episodes/episode_0000/summary.svg")
+logger.end_episode(
+    summary_visualization_path="outputs/episodes/episode_0000/summary.svg"
+)
 ```
 
 ### Episode Replay
@@ -437,22 +451,17 @@ print(f"Success: {episode_data.final_similarity > 0.9}")
 
 # Replay episode with visualization
 replay_system.replay_episode(
-    episode_num=0,
-    output_dir="outputs/replay",
-    regenerate_visualizations=True
+    episode_num=0, output_dir="outputs/replay", regenerate_visualizations=True
 )
 
 # Filter episodes by criteria
 successful_episodes = replay_system.filter_episodes(
-    min_reward=5.0,
-    min_similarity=0.8,
-    max_steps=100
+    min_reward=5.0, min_similarity=0.8, max_steps=100
 )
 
 # Analyze failure modes
 failure_analysis = replay_system.analyze_failures(
-    failed_episodes=failed_episodes,
-    analysis_type="step_by_step"
+    failed_episodes=failed_episodes, analysis_type="step_by_step"
 )
 ```
 
@@ -465,20 +474,17 @@ Create comparison visualizations across multiple episodes:
 ```python
 # Compare reward progression across episodes
 comparison_viz = visualizer.create_comparison_visualization(
-    episodes=[episode_1, episode_2, episode_3],
-    comparison_type="reward_progression"
+    episodes=[episode_1, episode_2, episode_3], comparison_type="reward_progression"
 )
 
 # Compare action patterns
 action_comparison = visualizer.create_comparison_visualization(
-    episodes=episodes,
-    comparison_type="action_patterns"
+    episodes=episodes, comparison_type="action_patterns"
 )
 
 # Compare final states
 state_comparison = visualizer.create_comparison_visualization(
-    episodes=episodes,
-    comparison_type="final_states"
+    episodes=episodes, comparison_type="final_states"
 )
 ```
 
@@ -489,11 +495,13 @@ Extend the system with custom visualization functions:
 ```python
 from jaxarc.utils.visualization import register_custom_visualizer
 
+
 @register_custom_visualizer("heatmap")
 def create_action_heatmap(episode_data, **kwargs):
     """Create heatmap of action frequency across grid positions."""
     # Your custom visualization logic
     return heatmap_svg
+
 
 # Use custom visualizer
 visualizer.add_custom_visualization("heatmap", episode_data)
@@ -560,10 +568,10 @@ except StorageError as e:
 if performance_monitor.get_avg_overhead() > 0.05:  # 5% overhead
     # Reduce visualization frequency
     visualizer.set_log_frequency(50)  # Log every 50 steps instead of 10
-    
+
     # Switch to minimal debug level
     visualizer.set_debug_level("minimal")
-    
+
     # Disable expensive features
     visualizer.disable_comparisons()
 ```
@@ -575,10 +583,10 @@ if performance_monitor.get_avg_overhead() > 0.05:  # 5% overhead
 if memory_manager.get_memory_usage() > 0.9:  # 90% of limit
     # Force cleanup
     memory_manager.cleanup_old_data()
-    
+
     # Enable more aggressive compression
     memory_manager.set_compression_level(9)
-    
+
     # Reduce image quality
     visualizer.set_image_quality("medium")
 ```
@@ -586,27 +594,31 @@ if memory_manager.get_memory_usage() > 0.9:  # 90% of limit
 ### Debugging Tips
 
 1. **Enable verbose logging** during development:
+
    ```python
    visualizer.set_debug_level("verbose")
    ```
 
 2. **Check performance impact** regularly:
+
    ```python
    report = performance_monitor.get_performance_report()
-   if report['visualization_overhead'] > 0.1:  # 10%
+   if report["visualization_overhead"] > 0.1:  # 10%
        print("Warning: High visualization overhead")
    ```
 
 3. **Monitor storage usage**:
+
    ```python
    storage_stats = episode_manager.get_storage_stats()
    print(f"Storage used: {storage_stats['used_gb']:.1f} GB")
    ```
 
 4. **Validate configurations**:
+
    ```python
    from jaxarc.utils.visualization import validate_visualization_config
-   
+
    try:
        validate_visualization_config(vis_config)
    except ConfigValidationError as e:
@@ -649,25 +661,29 @@ if memory_manager.get_memory_usage() > 0.9:  # 90% of limit
 ### Step-by-Step Migration
 
 1. **Replace basic visualization calls**:
+
    ```python
    # Old way
    from jaxarc.utils.visualization import log_grid_to_console
+
    log_grid_to_console(grid, "Step 5")
-   
+
    # New way
    visualizer.visualize_step(before_state, action, after_state, reward, info, 5)
    ```
 
 2. **Update configuration**:
+
    ```python
    # Old way
    debug_config = {"enabled": True, "log_steps": True}
-   
+
    # New way
    vis_config = VisualizationConfig(debug_level="standard", step_visualizations=True)
    ```
 
 3. **Add episode management**:
+
    ```python
    # Initialize episode management
    episode_manager = EpisodeManager()
@@ -683,7 +699,8 @@ if memory_manager.get_memory_usage() > 0.9:  # 90% of limit
 
 ### Backward Compatibility
 
-The enhanced system maintains backward compatibility with existing visualization functions:
+The enhanced system maintains backward compatibility with existing visualization
+functions:
 
 ```python
 # These still work
@@ -711,4 +728,5 @@ pixi run python examples/wandb_integration_demo.py
 
 ## API Reference
 
-For detailed API documentation, see the [API Reference](api_reference.md#visualization-system).
+For detailed API documentation, see the
+[API Reference](api_reference.md#visualization-system).
