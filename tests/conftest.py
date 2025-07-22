@@ -8,7 +8,6 @@ in the JaxARC project, with focus on JAX-compatible testing patterns.
 from __future__ import annotations
 
 import chex
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
@@ -16,7 +15,11 @@ from hypothesis import strategies as st
 
 from .equinox_test_utils import EquinoxMockFactory
 from .jax_test_framework import JaxTransformationTester
-from .jax_testing_utils import JaxEquinoxTester, JaxShapeChecker, JaxTransformationValidator
+from .jax_testing_utils import (
+    JaxEquinoxTester,
+    JaxShapeChecker,
+    JaxTransformationValidator,
+)
 from .test_utils import MockDataGenerator
 
 # Set JAX to use CPU for testing to ensure reproducibility
@@ -24,6 +27,7 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Configure Hypothesis for reasonable test performance
 from hypothesis import settings
+
 settings.register_profile("ci", max_examples=50, deadline=5000)
 settings.register_profile("dev", max_examples=10, deadline=1000)
 settings.load_profile("dev")
@@ -38,8 +42,10 @@ def jax_key():
 @pytest.fixture
 def split_key(jax_key):
     """Provide a function to split JAX keys consistently."""
+
     def _split_key(num_keys: int = 2):
         return jax.random.split(jax_key, num_keys)
+
     return _split_key
 
 
@@ -69,17 +75,24 @@ def jax_arrays(draw, shape=None, dtype=jnp.int32, min_value=0, max_value=9):
         height = draw(st.integers(min_value=1, max_value=10))
         width = draw(st.integers(min_value=1, max_value=10))
         shape = (height, width)
-    
+
     if dtype == jnp.int32:
         elements = st.integers(min_value=min_value, max_value=max_value)
     elif dtype == jnp.float32:
-        elements = st.floats(min_value=min_value, max_value=max_value, allow_nan=False, allow_infinity=False)
+        elements = st.floats(
+            min_value=min_value,
+            max_value=max_value,
+            allow_nan=False,
+            allow_infinity=False,
+        )
     elif dtype == jnp.bool_:
         elements = st.booleans()
     else:
         raise ValueError(f"Unsupported dtype: {dtype}")
-    
-    array_data = draw(st.lists(elements, min_size=shape[0] * shape[1], max_size=shape[0] * shape[1]))
+
+    array_data = draw(
+        st.lists(elements, min_size=shape[0] * shape[1], max_size=shape[0] * shape[1])
+    )
     return jnp.array(array_data, dtype=dtype).reshape(shape)
 
 
@@ -88,7 +101,9 @@ def grid_arrays(draw, max_height=10, max_width=10):
     """Generate valid ARC grid arrays (values 0-9)."""
     height = draw(st.integers(min_value=1, max_value=max_height))
     width = draw(st.integers(min_value=1, max_value=max_width))
-    return draw(jax_arrays(shape=(height, width), dtype=jnp.int32, min_value=0, max_value=9))
+    return draw(
+        jax_arrays(shape=(height, width), dtype=jnp.int32, min_value=0, max_value=9)
+    )
 
 
 @st.composite
@@ -108,7 +123,9 @@ def selection_arrays(draw, shape=None):
         height = draw(st.integers(min_value=1, max_value=10))
         width = draw(st.integers(min_value=1, max_value=10))
         shape = (height, width)
-    return draw(jax_arrays(shape=shape, dtype=jnp.float32, min_value=0.0, max_value=1.0))
+    return draw(
+        jax_arrays(shape=shape, dtype=jnp.float32, min_value=0.0, max_value=1.0)
+    )
 
 
 @pytest.fixture
@@ -138,8 +155,10 @@ def mock_data_generator():
 @pytest.fixture
 def jax_transformation_tester():
     """Provide a factory for JaxTransformationTester."""
+
     def _create_tester(func, test_inputs, test_kwargs=None):
         return JaxTransformationTester(func, test_inputs, test_kwargs)
+
     return _create_tester
 
 
@@ -164,9 +183,12 @@ def jax_equinox_tester():
 @pytest.fixture
 def equinox_module_tester():
     """Provide a factory for testing Equinox modules."""
+
     def _create_tester(module_class, valid_init_args):
         from .equinox_test_utils import EquinoxModuleTester
+
         return EquinoxModuleTester(module_class, valid_init_args)
+
     return _create_tester
 
 
@@ -178,8 +200,8 @@ def chex_assert():
 
 # Export strategies for use in tests
 __all__ = [
+    "grid_arrays",
     "jax_arrays",
-    "grid_arrays", 
     "mask_arrays",
     "selection_arrays",
 ]

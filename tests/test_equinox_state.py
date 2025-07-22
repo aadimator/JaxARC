@@ -207,7 +207,7 @@ class TestJAXTransformations:
         new_state = increment_step(new_state)
         assert new_state.step_count == 2
 
-    def test_vmap_compatibility(self, _sample_state):
+    def test_vmap_compatibility(self, sample_state):
         """Test vmap compatibility with simple operations on scalar fields."""
 
         # Test vmap with simple scalar operations instead of complex state structures
@@ -233,7 +233,7 @@ class TestJAXTransformations:
         expected = jnp.array([0.0, 0.2, 1.0, 1.6, 2.0])
         assert jnp.allclose(result, expected)
 
-    def test_grad_compatibility(self, _sample_state):
+    def test_grad_compatibility(self, sample_state):
         """Test grad compatibility with simple scalar operations."""
 
         # Test grad with simple scalar operations instead of complex state structures
@@ -261,7 +261,7 @@ class TestJAXTransformations:
 class TestEquinoxUtilities:
     """Test the Equinox utility functions."""
 
-    def test_tree_map_with_path(self, _sample_state):
+    def test_tree_map_with_path(self, sample_state):
         """Test tree mapping with path information."""
         # For now, just test that the function exists and can be called
         # The implementation needs more work to handle complex nested structures
@@ -352,7 +352,7 @@ class TestBackwardCompatibility:
         with pytest.raises(AttributeError):
             sample_state.episode_done = True
 
-    def test_type_annotations(self, _sample_state):
+    def test_type_annotations(self, sample_state):
         """Test that type annotations are preserved."""
         # Check that the state has the expected type annotations
         annotations = ArcEnvState.__annotations__

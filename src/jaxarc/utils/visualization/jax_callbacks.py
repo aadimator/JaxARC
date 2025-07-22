@@ -411,6 +411,8 @@ def jax_save_step_visualization(
     before_state: ArcEnvState,
     action: dict[str, Any],
     after_state: ArcEnvState,
+    reward: float,
+    info: dict[str, Any],
     output_dir: str,
     **kwargs: Any,
 ) -> None:
@@ -420,6 +422,8 @@ def jax_save_step_visualization(
         before_state: State before action
         action: Action taken
         after_state: State after action
+        reward: Reward from the step
+        info: Info dictionary from the step
         output_dir: Output directory
         **kwargs: Additional arguments for save_step_visualization_callback
     """

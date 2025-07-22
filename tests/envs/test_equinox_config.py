@@ -15,7 +15,6 @@ from omegaconf import OmegaConf
 
 from jaxarc.envs.equinox_config import (
     ActionConfig,
-    ConfigValidationError,
     DatasetConfig,
     EnvironmentConfig,
     JaxArcConfig,
@@ -695,13 +694,14 @@ class TestJaxCompatibility:
 
     def test_config_jit_compatibility(self):
         """Test that configuration can be used with JAX JIT."""
+
         # Create a simple function that uses config fields
         def config_function(max_steps):
             return max_steps
 
         # Create a config
         config = JaxArcConfig(environment=EnvironmentConfig(max_episode_steps=100))
-        
+
         # Extract the value we want to test with
         max_steps = config.environment.max_episode_steps
 
@@ -714,6 +714,7 @@ class TestJaxCompatibility:
 
     def test_config_vmap_compatibility(self):
         """Test that configuration can be used with JAX vmap."""
+
         # Create a simple function that uses config and an array
         def config_array_function(config, array):
             return array * config.environment.max_episode_steps
