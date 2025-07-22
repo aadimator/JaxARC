@@ -12,7 +12,6 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from jaxtyping import Array, Bool, Float, Int
 
 from jaxarc.types import (
     ARCLEAction,
@@ -32,10 +31,7 @@ from jaxarc.utils.jax_types import (
 )
 from tests.equinox_test_utils import (
     EquinoxMockFactory,
-    EquinoxModuleTester,
-    EquinoxValidationTester,
 )
-from tests.jax_test_framework import JaxTransformationTester
 
 
 class TestGridModule:
@@ -113,7 +109,7 @@ class TestGridModule:
             invalid_mask = jnp.ones((1, 2), dtype=jnp.bool_)
             invalid_grid = Grid(data=invalid_data, mask=invalid_mask)
             invalid_grid.__check_init__()
-    
+
     def test_grid_shape_property(self):
         """Tests the shape property of Grid."""
         # Full grid
@@ -124,13 +120,16 @@ class TestGridModule:
 
         # Partial grid with mask
         data = jnp.array([[0, 1, 2, 0], [3, 4, 5, 0], [0, 0, 0, 0]], dtype=jnp.int32)
-        mask = jnp.array([
-            [True, True, True, False],
-            [True, True, True, False],
-            [False, False, False, False]
-        ], dtype=jnp.bool_)
+        mask = jnp.array(
+            [
+                [True, True, True, False],
+                [True, True, True, False],
+                [False, False, False, False],
+            ],
+            dtype=jnp.bool_,
+        )
         grid = Grid(data=data, mask=mask)
-        
+
         # The shape property should return the actual grid dimensions based on the mask
         # This requires mocking the grid_utils.get_actual_grid_shape_from_mask function
         # For now, we'll just check that it returns a tuple of two integers
@@ -159,22 +158,19 @@ class TestGridModule:
         grids = [
             Grid(data=data, mask=mask),
             Grid(data=data + 1, mask=mask),
-            Grid(data=data + 2, mask=mask)
+            Grid(data=data + 2, mask=mask),
         ]
-        
+
         @jax.vmap
         def extract_data(g):
             return g.data
 
         # Stack the grids into a pytree structure that vmap can handle
-        batch_grid = jax.tree.map(
-            lambda *args: jnp.stack(args),
-            *grids
-        )
-        
+        batch_grid = jax.tree.map(lambda *args: jnp.stack(args), *grids)
+
         # Apply vmap
         result_data = extract_data(batch_grid)
-        
+
         # Check result
         assert result_data.shape == (3, 2, 3)  # Batch, height, width
 
@@ -184,17 +180,17 @@ class TestGridModule:
         data = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
         mask = jnp.ones((2, 2), dtype=jnp.bool_)
         grid = Grid(data=data, mask=mask)
-        
+
         # Test PyTree structure
         leaves, treedef = jax.tree.flatten(grid)
         reconstructed = jax.tree.unflatten(treedef, leaves)
         assert jnp.array_equal(grid.data, reconstructed.data)
         assert jnp.array_equal(grid.mask, reconstructed.mask)
-        
+
         # Test immutability
         with pytest.raises(AttributeError):
             grid.data = jnp.zeros((2, 2), dtype=jnp.int32)
-        
+
         # Test replace method
         new_data = jnp.array([[5, 6], [7, 8]], dtype=jnp.int32)
         modified_grid = eqx.tree_at(lambda x: x.data, grid, new_data)
@@ -220,32 +216,31 @@ class TestGridModule:
         # Test with batch dimensions
         batch_data: GridArray = jnp.stack([data, data + 1])
         batch_mask: MaskArray = jnp.stack([mask, mask])
-        
+
         assert batch_data.shape == (2, 2, 3)  # batch, height, width
         assert batch_mask.shape == (2, 2, 3)  # batch, height, width
-        
+
     def test_grid_with_complex_mask(self):
         """Tests Grid with complex mask patterns."""
         # Create a grid with a complex mask pattern
-        data = jnp.array([
-            [0, 1, 2, 3],
-            [4, 5, 6, 7],
-            [8, 9, 0, 1]
-        ], dtype=jnp.int32)
-        
+        data = jnp.array([[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 0, 1]], dtype=jnp.int32)
+
         # L-shaped mask
-        mask = jnp.array([
-            [True, False, False, False],
-            [True, False, False, False],
-            [True, True, True, True]
-        ], dtype=jnp.bool_)
-        
+        mask = jnp.array(
+            [
+                [True, False, False, False],
+                [True, False, False, False],
+                [True, True, True, True],
+            ],
+            dtype=jnp.bool_,
+        )
+
         grid = Grid(data=data, mask=mask)
-        
+
         # Check that the grid was created correctly
         chex.assert_shape(grid.data, (3, 4))
         chex.assert_shape(grid.mask, (3, 4))
-        
+
         # Test with JAX transformations
         jitted_grid = jax.jit(lambda g: g)(grid)
         assert eqx.tree_equal(grid, jitted_grid)
@@ -318,11 +313,9 @@ class TestTaskPairModule:
             mask=jnp.ones((1, 2), dtype=jnp.bool_),
         )
         modified_task_pair = eqx.tree_at(
-            lambda tp: tp.input_grid,
-            task_pair,
-            new_input_grid
+            lambda tp: tp.input_grid, task_pair, new_input_grid
         )
-        
+
         assert eqx.tree_equal(modified_task_pair.input_grid, new_input_grid)
         assert eqx.tree_equal(modified_task_pair.output_grid, task_pair.output_grid)
 
@@ -336,63 +329,53 @@ class TestTaskPairModule:
             data=jnp.array([[1, 0]], dtype=jnp.int32),
             mask=jnp.ones((1, 2), dtype=jnp.bool_),
         )
-        
+
         task_pair = TaskPair(input_grid=input_grid, output_grid=output_grid)
-        
+
         # Test PyTree structure
         leaves, treedef = jax.tree.flatten(task_pair)
         reconstructed = jax.tree.unflatten(treedef, leaves)
         assert eqx.tree_equal(task_pair.input_grid, reconstructed.input_grid)
         assert eqx.tree_equal(task_pair.output_grid, reconstructed.output_grid)
-        
+
         # Test immutability
         with pytest.raises(AttributeError):
             task_pair.input_grid = input_grid
-        
+
         # Test replace method
         new_input_grid = Grid(
             data=jnp.array([[2, 3]], dtype=jnp.int32),
             mask=jnp.ones((1, 2), dtype=jnp.bool_),
         )
         modified_task_pair = eqx.tree_at(
-            lambda tp: tp.input_grid,
-            task_pair,
-            new_input_grid
+            lambda tp: tp.input_grid, task_pair, new_input_grid
         )
         assert eqx.tree_equal(modified_task_pair.input_grid, new_input_grid)
         assert eqx.tree_equal(modified_task_pair.output_grid, task_pair.output_grid)
-        
+
     def test_task_pair_with_complex_grids(self):
         """Tests TaskPair with complex grid structures."""
         # Create input grid with partial mask
-        input_data = jnp.array([
-            [0, 1, 2],
-            [3, 4, 5]
-        ], dtype=jnp.int32)
-        input_mask = jnp.array([
-            [True, True, False],
-            [True, True, False]
-        ], dtype=jnp.bool_)
+        input_data = jnp.array([[0, 1, 2], [3, 4, 5]], dtype=jnp.int32)
+        input_mask = jnp.array(
+            [[True, True, False], [True, True, False]], dtype=jnp.bool_
+        )
         input_grid = Grid(data=input_data, mask=input_mask)
-        
+
         # Create output grid with different mask
-        output_data = jnp.array([
-            [5, 4, 3],
-            [2, 1, 0]
-        ], dtype=jnp.int32)
-        output_mask = jnp.array([
-            [False, True, True],
-            [False, True, True]
-        ], dtype=jnp.bool_)
+        output_data = jnp.array([[5, 4, 3], [2, 1, 0]], dtype=jnp.int32)
+        output_mask = jnp.array(
+            [[False, True, True], [False, True, True]], dtype=jnp.bool_
+        )
         output_grid = Grid(data=output_data, mask=output_mask)
-        
+
         # Create task pair
         task_pair = TaskPair(input_grid=input_grid, output_grid=output_grid)
-        
+
         # Verify the grids were stored correctly
         assert eqx.tree_equal(task_pair.input_grid, input_grid)
         assert eqx.tree_equal(task_pair.output_grid, output_grid)
-        
+
         # Test with JAX transformations
         jitted_task_pair = jax.jit(lambda tp: tp)(task_pair)
         assert eqx.tree_equal(task_pair, jitted_task_pair)
@@ -420,8 +403,12 @@ class TestJaxArcTaskModule:
                 (max_train_pairs, grid_h, grid_w), dtype=jnp.bool_
             ),
             num_train_pairs=2,
-            test_input_grids=jnp.zeros((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
-            test_input_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
+            test_input_grids=jnp.zeros(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            test_input_masks=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
             true_test_output_grids=jnp.ones(
                 (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
             ),
@@ -437,7 +424,9 @@ class TestJaxArcTaskModule:
         chex.assert_shape(
             parsed_data.input_grids_examples, (max_train_pairs, grid_h, grid_w)
         )
-        chex.assert_shape(parsed_data.test_input_grids, (max_test_pairs, grid_h, grid_w))
+        chex.assert_shape(
+            parsed_data.test_input_grids, (max_test_pairs, grid_h, grid_w)
+        )
         chex.assert_type(parsed_data.task_index, jnp.int32)
 
     def test_jax_arc_task_shape_validation(self):
@@ -469,10 +458,16 @@ class TestJaxArcTaskModule:
                 output_grids_examples=jnp.ones((2, grid_h, grid_w), dtype=jnp.int32),
                 output_masks_examples=jnp.ones((2, grid_h, grid_w), dtype=jnp.bool_),
                 num_train_pairs=2,
-                test_input_grids=jnp.zeros((1, grid_h+1, grid_w), dtype=jnp.int32),  # Different height
-                test_input_masks=jnp.ones((1, grid_h+1, grid_w), dtype=jnp.bool_),
-                true_test_output_grids=jnp.ones((1, grid_h+1, grid_w), dtype=jnp.int32),
-                true_test_output_masks=jnp.ones((1, grid_h+1, grid_w), dtype=jnp.bool_),
+                test_input_grids=jnp.zeros(
+                    (1, grid_h + 1, grid_w), dtype=jnp.int32
+                ),  # Different height
+                test_input_masks=jnp.ones((1, grid_h + 1, grid_w), dtype=jnp.bool_),
+                true_test_output_grids=jnp.ones(
+                    (1, grid_h + 1, grid_w), dtype=jnp.int32
+                ),
+                true_test_output_masks=jnp.ones(
+                    (1, grid_h + 1, grid_w), dtype=jnp.bool_
+                ),
                 num_test_pairs=1,
                 task_index=jnp.array(0, dtype=jnp.int32),
             ).__check_init__()
@@ -551,7 +546,7 @@ class TestJaxArcTaskModule:
             return eqx.tree_at(
                 lambda x: x.input_grids_examples,
                 parsed_data,
-                parsed_data.input_grids_examples + 1
+                parsed_data.input_grids_examples + 1,
             )
 
         grid_h, grid_w = 3, 3
@@ -627,23 +622,19 @@ class TestJaxArcTaskModule:
         """Tests that JaxArcTask has all expected Equinox module properties."""
         # Use the EquinoxMockFactory to create a test JaxArcTask
         task = EquinoxMockFactory.create_mock_jax_arc_task()
-        
+
         # Test PyTree structure
         leaves, treedef = jax.tree.flatten(task)
         reconstructed = jax.tree.unflatten(treedef, leaves)
         assert eqx.tree_equal(task, reconstructed)
-        
+
         # Test immutability
         with pytest.raises(AttributeError):
             task.num_train_pairs = 5
-        
+
         # Test replace method
         new_task_index = jnp.array(42, dtype=jnp.int32)
-        modified_task = eqx.tree_at(
-            lambda x: x.task_index,
-            task,
-            new_task_index
-        )
+        modified_task = eqx.tree_at(lambda x: x.task_index, task, new_task_index)
         assert modified_task.task_index == 42
         assert task.task_index == 0  # Original unchanged
 
@@ -652,10 +643,14 @@ class TestJaxArcTaskModule:
         # Create task with explicit JAXTyping annotations
         grid_h, grid_w = 4, 4
         max_train_pairs, max_test_pairs = 2, 1
-        
-        input_grids: TaskInputGrids = jnp.zeros((max_train_pairs, grid_h, grid_w), dtype=jnp.int32)
+
+        input_grids: TaskInputGrids = jnp.zeros(
+            (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
+        )
         input_masks = jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.bool_)
-        output_grids: TaskOutputGrids = jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.int32)
+        output_grids: TaskOutputGrids = jnp.ones(
+            (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
+        )
         output_masks = jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.bool_)
         task_idx: TaskIndex = jnp.array(42, dtype=jnp.int32)
 
@@ -665,10 +660,18 @@ class TestJaxArcTaskModule:
             output_grids_examples=output_grids,
             output_masks_examples=output_masks,
             num_train_pairs=max_train_pairs,
-            test_input_grids=jnp.zeros((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
-            test_input_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
-            true_test_output_grids=jnp.zeros((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
-            true_test_output_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
+            test_input_grids=jnp.zeros(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            test_input_masks=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
+            true_test_output_grids=jnp.zeros(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            true_test_output_masks=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
             num_test_pairs=max_test_pairs,
             task_index=task_idx,
         )
@@ -679,31 +682,47 @@ class TestJaxArcTaskModule:
         chex.assert_type(task.task_index, jnp.int32)
         chex.assert_shape(task.input_grids_examples, (max_train_pairs, grid_h, grid_w))
         chex.assert_shape(task.task_index, ())
-        
+
     def test_jax_arc_task_with_zero_pairs(self):
         """Tests JaxArcTask with zero pairs (edge case)."""
         grid_h, grid_w = 3, 3
         max_train_pairs, max_test_pairs = 2, 1
-        
+
         # Create task with zero train and test pairs
         task = JaxArcTask(
-            input_grids_examples=jnp.zeros((max_train_pairs, grid_h, grid_w), dtype=jnp.int32),
-            input_masks_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.bool_),
-            output_grids_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.int32),
-            output_masks_examples=jnp.ones((max_train_pairs, grid_h, grid_w), dtype=jnp.bool_),
+            input_grids_examples=jnp.zeros(
+                (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            input_masks_examples=jnp.ones(
+                (max_train_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
+            output_grids_examples=jnp.ones(
+                (max_train_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            output_masks_examples=jnp.ones(
+                (max_train_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
             num_train_pairs=0,  # Zero train pairs
-            test_input_grids=jnp.zeros((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
-            test_input_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
-            true_test_output_grids=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.int32),
-            true_test_output_masks=jnp.ones((max_test_pairs, grid_h, grid_w), dtype=jnp.bool_),
+            test_input_grids=jnp.zeros(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            test_input_masks=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
+            true_test_output_grids=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.int32
+            ),
+            true_test_output_masks=jnp.ones(
+                (max_test_pairs, grid_h, grid_w), dtype=jnp.bool_
+            ),
             num_test_pairs=0,  # Zero test pairs
             task_index=jnp.array(0, dtype=jnp.int32),
         )
-        
+
         # Verify the counts
         assert task.num_train_pairs == 0
         assert task.num_test_pairs == 0
-        
+
         # Test with JAX transformations
         jitted_task = jax.jit(lambda t: t)(task)
         assert jitted_task.num_train_pairs == 0
@@ -820,23 +839,18 @@ class TestARCLEActionModule:
         for i in range(batch_size):
             # Create actions with different operation IDs
             batch_action = eqx.tree_at(
-                lambda x: x.operation,
-                action,
-                jnp.array(i, dtype=jnp.int32)
+                lambda x: x.operation, action, jnp.array(i, dtype=jnp.int32)
             )
             batch_actions.append(batch_action)
-        
+
         # Apply vmap to extract operation IDs
         @jax.vmap
         def extract_operation(a):
             return a.operation
-        
+
         # Stack the actions into a pytree structure that vmap can handle
-        batched_actions = jax.tree.map(
-            lambda *args: jnp.stack(args),
-            *batch_actions
-        )
-        
+        batched_actions = jax.tree.map(lambda *args: jnp.stack(args), *batch_actions)
+
         # Apply vmap
         operations = extract_operation(batched_actions)
         assert operations.shape == (batch_size,)
@@ -852,7 +866,7 @@ class TestARCLEActionModule:
             timestamp=0,
         )
         assert fill_action.operation == ARCLEOperationType.FILL_5
-        
+
         # Test with flood fill operations (10-19)
         flood_fill_action = ARCLEAction(
             selection=jnp.array([[0.5, 0.5]], dtype=jnp.float32),
@@ -861,7 +875,7 @@ class TestARCLEActionModule:
             timestamp=0,
         )
         assert flood_fill_action.operation == ARCLEOperationType.FLOOD_FILL_3
-        
+
         # Test with move operations (20-23)
         move_action = ARCLEAction(
             selection=jnp.array([[0.5, 0.5]], dtype=jnp.float32),
@@ -870,7 +884,7 @@ class TestARCLEActionModule:
             timestamp=0,
         )
         assert move_action.operation == ARCLEOperationType.MOVE_RIGHT
-        
+
         # Test with rotate operations (24-25)
         rotate_action = ARCLEAction(
             selection=jnp.array([[0.5, 0.5]], dtype=jnp.float32),
@@ -879,7 +893,7 @@ class TestARCLEActionModule:
             timestamp=0,
         )
         assert rotate_action.operation == ARCLEOperationType.ROTATE_C
-        
+
         # Test with flip operations (26-27)
         flip_action = ARCLEAction(
             selection=jnp.array([[0.5, 0.5]], dtype=jnp.float32),
@@ -888,7 +902,7 @@ class TestARCLEActionModule:
             timestamp=0,
         )
         assert flip_action.operation == ARCLEOperationType.FLIP_HORIZONTAL
-        
+
         # Test with clipboard operations (28-30)
         clipboard_action = ARCLEAction(
             selection=jnp.array([[0.5, 0.5]], dtype=jnp.float32),
@@ -897,7 +911,7 @@ class TestARCLEActionModule:
             timestamp=0,
         )
         assert clipboard_action.operation == ARCLEOperationType.COPY
-        
+
         # Test with grid operations (31-33)
         grid_action = ARCLEAction(
             selection=jnp.array([[0.5, 0.5]], dtype=jnp.float32),
@@ -906,7 +920,7 @@ class TestARCLEActionModule:
             timestamp=0,
         )
         assert grid_action.operation == ARCLEOperationType.CLEAR
-        
+
         # Test with submit operation (34)
         submit_action = ARCLEAction(
             selection=jnp.array([[0.5, 0.5]], dtype=jnp.float32),
@@ -924,24 +938,20 @@ class TestARCLEActionModule:
             agent_id=0,
             timestamp=0,
         )
-        
+
         # Test PyTree structure
         leaves, treedef = jax.tree.flatten(action)
         reconstructed = jax.tree.unflatten(treedef, leaves)
         assert jnp.array_equal(action.selection, reconstructed.selection)
         assert jnp.array_equal(action.operation, reconstructed.operation)
-        
+
         # Test immutability
         with pytest.raises(AttributeError):
             action.selection = jnp.zeros((1, 2), dtype=jnp.float32)
-        
+
         # Test replace method
         new_selection = jnp.array([[0.8, 0.2]], dtype=jnp.float32)
-        modified_action = eqx.tree_at(
-            lambda a: a.selection,
-            action,
-            new_selection
-        )
+        modified_action = eqx.tree_at(lambda a: a.selection, action, new_selection)
         assert jnp.array_equal(modified_action.selection, new_selection)
         assert jnp.array_equal(modified_action.operation, action.operation)
 
@@ -950,36 +960,38 @@ class TestARCLEActionModule:
         # Create action with explicit JAXTyping annotations
         selection: ContinuousSelectionArray = jnp.array([[0.5, 0.5]], dtype=jnp.float32)
         operation: OperationId = jnp.array(5, dtype=jnp.int32)
-        
+
         action = ARCLEAction(
             selection=selection,
             operation=operation,
             agent_id=0,
             timestamp=0,
         )
-        
+
         # Verify the types are preserved
         chex.assert_type(action.selection, jnp.float32)
         chex.assert_type(action.operation, jnp.int32)
         chex.assert_shape(action.selection, (1, 2))
         chex.assert_shape(action.operation, ())
-        
+
     def test_arcle_action_with_complex_selection(self):
         """Tests ARCLEAction with complex selection patterns."""
         # Create a complex selection pattern (e.g., a circle)
         height, width = 5, 5
         selection = jnp.zeros((height, width), dtype=jnp.float32)
-        
+
         # Create a circular selection pattern
         center_h, center_w = height // 2, width // 2
         radius = min(height, width) // 2 - 0.5
-        
+
         for h in range(height):
             for w in range(width):
-                dist = jnp.sqrt(((h - center_h) ** 2 + (w - center_w) ** 2))
+                dist = jnp.sqrt((h - center_h) ** 2 + (w - center_w) ** 2)
                 # Smooth falloff from center
-                selection = selection.at[h, w].set(jnp.maximum(0.0, 1.0 - dist / radius))
-        
+                selection = selection.at[h, w].set(
+                    jnp.maximum(0.0, 1.0 - dist / radius)
+                )
+
         # Create action with this selection
         action = ARCLEAction(
             selection=selection,
@@ -987,12 +999,12 @@ class TestARCLEActionModule:
             agent_id=0,
             timestamp=0,
         )
-        
+
         # Verify the selection was stored correctly
         chex.assert_shape(action.selection, (height, width))
         assert jnp.min(action.selection) >= 0.0
         assert jnp.max(action.selection) <= 1.0
-        
+
         # Test with JAX transformations
         jitted_action = jax.jit(lambda a: a)(action)
         # Check arrays are equal (avoiding weak type issues)
@@ -1006,15 +1018,15 @@ def test_jaxtyping_runtime_validation():
     data: GridArray = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
     mask: MaskArray = jnp.ones((2, 2), dtype=jnp.bool_)
     grid = Grid(data=data, mask=mask)
-    
+
     # Test TaskPair with JAXTyping
     task_pair = TaskPair(input_grid=grid, output_grid=grid)
-    
+
     # Test JaxArcTask with JAXTyping
     input_grids: TaskInputGrids = jnp.zeros((2, 3, 3), dtype=jnp.int32)
     output_grids: TaskOutputGrids = jnp.ones((2, 3, 3), dtype=jnp.int32)
     task_idx: TaskIndex = jnp.array(0, dtype=jnp.int32)
-    
+
     task = JaxArcTask(
         input_grids_examples=input_grids,
         input_masks_examples=jnp.ones((2, 3, 3), dtype=jnp.bool_),
@@ -1028,18 +1040,18 @@ def test_jaxtyping_runtime_validation():
         num_test_pairs=1,
         task_index=task_idx,
     )
-    
+
     # Test ARCLEAction with JAXTyping
     selection: ContinuousSelectionArray = jnp.array([[0.5, 0.5]], dtype=jnp.float32)
     operation: OperationId = jnp.array(5, dtype=jnp.int32)
-    
+
     action = ARCLEAction(
         selection=selection,
         operation=operation,
         agent_id=0,
         timestamp=0,
     )
-    
+
     # All objects should be created successfully with JAXTyping annotations
     assert isinstance(grid, Grid)
     assert isinstance(task_pair, TaskPair)
@@ -1054,37 +1066,45 @@ def test_comprehensive_jax_transformations():
     task_pair = EquinoxMockFactory.create_mock_task_pair()
     task = EquinoxMockFactory.create_mock_jax_arc_task()
     action = EquinoxMockFactory.create_mock_arcle_action()
-    
+
     # Test jit transformation for all types
     jitted_grid = jax.jit(lambda x: x)(grid)
     jitted_task_pair = jax.jit(lambda x: x)(task_pair)
     jitted_task = jax.jit(lambda x: x)(task)
     jitted_action = jax.jit(lambda x: x)(action)
-    
+
     # Verify equality after jit - note that we need to check fields individually
     # because JIT can convert Python integers to weak JAX types
     assert eqx.tree_equal(grid, jitted_grid)
     assert eqx.tree_equal(task_pair, jitted_task_pair)
-    
+
     # For task, check arrays directly
     assert jnp.array_equal(task.input_grids_examples, jitted_task.input_grids_examples)
     assert jnp.array_equal(task.input_masks_examples, jitted_task.input_masks_examples)
-    assert jnp.array_equal(task.output_grids_examples, jitted_task.output_grids_examples)
-    assert jnp.array_equal(task.output_masks_examples, jitted_task.output_masks_examples)
+    assert jnp.array_equal(
+        task.output_grids_examples, jitted_task.output_grids_examples
+    )
+    assert jnp.array_equal(
+        task.output_masks_examples, jitted_task.output_masks_examples
+    )
     assert jnp.array_equal(task.test_input_grids, jitted_task.test_input_grids)
     assert jnp.array_equal(task.test_input_masks, jitted_task.test_input_masks)
-    assert jnp.array_equal(task.true_test_output_grids, jitted_task.true_test_output_grids)
-    assert jnp.array_equal(task.true_test_output_masks, jitted_task.true_test_output_masks)
+    assert jnp.array_equal(
+        task.true_test_output_grids, jitted_task.true_test_output_grids
+    )
+    assert jnp.array_equal(
+        task.true_test_output_masks, jitted_task.true_test_output_masks
+    )
     assert task.num_train_pairs == jitted_task.num_train_pairs
     assert task.num_test_pairs == jitted_task.num_test_pairs
     assert jnp.array_equal(task.task_index, jitted_task.task_index)
-    
+
     # For action, check fields directly
     assert jnp.array_equal(action.selection, jitted_action.selection)
     assert jnp.array_equal(action.operation, jitted_action.operation)
     assert action.agent_id == jitted_action.agent_id
     assert action.timestamp == jitted_action.timestamp
-    
+
 
 def test_jaxtyping_runtime_validation():
     """Tests JAXTyping runtime validation for all core types."""
@@ -1092,15 +1112,15 @@ def test_jaxtyping_runtime_validation():
     data: GridArray = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
     mask: MaskArray = jnp.ones((2, 2), dtype=jnp.bool_)
     grid = Grid(data=data, mask=mask)
-    
+
     # Test TaskPair with JAXTyping
     task_pair = TaskPair(input_grid=grid, output_grid=grid)
-    
+
     # Test JaxArcTask with JAXTyping
     input_grids: TaskInputGrids = jnp.zeros((2, 3, 3), dtype=jnp.int32)
     output_grids: TaskOutputGrids = jnp.ones((2, 3, 3), dtype=jnp.int32)
     task_idx: TaskIndex = jnp.array(0, dtype=jnp.int32)
-    
+
     task = JaxArcTask(
         input_grids_examples=input_grids,
         input_masks_examples=jnp.ones((2, 3, 3), dtype=jnp.bool_),
@@ -1114,18 +1134,18 @@ def test_jaxtyping_runtime_validation():
         num_test_pairs=1,
         task_index=task_idx,
     )
-    
+
     # Test ARCLEAction with JAXTyping
     selection: ContinuousSelectionArray = jnp.array([[0.5, 0.5]], dtype=jnp.float32)
     operation: OperationId = jnp.array(5, dtype=jnp.int32)
-    
+
     action = ARCLEAction(
         selection=selection,
         operation=operation,
         agent_id=0,
         timestamp=0,
     )
-    
+
     # All objects should be created successfully with JAXTyping annotations
     assert isinstance(grid, Grid)
     assert isinstance(task_pair, TaskPair)

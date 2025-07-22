@@ -429,8 +429,8 @@ class TestArcEnvironment:
 
                     # If we get here, environment creation worked
                     assert env.max_grid_size == (
-                        dataset_cfg.grid.max_grid_height,
-                        dataset_cfg.grid.max_grid_width,
+                        dataset_cfg.max_grid_height,
+                        dataset_cfg.max_grid_width,
                     )
                     assert hasattr(env, "task_parser")
                     assert isinstance(env.task_parser, ArcAgiParser)

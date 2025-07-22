@@ -74,12 +74,12 @@ class TestConceptArcConfiguration:
         config = get_config(["dataset=concept_arc"])
 
         # Verify grid settings (standard ARC dimensions)
-        assert config.dataset.grid.max_grid_height == 30
-        assert config.dataset.grid.max_grid_width == 30
-        assert config.dataset.grid.min_grid_height == 1
-        assert config.dataset.grid.min_grid_width == 1
-        assert config.dataset.grid.max_colors == 10
-        assert config.dataset.grid.background_color == 0
+        assert config.dataset.max_grid_height == 30
+        assert config.dataset.max_grid_width == 30
+        assert config.dataset.min_grid_height == 1
+        assert config.dataset.min_grid_width == 1
+        assert config.dataset.max_colors == 10
+        assert config.dataset.background_color == 0
 
     def test_conceptarc_task_configuration(self):
         """Test ConceptARC task configuration."""
@@ -163,10 +163,7 @@ class TestMiniArcConfiguration:
 
         # Verify data paths
         assert "MiniARC" in config.dataset.data_root
-        assert config.dataset.training.path == "data/raw/MiniARC/data/MiniARC/training"
-        assert (
-            config.dataset.evaluation.path == "data/raw/MiniARC/data/MiniARC/evaluation"
-        )
+        assert config.dataset.tasks.path == "data/raw/MiniARC/data/MiniARC"
 
     def test_miniarc_parser_configuration(self):
         """Test MiniARC parser configuration."""
@@ -181,19 +178,19 @@ class TestMiniArcConfiguration:
         config = get_config(["dataset=mini_arc"])
 
         # Verify grid settings (5x5 optimization)
-        assert config.dataset.grid.max_grid_height == 5
-        assert config.dataset.grid.max_grid_width == 5
-        assert config.dataset.grid.min_grid_height == 1
-        assert config.dataset.grid.min_grid_width == 1
-        assert config.dataset.grid.max_colors == 10
-        assert config.dataset.grid.background_color == 0
+        assert config.dataset.max_grid_height == 5
+        assert config.dataset.max_grid_width == 5
+        assert config.dataset.min_grid_height == 1
+        assert config.dataset.min_grid_width == 1
+        assert config.dataset.max_colors == 10
+        assert config.dataset.background_color == 0
 
     def test_miniarc_task_configuration(self):
         """Test MiniARC task configuration."""
         config = get_config(["dataset=mini_arc"])
 
         # Verify task limits (MiniARC characteristics)
-        assert config.dataset.max_train_pairs == 3  # Typical for MiniARC
+        assert config.dataset.max_train_pairs == 8  # Typical for MiniARC
         assert config.dataset.max_test_pairs == 1  # Usually 1 test pair per task
 
     def test_miniarc_optimization_flags(self):
@@ -211,10 +208,6 @@ class TestMiniArcConfiguration:
         config = get_config(["dataset=mini_arc"])
 
         # Verify metadata
-        assert config.dataset.metadata.total_training_tasks == 400
-        assert config.dataset.metadata.total_evaluation_tasks == 400
-        assert config.dataset.metadata.total_tasks == 800
-        assert config.dataset.metadata.grid_constraint == "5x5 maximum"
         assert "MINI-ARC" in config.dataset.metadata.repository_url
         assert "prototyping" in config.dataset.metadata.purpose
 

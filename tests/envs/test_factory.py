@@ -12,16 +12,8 @@ from omegaconf import OmegaConf
 
 from jaxarc.envs.config_factory import ConfigFactory
 from jaxarc.envs.equinox_config import (
-    ActionConfig,
     ConfigValidationError,
-    DatasetConfig,
-    EnvironmentConfig,
     JaxArcConfig,
-    LoggingConfig,
-    RewardConfig,
-    StorageConfig,
-    VisualizationConfig,
-    WandbConfig,
 )
 
 

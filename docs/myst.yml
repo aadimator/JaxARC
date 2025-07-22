@@ -15,6 +15,10 @@ project:
     - file: datasets.md
     - file: configuration.md
     - file: api_reference.md
+    - title: Testing
+      children:
+        - file: testing_guidelines.md
+        - file: jax_testing_patterns.md
     - title: Examples
       children:
         - file: examples/advanced-patterns.md

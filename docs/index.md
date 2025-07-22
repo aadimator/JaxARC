@@ -72,6 +72,13 @@ pixi run test
 - **[Equinox & JAXTyping Guide](equinox_jaxtyping_guide.md)**: Modern JAX
   patterns and best practices
 
+### Testing Documentation
+
+- **[Testing Guidelines](testing_guidelines.md)**: Comprehensive testing
+  guidelines for JAX-compatible code
+- **[JAX Testing Patterns](jax_testing_patterns.md)**: Specific patterns and
+  utilities for testing JAX functions
+
 ### Dataset Support
 
 JaxARC supports multiple ARC dataset variants with dedicated parsers:

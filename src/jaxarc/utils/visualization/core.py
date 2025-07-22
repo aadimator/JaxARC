@@ -1976,18 +1976,21 @@ def save_rl_step_visualization(
     )
 
     # Extract action components
-    selection_mask = np.asarray(action["selection"])
     operation_id = int(action["operation"])
     step_number = int(state.step_count)
+
+    # Create dummy reward and info for visualization
+    reward = 0.0  # Placeholder since we don't have reward in this context
+    info = {"step_count": step_number}  # Basic info
 
     # Generate visualization
     svg_content = draw_rl_step_svg(
         before_grid=before_grid,
         after_grid=after_grid,
-        selection_mask=selection_mask,
-        operation_id=operation_id,
-        step_number=step_number,
-        label="Episode Step",
+        action=action,
+        reward=reward,
+        info=info,
+        step_num=step_number,
     )
 
     # Save to file with zero-padded step number

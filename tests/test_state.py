@@ -12,12 +12,11 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-import chex
 
 from jaxarc.state import ArcEnvState
-from jaxarc.types import Grid, JaxArcTask
+from jaxarc.types import JaxArcTask
 from jaxarc.utils.equinox_utils import check_jax_transformations
-from jaxarc.utils.grid_utils import get_actual_grid_shape_from_mask, crop_grid_to_mask
+from jaxarc.utils.grid_utils import crop_grid_to_mask, get_actual_grid_shape_from_mask
 
 
 @pytest.fixture
@@ -70,8 +69,10 @@ def padded_state(sample_task):
     """Create a state with padded grid for testing actual shape methods."""
     # Create a 5x5 grid with content only in a 3x3 area
     grid_data = jnp.zeros((5, 5), dtype=jnp.int32)
-    grid_data = grid_data.at[:3, :3].set(jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=jnp.int32))
-    
+    grid_data = grid_data.at[:3, :3].set(
+        jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=jnp.int32)
+    )
+
     # Create a mask that only shows the 3x3 area as valid
     grid_mask = jnp.zeros((5, 5), dtype=bool)
     grid_mask = grid_mask.at[:3, :3].set(True)
@@ -197,7 +198,9 @@ class TestStateUpdateMethods:
 
         assert new_state.step_count.item() == 10
         assert new_state.episode_done.item()
-        assert jnp.allclose(new_state.similarity_score, jnp.array(0.8, dtype=jnp.float32))
+        assert jnp.allclose(
+            new_state.similarity_score, jnp.array(0.8, dtype=jnp.float32)
+        )
 
         # Original should be unchanged
         assert sample_state.step_count.item() == 0
@@ -224,7 +227,9 @@ class TestStateUpdateMethods:
     def test_replace_multiple_fields(self, sample_state):
         """Test replacing multiple fields at once."""
         new_grid = jnp.array([[9, 8, 7], [6, 5, 4], [3, 2, 1]], dtype=jnp.int32)
-        new_selection = jnp.array([[True, False, True], [False, True, False], [True, False, True]])
+        new_selection = jnp.array(
+            [[True, False, True], [False, True, False], [True, False, True]]
+        )
 
         new_state = sample_state.replace(
             working_grid=new_grid,
@@ -275,10 +280,10 @@ class TestStateUtilityMethods:
     def test_get_actual_grid_shape(self, padded_state):
         """Test get_actual_grid_shape method."""
         actual_shape = padded_state.get_actual_grid_shape()
-        
+
         # Should return (3, 3) since only the 3x3 area is valid
         assert actual_shape == (3, 3)
-        
+
         # Verify against the utility function
         expected_shape = get_actual_grid_shape_from_mask(padded_state.working_grid_mask)
         assert actual_shape == expected_shape
@@ -286,41 +291,45 @@ class TestStateUtilityMethods:
     def test_get_actual_working_grid(self, padded_state):
         """Test get_actual_working_grid method."""
         actual_grid = padded_state.get_actual_working_grid()
-        
+
         # Should return a 3x3 grid with the valid content
         assert actual_grid.shape == (3, 3)
-        
+
         # Verify content matches the original 3x3 area
         expected_grid = jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=jnp.int32)
         assert jnp.array_equal(actual_grid, expected_grid)
-        
+
         # Verify against the utility function
-        expected_grid = crop_grid_to_mask(padded_state.working_grid, padded_state.working_grid_mask)
+        expected_grid = crop_grid_to_mask(
+            padded_state.working_grid, padded_state.working_grid_mask
+        )
         assert jnp.array_equal(actual_grid, expected_grid)
 
     def test_get_actual_target_grid(self, padded_state):
         """Test get_actual_target_grid method."""
         actual_grid = padded_state.get_actual_target_grid()
-        
+
         # Should return a 3x3 grid with the valid content
         assert actual_grid.shape == (3, 3)
-        
+
         # Verify content matches the original 3x3 area
         expected_grid = jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=jnp.int32)
         assert jnp.array_equal(actual_grid, expected_grid)
-        
+
         # Verify against the utility function
-        expected_grid = crop_grid_to_mask(padded_state.target_grid, padded_state.working_grid_mask)
+        expected_grid = crop_grid_to_mask(
+            padded_state.target_grid, padded_state.working_grid_mask
+        )
         assert jnp.array_equal(actual_grid, expected_grid)
 
     def test_empty_grid_shape(self):
         """Test get_actual_grid_shape with empty grid."""
         # Create a completely masked grid (no valid cells)
         empty_mask = jnp.zeros((5, 5), dtype=bool)
-        
+
         # Get the shape directly from the utility function
         shape = get_actual_grid_shape_from_mask(empty_mask)
-        
+
         # Should return (0, 0) for empty grid
         assert shape == (0, 0)
 
@@ -330,6 +339,7 @@ class TestJAXTransformations:
 
     def test_jit_compilation(self, sample_state):
         """Test that state works with JAX JIT compilation."""
+
         @jax.jit
         def increment_step(state):
             return state.replace(step_count=state.step_count + 1)
@@ -343,6 +353,7 @@ class TestJAXTransformations:
 
     def test_jit_with_grid_operations(self, sample_state):
         """Test JIT with grid operations."""
+
         @jax.jit
         def update_grid(state):
             # Create a new grid with all values incremented by 1
@@ -350,13 +361,14 @@ class TestJAXTransformations:
             return state.replace(working_grid=new_grid)
 
         new_state = update_grid(sample_state)
-        
+
         # Check that grid values were incremented
         expected_grid = jnp.array([[2, 3, 4], [5, 6, 7], [8, 9, 10]], dtype=jnp.int32)
         assert jnp.array_equal(new_state.working_grid, expected_grid)
 
     def test_jit_with_utility_methods(self, padded_state):
         """Test JIT with state utility methods."""
+
         @jax.jit
         def get_shape_and_grid(state):
             shape = state.get_actual_grid_shape()
@@ -373,20 +385,21 @@ class TestJAXTransformations:
         """Test vmap compatibility with simple operations."""
         # Create a batch of states with different step counts
         step_counts = jnp.array([0, 1, 2, 3, 4], dtype=jnp.int32)
-        
+
         # Function to test with vmap
         def increment_step_count(step_count):
             return step_count + 1
-        
+
         # Apply vmap
         vmapped_fn = jax.vmap(increment_step_count)
         result = vmapped_fn(step_counts)
-        
+
         expected = jnp.array([1, 2, 3, 4, 5], dtype=jnp.int32)
         assert jnp.array_equal(result, expected)
 
     def test_grad_compatibility(self):
         """Test grad compatibility with simple scalar operations."""
+
         # Test grad with simple scalar operations
         def simple_loss(similarity_score):
             return similarity_score**2
@@ -403,6 +416,7 @@ class TestJAXTransformations:
 
     def test_transformation_utility(self, sample_state):
         """Test the JAX transformations testing utility."""
+
         def simple_test_fn(state):
             return state.step_count + 1
 
@@ -430,6 +444,7 @@ class TestPyTreeCompatibility:
 
     def test_tree_map(self, sample_state):
         """Test jax.tree_util.tree_map with ArcEnvState."""
+
         # Map a function over all arrays in the state
         def add_one(x):
             if hasattr(x, "dtype") and jnp.issubdtype(x.dtype, jnp.integer):
@@ -440,32 +455,41 @@ class TestPyTreeCompatibility:
 
         # Check that integer arrays were incremented
         assert new_state.step_count.item() == sample_state.step_count.item() + 1
-        assert new_state.current_example_idx.item() == sample_state.current_example_idx.item() + 1
-        
+        assert (
+            new_state.current_example_idx.item()
+            == sample_state.current_example_idx.item() + 1
+        )
+
         # Check grid values
         expected_grid = sample_state.working_grid + 1
         assert jnp.array_equal(new_state.working_grid, expected_grid)
 
         # Boolean arrays should remain unchanged
-        assert jnp.array_equal(new_state.working_grid_mask, sample_state.working_grid_mask)
+        assert jnp.array_equal(
+            new_state.working_grid_mask, sample_state.working_grid_mask
+        )
         assert jnp.array_equal(new_state.episode_done, sample_state.episode_done)
 
     def test_tree_structure(self, sample_state):
         """Test tree structure of ArcEnvState."""
         # Get leaves and structure
         leaves, treedef = jax.tree_util.tree_flatten(sample_state)
-        
+
         # Check number of leaves
         # Should have 10 fields: task_data, working_grid, working_grid_mask, target_grid,
         # step_count, episode_done, current_example_idx, selected, clipboard, similarity_score
         # Note: task_data is itself a PyTree, so the actual leaf count will be higher
         assert len(leaves) > 10
-        
+
         # Reconstruct with same structure but different values
-        new_leaves = [leaf + 1 if hasattr(leaf, "dtype") and jnp.issubdtype(leaf.dtype, jnp.number) else leaf 
-                     for leaf in leaves]
+        new_leaves = [
+            leaf + 1
+            if hasattr(leaf, "dtype") and jnp.issubdtype(leaf.dtype, jnp.number)
+            else leaf
+            for leaf in leaves
+        ]
         new_state = jax.tree_util.tree_unflatten(treedef, new_leaves)
-        
+
         # Check that it's still an ArcEnvState
         assert isinstance(new_state, ArcEnvState)
 

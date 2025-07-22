@@ -8,45 +8,38 @@ configuration inputs, and edge cases.
 
 from __future__ import annotations
 
-import warnings
 import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
-from hypothesis import given, strategies as st
-from omegaconf import DictConfig, OmegaConf
+from hypothesis import given
+from hypothesis import strategies as st
+from omegaconf import OmegaConf
 
 from jaxarc.envs import (
-    ArcEnvConfig,
     ActionConfig,
-    RewardConfig,
-    GridConfig,
+    ArcEnvConfig,
     DatasetConfig,
+    GridConfig,
+    RewardConfig,
 )
 from jaxarc.envs.config import DebugConfig
 from jaxarc.envs.equinox_config import JaxArcConfig
 from jaxarc.envs.functional import (
-    arc_reset,
-    arc_step,
-    arc_reset_with_hydra,
-    arc_step_with_hydra,
-    _ensure_config,
-    _validate_operation,
-    _get_observation,
     _calculate_reward,
-    _is_episode_done,
     _create_demo_task,
+    _ensure_config,
+    _get_observation,
+    _is_episode_done,
+    _validate_operation,
+    arc_reset,
+    arc_reset_with_hydra,
+    arc_step,
+    arc_step_with_hydra,
 )
 from jaxarc.state import ArcEnvState
 from jaxarc.types import ARCLEAction, JaxArcTask
-from jaxarc.utils.jax_types import PRNGKey
-
-from ..jax_testing_utils import (
-    JaxTransformationValidator,
-    assert_jit_compatible,
-    assert_vmap_compatible,
-)
 
 
 def create_test_config(max_episode_steps: int = 10) -> ArcEnvConfig:
@@ -145,12 +138,14 @@ class TestArcReset:
 
     def test_arc_reset_with_hydra_config(self):
         """Test arc_reset with Hydra DictConfig."""
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 20,
-            "reward": {"success_bonus": 15.0},
-            "grid": {"max_grid_height": 25},
-            "action": {"num_operations": 30},
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 20,
+                "reward": {"success_bonus": 15.0},
+                "grid": {"max_grid_height": 25},
+                "action": {"num_operations": 30},
+            }
+        )
 
         state, obs = arc_reset(self.key, hydra_config)
 
@@ -163,11 +158,23 @@ class TestArcReset:
         # Create a basic JaxArcConfig for testing
         from jaxarc.envs.equinox_config import (
             ActionConfig as UnifiedActionConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             DatasetConfig as UnifiedDatasetConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             EnvironmentConfig as UnifiedEnvironmentConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             LoggingConfig as UnifiedLoggingConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             RewardConfig as UnifiedRewardConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             StorageConfig as UnifiedStorageConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             VisualizationConfig as UnifiedVisualizationConfig,
         )
 
@@ -191,7 +198,7 @@ class TestArcReset:
         """Test arc_reset with provided task data."""
         # Create a simple custom task
         task_data = _create_demo_task(self.config)
-        
+
         state, obs = arc_reset(self.key, self.config, task_data=task_data)
 
         assert isinstance(state, ArcEnvState)
@@ -227,7 +234,7 @@ class TestArcReset:
         # Test jit compilation (config must be static)
         jitted_reset = jax.jit(arc_reset, static_argnums=(1,))
         state, obs = jitted_reset(self.key, self.config)
-        
+
         assert isinstance(state, ArcEnvState)
         chex.assert_rank(obs, 2)
 
@@ -241,18 +248,18 @@ class TestArcReset:
         # Create batch of keys
         batch_size = 3
         batch_keys = jax.random.split(self.key, batch_size)
-        
+
         # Test vmap with static config (config must be static for vmap)
         def reset_with_static_config(key):
             return arc_reset(key, self.config)
-        
+
         vmapped_reset = jax.vmap(reset_with_static_config)
         batch_states, batch_obs = vmapped_reset(batch_keys)
 
         # Check batch dimensions
         # Note: batch_states is a pytree with batch dimension in each leaf
         assert batch_obs.shape[0] == batch_size
-        
+
         # Check that the batch dimension is present in state fields
         assert batch_states.working_grid.shape[0] == batch_size
         assert batch_states.target_grid.shape[0] == batch_size
@@ -260,10 +267,12 @@ class TestArcReset:
 
     def test_arc_reset_with_hydra_convenience_function(self):
         """Test arc_reset_with_hydra convenience function."""
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 30,
-            "reward": {"success_bonus": 20.0},
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 30,
+                "reward": {"success_bonus": 20.0},
+            }
+        )
 
         state, obs = arc_reset_with_hydra(self.key, hydra_config)
 
@@ -311,13 +320,15 @@ class TestArcStep:
             "operation": jnp.array(0, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step(self.state, action, self.config)
+        new_state, new_obs, reward, done, info = arc_step(
+            self.state, action, self.config
+        )
 
         # Check return types
         assert isinstance(new_state, ArcEnvState)
         assert isinstance(new_obs, jnp.ndarray)
         chex.assert_rank(reward, 0)  # Scalar
-        chex.assert_rank(done, 0)    # Scalar
+        chex.assert_rank(done, 0)  # Scalar
         assert isinstance(info, dict)
 
         # Check state progression
@@ -338,7 +349,9 @@ class TestArcStep:
             "operation": jnp.array(1, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step(self.state, action, self.config)
+        new_state, new_obs, reward, done, info = arc_step(
+            self.state, action, self.config
+        )
 
         assert isinstance(new_state, ArcEnvState)
         assert new_state.step_count == 1
@@ -356,7 +369,9 @@ class TestArcStep:
             "operation": jnp.array(2, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step(self.state, action, self.config)
+        new_state, new_obs, reward, done, info = arc_step(
+            self.state, action, self.config
+        )
 
         assert isinstance(new_state, ArcEnvState)
         assert new_state.step_count == 1
@@ -382,7 +397,9 @@ class TestArcStep:
         state, obs = arc_reset(self.key, bbox_config)
 
         action = {
-            "bbox": jnp.array([1, 1, 3, 3], dtype=jnp.int32),  # (row1, col1, row2, col2)
+            "bbox": jnp.array(
+                [1, 1, 3, 3], dtype=jnp.int32
+            ),  # (row1, col1, row2, col2)
             "operation": jnp.array(2, dtype=jnp.int32),
         }
 
@@ -394,7 +411,7 @@ class TestArcStep:
     def test_arc_step_with_arcle_action(self):
         """Test arc_step with ARCLEAction object."""
         selection = jnp.ones_like(self.state.working_grid, dtype=jnp.float32) * 0.5
-        
+
         # Check if ARCLEAction requires agent_id and timestamp
         try:
             arcle_action = ARCLEAction(
@@ -403,9 +420,11 @@ class TestArcStep:
                 agent_id=0,  # Default agent ID
                 timestamp=0,  # Default timestamp
             )
-            
-            new_state, new_obs, reward, done, info = arc_step(self.state, arcle_action, self.config)
-            
+
+            new_state, new_obs, reward, done, info = arc_step(
+                self.state, arcle_action, self.config
+            )
+
             assert isinstance(new_state, ArcEnvState)
             assert new_state.step_count == 1
         except Exception:
@@ -414,14 +433,16 @@ class TestArcStep:
 
     def test_arc_step_with_hydra_config(self):
         """Test arc_step with Hydra DictConfig."""
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 15,
-            "reward": {"success_bonus": 12.0},
-            "action": {"selection_format": "mask"},
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 15,
+                "reward": {"success_bonus": 12.0},
+                "action": {"selection_format": "mask"},
+            }
+        )
 
         state, obs = arc_reset(self.key, hydra_config)
-        
+
         action = {
             "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
             "operation": jnp.array(0, dtype=jnp.int32),
@@ -439,7 +460,9 @@ class TestArcStep:
             "operation": jnp.array(0, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step(self.state, action, self.config)
+        new_state, new_obs, reward, done, info = arc_step(
+            self.state, action, self.config
+        )
 
         # Reward should be a scalar
         chex.assert_rank(reward, 0)
@@ -480,7 +503,9 @@ class TestArcStep:
 
         # Test jit compilation (config must be static)
         jitted_step = jax.jit(arc_step, static_argnums=(2,))
-        new_state, new_obs, reward, done, info = jitted_step(self.state, action, self.config)
+        new_state, new_obs, reward, done, info = jitted_step(
+            self.state, action, self.config
+        )
 
         assert isinstance(new_state, ArcEnvState)
         assert new_state.step_count == 1
@@ -490,56 +515,62 @@ class TestArcStep:
         """Test arc_step vmap compatibility."""
         # This test is more complex due to the pytree structure of states
         # We'll use a simpler approach with a wrapper function
-        
+
         # Create a simple step function that handles a single state
         def step_single_state(key):
             # Reset to get initial state
             state, obs = arc_reset(key, self.config)
-            
+
             # Create a simple action
             action = {
                 "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
                 "operation": jnp.array(0, dtype=jnp.int32),
             }
-            
+
             # Step the environment
-            new_state, new_obs, reward, done, info = arc_step(state, action, self.config)
-            
+            new_state, new_obs, reward, done, info = arc_step(
+                state, action, self.config
+            )
+
             # Return just what we need to test
             return new_state.step_count, new_obs, reward, done
-        
+
         # Create batch of keys
         batch_size = 3
         batch_keys = jax.random.split(self.key, batch_size)
-        
+
         # Vmap the step function
         vmapped_step = jax.vmap(step_single_state)
         step_counts, batch_obs, batch_rewards, batch_done = vmapped_step(batch_keys)
-        
+
         # Check batch dimensions
         assert step_counts.shape == (batch_size,)
         assert batch_obs.shape[0] == batch_size
         assert batch_rewards.shape == (batch_size,)
         assert batch_done.shape == (batch_size,)
-        
+
         # Check values
         assert jnp.all(step_counts == 1)  # All step counts should be 1
 
     def test_arc_step_with_hydra_convenience_function(self):
         """Test arc_step_with_hydra convenience function."""
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 20,
-            "action": {"selection_format": "mask"},
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 20,
+                "action": {"selection_format": "mask"},
+            }
+        )
 
         state, obs = arc_reset_with_hydra(self.key, hydra_config)
-        
+
         action = {
             "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
             "operation": jnp.array(1, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step_with_hydra(state, action, hydra_config)
+        new_state, new_obs, reward, done, info = arc_step_with_hydra(
+            state, action, hydra_config
+        )
 
         assert isinstance(new_state, ArcEnvState)
         assert new_state.step_count == 1
@@ -548,7 +579,9 @@ class TestArcStep:
         """Test action validation in arc_step."""
         # Missing operation field
         with pytest.raises(ValueError, match="must contain 'operation'"):
-            action = {"selection": jnp.ones_like(self.state.working_grid, dtype=jnp.bool_)}
+            action = {
+                "selection": jnp.ones_like(self.state.working_grid, dtype=jnp.bool_)
+            }
             arc_step(self.state, action, self.config)
 
         # Missing selection field for mask format
@@ -576,7 +609,9 @@ class TestArcStep:
             "operation": jnp.array(5, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step(self.state, action, self.config)
+        new_state, new_obs, reward, done, info = arc_step(
+            self.state, action, self.config
+        )
         assert isinstance(new_state, ArcEnvState)
 
         # Test with operation as int (should be converted)
@@ -585,7 +620,9 @@ class TestArcStep:
             "operation": 3,  # Regular Python int
         }
 
-        new_state, new_obs, reward, done, info = arc_step(self.state, action_int, self.config)
+        new_state, new_obs, reward, done, info = arc_step(
+            self.state, action_int, self.config
+        )
         assert isinstance(new_state, ArcEnvState)
 
     @given(st.integers(min_value=0, max_value=34))
@@ -596,7 +633,9 @@ class TestArcStep:
             "operation": jnp.array(operation_id, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step(self.state, action, self.config)
+        new_state, new_obs, reward, done, info = arc_step(
+            self.state, action, self.config
+        )
 
         assert isinstance(new_state, ArcEnvState)
         assert new_state.step_count == 1
@@ -608,10 +647,17 @@ class TestArcStep:
             "operation": jnp.array(0, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step(self.state, action, self.config)
+        new_state, new_obs, reward, done, info = arc_step(
+            self.state, action, self.config
+        )
 
         # Check required keys
-        required_keys = ["success", "similarity", "step_count", "similarity_improvement"]
+        required_keys = [
+            "success",
+            "similarity",
+            "step_count",
+            "similarity_improvement",
+        ]
         for key in required_keys:
             assert key in info
 
@@ -639,10 +685,12 @@ class TestFunctionalAPIHelpers:
 
     def test_ensure_config_with_hydra_config(self):
         """Test _ensure_config with Hydra DictConfig."""
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 15,
-            "reward": {"success_bonus": 10.0},
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 15,
+                "reward": {"success_bonus": 10.0},
+            }
+        )
 
         result = _ensure_config(hydra_config)
         assert isinstance(result, ArcEnvConfig)
@@ -652,11 +700,23 @@ class TestFunctionalAPIHelpers:
         """Test _ensure_config with JaxArcConfig."""
         from jaxarc.envs.equinox_config import (
             ActionConfig as UnifiedActionConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             DatasetConfig as UnifiedDatasetConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             EnvironmentConfig as UnifiedEnvironmentConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             LoggingConfig as UnifiedLoggingConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             RewardConfig as UnifiedRewardConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             StorageConfig as UnifiedStorageConfig,
+        )
+        from jaxarc.envs.equinox_config import (
             VisualizationConfig as UnifiedVisualizationConfig,
         )
 
@@ -693,7 +753,7 @@ class TestFunctionalAPIHelpers:
     def test_get_observation(self):
         """Test _get_observation function."""
         obs = _get_observation(self.state, self.config)
-        
+
         assert isinstance(obs, jnp.ndarray)
         chex.assert_trees_all_equal(obs, self.state.working_grid)
 
@@ -701,13 +761,11 @@ class TestFunctionalAPIHelpers:
         """Test _calculate_reward function."""
         # Create a new state with different similarity
         new_state = eqx.tree_at(
-            lambda s: s.similarity_score, 
-            self.state, 
-            self.state.similarity_score + 0.1
+            lambda s: s.similarity_score, self.state, self.state.similarity_score + 0.1
         )
 
         reward = _calculate_reward(self.state, new_state, self.config)
-        
+
         chex.assert_rank(reward, 0)
         chex.assert_type(reward, jnp.floating)
 
@@ -725,9 +783,7 @@ class TestFunctionalAPIHelpers:
 
         # Test with max steps reached
         max_steps_state = eqx.tree_at(
-            lambda s: s.step_count, 
-            self.state, 
-            self.config.max_episode_steps
+            lambda s: s.step_count, self.state, self.config.max_episode_steps
         )
         done = _is_episode_done(max_steps_state, self.config)
         assert done
@@ -740,7 +796,7 @@ class TestFunctionalAPIHelpers:
     def test_create_demo_task(self):
         """Test _create_demo_task function."""
         task = _create_demo_task(self.config)
-        
+
         assert isinstance(task, JaxArcTask)
         chex.assert_rank(task.input_grids_examples, 3)
         chex.assert_rank(task.output_grids_examples, 3)
@@ -764,22 +820,22 @@ class TestFunctionalAPIIntegration:
     def test_full_episode_execution(self):
         """Test executing a full episode with the functional API."""
         state, obs = arc_reset(self.key, self.config)
-        
+
         for step in range(self.config.max_episode_steps):
             action = {
                 "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
                 "operation": jnp.array(step % 5, dtype=jnp.int32),
             }
-            
+
             state, obs, reward, done, info = arc_step(state, action, self.config)
-            
+
             assert state.step_count == step + 1
             assert isinstance(reward, jnp.ndarray)
             assert isinstance(done, (bool, jnp.bool_, jnp.ndarray))
-            
+
             if done:
                 break
-        
+
         # Should be done after max steps
         assert done
 
@@ -788,19 +844,19 @@ class TestFunctionalAPIIntegration:
         # Config must be static for JIT, so we need to use static_argnums
         reset_fn = jax.jit(arc_reset, static_argnums=(1,))
         step_fn = jax.jit(arc_step, static_argnums=(2,))
-        
+
         # Reset environment
         state, obs = reset_fn(self.key, self.config)
-        
+
         # Create action
         action = {
             "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
             "operation": jnp.array(0, dtype=jnp.int32),
         }
-        
+
         # Step environment
         new_state, new_obs, reward, done, info = step_fn(state, action, self.config)
-        
+
         # Check results
         assert isinstance(new_state, ArcEnvState)
         assert new_state.step_count == 1
@@ -808,32 +864,34 @@ class TestFunctionalAPIIntegration:
     def test_batched_episode_execution(self):
         """Test batched episode execution with vmap."""
         # Similar to test_arc_step_vmap_compatibility, we'll use a simpler approach
-        
+
         # Create a function that does a full episode (reset + step)
         def run_episode(key):
             # Reset to get initial state
             state, obs = arc_reset(key, self.config)
-            
+
             # Create a simple action
             action = {
                 "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
                 "operation": jnp.array(0, dtype=jnp.int32),
             }
-            
+
             # Step the environment
-            new_state, new_obs, reward, done, info = arc_step(state, action, self.config)
-            
+            new_state, new_obs, reward, done, info = arc_step(
+                state, action, self.config
+            )
+
             # Return results
             return new_state.step_count, new_obs, reward, done
-        
+
         # Create batch of keys
         batch_size = 4
         batch_keys = jax.random.split(self.key, batch_size)
-        
+
         # Vmap the episode function
         vmapped_episode = jax.vmap(run_episode)
         step_counts, batch_obs, batch_rewards, batch_done = vmapped_episode(batch_keys)
-        
+
         # Check batch dimensions
         assert step_counts.shape == (batch_size,)
         assert batch_obs.shape[0] == batch_size
@@ -845,37 +903,41 @@ class TestFunctionalAPIIntegration:
         # Typed config
         typed_config = create_test_config(max_episode_steps=5)
         state1, obs1 = arc_reset(self.key, typed_config)
-        
+
         # Hydra config
-        hydra_config = OmegaConf.create({
-            "max_episode_steps": 5,
-            "action": {"selection_format": "mask"},
-        })
+        hydra_config = OmegaConf.create(
+            {
+                "max_episode_steps": 5,
+                "action": {"selection_format": "mask"},
+            }
+        )
         state2, obs2 = arc_reset(self.key, hydra_config)
-        
+
         # Both should work
         assert isinstance(state1, ArcEnvState)
         assert isinstance(state2, ArcEnvState)
-        
+
         # Should produce same results (same key, equivalent configs)
         chex.assert_trees_all_equal(state1.working_grid, state2.working_grid)
 
     def test_error_recovery_and_validation(self):
         """Test error handling and recovery in functional API."""
         state, obs = arc_reset(self.key, self.config)
-        
+
         # Test with invalid action - should raise error
         with pytest.raises(ValueError):
             invalid_action = {"operation": 0}  # Missing selection
             arc_step(state, invalid_action, self.config)
-        
+
         # Test with valid action after error - should still work
         valid_action = {
             "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
             "operation": jnp.array(0, dtype=jnp.int32),
         }
-        
-        new_state, new_obs, reward, done, info = arc_step(state, valid_action, self.config)
+
+        new_state, new_obs, reward, done, info = arc_step(
+            state, valid_action, self.config
+        )
         assert isinstance(new_state, ArcEnvState)
         assert new_state.step_count == 1
 

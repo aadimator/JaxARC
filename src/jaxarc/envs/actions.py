@@ -172,11 +172,15 @@ def validate_action_data(
     """
     if selection_format == "point":
         if action_data.size < 2:
-            error_msg = f"Point action requires at least 2 elements, got {action_data.size}"
+            error_msg = (
+                f"Point action requires at least 2 elements, got {action_data.size}"
+            )
             raise ValueError(error_msg)
     elif selection_format == "bbox":
         if action_data.size < 4:
-            error_msg = f"Bbox action requires at least 4 elements, got {action_data.size}"
+            error_msg = (
+                f"Bbox action requires at least 4 elements, got {action_data.size}"
+            )
             raise ValueError(error_msg)
     elif selection_format == "mask":
         if grid_shape is not None:
@@ -186,7 +190,9 @@ def validate_action_data(
                 raise ValueError(error_msg)
         # If no grid shape provided, just check for reasonable minimum
         elif action_data.size < 9:  # At least 3x3 grid
-            error_msg = f"Mask action requires at least 9 elements, got {action_data.size}"
+            error_msg = (
+                f"Mask action requires at least 9 elements, got {action_data.size}"
+            )
             raise ValueError(error_msg)
     else:
         error_msg = f"Unknown selection format: {selection_format}"
