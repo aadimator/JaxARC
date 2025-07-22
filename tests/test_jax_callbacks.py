@@ -204,7 +204,7 @@ class TestJAXCallbacks:
                 assert expected_file.exists()
 
                 # Check file content
-                with open(expected_file) as f:
+                with Path(expected_file).open() as f:
                     content = f.read()
                 assert content == "<svg>test</svg>"
 
@@ -354,7 +354,7 @@ class TestJAXIntegration:
         @jax.jit
         def test_function(x):
             # This should work without breaking JIT compilation
-            jax.debug.callback(lambda val: None, x)
+            jax.debug.callback(lambda _: None, x)
             return x * 2
 
         result = test_function(jnp.array(5.0))
@@ -364,7 +364,7 @@ class TestJAXIntegration:
         """Test callbacks work within JAX transformations."""
         call_count = 0
 
-        def counting_callback(x):
+        def counting_callback(_):
             nonlocal call_count
             call_count += 1
 
@@ -383,8 +383,9 @@ class TestJAXIntegration:
     def test_error_handling_in_jax_context(self):
         """Test that callback errors don't break JAX execution."""
 
-        def error_callback(x):
-            raise ValueError("Test error")
+        def error_callback(_):
+            error_msg = "Test error"
+            raise ValueError(error_msg)
 
         @jax.jit
         def test_function(x):

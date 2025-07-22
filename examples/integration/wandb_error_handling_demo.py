@@ -241,7 +241,7 @@ def main():
         print("✓ Utility functions for cache management")
 
     except Exception as e:
-        logger.error(f"Demo failed: {e}")
+        logger.error("Demo failed: %s", e)
         raise
 
 

@@ -53,7 +53,7 @@ class TestJAXVisualizationIntegration:
         # Check that callbacks were recorded
         stats = get_callback_performance_stats()
         assert len(stats) > 0
-        assert any("log_grid" in name for name in stats.keys())
+        assert any("log_grid" in name for name in stats)
 
     def test_jax_step_visualization_integration(self):
         """Test JAX step visualization with mock environment states."""
@@ -128,7 +128,7 @@ class TestJAXVisualizationIntegration:
 
         # Check callback statistics
         stats = get_callback_performance_stats()
-        batch_callbacks = [name for name in stats.keys() if "Batch Item" in name]
+        batch_callbacks = [name for name in stats if "Batch Item" in name]
         assert len(batch_callbacks) > 0
 
     def test_error_resilience_in_jax_context(self):
@@ -137,7 +137,8 @@ class TestJAXVisualizationIntegration:
         def error_prone_callback(x):
             """Callback that sometimes fails."""
             if x > 5:
-                raise ValueError(f"Value too large: {x}")
+                error_msg = f"Value too large: {x}"
+                raise ValueError(error_msg)
 
         @jax.jit
         def robust_computation(x):
@@ -166,10 +167,10 @@ class TestJAXVisualizationIntegration:
         def monitored_computation(x):
             """Computation with monitored callbacks."""
             # Fast callback
-            jax.debug.callback(lambda val: None, x, callback_name="fast_op")
+            jax.debug.callback(lambda _: None, x, callback_name="fast_op")
 
             # Slower callback (simulated)
-            def slow_callback(val):
+            def slow_callback(_):
                 # Simulate some work
                 for _ in range(100):
                     pass
@@ -180,7 +181,7 @@ class TestJAXVisualizationIntegration:
 
         # Run multiple times to collect stats
         for i in range(5):
-            result = monitored_computation(jnp.array(float(i)))
+            monitored_computation(jnp.array(float(i)))
 
         # Check performance stats
         stats = get_callback_performance_stats()
@@ -330,7 +331,7 @@ class TestRealWorldScenarios:
         initial_state = jnp.array([[1, 2], [3, 4]])
         state = initial_state
 
-        for step in range(5):
+        for _ in range(5):
             action = jnp.ones((2, 2)) * 0.1
             state = training_step(state, action)
 

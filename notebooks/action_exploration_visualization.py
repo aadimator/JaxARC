@@ -75,7 +75,7 @@ def setup_jaxarc_environment():
         # Create a minimal default configuration
         from omegaconf import OmegaConf
 
-        default_config = OmegaConf.create(
+        return OmegaConf.create(
             {
                 "dataset": {
                     "dataset_name": "ARC-AGI-1",
@@ -102,8 +102,6 @@ def setup_jaxarc_environment():
                 },
             }
         )
-
-        return default_config
 
 
 # Load configuration

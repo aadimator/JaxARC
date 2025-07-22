@@ -178,12 +178,12 @@ def demo_error_handling() -> None:
 
     # Test invalid configuration
     try:
-        invalid_config = WandbConfig(image_format="invalid")
+        WandbConfig(image_format="invalid")
     except ValueError as e:
         print(f"Caught expected validation error: {e}")
 
     try:
-        invalid_config = WandbConfig(log_frequency=-1)
+        WandbConfig(log_frequency=-1)
     except ValueError as e:
         print(f"Caught expected validation error: {e}")
 

@@ -147,9 +147,9 @@ class TestEquinoxStateUpdates:
         )
 
         assert new_state.step_count == 5
-        assert new_state.episode_done == True
+        assert new_state.episode_done
         assert sample_state.step_count == 0  # Original unchanged
-        assert sample_state.episode_done == False  # Original unchanged
+        assert not sample_state.episode_done  # Original unchanged
 
     def test_replace_method(self, sample_state):
         """Test the replace method for convenient updates."""
@@ -160,12 +160,12 @@ class TestEquinoxStateUpdates:
         )
 
         assert new_state.step_count == 10
-        assert new_state.episode_done == True
+        assert new_state.episode_done
         assert new_state.similarity_score == 0.8
 
         # Original should be unchanged
         assert sample_state.step_count == 0
-        assert sample_state.episode_done == False
+        assert not sample_state.episode_done
         assert sample_state.similarity_score == 0.0
 
         # Other fields should be preserved
@@ -207,7 +207,7 @@ class TestJAXTransformations:
         new_state = increment_step(new_state)
         assert new_state.step_count == 2
 
-    def test_vmap_compatibility(self, sample_state):
+    def test_vmap_compatibility(self, _sample_state):
         """Test vmap compatibility with simple operations on scalar fields."""
 
         # Test vmap with simple scalar operations instead of complex state structures
@@ -233,7 +233,7 @@ class TestJAXTransformations:
         expected = jnp.array([0.0, 0.2, 1.0, 1.6, 2.0])
         assert jnp.allclose(result, expected)
 
-    def test_grad_compatibility(self, sample_state):
+    def test_grad_compatibility(self, _sample_state):
         """Test grad compatibility with simple scalar operations."""
 
         # Test grad with simple scalar operations instead of complex state structures
@@ -261,7 +261,7 @@ class TestJAXTransformations:
 class TestEquinoxUtilities:
     """Test the Equinox utility functions."""
 
-    def test_tree_map_with_path(self, sample_state):
+    def test_tree_map_with_path(self, _sample_state):
         """Test tree mapping with path information."""
         # For now, just test that the function exists and can be called
         # The implementation needs more work to handle complex nested structures
@@ -281,14 +281,12 @@ class TestEquinoxUtilities:
 
     def test_validate_state_shapes(self, sample_state):
         """Test state shape validation utility."""
-        assert validate_state_shapes(sample_state) == True
+        assert validate_state_shapes(sample_state)
 
         # Test with invalid state - should raise exception during creation
         # due to Equinox validation
         with pytest.raises(AssertionError):
-            invalid_state = sample_state.replace(
-                working_grid_mask=jnp.ones((2, 2), dtype=bool)
-            )
+            sample_state.replace(working_grid_mask=jnp.ones((2, 2), dtype=bool))
 
     def test_create_state_diff(self, sample_state):
         """Test state diffing utility."""
@@ -307,8 +305,8 @@ class TestEquinoxUtilities:
         assert diff["step_count"]["new"] == 5
 
         assert diff["episode_done"]["type"] == "value_change"
-        assert diff["episode_done"]["old"] == False
-        assert diff["episode_done"]["new"] == True
+        assert not diff["episode_done"]["old"]
+        assert diff["episode_done"]["new"]
 
     def test_jax_transformations_utility(self, sample_state):
         """Test the JAX transformations testing utility."""
@@ -324,7 +322,7 @@ class TestEquinoxUtilities:
         assert "grad" in results
 
         # JIT should work
-        assert results["jit"] == True
+        assert results["jit"]
 
 
 class TestBackwardCompatibility:
@@ -334,7 +332,7 @@ class TestBackwardCompatibility:
         """Test that field access works the same as before."""
         # All these should work as before
         assert sample_state.step_count == 0
-        assert sample_state.episode_done == False
+        assert not sample_state.episode_done
         assert sample_state.current_example_idx == 0
         assert sample_state.similarity_score == 0.0
 
@@ -354,7 +352,7 @@ class TestBackwardCompatibility:
         with pytest.raises(AttributeError):
             sample_state.episode_done = True
 
-    def test_type_annotations(self, sample_state):
+    def test_type_annotations(self, _sample_state):
         """Test that type annotations are preserved."""
         # Check that the state has the expected type annotations
         annotations = ArcEnvState.__annotations__

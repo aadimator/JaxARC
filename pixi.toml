@@ -46,6 +46,7 @@ test = { features = ["test"], solve-group = "default" }
 [feature.test.dependencies]
 pytest = ">=8.4.0,<9"
 pytest-cov = ">=6.1.1,<7"
+hypothesis = ">=6.100.0,<7"
 
 [feature.test.tasks]
 test = "pytest"
@@ -53,6 +54,7 @@ test = "pytest"
 [feature.dev.dependencies]
 pytest = ">=8.4.0,<9"
 pytest-cov = ">=6.1.1,<7"
+hypothesis = ">=6.100.0,<7"
 pre-commit = ">=4.2.0,<5"
 pylint = ">=3.3.7,<4"
 jupyter = ">=1.1.1,<2"
