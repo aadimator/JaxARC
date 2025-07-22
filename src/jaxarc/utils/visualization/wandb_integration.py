@@ -378,7 +378,7 @@ class WandbIntegration:
                 # PIL Image
                 return self._wandb.Image(image, caption=name)
             if hasattr(image, "shape"):
-                # Numpy array
+                # NumPy array
                 return self._wandb.Image(image, caption=name)
             logger.warning(f"Unsupported image type for {name}: {type(image)}")
             return None
@@ -405,7 +405,7 @@ class WandbIntegration:
                 # Already a PIL Image
                 return image
             if hasattr(image, "shape"):
-                # Numpy array
+                # NumPy array
                 if len(image.shape) == 2:
                     # Grayscale
                     return PILImage.fromarray((image * 255).astype(np.uint8), mode="L")

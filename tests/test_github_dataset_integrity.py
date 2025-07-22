@@ -629,15 +629,15 @@ class TestGitHubDatasetIntegrity:
                 "empty_test",
             ]:
                 # These should fail during preprocessing
-                with pytest.raises(ValueError):
+                with pytest.raises(ValueError, match="preprocessing"):
                     parser.get_task_by_id(task_id)
             elif task_id == "invalid_colors":
                 # This should fail during color validation
-                with pytest.raises(ValueError):
+                with pytest.raises(ValueError, match="color"):
                     parser.get_task_by_id(task_id)
             elif task_id == "oversized":
                 # This should fail during grid dimension validation
-                with pytest.raises(ValueError):
+                with pytest.raises(ValueError, match="dimension"):
                     parser.get_task_by_id(task_id)
 
     def test_memory_usage_with_large_datasets(self, large_github_dataset):
@@ -687,7 +687,7 @@ class TestGitHubDatasetIntegrity:
 
         # Access multiple tasks and check memory doesn't grow excessively
         for _ in range(20):
-            task = parser.get_random_task(key)
+            parser.get_random_task(key)
             key, _ = jax.random.split(key)
 
         memory_final = process.memory_info().rss / 1024 / 1024  # MB

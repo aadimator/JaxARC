@@ -94,7 +94,7 @@ def serialize_jax_array(arr: jnp.ndarray | np.ndarray) -> np.ndarray:
         arr: JAX or numpy array to serialize
 
     Returns:
-        Numpy array copy of the input
+        NumPy array copy of the input
     """
     try:
         if isinstance(arr, jnp.ndarray):
@@ -227,7 +227,7 @@ def create_grid_from_arrays(data: GridArray, mask: MaskArray | None = None) -> G
         mask: Optional mask array
 
     Returns:
-        Grid object with serialized numpy arrays
+        Grid object with serialized NumPy arrays
     """
     serialized_data = serialize_jax_array(data)
     serialized_mask = serialize_jax_array(mask) if mask is not None else None

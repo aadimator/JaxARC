@@ -28,14 +28,12 @@
 from __future__ import annotations
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 from IPython.display import display
 from loguru import logger
 
 # JaxARC imports
 from jaxarc.parsers.arc_agi import ArcAgiParser
-from jaxarc.types import Grid
 from jaxarc.utils.config import get_config
 from jaxarc.utils.visualization import (
     draw_grid_svg,

@@ -27,7 +27,7 @@ class TestDatasetDownloader:
 
     @patch("jaxarc.utils.dataset_downloader.subprocess.run")
     @patch("jaxarc.utils.dataset_downloader.shutil.rmtree")
-    def test_download_conceptarc_success(self, mock_rmtree, mock_run, tmp_path):
+    def test_download_conceptarc_success(self, _mock_rmtree, mock_run, tmp_path):
         """Test successful ConceptARC download."""
         # Setup mocks for multiple subprocess calls
         mock_run.side_effect = [
@@ -61,7 +61,7 @@ class TestDatasetDownloader:
 
     @patch("jaxarc.utils.dataset_downloader.subprocess.run")
     @patch("jaxarc.utils.dataset_downloader.shutil.rmtree")
-    def test_download_miniarc_success(self, mock_rmtree, mock_run, tmp_path):
+    def test_download_miniarc_success(self, _mock_rmtree, mock_run, tmp_path):
         """Test successful MiniARC download."""
         # Setup mocks for multiple subprocess calls
         mock_run.side_effect = [
@@ -266,9 +266,11 @@ class TestDatasetDownloader:
         downloader = DatasetDownloader(tmp_path)
 
         # Mock the validation methods to avoid directory structure issues
-        with patch.object(downloader, "_validate_conceptarc_structure"):
-            with patch.object(downloader, "_validate_download"):
-                result = downloader.download_conceptarc()
+        with (
+            patch.object(downloader, "_validate_conceptarc_structure"),
+            patch.object(downloader, "_validate_download"),
+        ):
+            result = downloader.download_conceptarc()
 
         # Should complete successfully despite network connectivity warning
         assert result == tmp_path / "ConceptARC"
@@ -276,7 +278,7 @@ class TestDatasetDownloader:
 
     @patch("jaxarc.utils.dataset_downloader.subprocess.run")
     @patch("jaxarc.utils.dataset_downloader.shutil.rmtree")
-    def test_download_arc_agi_1_success(self, mock_rmtree, mock_run, tmp_path):
+    def test_download_arc_agi_1_success(self, _mock_rmtree, mock_run, tmp_path):
         """Test successful ARC-AGI-1 download."""
         # Setup mocks for multiple subprocess calls
         mock_run.side_effect = [
@@ -318,7 +320,7 @@ class TestDatasetDownloader:
 
     @patch("jaxarc.utils.dataset_downloader.subprocess.run")
     @patch("jaxarc.utils.dataset_downloader.shutil.rmtree")
-    def test_download_arc_agi_2_success(self, mock_rmtree, mock_run, tmp_path):
+    def test_download_arc_agi_2_success(self, _mock_rmtree, mock_run, tmp_path):
         """Test successful ARC-AGI-2 download."""
         # Setup mocks for multiple subprocess calls
         mock_run.side_effect = [

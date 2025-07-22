@@ -638,7 +638,6 @@ class TestCleanupPolicies:
             # This avoids the complexity of mocking storage estimation
 
             # Simulate the size-based cleanup logic
-            base_path = config.get_base_path()
 
             # Get all run directories with their sizes (simulated)
             runs = [
@@ -652,7 +651,7 @@ class TestCleanupPolicies:
 
             # Simulate cleanup - should remove largest first, but skip current run
             removed_dirs = []
-            for size, run_dir in runs:
+            for _size, run_dir in runs:
                 if run_dir == manager.current_run_dir:
                     continue  # Skip current run
 

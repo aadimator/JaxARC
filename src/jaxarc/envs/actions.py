@@ -148,7 +148,8 @@ def get_action_handler(selection_format: str):
             f"Using mask operation action handler for format: {selection_format}"
         )
         return mask_handler
-    raise ValueError(f"Unknown selection format: {selection_format}")
+    error_msg = f"Unknown selection format: {selection_format}"
+    raise ValueError(error_msg)
 
 
 # Utility functions for testing and debugging
@@ -171,28 +172,25 @@ def validate_action_data(
     """
     if selection_format == "point":
         if action_data.size < 2:
-            raise ValueError(
-                f"Point action requires at least 2 elements, got {action_data.size}"
-            )
+            error_msg = f"Point action requires at least 2 elements, got {action_data.size}"
+            raise ValueError(error_msg)
     elif selection_format == "bbox":
         if action_data.size < 4:
-            raise ValueError(
-                f"Bbox action requires at least 4 elements, got {action_data.size}"
-            )
+            error_msg = f"Bbox action requires at least 4 elements, got {action_data.size}"
+            raise ValueError(error_msg)
     elif selection_format == "mask":
         if grid_shape is not None:
             expected_size = grid_shape[0] * grid_shape[1]
             if action_data.size < expected_size:
-                raise ValueError(
-                    f"Mask action requires at least {expected_size} elements for grid shape {grid_shape}, got {action_data.size}"
-                )
+                error_msg = f"Mask action requires at least {expected_size} elements for grid shape {grid_shape}, got {action_data.size}"
+                raise ValueError(error_msg)
         # If no grid shape provided, just check for reasonable minimum
         elif action_data.size < 9:  # At least 3x3 grid
-            raise ValueError(
-                f"Mask action requires at least 9 elements, got {action_data.size}"
-            )
+            error_msg = f"Mask action requires at least 9 elements, got {action_data.size}"
+            raise ValueError(error_msg)
     else:
-        raise ValueError(f"Unknown selection format: {selection_format}")
+        error_msg = f"Unknown selection format: {selection_format}"
+        raise ValueError(error_msg)
 
 
 def create_test_action_data(

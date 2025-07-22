@@ -43,7 +43,7 @@ def demo_lazy_loading():
         # Simulate expensive computation
         time.sleep(0.1)
         return {
-            "large_array": np.random.rand(1000, 1000),
+            "large_array": np.random.default_rng().random((1000, 1000)),
             "metadata": f"Loaded at call #{load_count}",
             "timestamp": time.time(),
         }
@@ -89,8 +89,8 @@ def demo_compressed_storage():
         # Create test data with various types
         test_data = {
             "arrays": [
-                np.random.rand(100, 100),
-                np.random.randint(0, 10, (50, 50)),
+                np.random.default_rng().random((100, 100)),
+                np.random.default_rng().integers(0, 10, (50, 50)),
             ],
             "metadata": {
                 "description": "Test visualization data",
@@ -148,7 +148,7 @@ def demo_visualization_cache():
         # Add items to cache
         for i in range(5):
             data = {
-                "visualization": np.random.rand(100, 100),
+                "visualization": np.random.default_rng().random((100, 100)),
                 "metadata": f"Visualization {i}",
                 "step": i,
             }
@@ -249,7 +249,7 @@ def demo_memory_manager():
                 def loader():
                     logger.info(f"Loading dataset {index}")
                     return {
-                        "data": np.random.rand(200, 200),
+                        "data": np.random.default_rng().random((200, 200)),
                         "index": index,
                         "size": "large",
                     }
@@ -269,7 +269,10 @@ def demo_memory_manager():
         # Add data to cache
         logger.info("Adding data to cache...")
         for i in range(5):
-            cache_data = {"cached_viz": np.random.rand(50, 50), "id": i}
+            cache_data = {
+                "cached_viz": np.random.default_rng().random((50, 50)),
+                "id": i,
+            }
             manager.cache.put(f"cache_item_{i}", cache_data)
 
         # Get memory report
@@ -346,9 +349,9 @@ def demo_integration_workflow():
                     "episode_data": [
                         {
                             "step": i,
-                            "grid": np.random.randint(0, 10, (30, 30)),
-                            "action": np.random.rand(30, 30),
-                            "reward": np.random.rand(),
+                            "grid": np.random.default_rng().integers(0, 10, (30, 30)),
+                            "action": np.random.default_rng().random((30, 30)),
+                            "reward": np.random.default_rng().random(),
                         }
                         for i in range(100)
                     ],
@@ -356,7 +359,7 @@ def demo_integration_workflow():
                 }
 
             viz_loader = create_lazy_visualization_loader(
-                Path(temp_dir) / "viz_data.pkl", lambda p: load_visualization_data()
+                Path(temp_dir) / "viz_data.pkl", lambda _: load_visualization_data()
             )
 
             # Load and process data
@@ -410,7 +413,7 @@ def main():
         storage_size = demo_compressed_storage()
         cache_stats = demo_visualization_cache()
         gc_collected = demo_gc_optimization()
-        cleanup_stats = demo_memory_manager()
+        demo_memory_manager()
         array_savings = demo_array_optimization()
         integration_savings = demo_integration_workflow()
 

@@ -119,10 +119,10 @@ isort.required-imports = ["from __future__ import annotations"]
 # typing-modules = ["jaxarc._compat.typing"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["T20"]
+"tests/**" = ["T20", "EM102", "PT011", "PT017", "ARG001", "ARG002", "ARG005", "F841"]
 "noxfile.py" = ["T20"]
-"notebooks/**" = ["T20"]
-"examples/**" = ["T20"]
+"notebooks/**" = ["T20", "PLC0415", "E402", "F841", "EM102", "UP035", "UP006", "RET504", "B018", "G004", "ARG002", "PT028", "RUF005"]
+"examples/**" = ["T20", "PLC0415", "E402", "F841", "EM102", "NPY002", "G004", "EXE001", "ARG005"]
 
 
 

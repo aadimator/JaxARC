@@ -80,7 +80,7 @@ def demo_performance_monitoring():
 
     # Run multiple times to collect stats
     for i in range(5):
-        result = test_function(jnp.array(float(i)))
+        test_function(jnp.array(float(i)))
 
     # Print performance report
     print_callback_performance_report()
@@ -160,7 +160,8 @@ def demo_error_handling():
     def error_callback(x):
         """Callback that raises an error."""
         if x > 5:
-            raise ValueError(f"Value too large: {x}")
+            error_msg = f"Value too large: {x}"
+            raise ValueError(error_msg)
         logger.info(f"Error callback processed: {x}")
 
     @jax.jit

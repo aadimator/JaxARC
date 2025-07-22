@@ -161,11 +161,8 @@ class TestGridVisualization:
         with tempfile.TemporaryDirectory() as tmpdir:
             invalid_path = Path(tmpdir) / "test.xyz"
 
-            try:
+            with pytest.raises(ValueError, match="Unknown file extension"):
                 save_svg_drawing(drawing, str(invalid_path))  # type: ignore[arg-type]
-                raise AssertionError("Expected ValueError for unsupported format")
-            except ValueError as e:
-                assert "Unknown file extension" in str(e)
 
     def test_grid_with_mask_partial_valid(self):
         """Test grid visualization with partially valid mask."""
@@ -196,17 +193,11 @@ class TestGridVisualization:
 
     def test_invalid_grid_input(self):
         """Test handling of invalid grid input."""
-        try:
+        with pytest.raises(ValueError, match="Unsupported grid input type"):
             visualize_grid_rich("not a grid")  # type: ignore[arg-type]
-            raise AssertionError("Expected ValueError for invalid input")
-        except ValueError as e:
-            assert "Unsupported grid input type" in str(e)
 
-        try:
+        with pytest.raises(ValueError, match="Unsupported grid input type"):
             draw_grid_svg(42)  # type: ignore[arg-type]
-            raise AssertionError("Expected ValueError for invalid input")
-        except ValueError as e:
-            assert "Unsupported grid input type" in str(e)
 
 
 class TestGridTypeSupport:
@@ -235,11 +226,8 @@ class TestGridTypeSupport:
 
     def test_extract_grid_data_invalid_type(self):
         """Test _extract_grid_data with invalid type."""
-        try:
+        with pytest.raises(ValueError, match="Unsupported grid input type"):
             _extract_grid_data("invalid")  # type: ignore[arg-type]
-            raise AssertionError("Expected ValueError for invalid input")
-        except ValueError as e:
-            assert "Unsupported grid input type" in str(e)
 
     def test_visualize_grid_rich_with_grid_object(self):
         """Test visualize_grid_rich with Grid object."""
@@ -274,11 +262,8 @@ class TestOperationNames:
 
     def test_get_operation_name_invalid(self):
         """Test get_operation_name with invalid ID."""
-        try:
+        with pytest.raises(ValueError, match="Unknown operation ID"):
             get_operation_name(999)
-            raise AssertionError("Expected ValueError for invalid operation ID")
-        except ValueError as e:
-            assert "Unknown operation ID" in str(e)
 
     def test_get_operation_display_text(self):
         """Test get_operation_display_text formatting."""

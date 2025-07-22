@@ -238,7 +238,7 @@ def test_config_validation():
             allowed_operations=[0, 1, 2, 999]  # 999 is invalid
         )
         # This should fail during environment creation
-        env = ArcEnvironment(config)
+        ArcEnvironment(config)
         logger.error("❌ Configuration validation failed - invalid config was accepted")
         return False
     except Exception as e:
@@ -250,7 +250,7 @@ def test_config_validation():
             max_episode_steps=50,
             debug_level="off",  # Disable debugging to avoid visualization issues
         )
-        env = ArcEnvironment(config)
+        ArcEnvironment(config)
         logger.info("✓ Valid configuration accepted successfully")
         return True
     except Exception as e:
