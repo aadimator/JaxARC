@@ -26,7 +26,6 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/aadimator/JaxARC"
@@ -34,16 +33,30 @@ Homepage = "https://github.com/aadimator/JaxARC"
 Discussions = "https://github.com/aadimator/JaxARC/discussions"
 Changelog = "https://github.com/aadimator/JaxARC/releases"
 
-
-[dependency-groups]
-test = ["pytest >=6", "pytest-cov >=3"]
-dev = [{ include-group = "test" }]
-docs = ["jupyter-book>=2.0.0a3"]
-
-
 [tool.hatch]
 version.source = "vcs"
 build.hooks.vcs.version-file = "src/jaxarc/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jaxarc"]
+# Include Hydra configuration files as package data
+include = [
+    "conf/**/*.yaml",
+    "conf/**/*.yml", 
+    "conf/README.md"
+]
+
+[tool.hatch.build.targets.sdist]
+# Include configs in source distribution too
+include = [
+    "src/jaxarc/**/*",
+    "conf/**/*.yaml",
+    "conf/**/*.yml",
+    "conf/README.md",
+    "tests/**/*",
+    "docs/**/*",
+    "examples/**/*"
+]
 
 [tool.hatch.envs.default]
 # duplicate for now since hatch doesn't support groups yet

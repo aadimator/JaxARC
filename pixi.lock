@@ -3244,8 +3244,12 @@ packages:
   requires_python: '>=3.10'
 - pypi: .
   name: jaxarc
-  version: 0.1.dev67+g86fa35b.d20250722
-  sha256: fcab7bae7b78f9dc90a239294fc80adc61e0ed536b0366751cd8d80d9b872299
+  version: 0.1.dev69+g1cfd8b1.d20250723
+  sha256: a6ca20712ac29b3e3ba76244b98aed1879d7d497c5648cd051b6b00c6b4c0eb8
+  requires_dist:
+  - hydra-core>=1.3.0
+  - loguru>=0.6.0
+  - omegaconf>=2.3.0
   requires_python: '>=3.9'
   editable: true
 - pypi: https://files.pythonhosted.org/packages/34/16/e93f0184b80a4e1ad38c6998aa3a2f7569c0b0152cbae39f7572393eda04/jaxlib-0.6.2-cp313-cp313-manylinux2014_x86_64.whl
