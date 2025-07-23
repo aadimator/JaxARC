@@ -55,7 +55,7 @@ from .envs import (
 
 # Unified configuration system
 from .envs.config import JaxArcConfig
-from .state import ArcEnvState
+from .state import ArcEnvState, create_arc_env_state
 
 # Core types
 from .types import ARCLEAction, Grid, JaxArcTask, TaskPair
@@ -78,6 +78,7 @@ __all__ = [
     "arc_step",
     # Configuration package utilities
     "create_config_template",
+    "create_arc_env_state",
     "extend_jaxarc_config",
     "get_jaxarc_config_dir",
     "list_available_configs",

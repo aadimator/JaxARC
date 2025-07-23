@@ -791,13 +791,13 @@ class TestARCLEActionModule:
             timestamp=0,
         )
 
-        assert 0 <= action.operation <= 34
+        assert 0 <= action.operation <= 41
 
-        # Invalid operation ID (> 34)
+        # Invalid operation ID (> 41)
         with pytest.raises(ValueError):
             invalid_action = ARCLEAction(
                 selection=jnp.array([[1.0]], dtype=jnp.float32),
-                operation=jnp.array(35, dtype=jnp.int32),
+                operation=jnp.array(42, dtype=jnp.int32),
                 agent_id=0,
                 timestamp=0,
             )

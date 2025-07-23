@@ -379,7 +379,7 @@ class TestConstants:
 
     def test_num_operations(self):
         """Test NUM_OPERATIONS constant."""
-        assert NUM_OPERATIONS == 35
+        assert NUM_OPERATIONS == 42
         assert isinstance(NUM_OPERATIONS, int)
 
     def test_type_aliases_for_constants(self):

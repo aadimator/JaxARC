@@ -47,26 +47,26 @@ def sample_task():
 @pytest.fixture
 def sample_state(sample_task):
     """Create a sample ArcEnvState for testing."""
+    from jaxarc.state import create_arc_env_state
+    
     grid_data = jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=jnp.int32)
     grid_mask = jnp.ones((3, 3), dtype=bool)
 
-    return ArcEnvState(
+    return create_arc_env_state(
         task_data=sample_task,
         working_grid=grid_data,
         working_grid_mask=grid_mask,
         target_grid=grid_data,
-        step_count=jnp.array(0, dtype=jnp.int32),
-        episode_done=jnp.array(False),
-        current_example_idx=jnp.array(0, dtype=jnp.int32),
-        selected=jnp.zeros((3, 3), dtype=bool),
-        clipboard=jnp.zeros((3, 3), dtype=jnp.int32),
-        similarity_score=jnp.array(0.0, dtype=jnp.float32),
+        max_train_pairs=5,  # Test with smaller sizes
+        max_test_pairs=2,
     )
 
 
 @pytest.fixture
 def padded_state(sample_task):
     """Create a state with padded grid for testing actual shape methods."""
+    from jaxarc.state import create_arc_env_state
+    
     # Create a 5x5 grid with content only in a 3x3 area
     grid_data = jnp.zeros((5, 5), dtype=jnp.int32)
     grid_data = grid_data.at[:3, :3].set(
@@ -77,17 +77,13 @@ def padded_state(sample_task):
     grid_mask = jnp.zeros((5, 5), dtype=bool)
     grid_mask = grid_mask.at[:3, :3].set(True)
 
-    return ArcEnvState(
+    return create_arc_env_state(
         task_data=sample_task,
         working_grid=grid_data,
         working_grid_mask=grid_mask,
         target_grid=grid_data,
-        step_count=jnp.array(0, dtype=jnp.int32),
-        episode_done=jnp.array(False),
-        current_example_idx=jnp.array(0, dtype=jnp.int32),
-        selected=jnp.zeros((5, 5), dtype=bool),
-        clipboard=jnp.zeros((5, 5), dtype=jnp.int32),
-        similarity_score=jnp.array(0.0, dtype=jnp.float32),
+        max_train_pairs=8,  # Test with different sizes
+        max_test_pairs=3,
     )
 
 
@@ -130,6 +126,15 @@ class TestStateInitialization:
                 selected=sample_state.selected,
                 clipboard=sample_state.clipboard,
                 similarity_score=sample_state.similarity_score,
+                # Enhanced functionality fields
+                episode_mode=sample_state.episode_mode,
+                available_demo_pairs=sample_state.available_demo_pairs,
+                available_test_pairs=sample_state.available_test_pairs,
+                demo_completion_status=sample_state.demo_completion_status,
+                test_completion_status=sample_state.test_completion_status,
+                action_history=sample_state.action_history,
+                action_history_length=sample_state.action_history_length,
+                allowed_operations_mask=sample_state.allowed_operations_mask,
             )
             invalid_state.__check_init__()
 

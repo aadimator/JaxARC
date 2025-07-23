@@ -75,6 +75,19 @@ from .operations import (
     is_valid_operation_id,
 )
 
+# Observation system
+from .observations import (
+    ArcObservation,
+    ObservationConfig,
+    create_debug_observation,
+    create_evaluation_observation,
+    create_minimal_observation,
+    create_observation,
+    create_rich_observation,
+    create_standard_observation,
+    create_training_observation,
+)
+
 # Action and observation spaces
 from .spaces import MultiBinary, Space
 
@@ -82,6 +95,7 @@ __all__ = [
     "OPERATION_NAMES",
     "ArcEnvState",
     "ArcEnvironment",
+    "ArcObservation",
     "ConfigFactory",
     "ConfigPresets",
     "ConfigValidationError",
@@ -89,6 +103,7 @@ __all__ = [
     "JaxArcConfig",
     "LoggingConfig",
     "MultiBinary",
+    "ObservationConfig",
     "Space",
     "StorageConfig",
     "UnifiedActionConfig",
@@ -101,9 +116,16 @@ __all__ = [
     "arc_step",
     "arc_step_with_hydra",
     "bbox_handler",
+    "create_debug_observation",
     "create_development_config",
+    "create_evaluation_observation",
+    "create_minimal_observation",
+    "create_observation",
     "create_production_config",
     "create_research_config",
+    "create_rich_observation",
+    "create_standard_observation",
+    "create_training_observation",
     "execute_grid_operation",
     "from_hydra",
     "from_preset",

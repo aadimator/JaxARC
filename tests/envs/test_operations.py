@@ -58,6 +58,16 @@ class TestOperationNames:
         assert get_operation_name(33) == "Resize"
         assert get_operation_name(34) == "Submit"
 
+    def test_get_operation_name_valid_control_operations(self):
+        """Test get_operation_name with valid control operation IDs."""
+        assert get_operation_name(35) == "Next Demo Pair"
+        assert get_operation_name(36) == "Prev Demo Pair"
+        assert get_operation_name(37) == "Next Test Pair"
+        assert get_operation_name(38) == "Prev Test Pair"
+        assert get_operation_name(39) == "Reset Current Pair"
+        assert get_operation_name(40) == "First Unsolved Demo"
+        assert get_operation_name(41) == "First Unsolved Test"
+
     def test_get_operation_name_invalid_negative(self):
         """Test get_operation_name with negative operation ID."""
         with pytest.raises(ValueError, match="Unknown operation ID: -1"):
@@ -71,8 +81,8 @@ class TestOperationNames:
     def test_get_operation_name_invalid_gap(self):
         """Test get_operation_name with operation ID in gap (not implemented)."""
         # There might be gaps in the operation IDs, test some likely gaps
-        with pytest.raises(ValueError, match="Unknown operation ID: 35"):
-            get_operation_name(35)
+        with pytest.raises(ValueError, match="Unknown operation ID: 42"):
+            get_operation_name(42)
 
     def test_get_operation_display_text_valid(self):
         """Test get_operation_display_text with valid operation IDs."""
@@ -100,11 +110,13 @@ class TestOperationNames:
         assert is_valid_operation_id(31) is True
         assert is_valid_operation_id(32) is True
         assert is_valid_operation_id(34) is True
+        assert is_valid_operation_id(35) is True
+        assert is_valid_operation_id(41) is True
 
     def test_is_valid_operation_id_invalid(self):
         """Test is_valid_operation_id with invalid operation IDs."""
         assert is_valid_operation_id(-1) is False
-        assert is_valid_operation_id(35) is False
+        assert is_valid_operation_id(42) is False
         assert is_valid_operation_id(999) is False
 
     def test_get_all_operation_ids(self):
@@ -122,6 +134,7 @@ class TestOperationNames:
             + list(range(24, 28))
             + list(range(28, 32))
             + list(range(32, 35))
+            + list(range(35, 42))  # Enhanced control operations
         )
 
         assert sorted(all_ids) == sorted(expected_ids)
@@ -144,6 +157,7 @@ class TestOperationNames:
             "transformation",
             "editing",
             "special",
+            "control",  # Enhanced control operations
         ]
         assert sorted(categories.keys()) == sorted(expected_categories)
 
@@ -154,6 +168,7 @@ class TestOperationNames:
         assert categories["transformation"] == list(range(24, 28))
         assert categories["editing"] == list(range(28, 32))
         assert categories["special"] == list(range(32, 35))
+        assert categories["control"] == list(range(35, 42))
 
     def test_operation_names_completeness(self):
         """Test that OPERATION_NAMES contains all expected operations."""
@@ -193,6 +208,20 @@ class TestOperationNames:
         # Test special operations
         special_ops = {32: "Copy Input", 33: "Resize", 34: "Submit"}
         for op_id, name in special_ops.items():
+            assert op_id in OPERATION_NAMES
+            assert OPERATION_NAMES[op_id] == name
+
+        # Test control operations
+        control_ops = {
+            35: "Next Demo Pair",
+            36: "Prev Demo Pair", 
+            37: "Next Test Pair",
+            38: "Prev Test Pair",
+            39: "Reset Current Pair",
+            40: "First Unsolved Demo",
+            41: "First Unsolved Test",
+        }
+        for op_id, name in control_ops.items():
             assert op_id in OPERATION_NAMES
             assert OPERATION_NAMES[op_id] == name
 
@@ -241,8 +270,8 @@ class TestOperationNames:
         assert get_operation_display_text(0) == "Op 0: Fill 0"
 
         # Test with the last operation ID
-        assert get_operation_name(34) == "Submit"
-        assert get_operation_display_text(34) == "Op 34: Submit"
+        assert get_operation_name(41) == "First Unsolved Test"
+        assert get_operation_display_text(41) == "Op 41: First Unsolved Test"
 
         # Test boundary between categories
         assert get_operation_name(9) == "Fill 9"
