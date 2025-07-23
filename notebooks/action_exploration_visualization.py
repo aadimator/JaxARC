@@ -224,7 +224,7 @@ def initialize_environment(config, parsed_task):
 
     try:
         # Convert Hydra config to unified config and initialize environment
-        from jaxarc.envs.equinox_config import JaxArcConfig
+        from jaxarc.envs.config import JaxArcConfig
 
         unified_config = JaxArcConfig.from_hydra(config)
         env = ArcEnvironment(unified_config)

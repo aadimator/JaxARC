@@ -17,15 +17,12 @@ from hypothesis import given
 from hypothesis import strategies as st
 from omegaconf import OmegaConf
 
-from jaxarc.envs import (
+from jaxarc.envs.config import (
     ActionConfig,
-    ArcEnvConfig,
     DatasetConfig,
-    GridConfig,
+    JaxArcConfig,
     RewardConfig,
 )
-from jaxarc.envs.config import DebugConfig
-from jaxarc.envs.equinox_config import JaxArcConfig
 from jaxarc.envs.functional import (
     _calculate_reward,
     _create_demo_task,
@@ -42,57 +39,69 @@ from jaxarc.state import ArcEnvState
 from jaxarc.types import ARCLEAction, JaxArcTask
 
 
-def create_test_config(max_episode_steps: int = 10) -> ArcEnvConfig:
+def create_test_config(max_episode_steps: int = 10) -> JaxArcConfig:
     """Create a test configuration without using deprecated factory functions."""
-    return ArcEnvConfig(
-        max_episode_steps=max_episode_steps,
-        auto_reset=True,
-        log_operations=False,
-        log_grid_changes=False,
-        log_rewards=False,
-        strict_validation=True,
-        allow_invalid_actions=False,
-        reward=RewardConfig(),
-        grid=GridConfig(),
+    from jaxarc.envs.config import (
+        EnvironmentConfig,
+        LoggingConfig,
+        StorageConfig,
+        VisualizationConfig,
+        WandbConfig,
+    )
+
+    return JaxArcConfig(
+        environment=EnvironmentConfig(max_episode_steps=max_episode_steps),
+        dataset=DatasetConfig(),
         action=ActionConfig(),
-        dataset=DatasetConfig(),
-        debug=DebugConfig(),
+        reward=RewardConfig(),
+        visualization=VisualizationConfig(),
+        storage=StorageConfig(),
+        logging=LoggingConfig(),
+        wandb=WandbConfig(),
     )
 
 
-def create_point_test_config(max_episode_steps: int = 10) -> ArcEnvConfig:
+def create_point_test_config(max_episode_steps: int = 10) -> JaxArcConfig:
     """Create a point-based test configuration."""
-    return ArcEnvConfig(
-        max_episode_steps=max_episode_steps,
-        auto_reset=True,
-        log_operations=False,
-        log_grid_changes=False,
-        log_rewards=False,
-        strict_validation=True,
-        allow_invalid_actions=False,
-        reward=RewardConfig(),
-        grid=GridConfig(),
-        action=ActionConfig(selection_format="point"),
+    from jaxarc.envs.config import (
+        EnvironmentConfig,
+        LoggingConfig,
+        StorageConfig,
+        VisualizationConfig,
+        WandbConfig,
+    )
+
+    return JaxArcConfig(
+        environment=EnvironmentConfig(max_episode_steps=max_episode_steps),
         dataset=DatasetConfig(),
-        debug=DebugConfig(),
+        action=ActionConfig(selection_format="point"),
+        reward=RewardConfig(),
+        visualization=VisualizationConfig(),
+        storage=StorageConfig(),
+        logging=LoggingConfig(),
+        wandb=WandbConfig(),
     )
 
 
-def create_bbox_test_config(max_episode_steps: int = 10) -> ArcEnvConfig:
+def create_bbox_test_config(max_episode_steps: int = 10) -> JaxArcConfig:
     """Create a bbox-based test configuration."""
-    return ArcEnvConfig(
-        max_episode_steps=max_episode_steps,
-        auto_reset=True,
-        log_operations=False,
-        log_grid_changes=False,
-        log_rewards=False,
-        strict_validation=True,
-        allow_invalid_actions=False,
-        reward=RewardConfig(),
-        grid=GridConfig(),
-        action=ActionConfig(selection_format="bbox"),
+    from jaxarc.envs.config import (
+        EnvironmentConfig,
+        LoggingConfig,
+        StorageConfig,
+        VisualizationConfig,
+        WandbConfig,
+    )
+
+    return JaxArcConfig(
+        environment=EnvironmentConfig(max_episode_steps=max_episode_steps),
         dataset=DatasetConfig(),
-        debug=DebugConfig(),
+        action=ActionConfig(selection_format="bbox"),
+        reward=RewardConfig(),
+        visualization=VisualizationConfig(),
+        storage=StorageConfig(),
+        logging=LoggingConfig(),
+        wandb=WandbConfig(),
     )
 
 
@@ -156,25 +165,13 @@ class TestArcReset:
     def test_arc_reset_with_jax_arc_config(self):
         """Test arc_reset with unified JaxArcConfig."""
         # Create a basic JaxArcConfig for testing
-        from jaxarc.envs.equinox_config import (
+        from jaxarc.envs.config import (
             ActionConfig as UnifiedActionConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             DatasetConfig as UnifiedDatasetConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             EnvironmentConfig as UnifiedEnvironmentConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             LoggingConfig as UnifiedLoggingConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             RewardConfig as UnifiedRewardConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             StorageConfig as UnifiedStorageConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             VisualizationConfig as UnifiedVisualizationConfig,
         )
 
@@ -678,45 +675,33 @@ class TestFunctionalAPIHelpers:
         self.state, _ = arc_reset(self.key, self.config)
 
     def test_ensure_config_with_typed_config(self):
-        """Test _ensure_config with typed ArcEnvConfig."""
+        """Test _ensure_config with typed JaxArcConfig."""
         result = _ensure_config(self.config)
-        assert isinstance(result, ArcEnvConfig)
+        assert isinstance(result, JaxArcConfig)
         assert result is self.config
 
     def test_ensure_config_with_hydra_config(self):
         """Test _ensure_config with Hydra DictConfig."""
         hydra_config = OmegaConf.create(
             {
-                "max_episode_steps": 15,
+                "environment": {"max_episode_steps": 15},
                 "reward": {"success_bonus": 10.0},
             }
         )
 
         result = _ensure_config(hydra_config)
-        assert isinstance(result, ArcEnvConfig)
-        assert result.max_episode_steps == 15
+        assert isinstance(result, JaxArcConfig)
+        assert result.environment.max_episode_steps == 15
 
     def test_ensure_config_with_jax_arc_config(self):
         """Test _ensure_config with JaxArcConfig."""
-        from jaxarc.envs.equinox_config import (
+        from jaxarc.envs.config import (
             ActionConfig as UnifiedActionConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             DatasetConfig as UnifiedDatasetConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             EnvironmentConfig as UnifiedEnvironmentConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             LoggingConfig as UnifiedLoggingConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             RewardConfig as UnifiedRewardConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             StorageConfig as UnifiedStorageConfig,
-        )
-        from jaxarc.envs.equinox_config import (
             VisualizationConfig as UnifiedVisualizationConfig,
         )
 
@@ -731,7 +716,7 @@ class TestFunctionalAPIHelpers:
         )
 
         result = _ensure_config(jax_config)
-        assert isinstance(result, ArcEnvConfig)
+        assert isinstance(result, JaxArcConfig)
 
     def test_validate_operation(self):
         """Test _validate_operation function."""
@@ -783,7 +768,7 @@ class TestFunctionalAPIHelpers:
 
         # Test with max steps reached
         max_steps_state = eqx.tree_at(
-            lambda s: s.step_count, self.state, self.config.max_episode_steps
+            lambda s: s.step_count, self.state, self.config.environment.max_episode_steps
         )
         done = _is_episode_done(max_steps_state, self.config)
         assert done
@@ -804,7 +789,7 @@ class TestFunctionalAPIHelpers:
         chex.assert_rank(task.output_masks_examples, 3)
 
         # Check that task uses config parameters
-        max_shape = self.config.grid.max_grid_size
+        max_shape = (self.config.dataset.max_grid_height, self.config.dataset.max_grid_width)
         assert task.input_grids_examples.shape[1:] == max_shape
         assert task.output_grids_examples.shape[1:] == max_shape
 
@@ -821,7 +806,7 @@ class TestFunctionalAPIIntegration:
         """Test executing a full episode with the functional API."""
         state, obs = arc_reset(self.key, self.config)
 
-        for step in range(self.config.max_episode_steps):
+        for step in range(self.config.environment.max_episode_steps):
             action = {
                 "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
                 "operation": jnp.array(step % 5, dtype=jnp.int32),

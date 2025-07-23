@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 if TYPE_CHECKING:
-    from jaxarc.envs.config import ArcEnvConfig
+    from jaxarc.envs.config import JaxArcConfig
 
 
-def validate_dataset_config(config: ArcEnvConfig, dataset_name: str) -> None:
+def validate_dataset_config(config: JaxArcConfig, dataset_name: str) -> None:
     """Validate configuration for specific dataset requirements.
 
     Args:
@@ -34,10 +34,10 @@ def validate_dataset_config(config: ArcEnvConfig, dataset_name: str) -> None:
         ```
     """
     try:
-        from jaxarc.envs.config import validate_config
-
-        # First run general validation
-        validate_config(config)
+        # First run general validation using the config's validate method
+        validation_errors = config.validate()
+        if validation_errors:
+            raise ValueError(f"Config validation errors: {validation_errors}")
 
         # Dataset-specific validation
         if dataset_name.lower() == "conceptarc":
@@ -56,13 +56,13 @@ def validate_dataset_config(config: ArcEnvConfig, dataset_name: str) -> None:
         raise ValueError(f"Invalid configuration for {dataset_name}: {e}") from e
 
 
-def _validate_conceptarc_config(config: ArcEnvConfig) -> None:
+def _validate_conceptarc_config(config: JaxArcConfig) -> None:
     """Validate ConceptARC-specific configuration requirements."""
     # ConceptARC uses standard ARC dimensions
-    if config.grid.max_grid_height < 15 or config.grid.max_grid_width < 15:
+    if config.dataset.max_grid_height < 15 or config.dataset.max_grid_width < 15:
         logger.warning(
             f"ConceptARC typically uses larger grids. Current max: "
-            f"{config.grid.max_grid_height}x{config.grid.max_grid_width}"
+            f"{config.dataset.max_grid_height}x{config.dataset.max_grid_width}"
         )
 
     # ConceptARC works well with mask-based actions for concept reasoning
@@ -79,13 +79,13 @@ def _validate_conceptarc_config(config: ArcEnvConfig) -> None:
         )
 
 
-def _validate_miniarc_config(config: ArcEnvConfig) -> None:
+def _validate_miniarc_config(config: JaxArcConfig) -> None:
     """Validate MiniARC-specific configuration requirements."""
     # MiniARC should use 5x5 grid constraints
-    if config.grid.max_grid_height > 5 or config.grid.max_grid_width > 5:
+    if config.dataset.max_grid_height > 5 or config.dataset.max_grid_width > 5:
         logger.warning(
             f"MiniARC is optimized for 5x5 grids. Current max: "
-            f"{config.grid.max_grid_height}x{config.grid.max_grid_width}. "
+            f"{config.dataset.max_grid_height}x{config.dataset.max_grid_width}. "
             f"Consider using max_grid_height=5 and max_grid_width=5."
         )
 
@@ -126,8 +126,8 @@ def get_dataset_recommendations(dataset_name: str) -> dict[str, str]:
     if dataset_name.lower() == "conceptarc":
         recommendations.update(
             {
-                "grid.max_grid_height": "30",
-                "grid.max_grid_width": "30",
+                "dataset.max_grid_height": "30",
+                "dataset.max_grid_width": "30",
                 "action.selection_format": "mask",
                 "dataset.dataset_name": "ConceptARC",
             }
@@ -135,8 +135,8 @@ def get_dataset_recommendations(dataset_name: str) -> dict[str, str]:
     elif dataset_name.lower() == "miniarc":
         recommendations.update(
             {
-                "grid.max_grid_height": "5",
-                "grid.max_grid_width": "5",
+                "dataset.max_grid_height": "5",
+                "dataset.max_grid_width": "5",
                 "action.selection_format": "point",
                 "dataset.dataset_name": "MiniARC",
             }

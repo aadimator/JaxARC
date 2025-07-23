@@ -13,7 +13,7 @@ import jax.numpy as jnp
 from loguru import logger
 
 from jaxarc.envs.actions import get_action_handler
-from jaxarc.envs.equinox_config import JaxArcConfig
+from jaxarc.envs.config import JaxArcConfig
 from jaxarc.envs.functional import arc_reset, arc_step
 from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
@@ -37,7 +37,7 @@ class ArcEnvironment:
 
     Example:
         ```python
-        from jaxarc.envs.equinox_config import JaxArcConfig
+        from jaxarc.envs.config import JaxArcConfig
 
         config = JaxArcConfig()  # Uses default configuration
         env = ArcEnvironment(config)

@@ -40,7 +40,7 @@ from matplotlib.gridspec import GridSpec
 from jaxarc.envs.actions import get_action_handler
 
 # JaxARC imports
-from jaxarc.envs.config import ArcEnvConfig
+from jaxarc.envs.config import JaxArcConfig
 from jaxarc.envs.environment import ArcEnvironment
 from jaxarc.utils.visualization import (
     create_action_demonstration_figure,
@@ -83,17 +83,10 @@ with initialize_config_dir(config_dir=str(config_dir), version_base=None):
 # Dataset Parser
 parser = ArcAgiParser(point_cfg.dataset)
 
-# Create typed config objects
-point_config = ArcEnvConfig.from_hydra(point_cfg, parser=parser)
-bbox_config = ArcEnvConfig.from_hydra(bbox_cfg, parser=parser)
-mask_config = ArcEnvConfig.from_hydra(mask_cfg, parser=parser)
-
-# Convert to unified configs and create environments
-from jaxarc.envs.equinox_config import convert_arc_env_config_to_jax_arc_config
-
-unified_point_config = convert_arc_env_config_to_jax_arc_config(point_config)
-unified_bbox_config = convert_arc_env_config_to_jax_arc_config(bbox_config)
-unified_mask_config = convert_arc_env_config_to_jax_arc_config(mask_config)
+# Create unified config objects directly
+unified_point_config = JaxArcConfig.from_hydra(point_cfg)
+unified_bbox_config = JaxArcConfig.from_hydra(bbox_cfg)
+unified_mask_config = JaxArcConfig.from_hydra(mask_cfg)
 
 point_env = ArcEnvironment(unified_point_config)
 bbox_env = ArcEnvironment(unified_bbox_config)

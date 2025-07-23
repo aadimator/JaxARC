@@ -13,7 +13,7 @@ import jax.numpy as jnp
 import pytest
 from omegaconf import OmegaConf
 
-from jaxarc.envs.equinox_config import (
+from jaxarc.envs.config import (
     ActionConfig,
     DatasetConfig,
     EnvironmentConfig,

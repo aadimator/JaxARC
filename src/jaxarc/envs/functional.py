@@ -31,108 +31,24 @@ from ..utils.jax_types import (
     RewardValue,
 )
 from .actions import get_action_handler
-from .config import ArcEnvConfig
-from .equinox_config import JaxArcConfig
+from .config import JaxArcConfig
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
 # Type aliases for cleaner signatures
-ConfigType = Union[ArcEnvConfig, JaxArcConfig, DictConfig]
+ConfigType = Union[JaxArcConfig, DictConfig]
 ActionType = Union[Dict[str, Any], ARCLEAction]
 
 
-def _convert_jax_arc_config_to_arc_env_config(jax_config: JaxArcConfig) -> ArcEnvConfig:
-    """Convert JaxArcConfig back to ArcEnvConfig for functional API compatibility.
-
-    This is a temporary bridge function until we fully migrate the functional API
-    to use the unified configuration system.
-    """
-    from .config import (
-        ActionConfig as LegacyActionConfig,
-    )
-    from .config import (
-        DatasetConfig as LegacyDatasetConfig,
-    )
-    from .config import (
-        DebugConfig as LegacyDebugConfig,
-    )
-    from .config import (
-        GridConfig as LegacyGridConfig,
-    )
-    from .config import (
-        RewardConfig as LegacyRewardConfig,
-    )
-
-    # Convert back to legacy config structure
-    reward_config = LegacyRewardConfig(
-        reward_on_submit_only=jax_config.reward.reward_on_submit_only,
-        step_penalty=jax_config.reward.step_penalty,
-        success_bonus=jax_config.reward.success_bonus,
-        similarity_weight=jax_config.reward.similarity_weight,
-        progress_bonus=jax_config.reward.progress_bonus,
-        invalid_action_penalty=jax_config.reward.invalid_action_penalty,
-    )
-
-    grid_config = LegacyGridConfig(
-        max_grid_height=jax_config.dataset.max_grid_height,
-        max_grid_width=jax_config.dataset.max_grid_width,
-        min_grid_height=jax_config.dataset.min_grid_height,
-        min_grid_width=jax_config.dataset.min_grid_width,
-        max_colors=jax_config.dataset.max_colors,
-        background_color=jax_config.dataset.background_color,
-    )
-
-    action_config = LegacyActionConfig(
-        selection_format=jax_config.action.selection_format,
-        selection_threshold=jax_config.action.selection_threshold,
-        allow_partial_selection=jax_config.action.allow_partial_selection,
-        num_operations=jax_config.action.max_operations,  # Use max_operations from unified config
-        allowed_operations=jax_config.action.allowed_operations,
-        validate_actions=jax_config.action.validate_actions,
-        clip_invalid_actions=not jax_config.action.allow_invalid_actions,  # Inverted logic
-    )
-
-    dataset_config = LegacyDatasetConfig(
-        dataset_name=jax_config.dataset.dataset_name,
-        dataset_path=jax_config.dataset.dataset_path,
-        task_split=jax_config.dataset.task_split,
-        shuffle_tasks=jax_config.dataset.shuffle_tasks,
-    )
-
-    debug_config = LegacyDebugConfig(
-        log_rl_steps=jax_config.visualization.enabled,
-        rl_steps_output_dir=f"{jax_config.storage.base_output_dir}/{jax_config.storage.visualization_dir}",
-        clear_output_dir=jax_config.storage.clear_output_on_start,
-    )
-
-    return ArcEnvConfig(
-        max_episode_steps=jax_config.environment.max_episode_steps,
-        auto_reset=jax_config.environment.auto_reset,
-        log_operations=jax_config.logging.log_operations,
-        log_grid_changes=jax_config.logging.log_grid_changes,
-        log_rewards=jax_config.logging.log_rewards,
-        strict_validation=jax_config.environment.strict_validation,
-        allow_invalid_actions=jax_config.environment.allow_invalid_actions,
-        reward=reward_config,
-        grid=grid_config,
-        action=action_config,
-        dataset=dataset_config,
-        debug=debug_config,
-        parser=None,  # Parser will be set separately if needed
-    )
 
 
-def _ensure_config(config: ConfigType) -> ArcEnvConfig:
-    """Convert config to typed ArcEnvConfig if needed."""
+def _ensure_config(config: ConfigType) -> JaxArcConfig:
+    """Convert config to typed JaxArcConfig if needed."""
     if isinstance(config, DictConfig):
-        return ArcEnvConfig.from_hydra(config)
-    if isinstance(config, JaxArcConfig):
-        # Convert JaxArcConfig back to ArcEnvConfig for compatibility
-        # This is a temporary bridge until we fully migrate the functional API
-        return _convert_jax_arc_config_to_arc_env_config(config)
+        return JaxArcConfig.from_hydra(config)
     return config
 
 
-def _validate_operation(operation: Any, config: ArcEnvConfig) -> OperationId:
+def _validate_operation(operation: Any, config: JaxArcConfig) -> OperationId:
     """Validate and normalize operation value."""
     if isinstance(operation, (int, jnp.integer)):
         operation = jnp.array(operation, dtype=jnp.int32)
@@ -140,13 +56,13 @@ def _validate_operation(operation: Any, config: ArcEnvConfig) -> OperationId:
         raise ValueError(f"Operation must be int or jnp.ndarray, got {type(operation)}")
 
     # Validate operation range (JAX-compatible)
-    if config.action.validate_actions and config.action.clip_invalid_actions:
-        operation = jnp.clip(operation, 0, config.action.num_operations - 1)
+    if config.action.validate_actions and not config.action.allow_invalid_actions:
+        operation = jnp.clip(operation, 0, config.action.max_operations - 1)
 
     return operation
 
 
-def _get_observation(state: ArcEnvState, config: ArcEnvConfig) -> ObservationArray:
+def _get_observation(state: ArcEnvState, config: JaxArcConfig) -> ObservationArray:
     """Extract observation from state."""
     # For now, just return the working grid
     # Future: Could include additional channels for selection, target, etc.
@@ -154,7 +70,7 @@ def _get_observation(state: ArcEnvState, config: ArcEnvConfig) -> ObservationArr
 
 
 def _calculate_reward(
-    old_state: ArcEnvState, new_state: ArcEnvState, config: ArcEnvConfig
+    old_state: ArcEnvState, new_state: ArcEnvState, config: JaxArcConfig
 ) -> RewardValue:
     """Calculate reward based on state transition and config."""
     reward_cfg = config.reward
@@ -190,7 +106,7 @@ def _calculate_reward(
     return reward
 
 
-def _is_episode_done(state: ArcEnvState, config: ArcEnvConfig) -> EpisodeDone:
+def _is_episode_done(state: ArcEnvState, config: JaxArcConfig) -> EpisodeDone:
     """Check if episode should terminate."""
     # Episode ends if:
     # 1. Task is solved (perfect similarity)
@@ -198,13 +114,13 @@ def _is_episode_done(state: ArcEnvState, config: ArcEnvConfig) -> EpisodeDone:
     # 3. Submit operation was used (sets episode_done=True)
 
     task_solved = state.similarity_score >= 1.0
-    max_steps_reached = state.step_count >= config.max_episode_steps
+    max_steps_reached = state.step_count >= config.environment.max_episode_steps
     submitted = state.episode_done  # Set by submit operation
 
     return task_solved | max_steps_reached | submitted
 
 
-def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
+def _create_demo_task(config: JaxArcConfig) -> JaxArcTask:
     """Create a simple demo task for testing when no task sampler is available."""
     from ..types import JaxArcTask
 
@@ -215,12 +131,12 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
 
     # Create simple demo grids using dataset-appropriate size
     # Use full configured grid size for proper testing, with reasonable upper bounds
-    demo_height = min(30, config.grid.max_grid_height)
-    demo_width = min(30, config.grid.max_grid_width)
+    demo_height = min(30, config.dataset.max_grid_height)
+    demo_width = min(30, config.dataset.max_grid_width)
     grid_shape = (demo_height, demo_width)
 
     # Use dataset background color
-    bg_color = config.grid.background_color
+    bg_color = config.dataset.background_color
     input_grid = jnp.full(grid_shape, bg_color, dtype=jnp.int32)
 
     # Add a small pattern (ensure it fits and uses valid colors)
@@ -231,7 +147,7 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
 
         # Use color 1 if available, otherwise background + 1
         pattern_color = (
-            1 if config.grid.max_colors > 1 else (bg_color + 1) % config.grid.max_colors
+            1 if config.dataset.max_colors > 1 else (bg_color + 1) % config.dataset.max_colors
         )
         input_grid = input_grid.at[
             start_row : start_row + pattern_size, start_col : start_col + pattern_size
@@ -242,8 +158,8 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
     if pattern_size > 0:
         target_color = (
             2
-            if config.grid.max_colors > 2
-            else (pattern_color + 1) % config.grid.max_colors
+            if config.dataset.max_colors > 2
+            else (pattern_color + 1) % config.dataset.max_colors
         )
         target_grid = target_grid.at[
             start_row : start_row + pattern_size, start_col : start_col + pattern_size
@@ -253,7 +169,7 @@ def _create_demo_task(config: ArcEnvConfig) -> JaxArcTask:
     mask = jnp.ones(grid_shape, dtype=jnp.bool_)
 
     # Pad to max size
-    max_shape = config.grid.max_grid_size
+    max_shape = (config.dataset.max_grid_height, config.dataset.max_grid_width)
     padded_input = jnp.full(max_shape, -1, dtype=jnp.int32)
     padded_target = jnp.full(max_shape, -1, dtype=jnp.int32)
     padded_mask = jnp.zeros(max_shape, dtype=jnp.bool_)
@@ -299,20 +215,13 @@ def arc_reset(
 
     # Get or create task data
     if task_data is None:
-        if typed_config.parser is not None:
-            # Use provided parser
-            try:
-                task_data = typed_config.parser.get_random_task(key)
-                if typed_config.log_operations:
-                    logger.info(
-                        f"Sampled task from {typed_config.dataset.dataset_name}"
-                    )
-            except Exception as e:
-                logger.warning(f"Parser failed: {e}. Falling back to demo task.")
-                task_data = _create_demo_task(typed_config)
-        else:
-            # Create demo task as fallback
-            task_data = _create_demo_task(typed_config)
+        # Create demo task as fallback
+        # Parsers are handled separately in the new system
+        task_data = _create_demo_task(typed_config)
+        if typed_config.logging.log_operations:
+            logger.info(
+                f"Created demo task for dataset {typed_config.dataset.dataset_name}"
+            )
 
     # Initialize working grid from first training example
     initial_grid = task_data.input_grids_examples[0]
@@ -339,7 +248,7 @@ def arc_reset(
     # Get initial observation
     observation = _get_observation(state, typed_config)
 
-    if typed_config.log_operations:
+    if typed_config.logging.log_operations:
         jax.debug.callback(
             lambda x: logger.info(
                 f"Reset ARC environment with similarity: {float(x):.3f}"
@@ -484,7 +393,7 @@ def arc_step(
     }
 
     # Optional logging
-    if typed_config.log_operations:
+    if typed_config.logging.log_operations:
         jax.debug.callback(
             lambda step, op, sim, rew: logger.info(
                 f"Step {int(step)}: op={int(op)}, sim={float(sim):.3f}, reward={float(rew):.3f}"
@@ -495,7 +404,7 @@ def arc_step(
             reward,
         )
 
-    if typed_config.log_rewards:
+    if typed_config.logging.log_rewards:
         jax.debug.callback(
             lambda rew, imp: logger.info(
                 f"Reward: {float(rew):.3f} (improvement: {float(imp):.3f})"
@@ -505,13 +414,21 @@ def arc_step(
         )
 
     # Optional visualization callback
-    if typed_config.debug.log_rl_steps:
-        # Clear output directory at episode start (step 0)
-        if state.step_count == 0 and typed_config.debug.clear_output_dir:
-            jax.debug.callback(
-                lambda output_dir: _clear_output_directory(output_dir),
-                typed_config.debug.rl_steps_output_dir,
-            )
+    if typed_config.visualization.enabled:
+        # Clear output directory at episode start (step 0) - using JAX-compatible conditional
+        def clear_if_needed():
+            if typed_config.storage.clear_output_on_start:
+                jax.debug.callback(
+                    lambda output_dir: _clear_output_directory(output_dir),
+                    typed_config.storage.base_output_dir,
+                )
+
+        # Use lax.cond for JAX-compatible conditional on traced values
+        jax.lax.cond(
+            state.step_count == 0,
+            clear_if_needed,
+            lambda: None
+        )
 
         # Use enhanced JAX callback if available, otherwise fallback to legacy
         try:
@@ -522,7 +439,7 @@ def arc_step(
                 new_state,
                 reward,
                 info,
-                typed_config.debug.rl_steps_output_dir,
+                typed_config.storage.base_output_dir,
             )
         except Exception:
             # Fallback to legacy visualization
