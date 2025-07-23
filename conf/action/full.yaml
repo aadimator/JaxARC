@@ -10,7 +10,7 @@ selection_threshold: 0.5 # Threshold for converting continuous selections to boo
 allow_partial_selection: true # Allow partial grid selections
 
 # Operation Settings
-max_operations: 35 # Full set of operations (0-34) - standardized naming
+max_operations: 42 # Full set of operations (0-41) - updated for enhanced control operations
 allowed_operations: # All available operations using ARCLEOperationType IDs
   - 0 # FILL_0 (black)
   - 1 # FILL_1 (blue)
@@ -47,6 +47,14 @@ allowed_operations: # All available operations using ARCLEOperationType IDs
   - 32 # COPY_INPUT
   - 33 # RESIZE
   - 34 # SUBMIT
+  # Enhanced control operations (35-41) - Non-parametric pair switching
+  - 35 # SWITCH_TO_NEXT_DEMO_PAIR
+  - 36 # SWITCH_TO_PREV_DEMO_PAIR
+  - 37 # SWITCH_TO_NEXT_TEST_PAIR
+  - 38 # SWITCH_TO_PREV_TEST_PAIR
+  - 39 # RESET_CURRENT_PAIR
+  - 40 # SWITCH_TO_FIRST_UNSOLVED_DEMO
+  - 41 # SWITCH_TO_FIRST_UNSOLVED_TEST
 
 # Validation Settings
 validate_actions: true # Validate actions before execution

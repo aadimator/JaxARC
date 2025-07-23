@@ -14,6 +14,7 @@ from typing import NewType
 import chex
 import equinox as eqx
 import jax.numpy as jnp
+from jaxtyping import Array, Bool, Int
 
 # Import JAXTyping definitions
 from jaxarc.utils.jax_types import (
@@ -246,6 +247,118 @@ class JaxArcTask(eqx.Module):
             output_grid=self.get_test_output_grid(pair_idx),
         )
 
+    # =========================================================================
+    # Enhanced Utility Methods for State Management
+    # =========================================================================
+
+    def get_available_demo_pairs(self) -> Bool[Array, "max_train_pairs"]:
+        """Get mask of available training pairs.
+        
+        Returns:
+            JAX boolean array indicating which training pairs are available
+            (based on num_train_pairs)
+        """
+        return jnp.arange(self.input_grids_examples.shape[0]) < self.num_train_pairs
+
+    def get_available_test_pairs(self) -> Bool[Array, "max_test_pairs"]:
+        """Get mask of available test pairs.
+        
+        Returns:
+            JAX boolean array indicating which test pairs are available
+            (based on num_test_pairs)
+        """
+        return jnp.arange(self.test_input_grids.shape[0]) < self.num_test_pairs
+
+    def get_demo_pair_data(self, pair_idx: int) -> tuple[GridArray, GridArray, MaskArray]:
+        """Get training pair data by index.
+        
+        Args:
+            pair_idx: Index of the training pair to retrieve
+            
+        Returns:
+            Tuple of (input_grid, output_grid, input_mask)
+        """
+        return (
+            self.input_grids_examples[pair_idx],
+            self.output_grids_examples[pair_idx],
+            self.input_masks_examples[pair_idx]
+        )
+
+    def get_test_pair_data(self, pair_idx: int) -> tuple[GridArray, MaskArray]:
+        """Get test pair input data by index (no target during evaluation).
+        
+        Args:
+            pair_idx: Index of the test pair to retrieve
+            
+        Returns:
+            Tuple of (input_grid, input_mask)
+        """
+        return (
+            self.test_input_grids[pair_idx],
+            self.test_input_masks[pair_idx]
+        )
+
+    def is_demo_pair_available(self, pair_idx: int) -> Bool[Array, ""]:
+        """Check if a specific demonstration pair is available.
+        
+        Args:
+            pair_idx: Index of the demonstration pair to check
+            
+        Returns:
+            JAX boolean scalar array indicating if the pair is available
+        """
+        return jnp.array((pair_idx >= 0) & (pair_idx < self.num_train_pairs))
+
+    def is_test_pair_available(self, pair_idx: int) -> Bool[Array, ""]:
+        """Check if a specific test pair is available.
+        
+        Args:
+            pair_idx: Index of the test pair to check
+            
+        Returns:
+            JAX boolean scalar array indicating if the pair is available
+        """
+        return jnp.array((pair_idx >= 0) & (pair_idx < self.num_test_pairs))
+
+    def get_max_train_pairs(self) -> int:
+        """Get the maximum number of training pairs this task can hold.
+        
+        Returns:
+            Maximum number of training pairs (array dimension)
+        """
+        return self.input_grids_examples.shape[0]
+
+    def get_max_test_pairs(self) -> int:
+        """Get the maximum number of test pairs this task can hold.
+        
+        Returns:
+            Maximum number of test pairs (array dimension)
+        """
+        return self.test_input_grids.shape[0]
+
+    def get_grid_shape(self) -> tuple[int, int]:
+        """Get the grid dimensions for this task.
+        
+        Returns:
+            Tuple of (height, width) for the grid dimensions
+        """
+        return (self.input_grids_examples.shape[1], self.input_grids_examples.shape[2])
+
+    def get_task_summary(self) -> dict:
+        """Get a summary of task information.
+        
+        Returns:
+            Dictionary containing task metadata
+        """
+        return {
+            "task_index": int(self.task_index),
+            "num_train_pairs": self.num_train_pairs,
+            "num_test_pairs": self.num_test_pairs,
+            "max_train_pairs": self.get_max_train_pairs(),
+            "max_test_pairs": self.get_max_test_pairs(),
+            "grid_shape": self.get_grid_shape(),
+        }
+
 
 # Type Aliases for IDs
 AgentID = NewType("AgentID", int)
@@ -278,7 +391,7 @@ class ActionCategory(IntEnum):
 
 # ARCLE-specific types
 class ARCLEOperationType:
-    """ARCLE operation types."""
+    """ARCLE operation types with enhanced control operations."""
 
     # Fill operations (0-9)
     FILL_0 = 0
@@ -331,6 +444,15 @@ class ARCLEOperationType:
     # Submit operation (34)
     SUBMIT = 34
 
+    # Enhanced control operations (35-41) - Non-parametric pair switching
+    SWITCH_TO_NEXT_DEMO_PAIR = 35      # Switch to next available demo pair
+    SWITCH_TO_PREV_DEMO_PAIR = 36      # Switch to previous demo pair  
+    SWITCH_TO_NEXT_TEST_PAIR = 37      # Switch to next available test pair
+    SWITCH_TO_PREV_TEST_PAIR = 38      # Switch to previous test pair
+    RESET_CURRENT_PAIR = 39            # Reset current pair to initial state
+    SWITCH_TO_FIRST_UNSOLVED_DEMO = 40 # Switch to first unsolved demo pair
+    SWITCH_TO_FIRST_UNSOLVED_TEST = 41 # Switch to first unsolved test pair
+
 
 class ARCLEAction(eqx.Module):
     """
@@ -366,11 +488,11 @@ class ARCLEAction(eqx.Module):
                     msg = f"Selection values must be in [0, 1], got [{min_val}, {max_val}]"
                     raise ValueError(msg)
 
-            # Validate operation ID
+            # Validate operation ID (updated range for enhanced control operations)
             if hasattr(self.operation, "item"):
                 op_val = int(self.operation.item())
-                if not 0 <= op_val <= 34:
-                    msg = f"Operation ID must be in [0, 34], got {op_val}"
+                if not 0 <= op_val <= 41:
+                    msg = f"Operation ID must be in [0, 41], got {op_val}"
                     raise ValueError(msg)
 
         except (AttributeError, TypeError):

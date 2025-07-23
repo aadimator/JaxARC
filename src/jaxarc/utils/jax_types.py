@@ -86,7 +86,7 @@ BboxCoords: TypeAlias = Int[Array, "4"]
 
 # Operation identifiers
 OperationId: TypeAlias = Int[Array, ""]
-"""Scalar integer representing an ARCLE operation (0-34)."""
+"""Scalar integer representing an ARCLE operation (0-41 including enhanced control operations)."""
 
 # Action data for different formats
 PointActionData: TypeAlias = Int[Array, "2"]
@@ -202,7 +202,22 @@ MAX_GRID_SIZE = 30  # Maximum grid dimension in ARC
 MAX_TRAIN_PAIRS = 10  # Maximum training pairs per task
 MAX_TEST_PAIRS = 3  # Maximum test pairs per task
 NUM_COLORS = 10  # Number of colors in ARC (0-9)
-NUM_OPERATIONS = 35  # Number of ARCLE operations (0-34)
+NUM_OPERATIONS = 42  # Number of ARCLE operations including enhanced control operations (0-41)
+
+# Enhanced functionality constants
+# Note: MAX_PAIRS removed - now dataset/config dependent
+MAX_HISTORY_LENGTH = 1000  # Default maximum action history length
+MAX_SELECTION_SIZE = MAX_GRID_SIZE * MAX_GRID_SIZE  # Maximum flattened selection size
+MAX_GRID_SIZE_SQUARED = MAX_GRID_SIZE * MAX_GRID_SIZE  # For flattened grid operations
+ACTION_RECORD_FIELDS = 5  # Number of fields in action record (selection_data_size + operation_id + timestamp + pair_index + valid)
+
+# Default maximums for different datasets (can be overridden)
+DEFAULT_MAX_TRAIN_PAIRS = 10  # Conservative default, can be increased for augmentation
+DEFAULT_MAX_TEST_PAIRS = 4   # Reasonable default for most datasets
+
+# Episode mode constants for JAX compatibility
+EPISODE_MODE_TRAIN = 0  # Training mode
+EPISODE_MODE_TEST = 1   # Test/evaluation mode
 
 # Type aliases for these constants
 MaxGridSize: TypeAlias = int
@@ -210,6 +225,115 @@ MaxTrainPairs: TypeAlias = int
 MaxTestPairs: TypeAlias = int
 NumColors: TypeAlias = int
 NumOperations: TypeAlias = int
+MaxTrainPairs: TypeAlias = int
+MaxTestPairs: TypeAlias = int
+MaxHistoryLength: TypeAlias = int
+MaxSelectionSize: TypeAlias = int
+ActionRecordFields: TypeAlias = int
+
+# =============================================================================
+# Enhanced ARC Step Logic Types
+# =============================================================================
+
+# Episode management types
+EpisodeMode: TypeAlias = Int[Array, ""]
+"""Scalar integer representing episode mode (0=train, 1=test) for JAX compatibility."""
+
+# Flexible pair tracking types - sizes determined at runtime based on dataset config
+AvailableTrainPairs: TypeAlias = Bool[Array, "max_train_pairs"]
+"""Boolean mask indicating which training/demonstration pairs are available.
+Size determined by dataset configuration and augmentation settings."""
+
+AvailableTestPairs: TypeAlias = Bool[Array, "max_test_pairs"] 
+"""Boolean mask indicating which test pairs are available.
+Size determined by dataset configuration (typically smaller than train pairs)."""
+
+TrainCompletionStatus: TypeAlias = Bool[Array, "max_train_pairs"]
+"""Boolean mask tracking completion status of training/demonstration pairs.
+Size matches available train pairs for consistency."""
+
+TestCompletionStatus: TypeAlias = Bool[Array, "max_test_pairs"]
+"""Boolean mask tracking completion status of test pairs.
+Size matches available test pairs for consistency."""
+
+# Action history types
+HistoryLength: TypeAlias = Int[Array, ""]
+"""Scalar integer representing current length of action history."""
+
+OperationMask: TypeAlias = Bool[Array, "num_operations"]
+"""Boolean mask indicating which operations are currently allowed.
+Uses num_operations dimension for dynamic action space control."""
+
+# Action history storage types
+SelectionData: TypeAlias = Float[Array, "max_selection_size"]
+"""Flattened selection data for action history storage.
+Accommodates point (2), bbox (4), or flattened mask data with padding."""
+
+ActionSequence: TypeAlias = Int[Array, "sequence_length action_fields"]
+"""Sequence of actions with fixed dimensions for JAX compatibility."""
+
+# Action record structure for history tracking
+# Note: ActionHistory will be defined as a structured array type
+# Each record contains: selection_data, operation_id, timestamp, pair_index, valid flag
+ActionHistory: TypeAlias = Float[Array, "max_history_length action_record_fields"]
+"""Fixed-size action history storage with structured records.
+Each record contains selection data, operation ID, timestamp, pair index, and validity flag.
+Uses static shape with padding for JAX compatibility."""
+
+# =============================================================================
+# Enhanced Action Space Types
+# =============================================================================
+
+# Operation identifiers (updated range)
+# Note: OperationId in the original section now covers the full range (0-41)
+
+# Selection data variants for different action formats
+PointSelectionData: TypeAlias = Int[Array, "2"]
+"""Point selection data as [row, col] coordinates."""
+
+BboxSelectionData: TypeAlias = Int[Array, "4"] 
+"""Bounding box selection data as [r1, c1, r2, c2] coordinates."""
+
+MaskSelectionData: TypeAlias = Float[Array, "max_grid_size_squared"]
+"""Flattened mask selection data with maximum grid size padding."""
+
+# =============================================================================
+# Episode Management Types
+# =============================================================================
+
+# Pair tracking and management
+PairIndex: TypeAlias = Int[Array, ""]
+"""Scalar integer representing index of current demonstration/test pair."""
+
+PairCount: TypeAlias = Int[Array, ""]
+"""Scalar integer representing total number of available pairs."""
+
+# Episode termination and continuation
+EpisodeContinuation: TypeAlias = Bool[Array, ""]
+"""Scalar boolean indicating whether episode should continue."""
+
+# Progress tracking
+TrainProgressMetrics: TypeAlias = Float[Array, "max_train_pairs"]
+"""Array of progress metrics for each training/demonstration pair."""
+
+TestProgressMetrics: TypeAlias = Float[Array, "max_test_pairs"]
+"""Array of progress metrics for each test pair."""
+
+# =============================================================================
+# Configuration and Validation Types
+# =============================================================================
+
+# Configuration validation
+ConfigValidation: TypeAlias = Bool[Array, ""]
+"""Scalar boolean indicating configuration validity."""
+
+# Memory usage tracking
+MemoryUsage: TypeAlias = Int[Array, ""]
+"""Scalar integer representing memory usage in bytes."""
+
+# Performance metrics
+StepLatency: TypeAlias = Float[Array, ""]
+"""Scalar float representing step execution latency in milliseconds."""
 
 # =============================================================================
 # Visualization and Color Types
