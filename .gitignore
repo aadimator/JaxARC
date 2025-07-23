@@ -4,6 +4,7 @@
 /.kiro/specs
 /wandb
 /presentations
+/arcle
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
