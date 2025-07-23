@@ -16,7 +16,7 @@ from typing import Any, Dict
 from loguru import logger
 from omegaconf import DictConfig
 
-from .equinox_config import (
+from .config import (
     ActionConfig,
     ConfigValidationError,
     DatasetConfig,

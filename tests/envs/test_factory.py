@@ -11,7 +11,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from jaxarc.envs.config_factory import ConfigFactory
-from jaxarc.envs.equinox_config import (
+from jaxarc.envs.config import (
     ConfigValidationError,
     JaxArcConfig,
 )

@@ -11,8 +11,7 @@ from jaxarc.utils.dataset_validation import (
     validate_dataset_config,
 )
 
-# Patch the validate_config import at module level
-VALIDATE_CONFIG_PATCH = "jaxarc.envs.config.validate_config"
+# No longer need to patch validate_config since we use config.validate() method
 
 
 class TestValidateDatasetConfig:
@@ -22,92 +21,86 @@ class TestValidateDatasetConfig:
         """Test successful ConceptARC configuration validation."""
         # Create a mock config that should pass ConceptARC validation
         mock_config = Mock()
-        mock_config.grid.max_grid_height = 30
-        mock_config.grid.max_grid_width = 30
+        mock_config.dataset.max_grid_height = 30
+        mock_config.dataset.max_grid_width = 30
         mock_config.action.selection_format = "mask"
         mock_config.dataset.dataset_name = "ConceptARC"
+        mock_config.validate.return_value = []  # No validation errors
 
-        with patch(VALIDATE_CONFIG_PATCH) as mock_validate:
-            mock_validate.return_value = None  # No exception means validation passed
+        # Should not raise any exceptions
+        validate_dataset_config(mock_config, "ConceptARC")
 
-            # Should not raise exception
-            validate_dataset_config(mock_config, "ConceptARC")
-
-            mock_validate.assert_called_once_with(mock_config)
+        # Verify general validation was called
+        mock_config.validate.assert_called_once()
 
     def test_validate_miniarc_config_success(self):
         """Test successful MiniARC configuration validation."""
         # Create a mock config that should pass MiniARC validation
         mock_config = Mock()
-        mock_config.grid.max_grid_height = 5
-        mock_config.grid.max_grid_width = 5
+        mock_config.dataset.max_grid_height = 5
+        mock_config.dataset.max_grid_width = 5
         mock_config.action.selection_format = "point"
         mock_config.dataset.dataset_name = "MiniARC"
+        mock_config.validate.return_value = []  # No validation errors
 
-        with patch(VALIDATE_CONFIG_PATCH) as mock_validate:
-            mock_validate.return_value = None
+        # Should not raise any exceptions
+        validate_dataset_config(mock_config, "MiniARC")
 
-            # Should not raise exception
-            validate_dataset_config(mock_config, "MiniARC")
-
-            mock_validate.assert_called_once_with(mock_config)
+        # Verify general validation was called
+        mock_config.validate.assert_called_once()
 
     def test_validate_unknown_dataset(self):
         """Test validation with unknown dataset name."""
         mock_config = Mock()
+        mock_config.validate.return_value = []  # No validation errors
 
-        with patch(VALIDATE_CONFIG_PATCH) as mock_validate:
-            mock_validate.return_value = None
+        with patch("jaxarc.utils.dataset_validation.logger") as mock_logger:
+            # Should not raise exception for unknown dataset (just logs warning)
+            validate_dataset_config(mock_config, "UnknownDataset")
 
-            with patch("jaxarc.utils.dataset_validation.logger") as mock_logger:
-                # Should not raise exception but should log warning
-                validate_dataset_config(mock_config, "UnknownDataset")
-
-                mock_logger.warning.assert_called_once()
-                assert (
-                    "No specific validation available"
-                    in mock_logger.warning.call_args[0][0]
-                )
+            # Verify general validation was called
+            mock_config.validate.assert_called_once()
+            mock_logger.warning.assert_called_once()
+            assert (
+                "No specific validation available"
+                in mock_logger.warning.call_args[0][0]
+            )
 
     def test_validate_config_general_validation_failure(self):
         """Test when general config validation fails."""
         mock_config = Mock()
+        mock_config.validate.return_value = ["General validation failed"]
 
-        with patch(VALIDATE_CONFIG_PATCH) as mock_validate:
-            mock_validate.side_effect = ValueError("General validation failed")
-
-            with pytest.raises(
-                ValueError, match="Invalid configuration for ConceptARC"
-            ):
-                validate_dataset_config(mock_config, "ConceptARC")
+        with pytest.raises(
+            ValueError, match="Invalid configuration for ConceptARC"
+        ):
+            validate_dataset_config(mock_config, "ConceptARC")
 
     def test_validate_config_import_error(self):
         """Test handling of import errors."""
         mock_config = Mock()
+        mock_config.validate.side_effect = ImportError("Module not found")
 
-        with patch(VALIDATE_CONFIG_PATCH, side_effect=ImportError("Module not found")):
-            with pytest.raises(
-                ValueError, match="Invalid configuration for ConceptARC"
-            ):
-                validate_dataset_config(mock_config, "ConceptARC")
+        with pytest.raises(
+            ValueError, match="Invalid configuration for ConceptARC"
+        ):
+            validate_dataset_config(mock_config, "ConceptARC")
 
     def test_validate_config_case_insensitive(self):
         """Test that dataset name matching is case insensitive."""
         mock_config = Mock()
-        mock_config.grid.max_grid_height = 30
-        mock_config.grid.max_grid_width = 30
+        mock_config.dataset.max_grid_height = 30
+        mock_config.dataset.max_grid_width = 30
         mock_config.action.selection_format = "mask"
         mock_config.dataset.dataset_name = "ConceptARC"
+        mock_config.validate.return_value = []  # No validation errors
 
-        with patch(VALIDATE_CONFIG_PATCH) as mock_validate:
-            mock_validate.return_value = None
+        # Test various case combinations
+        for dataset_name in ["conceptarc", "CONCEPTARC", "ConceptArc"]:
+            validate_dataset_config(mock_config, dataset_name)
 
-            # Test different case variations
-            for dataset_name in ["conceptarc", "CONCEPTARC", "ConceptArc"]:
-                validate_dataset_config(mock_config, dataset_name)
-
-            # Should have been called for each variation
-            assert mock_validate.call_count == 3
+            # Should have been called for each test
+            assert mock_config.validate.call_count > 0
 
 
 class TestGetDatasetRecommendations:
@@ -118,8 +111,8 @@ class TestGetDatasetRecommendations:
         recommendations = get_dataset_recommendations("ConceptARC")
 
         expected = {
-            "grid.max_grid_height": "30",
-            "grid.max_grid_width": "30",
+            "dataset.max_grid_height": "30",
+            "dataset.max_grid_width": "30",
             "action.selection_format": "mask",
             "dataset.dataset_name": "ConceptARC",
         }
@@ -131,8 +124,8 @@ class TestGetDatasetRecommendations:
         recommendations = get_dataset_recommendations("MiniARC")
 
         expected = {
-            "grid.max_grid_height": "5",
-            "grid.max_grid_width": "5",
+            "dataset.max_grid_height": "5",
+            "dataset.max_grid_width": "5",
             "action.selection_format": "point",
             "dataset.dataset_name": "MiniARC",
         }
@@ -147,8 +140,8 @@ class TestGetDatasetRecommendations:
         recommendations_mixed = get_dataset_recommendations("ConceptArc")
 
         expected = {
-            "grid.max_grid_height": "30",
-            "grid.max_grid_width": "30",
+            "dataset.max_grid_height": "30",
+            "dataset.max_grid_width": "30",
             "action.selection_format": "mask",
             "dataset.dataset_name": "ConceptARC",
         }

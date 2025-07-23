@@ -15,16 +15,9 @@ Examples:
     ```python
     import jax
     from jaxarc import ArcEnvironment
-    from jaxarc.envs.equinox_config import JaxArcConfig
-    from jaxarc.envs.factory import create_standard_config
-    from jaxarc.envs.equinox_config import convert_arc_env_config_to_jax_arc_config
+    from jaxarc.envs.config import JaxArcConfig
 
     # Create environment with unified configuration
-    legacy_config = create_standard_config()
-    config = convert_arc_env_config_to_jax_arc_config(legacy_config)
-    env = ArcEnvironment(config)
-
-    # Or create directly with JaxArcConfig
     config = JaxArcConfig()  # Uses defaults
     env = ArcEnvironment(config)
 
@@ -55,19 +48,13 @@ from .config_pkg import (
 # Configuration system - most commonly used factory functions
 # Functional API
 from .envs import (
-    ArcEnvConfig,
     ArcEnvironment,
     arc_reset,
     arc_step,
-    create_bbox_config,
-    create_full_config,
-    create_point_config,
-    create_raw_config,
-    create_standard_config,
 )
 
 # Unified configuration system
-from .envs.equinox_config import JaxArcConfig, convert_arc_env_config_to_jax_arc_config
+from .envs.config import JaxArcConfig
 from .state import ArcEnvState
 
 # Core types
@@ -77,7 +64,6 @@ __all__ = [
     # Core types
     "ARCLEAction",
     # Configuration
-    "ArcEnvConfig",
     "ArcEnvState",
     # Core environment and state
     "ArcEnvironment",
@@ -90,15 +76,8 @@ __all__ = [
     # Functional API
     "arc_reset",
     "arc_step",
-    # Unified configuration
-    "convert_arc_env_config_to_jax_arc_config",
-    "create_bbox_config",
     # Configuration package utilities
     "create_config_template",
-    "create_full_config",
-    "create_point_config",
-    "create_raw_config",
-    "create_standard_config",
     "extend_jaxarc_config",
     "get_jaxarc_config_dir",
     "list_available_configs",

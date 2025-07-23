@@ -19,11 +19,14 @@ import pytest
 
 from jaxarc.envs.config import (
     ActionConfig,
-    ArcEnvConfig,
     DatasetConfig,
-    DebugConfig,
-    GridConfig,
+    EnvironmentConfig,
+    JaxArcConfig,
+    LoggingConfig,
     RewardConfig,
+    StorageConfig,
+    VisualizationConfig,
+    WandbConfig,
 )
 from jaxarc.envs.functional import arc_reset, arc_step
 from jaxarc.envs.grid_operations import (
@@ -167,17 +170,19 @@ class PerformanceProfiler:
 @pytest.fixture
 def test_config():
     """Create test configuration."""
-    # Create minimal config for performance testing
-    reward_config = RewardConfig(
-        reward_on_submit_only=False,
-        step_penalty=-0.01,
-        success_bonus=1.0,
-        similarity_weight=1.0,
-        progress_bonus=0.1,
-        invalid_action_penalty=-0.1,
+    # Create minimal config for performance testing using unified JaxArcConfig
+    environment_config = EnvironmentConfig(
+        max_episode_steps=50,
+        auto_reset=True,
+        allow_invalid_actions=True,
+        debug_level="off",
     )
 
-    grid_config = GridConfig(
+    dataset_config = DatasetConfig(
+        dataset_name="arc-agi-1",
+        dataset_path="data/raw/arc-prize-2024",
+        task_split="train",
+        shuffle_tasks=True,
         max_grid_height=30,
         max_grid_width=30,
         min_grid_height=3,
@@ -188,41 +193,42 @@ def test_config():
 
     action_config = ActionConfig(
         selection_format="mask",
-        selection_threshold=0.5,
-        allow_partial_selection=True,
-        num_operations=35,
-        allowed_operations=list(range(35)),
+        max_operations=35,
         validate_actions=True,
-        clip_invalid_actions=True,
     )
 
-    dataset_config = DatasetConfig(
-        dataset_name="arc-agi-1",
-        dataset_path="data/raw/arc-prize-2024",
-        task_split="train",
-        shuffle_tasks=True,
+    reward_config = RewardConfig(
+        reward_on_submit_only=False,
+        step_penalty=-0.01,
+        success_bonus=1.0,
     )
 
-    debug_config = DebugConfig(
-        log_rl_steps=False,
-        rl_steps_output_dir="output/rl_steps",
-        clear_output_dir=False,
+    visualization_config = VisualizationConfig(
+        enabled=False,  # Disable for performance testing
+        level="off",
     )
 
-    return ArcEnvConfig(
-        max_episode_steps=50,
-        auto_reset=True,
-        log_operations=False,
-        log_grid_changes=False,
-        log_rewards=False,
-        strict_validation=False,
-        allow_invalid_actions=True,
-        reward=reward_config,
-        grid=grid_config,
-        action=action_config,
+    storage_config = StorageConfig(
+        policy="none",  # No storage for performance testing
+    )
+
+    logging_config = LoggingConfig(
+        log_level="ERROR",  # Minimal logging for performance testing
+    )
+
+    wandb_config = WandbConfig(
+        enabled=False,  # Disable wandb for performance testing
+    )
+
+    return JaxArcConfig(
+        environment=environment_config,
         dataset=dataset_config,
-        debug=debug_config,
-        parser=None,
+        action=action_config,
+        reward=reward_config,
+        visualization=visualization_config,
+        storage=storage_config,
+        logging=logging_config,
+        wandb=wandb_config,
     )
 
 
