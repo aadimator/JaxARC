@@ -7,26 +7,19 @@ version = "0.1.0"
 
 [tasks]
 
+# Core system dependencies (conda-forge packages)
 [dependencies]
-tqdm = ">=4.67.1,<5"
-typer = ">=0.16.0,<0.17"
-pyprojroot = ">=0.3.0,<0.4"
-loguru = ">=0.7.3,<0.8"
 python = ">=3.13.5,<3.14"
-hydra-core = ">=1.3.2,<2"
-rich = ">=14.0.0,<15"
-drawsvg = ">=2.4.0,<3"
-cairosvg = ">=2.8.2,<3"
-seaborn = ">=0.13.2,<0.14"
+
+# Development and analysis tools (not needed for the package itself)
 marimo = ">=0.13.6,<0.15"
 wandb = ">=0.21.0,<0.22"
 
 [pypi-dependencies]
+# Install the package itself in editable mode - this will pull all dependencies from pyproject.toml
 JaxARC = { path = ".", editable = true }
+# JAX ecosystem packages with platform-specific extras
 jax = { version = ">=0.6.2, <0.7", extras = ["cuda12"] }
-chex = ">=0.1.89, <0.2"
-jaxtyping = ">=0.3.2, <0.4"
-equinox = ">=0.13.0, <0.14"
 
 [activation.env]
 JAX_PLATFORMS = "cuda"
