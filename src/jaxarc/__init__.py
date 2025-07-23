@@ -42,6 +42,15 @@ from __future__ import annotations
 
 from ._version import version as __version__
 
+# Configuration package utilities for downstream consumption
+from .config_pkg import (
+    create_config_template,
+    extend_jaxarc_config,
+    get_jaxarc_config_dir,
+    list_available_configs,
+    load_jaxarc_config,
+)
+
 # Core environment and state
 # Configuration system - most commonly used factory functions
 # Functional API
@@ -65,27 +74,33 @@ from .state import ArcEnvState
 from .types import ARCLEAction, Grid, JaxArcTask, TaskPair
 
 __all__ = [
-    # Version
-    "__version__",
-    # Core environment and state
-    "ArcEnvironment",
-    "ArcEnvState",
     # Core types
     "ARCLEAction",
-    "Grid",
-    "JaxArcTask",
-    "TaskPair",
     # Configuration
     "ArcEnvConfig",
+    "ArcEnvState",
+    # Core environment and state
+    "ArcEnvironment",
+    "Grid",
+    "JaxArcConfig",
+    "JaxArcTask",
+    "TaskPair",
+    # Version
+    "__version__",
+    # Functional API
+    "arc_reset",
+    "arc_step",
+    # Unified configuration
+    "convert_arc_env_config_to_jax_arc_config",
     "create_bbox_config",
+    # Configuration package utilities
+    "create_config_template",
     "create_full_config",
     "create_point_config",
     "create_raw_config",
     "create_standard_config",
-    # Unified configuration
-    "JaxArcConfig",
-    "convert_arc_env_config_to_jax_arc_config",
-    # Functional API
-    "arc_reset",
-    "arc_step",
+    "extend_jaxarc_config",
+    "get_jaxarc_config_dir",
+    "list_available_configs",
+    "load_jaxarc_config",
 ]
