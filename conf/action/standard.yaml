@@ -44,3 +44,8 @@ allowed_operations: # Standard operations using ARCLEOperationType IDs
 # Validation Settings
 validate_actions: true # Validate actions before execution
 allow_invalid_actions: false # Allow invalid actions (standardized naming)
+
+# Dynamic Action Space Control
+dynamic_action_filtering: false # Enable runtime operation filtering
+context_dependent_operations: false # Allow context-based operation availability
+invalid_operation_policy: "clip" # How to handle invalid operations: clip, noop, reject, passthrough
