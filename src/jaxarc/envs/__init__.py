@@ -44,6 +44,9 @@ from .config import (
     VisualizationConfig,
     WandbConfig,
 )
+
+# Episode management system
+from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
 from .config import (
     DatasetConfig as UnifiedDatasetConfig,
 )
@@ -95,6 +98,8 @@ __all__ = [
     "OPERATION_NAMES",
     "ArcEnvState",
     "ArcEnvironment",
+    "ArcEpisodeConfig",
+    "ArcEpisodeManager",
     "ArcObservation",
     "ConfigFactory",
     "ConfigPresets",

@@ -19,6 +19,46 @@ from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 
 
+def create_test_state(task_data, working_grid, working_grid_mask, target_grid=None, **kwargs):
+    """Helper function to create ArcEnvState with all required fields for testing."""
+    from jaxarc.utils.jax_types import (
+        DEFAULT_MAX_TRAIN_PAIRS, DEFAULT_MAX_TEST_PAIRS, MAX_HISTORY_LENGTH, 
+        ACTION_RECORD_FIELDS, NUM_OPERATIONS
+    )
+    
+    if target_grid is None:
+        target_grid = working_grid
+    
+    # Default values for enhanced functionality fields
+    defaults = {
+        'episode_mode': jnp.array(0, dtype=jnp.int32),  # Training mode
+        'available_demo_pairs': jnp.array([True] + [False] * (DEFAULT_MAX_TRAIN_PAIRS - 1), dtype=bool),
+        'available_test_pairs': jnp.array([True] + [False] * (DEFAULT_MAX_TEST_PAIRS - 1), dtype=bool),
+        'demo_completion_status': jnp.zeros(DEFAULT_MAX_TRAIN_PAIRS, dtype=bool),
+        'test_completion_status': jnp.zeros(DEFAULT_MAX_TEST_PAIRS, dtype=bool),
+        'action_history': jnp.zeros((MAX_HISTORY_LENGTH, ACTION_RECORD_FIELDS), dtype=jnp.float32),
+        'action_history_length': jnp.array(0, dtype=jnp.int32),
+        'allowed_operations_mask': jnp.ones(NUM_OPERATIONS, dtype=bool),
+        'step_count': jnp.array(0, dtype=jnp.int32),
+        'episode_done': jnp.array(False, dtype=jnp.bool_),
+        'current_example_idx': jnp.array(0, dtype=jnp.int32),
+        'selected': jnp.zeros_like(working_grid, dtype=jnp.bool_),
+        'clipboard': jnp.zeros_like(working_grid, dtype=jnp.int32),
+        'similarity_score': jnp.array(0.0, dtype=jnp.float32),
+    }
+    
+    # Override defaults with any provided kwargs
+    defaults.update(kwargs)
+    
+    return ArcEnvState(
+        task_data=task_data,
+        working_grid=working_grid,
+        working_grid_mask=working_grid_mask,
+        target_grid=target_grid,
+        **defaults
+    )
+
+
 class TestArcEnvState:
     """Test ArcEnvState dataclass functionality."""
 
@@ -32,23 +72,20 @@ class TestArcEnvState:
         working_grid_mask = jnp.array([[True, True], [True, True]], dtype=jnp.bool_)
         target_grid = jnp.array([[5, 6], [7, 8]], dtype=jnp.int32)
 
-        # Create state
-        state = ArcEnvState(
+        # Create state using helper function
+        state = create_test_state(
             task_data=task_data,
             working_grid=working_grid,
             working_grid_mask=working_grid_mask,
             target_grid=target_grid,
-            step_count=0,
-            episode_done=False,
-            current_example_idx=0,
-            selected=jnp.zeros((2, 2), dtype=jnp.bool_),
-            clipboard=jnp.zeros((2, 2), dtype=jnp.int32),
-            similarity_score=jnp.array(0.0, dtype=jnp.float32),
+            step_count=jnp.array(0, dtype=jnp.int32),
+            episode_done=jnp.array(False, dtype=jnp.bool_),
+            current_example_idx=jnp.array(0, dtype=jnp.int32),
         )
 
         # Verify state fields
         assert state.step_count == 0
-        assert state.episode_done is False
+        assert state.episode_done == False  # Compare JAX array to boolean
         assert state.current_example_idx == 0
         chex.assert_shape(state.working_grid, (2, 2))
         chex.assert_type(state.working_grid, jnp.int32)
@@ -65,17 +102,11 @@ class TestArcEnvState:
 
         # This should raise an error due to shape mismatch
         with pytest.raises((ValueError, AssertionError)):
-            ArcEnvState(
+            create_test_state(
                 task_data=task_data,
                 working_grid=working_grid,
                 working_grid_mask=working_grid_mask,
                 target_grid=target_grid,
-                step_count=0,
-                episode_done=False,
-                current_example_idx=0,
-                selected=jnp.zeros((2, 2), dtype=jnp.bool_),
-                clipboard=jnp.zeros((2, 2), dtype=jnp.int32),
-                similarity_score=jnp.array(0.0, dtype=jnp.float32),
             )
 
     def _create_dummy_task_data(self) -> JaxArcTask:
@@ -202,7 +233,7 @@ class TestArcEnvironment:
         # Verify state
         assert isinstance(state, ArcEnvState)
         assert state.step_count == 0
-        assert state.episode_done is False
+        assert state.episode_done == False
         assert state.current_example_idx == 0
 
         # Verify observation
@@ -443,7 +474,7 @@ class TestArcEnvironment:
                         # If we get here, data loading worked too
                         assert isinstance(state, ArcEnvState)
                         assert state.step_count == 0
-                        assert state.episode_done is False
+                        assert state.episode_done == False
                         chex.assert_rank(observation, 2)
 
                     except (FileNotFoundError, RuntimeError):
