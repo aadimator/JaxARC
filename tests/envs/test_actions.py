@@ -35,6 +35,46 @@ from jaxarc.state import ArcEnvState
 from jaxarc.types import ARCLEAction, JaxArcTask
 
 
+def create_test_state(task_data, working_grid, working_grid_mask, target_grid=None, **kwargs):
+    """Helper function to create ArcEnvState with all required fields for testing."""
+    from jaxarc.utils.jax_types import (
+        DEFAULT_MAX_TRAIN_PAIRS, DEFAULT_MAX_TEST_PAIRS, MAX_HISTORY_LENGTH, 
+        ACTION_RECORD_FIELDS, NUM_OPERATIONS
+    )
+    
+    if target_grid is None:
+        target_grid = working_grid
+    
+    # Default values for enhanced functionality fields
+    defaults = {
+        'episode_mode': jnp.array(0, dtype=jnp.int32),  # Training mode
+        'available_demo_pairs': jnp.array([True] + [False] * (DEFAULT_MAX_TRAIN_PAIRS - 1), dtype=bool),
+        'available_test_pairs': jnp.array([True] + [False] * (DEFAULT_MAX_TEST_PAIRS - 1), dtype=bool),
+        'demo_completion_status': jnp.zeros(DEFAULT_MAX_TRAIN_PAIRS, dtype=bool),
+        'test_completion_status': jnp.zeros(DEFAULT_MAX_TEST_PAIRS, dtype=bool),
+        'action_history': jnp.zeros((MAX_HISTORY_LENGTH, ACTION_RECORD_FIELDS), dtype=jnp.float32),
+        'action_history_length': jnp.array(0, dtype=jnp.int32),
+        'allowed_operations_mask': jnp.ones(NUM_OPERATIONS, dtype=bool),
+        'step_count': jnp.array(0, dtype=jnp.int32),
+        'episode_done': jnp.array(False, dtype=jnp.bool_),
+        'current_example_idx': jnp.array(0, dtype=jnp.int32),
+        'selected': jnp.zeros_like(working_grid, dtype=jnp.bool_),
+        'clipboard': jnp.zeros_like(working_grid, dtype=jnp.int32),
+        'similarity_score': jnp.array(0.0, dtype=jnp.float32),
+    }
+    
+    # Override defaults with any provided kwargs
+    defaults.update(kwargs)
+    
+    return ArcEnvState(
+        task_data=task_data,
+        working_grid=working_grid,
+        working_grid_mask=working_grid_mask,
+        target_grid=target_grid,
+        **defaults
+    )
+
+
 # Removed JAXTestFramework import - using simple test classes instead
 # Hypothesis strategies defined locally
 def grid_arrays(
@@ -432,18 +472,12 @@ class TestARCLEOperations:
             task_index=jnp.array(0, dtype=jnp.int32),
         )
 
-        # Create state
-        state = ArcEnvState(
+        # Create state using helper function
+        state = create_test_state(
             task_data=task_data,
             working_grid=test_grid,
             working_grid_mask=jnp.ones(grid_shape, dtype=jnp.bool_),
             target_grid=test_grid,  # Use same grid as target for testing
-            step_count=jnp.array(0, dtype=jnp.int32),
-            episode_done=jnp.array(False, dtype=jnp.bool_),
-            current_example_idx=jnp.array(0, dtype=jnp.int32),
-            selected=jnp.zeros(grid_shape, dtype=jnp.bool_),
-            clipboard=jnp.zeros(grid_shape, dtype=jnp.int32),
-            similarity_score=jnp.array(0.0, dtype=jnp.float32),
         )
 
         return state
@@ -638,17 +672,11 @@ class TestARCLEOperations:
             task_index=jnp.array(0, dtype=jnp.int32),
         )
 
-        sample_state = ArcEnvState(
+        sample_state = create_test_state(
             task_data=task_data,
             working_grid=test_grid,
             working_grid_mask=jnp.ones(grid_shape, dtype=jnp.bool_),
             target_grid=test_grid,
-            step_count=jnp.array(0, dtype=jnp.int32),
-            episode_done=jnp.array(False, dtype=jnp.bool_),
-            current_example_idx=jnp.array(0, dtype=jnp.int32),
-            selected=jnp.zeros(grid_shape, dtype=jnp.bool_),
-            clipboard=jnp.zeros(grid_shape, dtype=jnp.int32),
-            similarity_score=jnp.array(0.0, dtype=jnp.float32),
         )
 
         @given(operation_id=valid_operation_ids())
@@ -714,9 +742,9 @@ class TestARCLEActionType:
                 timestamp=100,
             )
 
-        # Test invalid operation ID (outside [0, 34])
+        # Test invalid operation ID (outside [0, 41])
         with pytest.raises(ValueError, match="Operation ID must be in"):
-            invalid_operation = jnp.array(35, dtype=jnp.int32)  # > 34
+            invalid_operation = jnp.array(42, dtype=jnp.int32)  # > 41
             ARCLEAction(
                 selection=valid_selection,
                 operation=invalid_operation,
@@ -789,17 +817,11 @@ class TestActionIntegration:
             task_index=jnp.array(0, dtype=jnp.int32),
         )
 
-        state = ArcEnvState(
+        state = create_test_state(
             task_data=task_data,
             working_grid=working_grid,
             working_grid_mask=working_grid_mask,
             target_grid=working_grid,  # Use same grid as target for testing
-            step_count=jnp.array(0, dtype=jnp.int32),
-            episode_done=jnp.array(False, dtype=jnp.bool_),
-            current_example_idx=jnp.array(0, dtype=jnp.int32),
-            selected=jnp.zeros(grid_shape, dtype=jnp.bool_),
-            clipboard=jnp.zeros(grid_shape, dtype=jnp.int32),
-            similarity_score=jnp.array(0.0, dtype=jnp.float32),
         )
 
         # Step 1: Point action to selection
@@ -842,17 +864,11 @@ class TestActionIntegration:
             task_index=jnp.array(0, dtype=jnp.int32),
         )
 
-        state = ArcEnvState(
+        state = create_test_state(
             task_data=task_data,
             working_grid=working_grid,
             working_grid_mask=working_grid_mask,
             target_grid=working_grid,  # Use same grid as target for testing
-            step_count=jnp.array(0, dtype=jnp.int32),
-            episode_done=jnp.array(False, dtype=jnp.bool_),
-            current_example_idx=jnp.array(0, dtype=jnp.int32),
-            selected=jnp.zeros(grid_shape, dtype=jnp.bool_),
-            clipboard=jnp.zeros(grid_shape, dtype=jnp.int32),
-            similarity_score=jnp.array(0.0, dtype=jnp.float32),
         )
 
         # Step 1: Bbox action to select part of the pattern
@@ -889,17 +905,11 @@ class TestActionIntegration:
             task_index=jnp.array(0, dtype=jnp.int32),
         )
 
-        state = ArcEnvState(
+        state = create_test_state(
             task_data=task_data,
             working_grid=working_grid,
             working_grid_mask=working_grid_mask,
             target_grid=working_grid,  # Use same grid as target for testing
-            step_count=jnp.array(0, dtype=jnp.int32),
-            episode_done=jnp.array(False, dtype=jnp.bool_),
-            current_example_idx=jnp.array(0, dtype=jnp.int32),
-            selected=jnp.zeros(grid_shape, dtype=jnp.bool_),
-            clipboard=jnp.zeros(grid_shape, dtype=jnp.int32),
-            similarity_score=jnp.array(0.0, dtype=jnp.float32),
         )
 
         # Create mask selection (L-shape)
@@ -981,17 +991,12 @@ class TestActionIntegration:
                 task_index=jnp.array(0, dtype=jnp.int32),
             )
 
-            state = ArcEnvState(
+            state = create_test_state(
                 task_data=task_data,
                 working_grid=working_grid,
                 working_grid_mask=working_grid_mask,
                 target_grid=working_grid,
-                step_count=jnp.array(0, dtype=jnp.int32),
-                episode_done=jnp.array(False, dtype=jnp.bool_),
-                current_example_idx=jnp.array(0, dtype=jnp.int32),
                 selected=selection,
-                clipboard=jnp.zeros(grid_shape, dtype=jnp.int32),
-                similarity_score=jnp.array(0.0, dtype=jnp.float32),
             )
 
             # Execute operation

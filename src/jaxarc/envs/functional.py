@@ -69,6 +69,30 @@ def _get_observation(state: ArcEnvState, config: JaxArcConfig) -> ObservationArr
     return state.working_grid
 
 
+def create_observation(state: ArcEnvState, config: JaxArcConfig) -> ObservationArray:
+    """Create agent observation from environment state.
+    
+    This function extracts relevant information from the full environment state
+    and constructs a focused observation for the agent, hiding internal
+    implementation details and providing configurable observation formats.
+    
+    Args:
+        state: Current environment state
+        config: Environment configuration
+        
+    Returns:
+        Observation array for the agent
+        
+    Examples:
+        ```python
+        observation = create_observation(state, config)
+        ```
+    """
+    # For now, delegate to the existing observation function
+    # Future enhancement: Create structured ArcObservation with configurable fields
+    return _get_observation(state, config)
+
+
 def _calculate_reward(
     old_state: ArcEnvState, new_state: ArcEnvState, config: JaxArcConfig
 ) -> RewardValue:
@@ -197,15 +221,19 @@ def arc_reset(
     key: PRNGKey,
     config: ConfigType,
     task_data: JaxArcTask | None = None,
+    episode_mode: str = "train",
+    initial_pair_idx: int | None = None,
 ) -> Tuple[ArcEnvState, ObservationArray]:
     """
-    Reset ARC environment with functional API.
+    Reset ARC environment with enhanced mode-specific initialization.
 
     Args:
         key: JAX PRNG key
         config: Environment configuration (typed or Hydra DictConfig)
         task_data: Optional specific task data. If None, will use parser from config
                       or create demo task as fallback.
+        episode_mode: Episode mode ("train" or "test") for initialization
+        initial_pair_idx: Optional explicit pair index specification
 
     Returns:
         Tuple of (initial_state, initial_observation)
@@ -223,26 +251,88 @@ def arc_reset(
                 f"Created demo task for dataset {typed_config.dataset.dataset_name}"
             )
 
-    # Initialize working grid from first training example
-    initial_grid = task_data.input_grids_examples[0]
-    target_grid = task_data.output_grids_examples[0]
-    initial_mask = task_data.input_masks_examples[0]
+    # Import episode manager for pair selection
+    from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
 
-    # Calculate initial similarity
+    # Create episode configuration
+    episode_config = ArcEpisodeConfig(episode_mode=episode_mode)
+
+    # Select initial pair based on mode and configuration
+    if initial_pair_idx is not None:
+        # Use explicit pair index if provided
+        selected_pair_idx = jnp.array(initial_pair_idx, dtype=jnp.int32)
+        selection_successful = jnp.array(True)
+        
+        # Validate the explicit pair index
+        if episode_mode == "train":
+            selection_successful = task_data.is_demo_pair_available(initial_pair_idx)
+        else:
+            selection_successful = task_data.is_test_pair_available(initial_pair_idx)
+    else:
+        # Use episode manager for pair selection
+        selected_pair_idx, selection_successful = ArcEpisodeManager.select_initial_pair(
+            key, task_data, episode_config
+        )
+
+    # Handle selection failure using JAX-compatible operations
+    fallback_idx = jnp.array(0, dtype=jnp.int32)
+    selected_pair_idx = jnp.where(selection_successful, selected_pair_idx, fallback_idx)
+
+    # Initialize grids based on episode mode using JAX-compatible operations
+    # Get available pairs and completion status (same for both modes)
+    available_demo_pairs = task_data.get_available_demo_pairs()
+    available_test_pairs = task_data.get_available_test_pairs()
+    demo_completion_status = jnp.zeros_like(available_demo_pairs)
+    test_completion_status = jnp.zeros_like(available_test_pairs)
+    
+    if episode_mode == "train":
+        # Training mode: use demonstration pair with target access
+        initial_grid = task_data.input_grids_examples[selected_pair_idx]
+        target_grid = task_data.output_grids_examples[selected_pair_idx]
+        initial_mask = task_data.input_masks_examples[selected_pair_idx]
+        episode_mode_int = jnp.array(0, dtype=jnp.int32)  # 0 = train
+        
+    else:
+        # Test mode: use test pair with target masking
+        initial_grid = task_data.test_input_grids[selected_pair_idx]
+        initial_mask = task_data.test_input_masks[selected_pair_idx]
+        # In test mode, target grid is masked (set to zeros)
+        target_grid = jnp.zeros_like(initial_grid)  # Masked target for evaluation
+        episode_mode_int = jnp.array(1, dtype=jnp.int32)  # 1 = test
+
+    # Calculate initial similarity (will be 0.0 in test mode due to masked target)
     initial_similarity = compute_grid_similarity(initial_grid, target_grid)
 
-    # Create initial state
+    # Initialize action history and operation mask
+    max_history_length = getattr(typed_config, 'max_history_length', 1000)
+    action_record_fields = 5  # selection_data, operation_id, timestamp, pair_index, valid
+    num_operations = 42  # Updated to include enhanced control operations
+    
+    action_history = jnp.zeros((max_history_length, action_record_fields), dtype=jnp.float32)
+    action_history_length = jnp.array(0, dtype=jnp.int32)
+    allowed_operations_mask = jnp.ones(num_operations, dtype=jnp.bool_)
+
+    # Create enhanced initial state
     state = ArcEnvState(
         task_data=task_data,
         working_grid=initial_grid,
         working_grid_mask=initial_mask,
         target_grid=target_grid,
-        step_count=0,
-        episode_done=False,
-        current_example_idx=0,
+        step_count=jnp.array(0, dtype=jnp.int32),
+        episode_done=jnp.array(False),
+        current_example_idx=selected_pair_idx,
         selected=jnp.zeros_like(initial_grid, dtype=jnp.bool_),
         clipboard=jnp.zeros_like(initial_grid, dtype=jnp.int32),
         similarity_score=initial_similarity,
+        # Enhanced functionality fields
+        episode_mode=episode_mode_int,
+        available_demo_pairs=available_demo_pairs,
+        available_test_pairs=available_test_pairs,
+        demo_completion_status=demo_completion_status,
+        test_completion_status=test_completion_status,
+        action_history=action_history,
+        action_history_length=action_history_length,
+        allowed_operations_mask=allowed_operations_mask,
     )
 
     # Get initial observation
@@ -250,9 +340,12 @@ def arc_reset(
 
     if typed_config.logging.log_operations:
         jax.debug.callback(
-            lambda x: logger.info(
-                f"Reset ARC environment with similarity: {float(x):.3f}"
+            lambda mode, idx, sim: logger.info(
+                f"Reset ARC environment in {['train', 'test'][int(mode)]} mode, "
+                f"pair {int(idx)}, similarity: {float(sim):.3f}"
             ),
+            episode_mode_int,
+            selected_pair_idx,
             initial_similarity,
         )
 
@@ -473,3 +566,64 @@ def arc_step_with_hydra(
 ) -> Tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, Dict[str, Any]]:
     """Step with explicit Hydra config (for type clarity)."""
     return arc_step(state, action, hydra_config)
+
+
+# Enhanced reset functions for mode-specific initialization
+
+
+def arc_reset_training_mode(
+    key: PRNGKey,
+    config: ConfigType,
+    task_data: JaxArcTask | None = None,
+    initial_pair_idx: int | None = None,
+) -> Tuple[ArcEnvState, ObservationArray]:
+    """Reset ARC environment in training mode with demonstration pairs.
+    
+    Args:
+        key: JAX PRNG key
+        config: Environment configuration
+        task_data: Optional task data
+        initial_pair_idx: Optional explicit demonstration pair index
+        
+    Returns:
+        Tuple of (initial_state, initial_observation) configured for training
+        
+    Examples:
+        ```python
+        # Reset with random demo pair selection
+        state, obs = arc_reset_training_mode(key, config, task_data)
+        
+        # Reset with specific demo pair
+        state, obs = arc_reset_training_mode(key, config, task_data, initial_pair_idx=2)
+        ```
+    """
+    return arc_reset(key, config, task_data, episode_mode="train", initial_pair_idx=initial_pair_idx)
+
+
+def arc_reset_evaluation_mode(
+    key: PRNGKey,
+    config: ConfigType,
+    task_data: JaxArcTask | None = None,
+    initial_pair_idx: int | None = None,
+) -> Tuple[ArcEnvState, ObservationArray]:
+    """Reset ARC environment in evaluation mode with test pairs.
+    
+    Args:
+        key: JAX PRNG key
+        config: Environment configuration
+        task_data: Optional task data
+        initial_pair_idx: Optional explicit test pair index
+        
+    Returns:
+        Tuple of (initial_state, initial_observation) configured for evaluation
+        
+    Examples:
+        ```python
+        # Reset with first test pair
+        state, obs = arc_reset_evaluation_mode(key, config, task_data)
+        
+        # Reset with specific test pair
+        state, obs = arc_reset_evaluation_mode(key, config, task_data, initial_pair_idx=1)
+        ```
+    """
+    return arc_reset(key, config, task_data, episode_mode="test", initial_pair_idx=initial_pair_idx)

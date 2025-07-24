@@ -27,6 +27,9 @@ from jaxtyping import Bool, Float, Int
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
+# Import episode configuration
+from .episode_manager import ArcEpisodeConfig
+
 
 # Validation utilities
 class ConfigValidationError(ValueError):
@@ -936,6 +939,7 @@ class JaxArcConfig(eqx.Module):
     storage: StorageConfig
     logging: LoggingConfig
     wandb: WandbConfig
+    episode: ArcEpisodeConfig
 
     def __init__(
         self,
@@ -947,6 +951,7 @@ class JaxArcConfig(eqx.Module):
         storage: Optional[StorageConfig] = None,
         logging: Optional[LoggingConfig] = None,
         wandb: Optional[WandbConfig] = None,
+        episode: Optional[ArcEpisodeConfig] = None,
     ):
         """Initialize unified configuration with optional component overrides."""
         self.environment = environment or EnvironmentConfig()
@@ -959,6 +964,7 @@ class JaxArcConfig(eqx.Module):
         self.storage = storage or StorageConfig()
         self.logging = logging or LoggingConfig()
         self.wandb = wandb or WandbConfig.from_hydra(DictConfig({}))
+        self.episode = episode or ArcEpisodeConfig()
 
     def validate(self) -> List[str]:
         """Comprehensive validation method that checks cross-config consistency.
@@ -977,6 +983,7 @@ class JaxArcConfig(eqx.Module):
         all_errors.extend(self.storage.validate())
         all_errors.extend(self.logging.validate())
         all_errors.extend(self.wandb.validate())
+        all_errors.extend(self.episode.validate())
 
         # Cross-configuration validation
         cross_validation_errors = self._validate_cross_config_consistency()
@@ -1504,6 +1511,7 @@ class JaxArcConfig(eqx.Module):
         storage_cfg = config_dict.get("storage", {})
         logging_cfg = config_dict.get("logging", {})
         wandb_cfg = config_dict.get("wandb", {})
+        episode_cfg = config_dict.get("episode", {})
 
         # Handle legacy config structure - merge top-level keys into appropriate sections
         for key, value in config_dict.items():
@@ -1516,6 +1524,7 @@ class JaxArcConfig(eqx.Module):
                 "storage",
                 "logging",
                 "wandb",
+                "episode",
             ]:
                 # Try to map legacy keys to appropriate config sections
                 if key in [
@@ -1540,6 +1549,19 @@ class JaxArcConfig(eqx.Module):
                     reward_cfg[key] = value
                 elif key in ["log_operations", "log_grid_changes", "log_rewards"]:
                     logging_cfg[key] = value
+                elif key in [
+                    "episode_mode",
+                    "demo_selection_strategy", 
+                    "allow_demo_switching",
+                    "test_selection_strategy",
+                    "allow_test_switching",
+                    "terminate_on_first_success",
+                    "max_pairs_per_episode",
+                    "success_threshold",
+                    "training_reward_frequency",
+                    "evaluation_reward_frequency"
+                ]:
+                    episode_cfg[key] = value
 
         # Handle Hydra debug configuration mapping
         # If we have a debug config but no explicit debug_level in environment, infer it
@@ -1565,6 +1587,7 @@ class JaxArcConfig(eqx.Module):
         storage = StorageConfig.from_hydra(DictConfig(storage_cfg))
         logging = LoggingConfig.from_hydra(DictConfig(logging_cfg))
         wandb = WandbConfig.from_hydra(DictConfig(wandb_cfg))
+        episode = ArcEpisodeConfig.from_hydra(episode_cfg)
 
         return cls(
             environment=environment,
@@ -1575,4 +1598,5 @@ class JaxArcConfig(eqx.Module):
             storage=storage,
             logging=logging,
             wandb=wandb,
+            episode=episode,
         )

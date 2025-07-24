@@ -20,6 +20,43 @@ from ..types import JaxArcTask
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
 
+def create_enhanced_state(task_data, working_grid, working_grid_mask, target_grid, **kwargs):
+    """Helper function to create ArcEnvState with all required enhanced fields."""
+    from ..utils.jax_types import (
+        DEFAULT_MAX_TRAIN_PAIRS, DEFAULT_MAX_TEST_PAIRS, MAX_HISTORY_LENGTH, 
+        ACTION_RECORD_FIELDS, NUM_OPERATIONS
+    )
+    
+    # Default values for enhanced functionality fields
+    defaults = {
+        'episode_mode': jnp.array(0, dtype=jnp.int32),  # Training mode
+        'available_demo_pairs': jnp.array([True] + [False] * (DEFAULT_MAX_TRAIN_PAIRS - 1), dtype=bool),
+        'available_test_pairs': jnp.array([True] + [False] * (DEFAULT_MAX_TEST_PAIRS - 1), dtype=bool),
+        'demo_completion_status': jnp.zeros(DEFAULT_MAX_TRAIN_PAIRS, dtype=bool),
+        'test_completion_status': jnp.zeros(DEFAULT_MAX_TEST_PAIRS, dtype=bool),
+        'action_history': jnp.zeros((MAX_HISTORY_LENGTH, ACTION_RECORD_FIELDS), dtype=jnp.float32),
+        'action_history_length': jnp.array(0, dtype=jnp.int32),
+        'allowed_operations_mask': jnp.ones(NUM_OPERATIONS, dtype=bool),
+        'step_count': jnp.array(0, dtype=jnp.int32),
+        'episode_done': jnp.array(False, dtype=jnp.bool_),
+        'current_example_idx': jnp.array(0, dtype=jnp.int32),
+        'selected': jnp.zeros_like(working_grid, dtype=jnp.bool_),
+        'clipboard': jnp.zeros_like(working_grid, dtype=jnp.int32),
+        'similarity_score': jnp.array(0.0, dtype=jnp.float32),
+    }
+    
+    # Override defaults with any provided kwargs
+    defaults.update(kwargs)
+    
+    return ArcEnvState(
+        task_data=task_data,
+        working_grid=working_grid,
+        working_grid_mask=working_grid_mask,
+        target_grid=target_grid,
+        **defaults
+    )
+
+
 class ArcEnvironment:
     """Clean ARC environment implementation for single-agent reinforcement learning."""
 
@@ -89,16 +126,11 @@ class ArcEnvironment:
         # Calculate initial similarity
         initial_similarity = compute_grid_similarity(initial_grid, target_grid)
 
-        state = ArcEnvState(
+        state = create_enhanced_state(
             task_data=task_data,
             working_grid=initial_grid,
             working_grid_mask=initial_mask,
             target_grid=target_grid,
-            step_count=0,
-            episode_done=False,
-            current_example_idx=0,
-            selected=jnp.zeros_like(initial_grid, dtype=jnp.bool_),
-            clipboard=jnp.zeros_like(initial_grid, dtype=jnp.int32),
             similarity_score=initial_similarity,
         )
 
