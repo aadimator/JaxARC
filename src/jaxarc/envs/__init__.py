@@ -14,6 +14,9 @@ from ..state import ArcEnvState
 # Action handlers
 from .actions import bbox_handler, get_action_handler, mask_handler, point_handler
 
+# Action space controller
+from .action_space_controller import ActionSpaceController
+
 
 
 # Configuration factory system
@@ -96,6 +99,7 @@ from .spaces import MultiBinary, Space
 
 __all__ = [
     "OPERATION_NAMES",
+    "ActionSpaceController",
     "ArcEnvState",
     "ArcEnvironment",
     "ArcEpisodeConfig",

@@ -813,7 +813,7 @@ class ActionConfig(eqx.Module):
     """Configuration for action space and validation.
 
     This config contains all settings related to action handling,
-    validation, and operation constraints.
+    validation, and operation constraints, including dynamic action space control.
     """
 
     # Selection format
@@ -824,12 +824,17 @@ class ActionConfig(eqx.Module):
     allow_partial_selection: Bool = True
 
     # Operation parameters
-    max_operations: Int = 35  # Standardized naming: max_* pattern
+    max_operations: Int = 42  # Updated to include enhanced control operations (0-41)
     allowed_operations: Optional[List[Int]] = None
 
     # Validation settings
     validate_actions: Bool = True
     allow_invalid_actions: Bool = False  # Standardized naming: allow_* pattern
+    
+    # Dynamic action space control settings
+    dynamic_action_filtering: Bool = False  # Enable runtime operation filtering
+    context_dependent_operations: Bool = False  # Allow context-based operation availability
+    invalid_operation_policy: Literal["clip", "noop", "reject", "passthrough", "penalize"] = "clip"
 
     def validate(self) -> list[str]:
         """Validate action configuration and return list of errors."""
@@ -880,6 +885,12 @@ class ActionConfig(eqx.Module):
                             f"allowed_operations contains duplicate operations: {duplicates}"
                         )
 
+            # Validate dynamic action space control settings
+            valid_policies = ["clip", "noop", "reject", "passthrough", "penalize"]
+            validate_string_choice(
+                self.invalid_operation_policy, "invalid_operation_policy", valid_policies
+            )
+
             # Cross-field validation warnings
             if self.selection_format != "mask" and self.allow_partial_selection:
                 logger.warning(
@@ -889,6 +900,11 @@ class ActionConfig(eqx.Module):
             if not self.validate_actions and not self.allow_invalid_actions:
                 logger.warning(
                     "allow_invalid_actions has no effect when validate_actions=False"
+                )
+                
+            if not self.dynamic_action_filtering and self.context_dependent_operations:
+                logger.warning(
+                    "context_dependent_operations has no effect when dynamic_action_filtering=False"
                 )
 
         except ConfigValidationError as e:
@@ -907,12 +923,15 @@ class ActionConfig(eqx.Module):
             selection_format=cfg.get("selection_format", "mask"),
             selection_threshold=cfg.get("selection_threshold", 0.5),
             allow_partial_selection=cfg.get("allow_partial_selection", True),
-            max_operations=cfg.get("num_operations", 35),  # Map from legacy name
+            max_operations=cfg.get("num_operations", 42),  # Updated to include enhanced operations
             allowed_operations=allowed_ops,
             validate_actions=cfg.get("validate_actions", True),
             allow_invalid_actions=not cfg.get(
                 "clip_invalid_actions", True
             ),  # Map from legacy name with inverted logic
+            dynamic_action_filtering=cfg.get("dynamic_action_filtering", False),
+            context_dependent_operations=cfg.get("context_dependent_operations", False),
+            invalid_operation_policy=cfg.get("invalid_operation_policy", "clip"),
         )
 
 

@@ -135,20 +135,26 @@ class TestEquinoxConfigModules:
             selection_format="mask",
             selection_threshold=0.5,
             allow_partial_selection=True,
-            max_operations=35,
+            max_operations=42,  # Updated to include enhanced operations
             allowed_operations=[0, 1, 2, 3],
             validate_actions=True,
             allow_invalid_actions=False,
+            dynamic_action_filtering=True,
+            context_dependent_operations=True,
+            invalid_operation_policy="clip",
         )
 
         # Test field values
         assert config.selection_format == "mask"
         assert config.selection_threshold == 0.5
         assert config.allow_partial_selection is True
-        assert config.max_operations == 35
+        assert config.max_operations == 42
         assert config.allowed_operations == [0, 1, 2, 3]
         assert config.validate_actions is True
         assert config.allow_invalid_actions is False
+        assert config.dynamic_action_filtering is True
+        assert config.context_dependent_operations is True
+        assert config.invalid_operation_policy == "clip"
 
         # Test validation
         errors = config.validate()
@@ -176,6 +182,70 @@ class TestEquinoxConfigModules:
         errors = config.validate()
         assert len(errors) > 0
         assert any("allowed_operations" in error for error in errors)
+
+    def test_action_config_dynamic_control(self):
+        """Test ActionConfig dynamic action control features."""
+        # Test default values (should be False as per design spec)
+        config = ActionConfig()
+        assert config.dynamic_action_filtering is False
+        assert config.context_dependent_operations is False
+        assert config.invalid_operation_policy == "clip"
+
+        # Test with dynamic control enabled
+        config = ActionConfig(
+            dynamic_action_filtering=True,
+            context_dependent_operations=True,
+            invalid_operation_policy="reject",
+        )
+        assert config.dynamic_action_filtering is True
+        assert config.context_dependent_operations is True
+        assert config.invalid_operation_policy == "reject"
+
+        # Test validation passes
+        errors = config.validate()
+        assert len(errors) == 0
+
+        # Test invalid operation policy
+        config = ActionConfig(invalid_operation_policy="invalid_policy")
+        errors = config.validate()
+        assert len(errors) > 0
+        assert any("invalid_operation_policy" in error for error in errors)
+
+        # Test all valid operation policies
+        valid_policies = ["clip", "noop", "reject", "passthrough"]
+        for policy in valid_policies:
+            config = ActionConfig(invalid_operation_policy=policy)
+            errors = config.validate()
+            assert len(errors) == 0, f"Policy '{policy}' should be valid"
+
+    def test_action_config_from_hydra(self):
+        """Test ActionConfig creation from Hydra DictConfig."""
+        from omegaconf import DictConfig
+
+        # Test with dynamic control options
+        cfg = DictConfig({
+            "selection_format": "point",
+            "selection_threshold": 0.7,
+            "max_operations": 42,
+            "dynamic_action_filtering": True,
+            "context_dependent_operations": True,
+            "invalid_operation_policy": "reject",
+        })
+
+        config = ActionConfig.from_hydra(cfg)
+        assert config.selection_format == "point"
+        assert config.selection_threshold == 0.7
+        assert config.max_operations == 42
+        assert config.dynamic_action_filtering is True
+        assert config.context_dependent_operations is True
+        assert config.invalid_operation_policy == "reject"
+
+        # Test with defaults (should use False for dynamic control as per design)
+        cfg = DictConfig({})
+        config = ActionConfig.from_hydra(cfg)
+        assert config.dynamic_action_filtering is False
+        assert config.context_dependent_operations is False
+        assert config.invalid_operation_policy == "clip"
 
     def test_reward_config_creation(self):
         """Test RewardConfig creation and validation."""
