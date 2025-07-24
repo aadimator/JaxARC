@@ -56,9 +56,9 @@ build.hooks.vcs.version-file = "src/jaxarc/_version.py"
 packages = ["src/jaxarc"]
 # Include Hydra configuration files as package data
 include = [
-    "conf/**/*.yaml",
-    "conf/**/*.yml", 
-    "conf/README.md"
+    "jaxarc/conf/**/*.yaml",
+    "jaxarc/conf/**/*.yml",  
+    "jaxarc/conf/README.md"
 ]
 
 [tool.hatch.build.targets.sdist]
