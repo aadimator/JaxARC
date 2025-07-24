@@ -255,28 +255,28 @@ class ArcObservation(eqx.Module):
     """Boolean mask indicating which operations are currently allowed."""
     
     # Target information (training only, masked in test mode)
-    target_grid: Optional[GridArray] = None
-    """Target grid for current pair (only available in training mode)."""
+    target_grid: GridArray
+    """Target grid for current pair (masked with zeros in test mode for JAX compatibility)."""
     
-    # Optional: Recent action history (configurable)
-    recent_actions: Optional[ActionHistory] = None
-    """Recent action history (last N actions if enabled in configuration)."""
+    # Recent action history (configurable, masked when disabled)
+    recent_actions: ActionHistory
+    """Recent action history (masked with zeros when disabled for JAX compatibility)."""
     
-    # Optional: Demonstration pairs for pattern recognition (configurable)
-    demo_input_grids: Optional[TaskInputGrids] = None
-    """Demonstration input grids for pattern recognition and few-shot learning."""
+    # Demonstration pairs for pattern recognition (configurable, masked when disabled)
+    demo_input_grids: TaskInputGrids
+    """Demonstration input grids (masked with zeros when disabled for JAX compatibility)."""
     
-    demo_output_grids: Optional[TaskOutputGrids] = None
-    """Demonstration output grids for pattern recognition and few-shot learning."""
+    demo_output_grids: TaskOutputGrids
+    """Demonstration output grids (masked with zeros when disabled for JAX compatibility)."""
     
-    demo_input_masks: Optional[TaskInputMasks] = None
-    """Masks for demonstration input grids."""
+    demo_input_masks: TaskInputMasks
+    """Masks for demonstration input grids (masked with zeros when disabled for JAX compatibility)."""
     
-    demo_output_masks: Optional[TaskOutputMasks] = None
-    """Masks for demonstration output grids."""
+    demo_output_masks: TaskOutputMasks
+    """Masks for demonstration output grids (masked with zeros when disabled for JAX compatibility)."""
     
-    num_demo_pairs: Optional[int] = None
-    """Number of valid demonstration pairs included in observation."""
+    num_demo_pairs: int
+    """Number of valid demonstration pairs included in observation (0 when disabled)."""
     
     def __check_init__(self) -> None:
         """Validate observation structure.
@@ -314,37 +314,27 @@ class ArcObservation(eqx.Module):
             chex.assert_type(self.allowed_operations_mask, jnp.bool_)
             chex.assert_rank(self.allowed_operations_mask, 1)
             
-            # Validate optional target grid
-            if self.target_grid is not None:
-                chex.assert_rank(self.target_grid, 2)
-                chex.assert_type(self.target_grid, jnp.integer)
-                chex.assert_shape(self.target_grid, self.working_grid.shape)
+            # Validate target grid (always present, masked when not applicable)
+            chex.assert_rank(self.target_grid, 2)
+            chex.assert_type(self.target_grid, jnp.integer)
+            chex.assert_shape(self.target_grid, self.working_grid.shape)
             
-            # Validate optional recent actions
-            if self.recent_actions is not None:
-                chex.assert_type(self.recent_actions, jnp.floating)
-                chex.assert_rank(self.recent_actions, 2)
+            # Validate recent actions (always present, masked when disabled)
+            chex.assert_type(self.recent_actions, jnp.floating)
+            chex.assert_rank(self.recent_actions, 2)
             
-            # Validate optional demonstration pairs
-            if self.demo_input_grids is not None:
-                chex.assert_type(self.demo_input_grids, jnp.integer)
-                chex.assert_rank(self.demo_input_grids, 3)
-                
-                # Check that all demo arrays have consistent shapes if provided
-                if self.demo_output_grids is not None:
-                    chex.assert_type(self.demo_output_grids, jnp.integer)
-                    chex.assert_rank(self.demo_output_grids, 3)
-                    chex.assert_shape(self.demo_output_grids, self.demo_input_grids.shape)
-                
-                if self.demo_input_masks is not None:
-                    chex.assert_type(self.demo_input_masks, jnp.bool_)
-                    chex.assert_rank(self.demo_input_masks, 3)
-                    chex.assert_shape(self.demo_input_masks, self.demo_input_grids.shape)
-                
-                if self.demo_output_masks is not None:
-                    chex.assert_type(self.demo_output_masks, jnp.bool_)
-                    chex.assert_rank(self.demo_output_masks, 3)
-                    chex.assert_shape(self.demo_output_masks, self.demo_input_grids.shape)
+            # Validate demonstration pairs (always present, masked when disabled)
+            chex.assert_type(self.demo_input_grids, jnp.integer)
+            chex.assert_rank(self.demo_input_grids, 3)
+            chex.assert_type(self.demo_output_grids, jnp.integer)
+            chex.assert_rank(self.demo_output_grids, 3)
+            chex.assert_shape(self.demo_output_grids, self.demo_input_grids.shape)
+            chex.assert_type(self.demo_input_masks, jnp.bool_)
+            chex.assert_rank(self.demo_input_masks, 3)
+            chex.assert_shape(self.demo_input_masks, self.demo_input_grids.shape)
+            chex.assert_type(self.demo_output_masks, jnp.bool_)
+            chex.assert_rank(self.demo_output_masks, 3)
+            chex.assert_shape(self.demo_output_masks, self.demo_input_grids.shape)
                 
             # Validate episode mode value
             if hasattr(self.episode_mode, "item"):
@@ -376,9 +366,10 @@ class ArcObservation(eqx.Module):
         """Check if target grid is available in this observation.
         
         Returns:
-            True if target grid is available (training mode)
+            True if target grid contains meaningful data (training mode)
         """
-        return self.target_grid is not None
+        # Check if target grid has non-zero values (meaningful data)
+        return jnp.any(self.target_grid != 0)
     
     def get_completed_demo_count(self) -> int:
         """Get number of completed demonstration pairs.
@@ -429,17 +420,17 @@ class ArcObservation(eqx.Module):
         """Check if demonstration pairs are available in this observation.
         
         Returns:
-            True if demonstration pairs are included
+            True if demonstration pairs contain meaningful data
         """
-        return self.demo_input_grids is not None
+        return self.num_demo_pairs > 0
     
     def get_num_demo_pairs(self) -> int:
         """Get number of demonstration pairs included in observation.
         
         Returns:
-            Number of demonstration pairs, or 0 if none included
+            Number of demonstration pairs
         """
-        return self.num_demo_pairs if self.num_demo_pairs is not None else 0
+        return self.num_demo_pairs
     
     def get_observation_summary(self) -> Dict[str, Any]:
         """Get a summary of key observation information.
@@ -456,7 +447,7 @@ class ArcObservation(eqx.Module):
             "completed_demos": self.get_completed_demo_count(),
             "completed_tests": self.get_completed_test_count(),
             "allowed_operations": self.get_allowed_operations_count(),
-            "has_recent_actions": self.recent_actions is not None,
+            "has_recent_actions": jnp.any(self.recent_actions != 0),
             "has_demonstration_pairs": self.has_demonstration_pairs(),
             "num_demo_pairs": self.get_num_demo_pairs(),
         }
@@ -533,65 +524,42 @@ def create_observation(
         allowed_operations_mask = jnp.ones_like(state.allowed_operations_mask)
     
     # Target grid (mode-aware and configurable)
-    target_grid = None
-    if config.include_target_grid and state.is_training_mode():
-        # Only include target in training mode
-        target_grid = state.target_grid
+    # For JAX compatibility, always provide a target grid but mask it appropriately
+    if config.include_target_grid:
+        # Use JAX where to conditionally include target based on training mode
+        target_grid = jnp.where(
+            state.episode_mode == 0,  # 0 = training mode
+            state.target_grid,
+            jnp.zeros_like(state.target_grid)  # Masked in test mode
+        )
+    else:
+        target_grid = jnp.zeros_like(state.target_grid)  # Disabled by config
     
     # Recent action history (optional and configurable)
-    recent_actions = None
-    if config.include_recent_actions and state.has_action_history():
-        # Extract recent actions from full history
-        history_length = int(state.action_history_length)
-        recent_count = min(config.recent_action_count, history_length)
-        
-        if recent_count > 0:
-            # Get the most recent actions
-            start_idx = max(0, history_length - recent_count)
-            end_idx = history_length
-            
-            # Create a smaller array with just recent actions
-            # For simplicity, we'll include the full history array but could optimize this
-            recent_actions = state.action_history
+    # For JAX compatibility, always provide action history but mask it appropriately
+    if config.include_recent_actions:
+        # Use the full action history for JAX compatibility
+        # The actual recent actions can be extracted using action_history_length
+        recent_actions = state.action_history
+    else:
+        recent_actions = jnp.zeros_like(state.action_history)  # Disabled by config
     
     # Demonstration pairs (optional and configurable)
-    demo_input_grids = None
-    demo_output_grids = None
-    demo_input_masks = None
-    demo_output_masks = None
-    num_demo_pairs = None
-    
+    # For JAX compatibility, always provide demonstration pairs but mask them appropriately
     if config.include_demonstration_pairs:
-        # Get demonstration pairs from task data
-        task_data = state.task_data
-        current_pair_idx_val = int(state.current_example_idx)
-        
-        if state.is_training_mode():
-            # In training mode, include other demonstration pairs (excluding current one)
-            # This helps agents learn from other examples while working on current pair
-            all_demo_inputs = task_data.input_grids_examples
-            all_demo_outputs = task_data.output_grids_examples
-            all_demo_input_masks = task_data.input_masks_examples
-            all_demo_output_masks = task_data.output_masks_examples
-            
-            # Create mask to exclude current pair
-            num_total_pairs = task_data.num_train_pairs
-            pair_mask = jnp.arange(all_demo_inputs.shape[0]) != current_pair_idx_val
-            
-            # For now, include all pairs (could be optimized to exclude current)
-            demo_input_grids = all_demo_inputs
-            demo_output_grids = all_demo_outputs
-            demo_input_masks = all_demo_input_masks
-            demo_output_masks = all_demo_output_masks
-            num_demo_pairs = num_total_pairs
-            
-        else:
-            # In test mode, include all demonstration pairs for pattern recognition
-            demo_input_grids = task_data.input_grids_examples
-            demo_output_grids = task_data.output_grids_examples
-            demo_input_masks = task_data.input_masks_examples
-            demo_output_masks = task_data.output_masks_examples
-            num_demo_pairs = task_data.num_train_pairs
+        # Always include demonstration pairs from task data
+        demo_input_grids = state.task_data.input_grids_examples
+        demo_output_grids = state.task_data.output_grids_examples
+        demo_input_masks = state.task_data.input_masks_examples
+        demo_output_masks = state.task_data.output_masks_examples
+        num_demo_pairs = state.task_data.num_train_pairs
+    else:
+        # Provide zero arrays with correct shapes when disabled
+        demo_input_grids = jnp.zeros_like(state.task_data.input_grids_examples)
+        demo_output_grids = jnp.zeros_like(state.task_data.output_grids_examples)
+        demo_input_masks = jnp.zeros_like(state.task_data.input_masks_examples)
+        demo_output_masks = jnp.zeros_like(state.task_data.output_masks_examples)
+        num_demo_pairs = 0
     
     return ArcObservation(
         working_grid=working_grid,
