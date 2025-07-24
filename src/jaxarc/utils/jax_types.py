@@ -202,22 +202,99 @@ MAX_GRID_SIZE = 30  # Maximum grid dimension in ARC
 MAX_TRAIN_PAIRS = 10  # Maximum training pairs per task
 MAX_TEST_PAIRS = 3  # Maximum test pairs per task
 NUM_COLORS = 10  # Number of colors in ARC (0-9)
-NUM_OPERATIONS = 42  # Number of ARCLE operations including enhanced control operations (0-41)
+NUM_OPERATIONS = (
+    42  # Number of ARCLE operations including enhanced control operations (0-41)
+)
 
 # Enhanced functionality constants
 # Note: MAX_PAIRS removed - now dataset/config dependent
 MAX_HISTORY_LENGTH = 1000  # Default maximum action history length
 MAX_SELECTION_SIZE = MAX_GRID_SIZE * MAX_GRID_SIZE  # Maximum flattened selection size
 MAX_GRID_SIZE_SQUARED = MAX_GRID_SIZE * MAX_GRID_SIZE  # For flattened grid operations
-ACTION_RECORD_FIELDS = 5  # Number of fields in action record (selection_data_size + operation_id + timestamp + pair_index + valid)
+# Dynamic ACTION_RECORD_FIELDS calculation based on configuration
+# This replaces the previous fixed constant approach
+
+
+def get_selection_data_size(
+    selection_format: str,
+    max_grid_height: int = MAX_GRID_SIZE,
+    max_grid_width: int = MAX_GRID_SIZE,
+) -> int:
+    """Calculate selection data size based on format and dataset configuration.
+
+    This function determines the optimal size for storing selection data in action history
+    based on the selection format and dataset constraints. This is much more efficient
+    than using a fixed MAX_SELECTION_SIZE for all cases.
+
+    Args:
+        selection_format: Selection format ("point", "bbox", "mask")
+        max_grid_height: Maximum grid height for the dataset
+        max_grid_width: Maximum grid width for the dataset
+
+    Returns:
+        Number of elements needed to store selection data
+
+    Examples:
+        # MiniARC with point selection: only 2 elements needed
+        size = get_selection_data_size("point", 5, 5)  # Returns 2
+
+        # Full ARC with bbox selection: only 4 elements needed
+        size = get_selection_data_size("bbox", 30, 30)  # Returns 4
+
+        # MiniARC with mask selection: 25 elements (5x5)
+        size = get_selection_data_size("mask", 5, 5)  # Returns 25
+
+        # Full ARC with mask selection: 900 elements (30x30)
+        size = get_selection_data_size("mask", 30, 30)  # Returns 900
+    """
+    if selection_format == "point":
+        return 2  # [row, col]
+    elif selection_format == "bbox":
+        return 4  # [r1, c1, r2, c2]
+    elif selection_format == "mask":
+        return max_grid_height * max_grid_width  # flattened mask
+    else:
+        raise ValueError(f"Unknown selection format: {selection_format}")
+
+
+def get_action_record_fields(
+    selection_format: str,
+    max_grid_height: int = MAX_GRID_SIZE,
+    max_grid_width: int = MAX_GRID_SIZE,
+) -> int:
+    """Calculate total action record fields based on configuration.
+
+    Args:
+        selection_format: Selection format ("point", "bbox", "mask")
+        max_grid_height: Maximum grid height for the dataset
+        max_grid_width: Maximum grid width for the dataset
+
+    Returns:
+        Total number of fields in action record
+
+    Examples:
+        # MiniARC with point selection: 2 + 4 = 6 fields
+        fields = get_action_record_fields("point", 5, 5)  # Returns 6
+
+        # Full ARC with mask selection: 900 + 4 = 904 fields
+        fields = get_action_record_fields("mask", 30, 30)  # Returns 904
+    """
+    selection_size = get_selection_data_size(
+        selection_format, max_grid_height, max_grid_width
+    )
+    return selection_size + 4  # +4 for: operation_id, timestamp, pair_index, valid
+
+
+# Backward compatibility: default ACTION_RECORD_FIELDS for mask format with max grid size
+ACTION_RECORD_FIELDS = get_action_record_fields("mask", MAX_GRID_SIZE, MAX_GRID_SIZE)
 
 # Default maximums for different datasets (can be overridden)
 DEFAULT_MAX_TRAIN_PAIRS = 10  # Conservative default, can be increased for augmentation
-DEFAULT_MAX_TEST_PAIRS = 4   # Reasonable default for most datasets
+DEFAULT_MAX_TEST_PAIRS = 4  # Reasonable default for most datasets
 
 # Episode mode constants for JAX compatibility
 EPISODE_MODE_TRAIN = 0  # Training mode
-EPISODE_MODE_TEST = 1   # Test/evaluation mode
+EPISODE_MODE_TEST = 1  # Test/evaluation mode
 
 # Type aliases for these constants
 MaxGridSize: TypeAlias = int
@@ -244,7 +321,7 @@ AvailableTrainPairs: TypeAlias = Bool[Array, "max_train_pairs"]
 """Boolean mask indicating which training/demonstration pairs are available.
 Size determined by dataset configuration and augmentation settings."""
 
-AvailableTestPairs: TypeAlias = Bool[Array, "max_test_pairs"] 
+AvailableTestPairs: TypeAlias = Bool[Array, "max_test_pairs"]
 """Boolean mask indicating which test pairs are available.
 Size determined by dataset configuration (typically smaller than train pairs)."""
 
@@ -291,7 +368,7 @@ Uses static shape with padding for JAX compatibility."""
 PointSelectionData: TypeAlias = Int[Array, "2"]
 """Point selection data as [row, col] coordinates."""
 
-BboxSelectionData: TypeAlias = Int[Array, "4"] 
+BboxSelectionData: TypeAlias = Int[Array, "4"]
 """Bounding box selection data as [r1, c1, r2, c2] coordinates."""
 
 MaskSelectionData: TypeAlias = Float[Array, "max_grid_size_squared"]

@@ -247,9 +247,14 @@ class ArcEnvState(eqx.Module):
                 msg = f"Test pairs and completion status shape mismatch: {self.available_test_pairs.shape} vs {self.test_completion_status.shape}"
                 raise ValueError(msg)
 
-            # Validate action history has correct number of fields
-            if self.action_history.shape[1] != ACTION_RECORD_FIELDS:
-                msg = f"Action history should have {ACTION_RECORD_FIELDS} fields, got {self.action_history.shape[1]}"
+            # Validate action history has reasonable number of fields
+            # With dynamic sizing, this can vary from 6 (point) to 904 (full mask)
+            action_history_fields = self.action_history.shape[1]
+            if action_history_fields < 6:  # Minimum: 2 (point) + 4 (metadata)
+                msg = f"Action history should have at least 6 fields, got {action_history_fields}"
+                raise ValueError(msg)
+            if action_history_fields > 1000:  # Reasonable upper bound
+                msg = f"Action history has unusually many fields: {action_history_fields}"
                 raise ValueError(msg)
 
             # Validate operations mask has correct size
