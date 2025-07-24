@@ -29,38 +29,18 @@ def get_jaxarc_config_dir() -> Path:
         ```
     """
     try:
-        # Try to get config directory from package resources
-        # Import here to avoid circular imports
-        import jaxarc  # noqa: PLC0415
-        pkg_path = Path(jaxarc.__file__).parent.parent.parent
-        config_dir = pkg_path / "conf"
-        
+        pkg_root = importlib.resources.files('jaxarc')
+        config_dir = pkg_root / "conf"
         if config_dir.exists():
             return config_dir
-            
-        # Fallback: Try to find from importlib.resources (Python 3.9+)
-        try:
-            with importlib.resources.path("jaxarc", "__init__.py") as pkg_init:
-                pkg_root = pkg_init.parent.parent.parent
-                config_dir = pkg_root / "conf"
-                if config_dir.exists():
-                    return config_dir
-        except (ImportError, AttributeError):
-            pass
-            
-        # Final fallback: relative to this file
-        config_dir = Path(__file__).parent.parent.parent / "conf"
-        if config_dir.exists():
-            return config_dir
-            
     except Exception as e:
         logger.warning(f"Could not locate config directory: {e}")
     
-    msg = (
-        "Could not locate JaxARC configuration directory. "
-        "Make sure JaxARC is properly installed with configuration files."
-    )
-    raise FileNotFoundError(msg)
+        msg = (
+            "Could not locate JaxARC configuration directory. "
+            "Make sure JaxARC is properly installed with configuration files."
+        )
+        raise FileNotFoundError(msg)
 
 
 def load_jaxarc_config(

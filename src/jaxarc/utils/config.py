@@ -13,6 +13,7 @@ from hydra import compose, initialize_config_dir
 from loguru import logger
 from omegaconf import DictConfig
 from pyprojroot import here
+import importlib.resources
 
 
 def get_config(overrides: list[str] | None = None) -> DictConfig:
@@ -35,7 +36,8 @@ def get_config(overrides: list[str] | None = None) -> DictConfig:
         cfg = get_config(["dataset.dataset_name=ConceptARC", "action.selection_format=point"])
         ```
     """
-    config_dir = here("conf")
+    # Find the path to the 'conf' directory within the 'jaxarc' package
+    config_dir = importlib.resources.files('jaxarc') / 'conf'
 
     with initialize_config_dir(
         config_dir=str(config_dir.absolute()), version_base=None
