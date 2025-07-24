@@ -24,10 +24,12 @@ from jaxarc.utils.visualization import (
 from ..state import ArcEnvState
 from ..types import ARCLEAction, JaxArcTask
 from ..utils.jax_types import (
+    ACTION_RECORD_FIELDS,
     EpisodeDone,
     ObservationArray,
     OperationId,
     PRNGKey,
+    get_action_record_fields,
     RewardValue,
 )
 from .actions import get_action_handler
@@ -303,10 +305,16 @@ def arc_reset(
     # Calculate initial similarity (will be 0.0 in test mode due to masked target)
     initial_similarity = compute_grid_similarity(initial_grid, target_grid)
 
-    # Initialize action history and operation mask
+    # Initialize action history and operation mask with dynamic sizing
     max_history_length = getattr(typed_config, 'max_history_length', 1000)
-    action_record_fields = 5  # selection_data, operation_id, timestamp, pair_index, valid
     num_operations = 42  # Updated to include enhanced control operations
+    
+    # Calculate optimal action record fields based on configuration
+    action_record_fields = get_action_record_fields(
+        typed_config.action.selection_format,
+        typed_config.dataset.max_grid_height,
+        typed_config.dataset.max_grid_width
+    )
     
     action_history = jnp.zeros((max_history_length, action_record_fields), dtype=jnp.float32)
     action_history_length = jnp.array(0, dtype=jnp.int32)
