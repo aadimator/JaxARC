@@ -28,6 +28,8 @@ from .config import (
     VisualizationConfig,
     WandbConfig,
 )
+from .episode_manager import ArcEpisodeConfig
+from .action_history import HistoryConfig
 
 
 class ConfigFactory:
@@ -81,7 +83,7 @@ class ConfigFactory:
                 min_grid_height=3,
                 min_grid_width=3,
                 max_colors=10,
-                background_color=0,
+                background_color=-1,
                 task_split="train",
                 shuffle_tasks=True,
                 max_train_pairs=5,  # Smaller for faster development
@@ -194,6 +196,31 @@ class ConfigFactory:
                 save_config=True,
             )
 
+            # Episode management for development
+            episode = ArcEpisodeConfig(
+                episode_mode="train",
+                demo_selection_strategy="random",
+                allow_demo_switching=True,
+                require_all_demos_solved=False,
+                test_selection_strategy="sequential",
+                allow_test_switching=False,
+                require_all_tests_solved=True,
+                terminate_on_first_success=False,
+                max_pairs_per_episode=3,  # Smaller for development
+                success_threshold=1.0,
+                training_reward_frequency="step",
+                evaluation_reward_frequency="submit",
+            )
+
+            # Action history for development
+            history = HistoryConfig(
+                enabled=True,
+                max_history_length=500,  # Moderate for development
+                store_selection_data=True,
+                store_intermediate_grids=False,  # Save memory
+                compress_repeated_actions=True,
+            )
+
             config = JaxArcConfig(
                 environment=environment,
                 dataset=dataset,
@@ -203,6 +230,8 @@ class ConfigFactory:
                 storage=storage,
                 logging=logging,
                 wandb=wandb,
+                episode=episode,
+                history=history,
             )
 
             # Apply overrides
@@ -265,7 +294,7 @@ class ConfigFactory:
                 min_grid_height=3,
                 min_grid_width=3,
                 max_colors=10,
-                background_color=0,
+                background_color=-1,
                 task_split="train",
                 shuffle_tasks=True,
                 max_train_pairs=10,  # Full dataset for research
@@ -378,6 +407,31 @@ class ConfigFactory:
                 save_config=True,
             )
 
+            # Episode management for research
+            episode = ArcEpisodeConfig(
+                episode_mode="train",
+                demo_selection_strategy="random",
+                allow_demo_switching=True,
+                require_all_demos_solved=False,
+                test_selection_strategy="sequential",
+                allow_test_switching=True,  # Allow switching for research
+                require_all_tests_solved=False,  # More flexible for research
+                terminate_on_first_success=False,
+                max_pairs_per_episode=10,  # More pairs for research
+                success_threshold=1.0,
+                training_reward_frequency="step",
+                evaluation_reward_frequency="submit",
+            )
+
+            # Full action history for research
+            history = HistoryConfig(
+                enabled=True,
+                max_history_length=2000,  # Large history for research
+                store_selection_data=True,
+                store_intermediate_grids=True,  # Full data for research
+                compress_repeated_actions=False,  # No compression for analysis
+            )
+
             config = JaxArcConfig(
                 environment=environment,
                 dataset=dataset,
@@ -387,6 +441,8 @@ class ConfigFactory:
                 storage=storage,
                 logging=logging,
                 wandb=wandb,
+                episode=episode,
+                history=history,
             )
 
             # Apply overrides
@@ -447,7 +503,7 @@ class ConfigFactory:
                 min_grid_height=3,
                 min_grid_width=3,
                 max_colors=10,
-                background_color=0,
+                background_color=-1,
                 task_split="eval",  # Use evaluation split for production
                 shuffle_tasks=False,  # Deterministic for production
                 max_train_pairs=10,
@@ -560,6 +616,31 @@ class ConfigFactory:
                 save_config=False,
             )
 
+            # Episode management for production
+            episode = ArcEpisodeConfig(
+                episode_mode="test",  # Production uses test mode
+                demo_selection_strategy="sequential",
+                allow_demo_switching=False,  # No switching in production
+                require_all_demos_solved=True,
+                test_selection_strategy="sequential",
+                allow_test_switching=False,
+                require_all_tests_solved=True,
+                terminate_on_first_success=True,  # Terminate early for efficiency
+                max_pairs_per_episode=1,  # Single pair for production
+                success_threshold=1.0,
+                training_reward_frequency="submit",
+                evaluation_reward_frequency="submit",
+            )
+
+            # Minimal action history for production
+            history = HistoryConfig(
+                enabled=False,  # Disabled for production efficiency
+                max_history_length=100,  # Minimal if enabled
+                store_selection_data=False,
+                store_intermediate_grids=False,
+                compress_repeated_actions=True,
+            )
+
             config = JaxArcConfig(
                 environment=environment,
                 dataset=dataset,
@@ -569,6 +650,8 @@ class ConfigFactory:
                 storage=storage,
                 logging=logging,
                 wandb=wandb,
+                episode=episode,
+                history=history,
             )
 
             # Apply overrides

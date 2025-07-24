@@ -1,10 +1,33 @@
-# Evaluation Reward Configuration
-# This configuration defines reward structure optimized for agent evaluation
+# Evaluation-focused reward configuration
+# Designed for test pair evaluation with proper target masking
 
-# Core Reward Settings
-reward_on_submit_only: true # Only reward on final submission for realistic evaluation
-step_penalty: -0.01 # Standard step penalty to encourage efficient solutions
-success_bonus: 10.0 # Standard bonus for successful completion
-similarity_weight: 1.0 # Standard similarity weight for consistent evaluation
-progress_bonus: 0.0 # No progress bonus during evaluation - only final results matter
-invalid_action_penalty: -1.0 # Higher penalty for invalid actions during evaluation
+# Basic reward settings for evaluation
+reward_on_submit_only: true  # Only reward on submission for evaluation
+step_penalty: -0.02  # Higher step penalty to encourage efficiency
+success_bonus: 20.0  # High success bonus for test completion
+similarity_weight: 0.0  # No similarity rewards (target masked)
+
+# Minimal progress tracking in evaluation
+progress_bonus: 0.0  # No progress bonus in evaluation mode
+invalid_action_penalty: -0.2  # Higher penalty for invalid actions
+
+# Control operation settings for evaluation
+control_operation_penalty: -0.02  # Discourage excessive switching in evaluation
+pair_switching_bonus: 0.0  # No switching bonus in evaluation
+
+# Mode-specific weights
+training_similarity_weight: 1.0  # Full similarity in training
+evaluation_similarity_weight: 0.0  # No similarity in evaluation
+
+# Test-focused bonuses
+demo_completion_bonus: 0.5  # Lower demo bonus in evaluation context
+test_completion_bonus: 15.0  # Very high test completion bonus
+
+# Efficiency is critical in evaluation
+consecutive_success_bonus: 2.0  # High bonus for solving multiple tests
+efficiency_bonus_threshold: 25  # Strict efficiency requirement
+efficiency_bonus: 5.0  # High efficiency bonus
+
+# Evaluation-specific reward frequencies
+training_reward_frequency: "step"  # Step rewards in training
+evaluation_reward_frequency: "submit"  # Submit-only in evaluation

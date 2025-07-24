@@ -1,10 +1,33 @@
-# Training Reward Configuration
-# This configuration defines reward structure optimized for training agents
+# Training-optimized reward configuration
+# Designed for efficient multi-demonstration training with step-by-step feedback
 
-# Core Reward Settings
-reward_on_submit_only: false # Provide rewards at each step for better learning signal
-step_penalty: -0.005 # Smaller step penalty to encourage exploration
-success_bonus: 20.0 # Higher bonus for successful completion during training
-similarity_weight: 2.0 # Higher weight for similarity to provide dense rewards
-progress_bonus: 0.5 # Larger bonus for making progress to guide learning
-invalid_action_penalty: -0.1 # Smaller penalty for invalid actions during exploration
+# Basic reward settings optimized for training
+reward_on_submit_only: false  # Step-by-step rewards for better learning signal
+step_penalty: -0.005  # Smaller penalty to encourage exploration
+success_bonus: 15.0  # Higher success bonus for motivation
+similarity_weight: 1.0
+
+# Enhanced progress tracking
+progress_bonus: 0.2  # Reward similarity improvements
+invalid_action_penalty: -0.05  # Lighter penalty for exploration
+
+# Control operation settings for multi-demo training
+control_operation_penalty: -0.005  # Very small penalty for pair switching
+pair_switching_bonus: 0.1  # Encourage switching to new pairs
+
+# Training mode settings
+training_similarity_weight: 1.0  # Full similarity feedback
+evaluation_similarity_weight: 0.0  # Masked in test mode
+
+# Pair completion incentives
+demo_completion_bonus: 2.0  # Good bonus for demo completion
+test_completion_bonus: 10.0  # High bonus for test completion
+
+# Efficiency incentives
+consecutive_success_bonus: 1.0  # Reward solving multiple pairs
+efficiency_bonus_threshold: 30  # Encourage efficient solutions
+efficiency_bonus: 3.0  # Good efficiency bonus
+
+# Reward frequencies
+training_reward_frequency: "step"  # Continuous feedback
+evaluation_reward_frequency: "submit"  # Only on completion

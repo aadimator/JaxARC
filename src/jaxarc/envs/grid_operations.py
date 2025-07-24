@@ -627,9 +627,7 @@ def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnv
     new_state = jax.lax.switch(operation, operations)
 
     # Update similarity score if grid changed
-    target_grid = new_state.task_data.output_grids_examples[
-        new_state.current_example_idx
-    ]
-    similarity = compute_grid_similarity(new_state.working_grid, target_grid)
+    # Use target_grid from state (which handles train/test mode properly)
+    similarity = compute_grid_similarity(new_state.working_grid, new_state.target_grid)
 
     return eqx.tree_at(lambda s: s.similarity_score, new_state, similarity)
