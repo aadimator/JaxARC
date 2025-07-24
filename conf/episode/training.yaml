@@ -1,0 +1,24 @@
+# Training-focused episode management configuration
+# Optimized for learning with flexible exploration
+
+# Mode settings
+episode_mode: train
+
+# Multi-demonstration settings
+demo_selection_strategy: random
+allow_demo_switching: true
+require_all_demos_solved: false
+
+# Test evaluation settings  
+test_selection_strategy: random
+allow_test_switching: true
+require_all_tests_solved: false
+
+# Termination criteria
+terminate_on_first_success: false
+max_pairs_per_episode: 6
+success_threshold: 0.95  # Slightly lower threshold for training
+
+# Reward settings
+training_reward_frequency: step
+evaluation_reward_frequency: submit  # Evaluation mode only supports submit frequency

@@ -4,6 +4,8 @@ defaults:
   - environment: training # Which environment to use (training/evaluation)
   - reward: standard # Which reward configuration to use (standard/training/evaluation)
   - action: standard # Which action configuration to use (standard/full/raw)
+  - episode: standard # Which episode management to use (standard/training/evaluation/research)
+  - history: standard # Which action history to use (standard/minimal/research/disabled)
   - logging: full # Which logging configuration to use (basic/full)
   - storage: research # Which storage configuration to use (development/production/research)
   - visualization: standard # Which visualization configuration to use (off/minimal/standard/full)

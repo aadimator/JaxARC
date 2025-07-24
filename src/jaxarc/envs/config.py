@@ -29,6 +29,8 @@ from omegaconf import DictConfig, OmegaConf
 
 # Import episode configuration
 from .episode_manager import ArcEpisodeConfig
+# Import action history configuration
+from .action_history import HistoryConfig
 
 
 # Validation utilities
@@ -236,7 +238,12 @@ class DatasetConfig(eqx.Module):
 
             # Validate color constraints
             validate_positive_int(self.max_colors, "max_colors")
-            validate_non_negative_int(self.background_color, "background_color")
+            
+            # Validate background_color: -1 is valid for padding, 0-9 are valid ARC colors
+            if not isinstance(self.background_color, int):
+                errors.append(f"background_color must be an integer, got {type(self.background_color).__name__}")
+            elif self.background_color < -1:
+                errors.append(f"background_color must be >= -1 (for padding) or a valid color index, got {self.background_color}")
 
             if self.max_colors < 2:
                 errors.append("max_colors must be at least 2")
@@ -266,9 +273,10 @@ class DatasetConfig(eqx.Module):
                     f"max_grid_width ({self.max_grid_width}) < min_grid_width ({self.min_grid_width})"
                 )
 
-            if self.background_color >= self.max_colors:
+            # Validate background_color against max_colors (but allow -1 for padding)
+            if self.background_color >= 0 and self.background_color >= self.max_colors:
                 errors.append(
-                    f"background_color ({self.background_color}) must be < max_colors ({self.max_colors})"
+                    f"background_color ({self.background_color}) must be < max_colors ({self.max_colors}) when >= 0"
                 )
 
         except ConfigValidationError as e:
@@ -289,7 +297,7 @@ class DatasetConfig(eqx.Module):
             min_grid_height=cfg.get("min_grid_height", 3),
             min_grid_width=cfg.get("min_grid_width", 3),
             max_colors=cfg.get("max_colors", 10),
-            background_color=cfg.get("background_color", 0),
+            background_color=cfg.get("background_color", -1),
             task_split=cfg.get("task_split", "train"),
             max_train_pairs=cfg.get("max_train_pairs", 10),
             max_test_pairs=cfg.get("max_test_pairs", 3),
@@ -743,7 +751,7 @@ class RewardConfig(eqx.Module):
     """Configuration for reward calculation.
 
     This config contains all settings related to reward computation,
-    penalties, bonuses, and reward shaping.
+    penalties, bonuses, and reward shaping with mode-aware enhancements.
     """
 
     # Basic reward settings
@@ -755,13 +763,30 @@ class RewardConfig(eqx.Module):
     # Additional reward shaping
     progress_bonus: Float = 0.0
     invalid_action_penalty: Float = -0.1
+    
+    # Enhanced mode-specific reward settings
+    control_operation_penalty: Float = -0.01  # Penalty for control operations
+    pair_switching_bonus: Float = 0.0  # Bonus for beneficial pair switching
+    
+    # Mode-specific reward structures
+    training_similarity_weight: Float = 1.0  # Similarity weight in training mode
+    evaluation_similarity_weight: Float = 0.0  # Similarity weight in evaluation mode (masked)
+    
+    # Pair-type specific bonuses
+    demo_completion_bonus: Float = 1.0  # Bonus for completing demonstration pairs
+    test_completion_bonus: Float = 5.0  # Bonus for completing test pairs
+    
+    # Advanced reward shaping
+    consecutive_success_bonus: Float = 0.0  # Bonus for solving multiple pairs in sequence
+    efficiency_bonus_threshold: int = 50  # Step threshold for efficiency bonus
+    efficiency_bonus: Float = 1.0  # Bonus for solving pairs efficiently
 
     def validate(self) -> list[str]:
         """Validate reward configuration and return list of errors."""
         errors = []
 
         try:
-            # Validate numeric fields with reasonable ranges
+            # Validate basic numeric fields with reasonable ranges
             validate_float_range(self.step_penalty, "step_penalty", -10.0, 1.0)
             validate_float_range(self.success_bonus, "success_bonus", -100.0, 1000.0)
             validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 10.0)
@@ -769,6 +794,17 @@ class RewardConfig(eqx.Module):
             validate_float_range(
                 self.invalid_action_penalty, "invalid_action_penalty", -10.0, 1.0
             )
+            
+            # Validate enhanced reward fields
+            validate_float_range(self.control_operation_penalty, "control_operation_penalty", -10.0, 1.0)
+            validate_float_range(self.pair_switching_bonus, "pair_switching_bonus", -10.0, 10.0)
+            validate_float_range(self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0)
+            validate_float_range(self.evaluation_similarity_weight, "evaluation_similarity_weight", 0.0, 10.0)
+            validate_float_range(self.demo_completion_bonus, "demo_completion_bonus", -100.0, 100.0)
+            validate_float_range(self.test_completion_bonus, "test_completion_bonus", -100.0, 100.0)
+            validate_float_range(self.consecutive_success_bonus, "consecutive_success_bonus", -10.0, 10.0)
+            validate_non_negative_int(self.efficiency_bonus_threshold, "efficiency_bonus_threshold")
+            validate_float_range(self.efficiency_bonus, "efficiency_bonus", -10.0, 10.0)
 
             # Issue warnings for potentially problematic configurations
             if self.reward_on_submit_only and self.progress_bonus != 0.0:
@@ -790,6 +826,17 @@ class RewardConfig(eqx.Module):
                 logger.warning(
                     f"invalid_action_penalty should typically be negative or zero, got {self.invalid_action_penalty}"
                 )
+                
+            if self.control_operation_penalty > 0:
+                logger.warning(
+                    f"control_operation_penalty should typically be negative or zero, got {self.control_operation_penalty}"
+                )
+                
+            # Warn about evaluation similarity weight
+            if self.evaluation_similarity_weight > 0:
+                logger.warning(
+                    f"evaluation_similarity_weight > 0 may lead to cheating in test mode due to target masking"
+                )
 
         except ConfigValidationError as e:
             errors.append(str(e))
@@ -806,6 +853,15 @@ class RewardConfig(eqx.Module):
             similarity_weight=cfg.get("similarity_weight", 1.0),
             progress_bonus=cfg.get("progress_bonus", 0.0),
             invalid_action_penalty=cfg.get("invalid_action_penalty", -0.1),
+            control_operation_penalty=cfg.get("control_operation_penalty", -0.01),
+            pair_switching_bonus=cfg.get("pair_switching_bonus", 0.0),
+            training_similarity_weight=cfg.get("training_similarity_weight", 1.0),
+            evaluation_similarity_weight=cfg.get("evaluation_similarity_weight", 0.0),
+            demo_completion_bonus=cfg.get("demo_completion_bonus", 1.0),
+            test_completion_bonus=cfg.get("test_completion_bonus", 5.0),
+            consecutive_success_bonus=cfg.get("consecutive_success_bonus", 0.0),
+            efficiency_bonus_threshold=cfg.get("efficiency_bonus_threshold", 50),
+            efficiency_bonus=cfg.get("efficiency_bonus", 1.0),
         )
 
 
@@ -959,6 +1015,7 @@ class JaxArcConfig(eqx.Module):
     logging: LoggingConfig
     wandb: WandbConfig
     episode: ArcEpisodeConfig
+    history: HistoryConfig
 
     def __init__(
         self,
@@ -971,6 +1028,7 @@ class JaxArcConfig(eqx.Module):
         logging: Optional[LoggingConfig] = None,
         wandb: Optional[WandbConfig] = None,
         episode: Optional[ArcEpisodeConfig] = None,
+        history: Optional[HistoryConfig] = None,
     ):
         """Initialize unified configuration with optional component overrides."""
         self.environment = environment or EnvironmentConfig()
@@ -984,6 +1042,7 @@ class JaxArcConfig(eqx.Module):
         self.logging = logging or LoggingConfig()
         self.wandb = wandb or WandbConfig.from_hydra(DictConfig({}))
         self.episode = episode or ArcEpisodeConfig()
+        self.history = history or HistoryConfig()
 
     def validate(self) -> List[str]:
         """Comprehensive validation method that checks cross-config consistency.
@@ -1003,6 +1062,9 @@ class JaxArcConfig(eqx.Module):
         all_errors.extend(self.logging.validate())
         all_errors.extend(self.wandb.validate())
         all_errors.extend(self.episode.validate())
+        
+        # Validate history config (HistoryConfig uses @chex.dataclass validation in __post_init__)
+        # The validation happens automatically during construction, so no explicit validate() call needed
 
         # Cross-configuration validation
         cross_validation_errors = self._validate_cross_config_consistency()
@@ -1531,6 +1593,7 @@ class JaxArcConfig(eqx.Module):
         logging_cfg = config_dict.get("logging", {})
         wandb_cfg = config_dict.get("wandb", {})
         episode_cfg = config_dict.get("episode", {})
+        history_cfg = config_dict.get("history", {})
 
         # Handle legacy config structure - merge top-level keys into appropriate sections
         for key, value in config_dict.items():
@@ -1544,6 +1607,7 @@ class JaxArcConfig(eqx.Module):
                 "logging",
                 "wandb",
                 "episode",
+                "history",
             ]:
                 # Try to map legacy keys to appropriate config sections
                 if key in [
@@ -1581,6 +1645,13 @@ class JaxArcConfig(eqx.Module):
                     "evaluation_reward_frequency"
                 ]:
                     episode_cfg[key] = value
+                elif key in [
+                    "max_history_length",
+                    "store_selection_data",
+                    "store_intermediate_grids",
+                    "compress_repeated_actions"
+                ]:
+                    history_cfg[key] = value
 
         # Handle Hydra debug configuration mapping
         # If we have a debug config but no explicit debug_level in environment, infer it
@@ -1607,6 +1678,15 @@ class JaxArcConfig(eqx.Module):
         logging = LoggingConfig.from_hydra(DictConfig(logging_cfg))
         wandb = WandbConfig.from_hydra(DictConfig(wandb_cfg))
         episode = ArcEpisodeConfig.from_hydra(episode_cfg)
+        
+        # Create history config (HistoryConfig uses @chex.dataclass, not from_hydra)
+        history = HistoryConfig(
+            enabled=history_cfg.get("enabled", True),
+            max_history_length=history_cfg.get("max_history_length", 1000),
+            store_selection_data=history_cfg.get("store_selection_data", True),
+            store_intermediate_grids=history_cfg.get("store_intermediate_grids", False),
+            compress_repeated_actions=history_cfg.get("compress_repeated_actions", True),
+        )
 
         return cls(
             environment=environment,
@@ -1618,4 +1698,5 @@ class JaxArcConfig(eqx.Module):
             logging=logging,
             wandb=wandb,
             episode=episode,
+            history=history,
         )
