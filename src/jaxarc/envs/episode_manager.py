@@ -302,38 +302,52 @@ class ArcEpisodeManager:
             ```
         """
         # Check if episode is already marked as done
-        if state.episode_done:
-            return jnp.array(False)
+        episode_done_check = state.episode_done
         
         # Check success-based termination
-        if config.terminate_on_first_success:
-            current_pair_solved = state.similarity_score >= config.success_threshold
-            if current_pair_solved:
-                return jnp.array(False)
+        success_termination = jnp.where(
+            config.terminate_on_first_success,
+            state.similarity_score >= config.success_threshold,
+            jnp.array(False)
+        )
         
         # Check completion requirements
-        if config.episode_mode == "train":
-            if config.require_all_demos_solved:
-                all_demos_solved = jnp.all(state.demo_completion_status | ~state.available_demo_pairs)
-                if all_demos_solved:
-                    return jnp.array(False)
-        else:  # test mode
-            if config.require_all_tests_solved:
-                all_tests_solved = jnp.all(state.test_completion_status | ~state.available_test_pairs)
-                if all_tests_solved:
-                    return jnp.array(False)
+        is_train_mode = config.episode_mode == "train"
+        
+        # For training mode: check if all demos solved (if required)
+        train_completion_check = jnp.where(
+            is_train_mode & config.require_all_demos_solved,
+            jnp.all(state.demo_completion_status | jnp.logical_not(state.available_demo_pairs)),
+            jnp.array(False)
+        )
+        
+        # For test mode: check if all tests solved (if required)
+        test_completion_check = jnp.where(
+            jnp.logical_not(is_train_mode) & config.require_all_tests_solved,
+            jnp.all(state.test_completion_status | jnp.logical_not(state.available_test_pairs)),
+            jnp.array(False)
+        )
         
         # Check pair limit
-        if config.episode_mode == "train":
-            completed_pairs = jnp.sum(state.demo_completion_status)
-        else:
-            completed_pairs = jnp.sum(state.test_completion_status)
+        completed_pairs = jnp.where(
+            is_train_mode,
+            jnp.sum(state.demo_completion_status),
+            jnp.sum(state.test_completion_status)
+        )
         
-        if completed_pairs >= config.max_pairs_per_episode:
-            return jnp.array(False)
+        pair_limit_reached = completed_pairs >= config.max_pairs_per_episode
         
-        # Continue episode
-        return jnp.array(True)
+        # Combine all termination conditions
+        should_terminate = (
+            episode_done_check |
+            success_termination |
+            train_completion_check |
+            test_completion_check |
+            pair_limit_reached
+        )
+        
+        # Return negation (should continue = not should terminate)
+        return jnp.logical_not(should_terminate)
     
     @staticmethod
     def execute_pair_control_operation(
@@ -369,161 +383,98 @@ class ArcEpisodeManager:
         # Import operation constants
         from ..types import ARCLEOperationType
         
-        # Handle demo pair operations
-        if operation_id == ARCLEOperationType.SWITCH_TO_NEXT_DEMO_PAIR:
-            return ArcEpisodeManager._switch_to_next_demo_pair(state, config)
-        elif operation_id == ARCLEOperationType.SWITCH_TO_PREV_DEMO_PAIR:
-            return ArcEpisodeManager._switch_to_prev_demo_pair(state, config)
-        elif operation_id == ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_DEMO:
-            return ArcEpisodeManager._switch_to_first_unsolved_demo(state, config)
+        # Use JAX-compatible conditional logic with individual field updates
+        from ..types import ARCLEOperationType
         
-        # Handle test pair operations
-        elif operation_id == ARCLEOperationType.SWITCH_TO_NEXT_TEST_PAIR:
-            return ArcEpisodeManager._switch_to_next_test_pair(state, config)
-        elif operation_id == ARCLEOperationType.SWITCH_TO_PREV_TEST_PAIR:
-            return ArcEpisodeManager._switch_to_prev_test_pair(state, config)
-        elif operation_id == ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_TEST:
-            return ArcEpisodeManager._switch_to_first_unsolved_test(state, config)
+        # Calculate new index for each operation type
+        next_demo_idx = ArcEpisodeManager._find_next_available_index(state.current_example_idx, state.available_demo_pairs)
+        prev_demo_idx = ArcEpisodeManager._find_prev_available_index(state.current_example_idx, state.available_demo_pairs)
         
-        # Handle pair reset
-        elif operation_id == ARCLEOperationType.RESET_CURRENT_PAIR:
-            return ArcEpisodeManager._reset_current_pair(state, config)
-        
-        else:
-            # Invalid control operation - return state unchanged
-            return state
-    
-    @staticmethod
-    def _switch_to_next_demo_pair(state: ArcEnvState, config: ArcEpisodeConfig) -> ArcEnvState:
-        """Switch to the next available demonstration pair."""
-        if not config.allow_demo_switching or not state.is_training_mode():
-            return state
-        
-        current_idx = state.current_example_idx
-        available_pairs = state.available_demo_pairs
-        
-        # Find next available pair (circular search)
-        next_idx = ArcEpisodeManager._find_next_available_index(current_idx, available_pairs)
-        
-        # Only switch if we found a different pair
-        should_switch = (next_idx != current_idx) & (next_idx >= 0)
-        new_idx = jnp.where(should_switch, next_idx, current_idx)
-        
-        # Update state with new pair index
-        return eqx.tree_at(lambda s: s.current_example_idx, state, new_idx)
-    
-    @staticmethod
-    def _switch_to_prev_demo_pair(state: ArcEnvState, config: ArcEpisodeConfig) -> ArcEnvState:
-        """Switch to the previous available demonstration pair."""
-        if not config.allow_demo_switching or not state.is_training_mode():
-            return state
-        
-        current_idx = state.current_example_idx
-        available_pairs = state.available_demo_pairs
-        
-        # Find previous available pair (circular search)
-        prev_idx = ArcEpisodeManager._find_prev_available_index(current_idx, available_pairs)
-        
-        # Only switch if we found a different pair
-        should_switch = (prev_idx != current_idx) & (prev_idx >= 0)
-        new_idx = jnp.where(should_switch, prev_idx, current_idx)
-        
-        # Update state with new pair index
-        return eqx.tree_at(lambda s: s.current_example_idx, state, new_idx)
-    
-    @staticmethod
-    def _switch_to_first_unsolved_demo(state: ArcEnvState, config: ArcEpisodeConfig) -> ArcEnvState:
-        """Switch to the first unsolved demonstration pair."""
-        if not config.allow_demo_switching or not state.is_training_mode():
-            return state
-        
-        # Find first unsolved pair using JAX-compatible operations
-        unsolved_mask = state.available_demo_pairs & ~state.demo_completion_status
-        has_unsolved = jnp.sum(unsolved_mask) > 0
-        
-        # Use argmax to find first unsolved pair
-        first_unsolved_idx = jnp.argmax(unsolved_mask)
-        # Verify it's actually unsolved (argmax returns 0 even if no True values)
-        is_valid = unsolved_mask[first_unsolved_idx]
-        first_unsolved = jnp.where(is_valid, first_unsolved_idx, state.current_example_idx)
-        
-        # Update state with new pair index
-        return eqx.tree_at(lambda s: s.current_example_idx, state, first_unsolved)
-    
-    @staticmethod
-    def _switch_to_next_test_pair(state: ArcEnvState, config: ArcEpisodeConfig) -> ArcEnvState:
-        """Switch to the next available test pair."""
-        if not config.allow_test_switching or not state.is_test_mode():
-            return state
-        
-        current_idx = state.current_example_idx
-        available_pairs = state.available_test_pairs
-        
-        # Find next available pair (circular search)
-        next_idx = ArcEpisodeManager._find_next_available_index(current_idx, available_pairs)
-        
-        # Only switch if we found a different pair
-        should_switch = (next_idx != current_idx) & (next_idx >= 0)
-        new_idx = jnp.where(should_switch, next_idx, current_idx)
-        
-        # Update state with new pair index
-        return eqx.tree_at(lambda s: s.current_example_idx, state, new_idx)
-    
-    @staticmethod
-    def _switch_to_prev_test_pair(state: ArcEnvState, config: ArcEpisodeConfig) -> ArcEnvState:
-        """Switch to the previous available test pair."""
-        if not config.allow_test_switching or not state.is_test_mode():
-            return state
-        
-        current_idx = state.current_example_idx
-        available_pairs = state.available_test_pairs
-        
-        # Find previous available pair (circular search)
-        prev_idx = ArcEpisodeManager._find_prev_available_index(current_idx, available_pairs)
-        
-        # Only switch if we found a different pair
-        should_switch = (prev_idx != current_idx) & (prev_idx >= 0)
-        new_idx = jnp.where(should_switch, prev_idx, current_idx)
-        
-        # Update state with new pair index
-        return eqx.tree_at(lambda s: s.current_example_idx, state, new_idx)
-    
-    @staticmethod
-    def _switch_to_first_unsolved_test(state: ArcEnvState, config: ArcEpisodeConfig) -> ArcEnvState:
-        """Switch to the first unsolved test pair."""
-        if not config.allow_test_switching or not state.is_test_mode():
-            return state
-        
-        # Find first unsolved pair using JAX-compatible operations
-        unsolved_mask = state.available_test_pairs & ~state.test_completion_status
-        has_unsolved = jnp.sum(unsolved_mask) > 0
-        
-        # Use argmax to find first unsolved pair
-        first_unsolved_idx = jnp.argmax(unsolved_mask)
-        # Verify it's actually unsolved (argmax returns 0 even if no True values)
-        is_valid = unsolved_mask[first_unsolved_idx]
-        first_unsolved = jnp.where(is_valid, first_unsolved_idx, state.current_example_idx)
-        
-        # Update state with new pair index
-        return eqx.tree_at(lambda s: s.current_example_idx, state, first_unsolved)
-    
-    @staticmethod
-    def _reset_current_pair(state: ArcEnvState, config: ArcEpisodeConfig) -> ArcEnvState:
-        """Reset current pair to initial state."""
-        # Reset working grid to input grid
-        if state.is_training_mode():
-            input_grid, _, input_mask = state.task_data.get_demo_pair_data(int(state.current_example_idx))
-        else:
-            input_grid, input_mask = state.task_data.get_test_pair_data(int(state.current_example_idx))
-        
-        # Reset relevant state fields
-        reset_state = eqx.tree_at(
-            lambda s: (s.working_grid, s.working_grid_mask, s.selected, s.clipboard, s.similarity_score),
-            state,
-            (input_grid, input_mask, jnp.zeros_like(state.selected), jnp.zeros_like(state.clipboard), jnp.array(0.0))
+        # First unsolved demo
+        unsolved_demo_mask = state.available_demo_pairs & ~state.demo_completion_status
+        first_unsolved_demo_idx = jnp.where(
+            jnp.any(unsolved_demo_mask),
+            jnp.argmax(unsolved_demo_mask),
+            state.current_example_idx
         )
         
-        return reset_state
+        # Test pair operations
+        next_test_idx = ArcEpisodeManager._find_next_available_index(state.current_example_idx, state.available_test_pairs)
+        prev_test_idx = ArcEpisodeManager._find_prev_available_index(state.current_example_idx, state.available_test_pairs)
+        
+        # First unsolved test
+        unsolved_test_mask = state.available_test_pairs & ~state.test_completion_status
+        first_unsolved_test_idx = jnp.where(
+            jnp.any(unsolved_test_mask),
+            jnp.argmax(unsolved_test_mask),
+            state.current_example_idx
+        )
+        
+        # Determine which operation to apply and calculate new index
+        new_idx = jnp.where(
+            operation_id == ARCLEOperationType.SWITCH_TO_NEXT_DEMO_PAIR,
+            jnp.where(
+                config.allow_demo_switching & (state.episode_mode == 0),  # Training mode
+                next_demo_idx,
+                state.current_example_idx
+            ),
+            jnp.where(
+                operation_id == ARCLEOperationType.SWITCH_TO_PREV_DEMO_PAIR,
+                jnp.where(
+                    config.allow_demo_switching & (state.episode_mode == 0),  # Training mode
+                    prev_demo_idx,
+                    state.current_example_idx
+                ),
+                jnp.where(
+                    operation_id == ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_DEMO,
+                    jnp.where(
+                        config.allow_demo_switching & (state.episode_mode == 0),  # Training mode
+                        first_unsolved_demo_idx,
+                        state.current_example_idx
+                    ),
+                    jnp.where(
+                        operation_id == ARCLEOperationType.SWITCH_TO_NEXT_TEST_PAIR,
+                        jnp.where(
+                            config.allow_test_switching & (state.episode_mode == 1),  # Test mode
+                            next_test_idx,
+                            state.current_example_idx
+                        ),
+                        jnp.where(
+                            operation_id == ARCLEOperationType.SWITCH_TO_PREV_TEST_PAIR,
+                            jnp.where(
+                                config.allow_test_switching & (state.episode_mode == 1),  # Test mode
+                                prev_test_idx,
+                                state.current_example_idx
+                            ),
+                            jnp.where(
+                                operation_id == ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_TEST,
+                                jnp.where(
+                                    config.allow_test_switching & (state.episode_mode == 1),  # Test mode
+                                    first_unsolved_test_idx,
+                                    state.current_example_idx
+                                ),
+                                state.current_example_idx  # Default or RESET_CURRENT_PAIR
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        
+        # Handle reset operation separately (resets more than just index)
+        should_reset = operation_id == ARCLEOperationType.RESET_CURRENT_PAIR
+        
+        # Reset similarity score if reset operation
+        reset_similarity = jnp.where(should_reset, jnp.array(0.0), state.similarity_score)
+        
+        # Update state with new index and potentially reset fields
+        return eqx.tree_at(
+            lambda s: (s.current_example_idx, s.similarity_score),
+            state,
+            (new_idx, reset_similarity)
+        )
+    
+
     
     @staticmethod
     def _find_next_available_index(current_idx: Int[Array, ""], available_mask: Bool[Array, "max_pairs"]) -> Int[Array, ""]:
@@ -542,7 +493,8 @@ class ArcEpisodeManager:
         first_available_offset = jnp.argmax(candidates_available)
         next_idx = candidate_indices[first_available_offset]
         
-        return jnp.where(has_available, next_idx, jnp.array(-1, dtype=jnp.int32))
+        # If no available candidate found, return current index
+        return jnp.where(has_available, next_idx, current_idx)
     
     @staticmethod
     def _find_prev_available_index(current_idx: Int[Array, ""], available_mask: Bool[Array, "max_pairs"]) -> Int[Array, ""]:
@@ -561,7 +513,8 @@ class ArcEpisodeManager:
         first_available_offset = jnp.argmax(candidates_available)
         prev_idx = candidate_indices[first_available_offset]
         
-        return jnp.where(has_available, prev_idx, jnp.array(-1, dtype=jnp.int32))
+        # If no available candidate found, return current index
+        return jnp.where(has_available, prev_idx, current_idx)
     
     @staticmethod
     def validate_pair_control_operation(
@@ -588,38 +541,54 @@ class ArcEpisodeManager:
         """
         from ..types import ARCLEOperationType
         
-        # Demo pair operations
-        if operation_id in [
-            ARCLEOperationType.SWITCH_TO_NEXT_DEMO_PAIR,
-            ARCLEOperationType.SWITCH_TO_PREV_DEMO_PAIR,
-            ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_DEMO
-        ]:
-            if not state.is_training_mode():
-                return jnp.array(False), "Demo pair operations only available in training mode"
-            if not config.allow_demo_switching:
-                return jnp.array(False), "Demo pair switching is disabled in configuration"
-            if jnp.sum(state.available_demo_pairs) <= 1:
-                return jnp.array(False), "Need multiple demo pairs for switching"
+        # Check demo pair operations
+        is_demo_op = (
+            (operation_id == ARCLEOperationType.SWITCH_TO_NEXT_DEMO_PAIR) |
+            (operation_id == ARCLEOperationType.SWITCH_TO_PREV_DEMO_PAIR) |
+            (operation_id == ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_DEMO)
+        )
         
-        # Test pair operations
-        elif operation_id in [
-            ARCLEOperationType.SWITCH_TO_NEXT_TEST_PAIR,
-            ARCLEOperationType.SWITCH_TO_PREV_TEST_PAIR,
-            ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_TEST
-        ]:
-            if not state.is_test_mode():
-                return jnp.array(False), "Test pair operations only available in test mode"
-            if not config.allow_test_switching:
-                return jnp.array(False), "Test pair switching is disabled in configuration"
-            if jnp.sum(state.available_test_pairs) <= 1:
-                return jnp.array(False), "Need multiple test pairs for switching"
+        demo_valid = (
+            (state.episode_mode == 0) &  # Training mode
+            config.allow_demo_switching &
+            (jnp.sum(state.available_demo_pairs) > 1)
+        )
         
-        # Reset operation
-        elif operation_id == ARCLEOperationType.RESET_CURRENT_PAIR:
-            # Reset is generally allowed
-            pass
+        # Check test pair operations
+        is_test_op = (
+            (operation_id == ARCLEOperationType.SWITCH_TO_NEXT_TEST_PAIR) |
+            (operation_id == ARCLEOperationType.SWITCH_TO_PREV_TEST_PAIR) |
+            (operation_id == ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_TEST)
+        )
         
-        else:
-            return jnp.array(False), f"Unknown pair control operation: {operation_id}"
+        test_valid = (
+            (state.episode_mode == 1) &  # Test mode
+            config.allow_test_switching &
+            (jnp.sum(state.available_test_pairs) > 1)
+        )
         
-        return jnp.array(True), None
+        # Check reset operation
+        is_reset_op = operation_id == ARCLEOperationType.RESET_CURRENT_PAIR
+        reset_valid = jnp.array(True)  # Reset is generally allowed
+        
+        # Check if operation is known
+        is_known_op = is_demo_op | is_test_op | is_reset_op
+        
+        # Combine validation results
+        is_valid = jnp.where(
+            is_demo_op,
+            demo_valid,
+            jnp.where(
+                is_test_op,
+                test_valid,
+                jnp.where(
+                    is_reset_op,
+                    reset_valid,
+                    jnp.array(False)  # Unknown operation
+                )
+            )
+        )
+        
+        # For JAX compatibility, we can't return different error messages
+        # In a real implementation, error handling would be done outside JAX
+        return is_valid, None

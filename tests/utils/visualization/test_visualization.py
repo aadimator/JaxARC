@@ -542,10 +542,21 @@ class TestJAXCallbackIntegration:
             [[True, True], [True, True]], dtype=jnp.bool_
         )
         mock_state.step_count = 5
-        mock_state.episode_index = 1
-        mock_state.task_index = 10
-        mock_state.done = False
-        mock_state.similarity = 0.8
+        mock_state.current_example_idx = 1
+        mock_state.episode_done = False
+        mock_state.similarity_score = 0.8
+        
+        # Add required enhanced functionality fields
+        mock_state.selected = jnp.array([[False, True], [True, False]], dtype=jnp.bool_)
+        mock_state.clipboard = jnp.array([[0, 0], [0, 0]], dtype=jnp.int32)
+        mock_state.episode_mode = 0
+        mock_state.available_demo_pairs = jnp.array([True, True, False], dtype=jnp.bool_)
+        mock_state.available_test_pairs = jnp.array([True, False], dtype=jnp.bool_)
+        mock_state.demo_completion_status = jnp.array([True, False, False], dtype=jnp.bool_)
+        mock_state.test_completion_status = jnp.array([False, False], dtype=jnp.bool_)
+        mock_state.action_history = jnp.zeros((10, 20), dtype=jnp.float32)
+        mock_state.action_history_length = 3
+        mock_state.allowed_operations_mask = jnp.ones(42, dtype=jnp.bool_)
 
         result = serialize_arc_state(mock_state)
 
@@ -553,6 +564,8 @@ class TestJAXCallbackIntegration:
         assert "working_grid" in result
         assert "step_count" in result
         assert result["step_count"] == 5
+        assert result["similarity_score"] == 0.8
+        # Check backward compatibility alias
         assert result["similarity"] == 0.8
 
     def test_serialize_action(self):

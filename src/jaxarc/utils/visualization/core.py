@@ -2437,6 +2437,34 @@ def draw_rl_step_svg_enhanced(
     selection_mask = None
     if "selection" in action:
         selection_mask = np.asarray(action["selection"])
+    elif "bbox" in action:
+        # Convert bbox to selection mask for visualization
+        bbox = np.asarray(action["bbox"])
+        if len(bbox) >= 4:
+            # Get grid dimensions from before_grid
+            grid_data, grid_mask = _extract_grid_data(before_grid)
+            if grid_mask is not None:
+                grid_mask = np.asarray(grid_mask)
+            
+            # Extract valid region to get actual dimensions
+            valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(
+                grid_data, grid_mask
+            )
+            
+            if height > 0 and width > 0:
+                # Extract and clip coordinates
+                r1 = int(np.clip(bbox[0], 0, height - 1))
+                c1 = int(np.clip(bbox[1], 0, width - 1))
+                r2 = int(np.clip(bbox[2], 0, height - 1))
+                c2 = int(np.clip(bbox[3], 0, width - 1))
+                
+                # Ensure proper ordering
+                min_r, max_r = min(r1, r2), max(r1, r2)
+                min_c, max_c = min(c1, c2), max(c1, c2)
+                
+                # Create selection mask for the valid region
+                selection_mask = np.zeros((height, width), dtype=bool)
+                selection_mask[min_r:max_r+1, min_c:max_c+1] = True
 
     # Draw before grid with selection overlay
     before_width, before_height = draw_enhanced_grid(
@@ -2508,17 +2536,21 @@ def draw_rl_step_svg_enhanced(
 
     # Add step metadata
     if "similarity" in info:
-        info_items.append(f"Similarity: {info['similarity']:.3f}")
+        similarity_val = float(info['similarity']) if hasattr(info['similarity'], 'item') else info['similarity']
+        info_items.append(f"Similarity: {similarity_val:.3f}")
 
     if "episode_reward" in info:
-        info_items.append(f"Episode Reward: {info['episode_reward']:.3f}")
+        reward_val = float(info['episode_reward']) if hasattr(info['episode_reward'], 'item') else info['episode_reward']
+        info_items.append(f"Episode Reward: {reward_val:.3f}")
 
     if "step_count" in info:
-        info_items.append(f"Total Steps: {info['step_count']}")
+        step_val = int(info['step_count']) if hasattr(info['step_count'], 'item') else info['step_count']
+        info_items.append(f"Total Steps: {step_val}")
 
     # Add action details
     if "operation" in action:
-        info_items.append(f"Operation ID: {action['operation']}")
+        op_val = int(action['operation']) if hasattr(action['operation'], 'item') else action['operation']
+        info_items.append(f"Operation ID: {op_val}")
 
     # Display info items
     info_text = " | ".join(info_items) if info_items else "No additional information"
@@ -2815,50 +2847,64 @@ def get_operation_display_name(
     Returns:
         Human-readable operation name with context
     """
-    # Map of operation IDs to display names
+    # Map of operation IDs to display names (enhanced for visualization)
     operation_names = {
-        0: "No Operation",
-        1: "Fill Selected",
-        2: "Clear Selected",
-        3: "Copy Selection",
-        4: "Paste Clipboard",
-        5: "Flood Fill",
-        6: "Move Up",
-        7: "Move Down",
-        8: "Move Left",
-        9: "Move Right",
-        10: "Rotate 90°",
-        11: "Rotate 180°",
-        12: "Rotate 270°",
-        13: "Flip Horizontal",
-        14: "Flip Vertical",
-        15: "Extend Pattern",
-        # Add more operations as needed
+        # Fill operations (0-9) - Enhanced with color names for clarity
+        0: "Fill Black (0)",
+        1: "Fill Blue (1)",
+        2: "Fill Red (2)",
+        3: "Fill Green (3)",
+        4: "Fill Yellow (4)",
+        5: "Fill Grey (5)",
+        6: "Fill Pink (6)",
+        7: "Fill Orange (7)",
+        8: "Fill Light Blue (8)",
+        9: "Fill Brown (9)",
+        # Flood fill operations (10-19) - Enhanced with color names for clarity
+        10: "Flood Fill Black (0)",
+        11: "Flood Fill Blue (1)",
+        12: "Flood Fill Red (2)",
+        13: "Flood Fill Green (3)",
+        14: "Flood Fill Yellow (4)",
+        15: "Flood Fill Grey (5)",
+        16: "Flood Fill Pink (6)",
+        17: "Flood Fill Orange (7)",
+        18: "Flood Fill Light Blue (8)",
+        19: "Flood Fill Brown (9)",
+        # Movement operations (20-23)
+        20: "Move Up",
+        21: "Move Down",
+        22: "Move Left",
+        23: "Move Right",
+        # Transformation operations (24-27)
+        24: "Rotate CW",
+        25: "Rotate CCW",
+        26: "Flip H",
+        27: "Flip V",
+        # Editing operations (28-31)
+        28: "Copy",
+        29: "Paste",
+        30: "Cut",
+        31: "Clear",
+        # Special operations (32-34)
+        32: "Copy Input",
+        33: "Resize",
+        34: "Submit",
+        # Enhanced control operations (35-41)
+        35: "Next Demo Pair",
+        36: "Prev Demo Pair",
+        37: "Next Test Pair",
+        38: "Prev Test Pair",
+        39: "Reset Current Pair",
+        40: "First Unsolved Demo",
+        41: "First Unsolved Test",
     }
 
     base_name = operation_names.get(operation_id, f"Operation {operation_id}")
 
-    # Add context for fill operations
-    if operation_id == 1 and action_data:  # Fill Selected
-        # Try to determine what color is being filled
-        if "fill_color" in action_data:
-            color_id = action_data["fill_color"]
-            color_name = get_color_name(color_id)
-            return f"Fill Selected with {color_name}"
-        if "operation_params" in action_data:
-            params = action_data["operation_params"]
-            if isinstance(params, dict) and "color" in params:
-                color_id = params["color"]
-                color_name = get_color_name(color_id)
-                return f"Fill Selected with {color_name}"
-        # If we can't determine the color, try to infer from before/after grids
-        return "Fill Selected Cells"
-
-    if operation_id == 5 and action_data:  # Flood Fill
-        if "fill_color" in action_data:
-            color_id = action_data["fill_color"]
-            color_name = get_color_name(color_id)
-            return f"Flood Fill with {color_name}"
+    # For fill operations (0-9), the color is already included in the name
+    # For flood fill operations (10-19), the color is already included in the name
+    # No need for additional context processing since the names are already descriptive
 
     return base_name
 
@@ -3226,9 +3272,10 @@ def create_action_summary_panel(
 
     # Additional info
     if "similarity" in info:
+        similarity_val = float(info['similarity']) if hasattr(info['similarity'], 'item') else info['similarity']
         drawing.append(
             draw.Text(
-                f"Similarity: {info['similarity']:.3f}",
+                f"Similarity: {similarity_val:.3f}",
                 font_size=12,
                 x=10,
                 y=85,

@@ -346,7 +346,7 @@ class TestArcEpisodeManagerTermination:
         working_grid_mask = jnp.ones((grid_size, grid_size), dtype=bool)
         target_grid = jnp.ones((grid_size, grid_size), dtype=jnp.int32)
         
-        return create_arc_env_state(
+        state = create_arc_env_state(
             task_data=task_data,
             working_grid=working_grid,
             working_grid_mask=working_grid_mask,
@@ -354,6 +354,16 @@ class TestArcEpisodeManagerTermination:
             max_train_pairs=max_train_pairs,
             max_test_pairs=max_test_pairs,
             episode_mode=jax_types.EPISODE_MODE_TRAIN,
+        )
+        
+        # Fix available pairs to match task data
+        correct_demo_pairs = task_data.get_available_demo_pairs()
+        correct_test_pairs = task_data.get_available_test_pairs()
+        
+        return eqx.tree_at(
+            lambda s: (s.available_demo_pairs, s.available_test_pairs),
+            state,
+            (correct_demo_pairs, correct_test_pairs)
         )
 
     def test_should_continue_episode_basic(self, sample_state: ArcEnvState):
@@ -530,7 +540,7 @@ class TestArcEpisodeManagerPairSwitching:
         working_grid_mask = jnp.ones((grid_size, grid_size), dtype=bool)
         target_grid = jnp.ones((grid_size, grid_size), dtype=jnp.int32)
         
-        return create_arc_env_state(
+        state = create_arc_env_state(
             task_data=task_data,
             working_grid=working_grid,
             working_grid_mask=working_grid_mask,
@@ -539,6 +549,16 @@ class TestArcEpisodeManagerPairSwitching:
             max_test_pairs=max_test_pairs,
             episode_mode=jax_types.EPISODE_MODE_TRAIN,
             current_example_idx=0,  # Start at first pair
+        )
+        
+        # Fix available pairs to match task data
+        correct_demo_pairs = task_data.get_available_demo_pairs()
+        correct_test_pairs = task_data.get_available_test_pairs()
+        
+        return eqx.tree_at(
+            lambda s: (s.available_demo_pairs, s.available_test_pairs),
+            state,
+            (correct_demo_pairs, correct_test_pairs)
         )
 
     def test_switch_to_next_demo_pair(self, sample_state: ArcEnvState):
@@ -568,7 +588,8 @@ class TestArcEpisodeManagerPairSwitching:
             config
         )
         
-        # Should wrap around to first pair (index 0)
+        # Should wrap around to first available pair (index 0)
+        # Note: With 3 available pairs (0,1,2), from index 2 next should be 0
         assert circular_state.current_example_idx == 0
 
     def test_switch_to_prev_demo_pair(self, sample_state: ArcEnvState):
@@ -599,6 +620,7 @@ class TestArcEpisodeManagerPairSwitching:
         )
         
         # Should wrap around to last available pair (index 2)
+        # Note: With 3 available pairs (0,1,2), from index 0 prev should be 2
         assert circular_state.current_example_idx == 2
 
     def test_switch_to_first_unsolved_demo(self, sample_state: ArcEnvState):
@@ -805,7 +827,7 @@ class TestArcEpisodeManagerValidation:
             test_input_masks=jnp.ones((2, grid_size, grid_size), dtype=bool),
             true_test_output_grids=jnp.ones((2, grid_size, grid_size), dtype=jnp.int32),
             true_test_output_masks=jnp.ones((2, grid_size, grid_size), dtype=bool),
-            num_test_pairs=1,
+            num_test_pairs=2,
             task_index=jnp.array(789, dtype=jnp.int32),
         )
         
@@ -813,7 +835,7 @@ class TestArcEpisodeManagerValidation:
         working_grid_mask = jnp.ones((grid_size, grid_size), dtype=bool)
         target_grid = jnp.ones((grid_size, grid_size), dtype=jnp.int32)
         
-        return create_arc_env_state(
+        state = create_arc_env_state(
             task_data=task_data,
             working_grid=working_grid,
             working_grid_mask=working_grid_mask,
@@ -821,6 +843,16 @@ class TestArcEpisodeManagerValidation:
             max_train_pairs=3,
             max_test_pairs=2,
             episode_mode=jax_types.EPISODE_MODE_TRAIN,
+        )
+        
+        # Fix available pairs to match task data
+        correct_demo_pairs = task_data.get_available_demo_pairs()
+        correct_test_pairs = task_data.get_available_test_pairs()
+        
+        return eqx.tree_at(
+            lambda s: (s.available_demo_pairs, s.available_test_pairs),
+            state,
+            (correct_demo_pairs, correct_test_pairs)
         )
 
     def test_validate_demo_operations_in_train_mode(self, sample_state: ArcEnvState):
@@ -856,7 +888,7 @@ class TestArcEpisodeManagerValidation:
         )
         
         assert not is_valid
-        assert "Demo pair operations only available in training mode" in error
+        # Note: Error messages are not available in JAX-compatible validation
 
     def test_validate_test_operations_in_test_mode(self, sample_state: ArcEnvState):
         """Test validation of test operations in test mode."""
@@ -894,7 +926,7 @@ class TestArcEpisodeManagerValidation:
         )
         
         assert not is_valid
-        assert "Test pair operations only available in test mode" in error
+        # Note: Error messages are not available in JAX-compatible validation
 
     def test_validate_switching_disabled(self, sample_state: ArcEnvState):
         """Test validation when switching is disabled."""
@@ -908,7 +940,7 @@ class TestArcEpisodeManagerValidation:
         )
         
         assert not is_valid
-        assert "Demo pair switching is disabled in configuration" in error
+        # Note: Error messages are not available in JAX-compatible validation
 
     def test_validate_insufficient_pairs(self, sample_state: ArcEnvState):
         """Test validation when insufficient pairs are available."""
@@ -930,7 +962,7 @@ class TestArcEpisodeManagerValidation:
         )
         
         assert not is_valid
-        assert "Need multiple demo pairs for switching" in error
+        # Note: Error messages are not available in JAX-compatible validation
 
     def test_validate_reset_operation(self, sample_state: ArcEnvState):
         """Test validation of reset operation."""
@@ -958,7 +990,7 @@ class TestArcEpisodeManagerValidation:
         )
         
         assert not is_valid
-        assert "Unknown pair control operation: 999" in error
+        # Note: Error messages are not available in JAX-compatible validation
 
     def test_validation_jax_compatibility(self, sample_state: ArcEnvState):
         """Test JAX compatibility of validation functions."""
@@ -1004,7 +1036,7 @@ class TestArcEpisodeManagerIntegration:
         working_grid_mask = jnp.ones((grid_size, grid_size), dtype=bool)
         target_grid = jnp.ones((grid_size, grid_size), dtype=jnp.int32)
         
-        return create_arc_env_state(
+        state = create_arc_env_state(
             task_data=task_data,
             working_grid=working_grid,
             working_grid_mask=working_grid_mask,
@@ -1013,6 +1045,16 @@ class TestArcEpisodeManagerIntegration:
             max_test_pairs=max_test_pairs,
             episode_mode=jax_types.EPISODE_MODE_TRAIN,
             current_example_idx=1,  # Start at middle pair
+        )
+        
+        # Fix available pairs to match task data
+        correct_demo_pairs = task_data.get_available_demo_pairs()
+        correct_test_pairs = task_data.get_available_test_pairs()
+        
+        return eqx.tree_at(
+            lambda s: (s.available_demo_pairs, s.available_test_pairs),
+            state,
+            (correct_demo_pairs, correct_test_pairs)
         )
 
     def test_complete_episode_workflow(self, complex_state: ArcEnvState):
@@ -1121,6 +1163,16 @@ class TestArcEpisodeManagerIntegration:
             target_grid=target_grid,
             max_train_pairs=2,
             max_test_pairs=1,
+        )
+        
+        # Fix available pairs to match task data
+        correct_demo_pairs = single_pair_task.get_available_demo_pairs()
+        correct_test_pairs = single_pair_task.get_available_test_pairs()
+        
+        single_state = eqx.tree_at(
+            lambda s: (s.available_demo_pairs, s.available_test_pairs),
+            single_state,
+            (correct_demo_pairs, correct_test_pairs)
         )
         
         config = ArcEpisodeConfig(allow_demo_switching=True)

@@ -85,13 +85,14 @@ class ArcEnvState(eqx.Module):
         working_grid: Current grid being modified
         working_grid_mask: Valid cells mask for the working grid
         target_grid: Goal grid for current example
+        target_grid_mask: Valid cells mask for the target grid
         step_count: Number of steps taken in current episode
         episode_done: Whether the current episode is complete
         current_example_idx: Which training example we're working on
         selected: Selection mask for operations
         clipboard: Grid data for copy/paste operations
         similarity_score: Grid similarity to target (0.0 to 1.0)
-        
+
         # Enhanced functionality fields
         episode_mode: Episode mode (0=train, 1=test) for JAX compatibility
         available_demo_pairs: Mask of available demonstration pairs
@@ -107,12 +108,13 @@ class ArcEnvState(eqx.Module):
         # Create new state with dataset-specific sizes
         max_train_pairs = 10  # e.g., ARC-AGI 2024
         max_test_pairs = 4    # e.g., ARC-AGI 2024
-        
+
         state = ArcEnvState(
             task_data=task,
             working_grid=grid,
             working_grid_mask=mask,
             target_grid=target,
+            target_grid_mask=target_mask,
             step_count=jnp.array(0),
             episode_done=jnp.array(False),
             current_example_idx=jnp.array(0),
@@ -147,6 +149,7 @@ class ArcEnvState(eqx.Module):
     working_grid: GridArray  # Current grid being modified
     working_grid_mask: MaskArray  # Valid cells mask
     target_grid: GridArray  # Goal grid for current example
+    target_grid_mask: MaskArray  # Valid cells mask for target grid
 
     # Episode management
     step_count: StepCount
@@ -161,7 +164,7 @@ class ArcEnvState(eqx.Module):
     # Enhanced functionality fields
     episode_mode: EpisodeMode  # 0=train, 1=test for JAX compatibility
     available_demo_pairs: AvailableTrainPairs  # Mask of available training pairs
-    available_test_pairs: AvailableTestPairs  # Mask of available test pairs  
+    available_test_pairs: AvailableTestPairs  # Mask of available test pairs
     demo_completion_status: TrainCompletionStatus  # Per-demo completion tracking
     test_completion_status: TestCompletionStatus  # Per-test completion tracking
     action_history: ActionHistory  # Fixed-size action sequence
@@ -190,12 +193,14 @@ class ArcEnvState(eqx.Module):
             chex.assert_rank(self.working_grid, 2)
             chex.assert_rank(self.working_grid_mask, 2)
             chex.assert_rank(self.target_grid, 2)
+            chex.assert_rank(self.target_grid_mask, 2)
             chex.assert_rank(self.selected, 2)
             chex.assert_rank(self.clipboard, 2)
 
             chex.assert_type(self.working_grid, jnp.integer)
             chex.assert_type(self.working_grid_mask, jnp.bool_)
             chex.assert_type(self.target_grid, jnp.integer)
+            chex.assert_type(self.target_grid_mask, jnp.bool_)
             chex.assert_type(self.selected, jnp.bool_)
             chex.assert_type(self.clipboard, jnp.integer)
             chex.assert_type(self.similarity_score, jnp.floating)
@@ -203,6 +208,7 @@ class ArcEnvState(eqx.Module):
             # Check consistent shapes
             chex.assert_shape(self.working_grid_mask, self.working_grid.shape)
             chex.assert_shape(self.target_grid, self.working_grid.shape)
+            chex.assert_shape(self.target_grid_mask, self.working_grid.shape)
             chex.assert_shape(self.selected, self.working_grid.shape)
             chex.assert_shape(self.clipboard, self.working_grid.shape)
 
@@ -242,7 +248,7 @@ class ArcEnvState(eqx.Module):
                 msg = f"Demo pairs and completion status shape mismatch: {self.available_demo_pairs.shape} vs {self.demo_completion_status.shape}"
                 raise ValueError(msg)
 
-            # Validate consistent sizes between test pairs and completion status  
+            # Validate consistent sizes between test pairs and completion status
             if self.available_test_pairs.shape != self.test_completion_status.shape:
                 msg = f"Test pairs and completion status shape mismatch: {self.available_test_pairs.shape} vs {self.test_completion_status.shape}"
                 raise ValueError(msg)
@@ -254,7 +260,9 @@ class ArcEnvState(eqx.Module):
                 msg = f"Action history should have at least 6 fields, got {action_history_fields}"
                 raise ValueError(msg)
             if action_history_fields > 1000:  # Reasonable upper bound
-                msg = f"Action history has unusually many fields: {action_history_fields}"
+                msg = (
+                    f"Action history has unusually many fields: {action_history_fields}"
+                )
                 raise ValueError(msg)
 
             # Validate operations mask has correct size
@@ -371,7 +379,7 @@ class ArcEnvState(eqx.Module):
 
     def is_training_mode(self) -> bool:
         """Check if environment is in training mode.
-        
+
         Returns:
             True if in training mode (episode_mode == 0), False if in test mode
         """
@@ -379,7 +387,7 @@ class ArcEnvState(eqx.Module):
 
     def is_test_mode(self) -> bool:
         """Check if environment is in test/evaluation mode.
-        
+
         Returns:
             True if in test mode (episode_mode == 1), False if in training mode
         """
@@ -387,7 +395,7 @@ class ArcEnvState(eqx.Module):
 
     def get_available_demo_count(self) -> Int[Array, ""]:
         """Get the number of available demonstration pairs.
-        
+
         Returns:
             JAX scalar array containing the number of available demonstration pairs
         """
@@ -395,7 +403,7 @@ class ArcEnvState(eqx.Module):
 
     def get_available_test_count(self) -> Int[Array, ""]:
         """Get the number of available test pairs.
-        
+
         Returns:
             JAX scalar array containing the number of available test pairs
         """
@@ -403,7 +411,7 @@ class ArcEnvState(eqx.Module):
 
     def get_completed_demo_count(self) -> Int[Array, ""]:
         """Get the number of completed demonstration pairs.
-        
+
         Returns:
             JAX scalar array containing the number of completed demonstration pairs
         """
@@ -411,7 +419,7 @@ class ArcEnvState(eqx.Module):
 
     def get_completed_test_count(self) -> Int[Array, ""]:
         """Get the number of completed test pairs.
-        
+
         Returns:
             JAX scalar array containing the number of completed test pairs
         """
@@ -419,19 +427,19 @@ class ArcEnvState(eqx.Module):
 
     def is_current_pair_completed(self) -> Bool[Array, ""]:
         """Check if the current demonstration/test pair is completed.
-        
+
         Returns:
             JAX boolean scalar array indicating if current pair is marked as completed
         """
         return jnp.where(
             self.is_training_mode(),
             self.demo_completion_status[self.current_example_idx],
-            self.test_completion_status[self.current_example_idx]
+            self.test_completion_status[self.current_example_idx],
         )
 
     def get_allowed_operations_count(self) -> Int[Array, ""]:
         """Get the number of currently allowed operations.
-        
+
         Returns:
             JAX scalar array containing the number of operations that are currently allowed
         """
@@ -439,22 +447,22 @@ class ArcEnvState(eqx.Module):
 
     def is_operation_allowed(self, operation_id: int) -> Bool[Array, ""]:
         """Check if a specific operation is currently allowed.
-        
+
         Args:
             operation_id: Operation ID to check (0-41)
-            
+
         Returns:
             JAX boolean scalar array indicating if the operation is allowed
         """
         return jnp.where(
             (operation_id >= 0) & (operation_id < len(self.allowed_operations_mask)),
             self.allowed_operations_mask[operation_id],
-            False
+            False,
         )
 
     def get_action_history_length(self) -> HistoryLength:
         """Get the current length of action history.
-        
+
         Returns:
             JAX scalar array containing the number of actions stored in history
         """
@@ -462,7 +470,7 @@ class ArcEnvState(eqx.Module):
 
     def has_action_history(self) -> Bool[Array, ""]:
         """Check if there is any action history.
-        
+
         Returns:
             JAX boolean scalar array indicating if action history contains at least one action
         """
@@ -470,9 +478,9 @@ class ArcEnvState(eqx.Module):
 
     def get_current_pair_info(self) -> Dict[str, Any]:
         """Get information about the current demonstration/test pair.
-        
+
         Note: This method converts JAX arrays to Python types for readability.
-        
+
         Returns:
             Dictionary containing current pair information
         """
@@ -480,23 +488,27 @@ class ArcEnvState(eqx.Module):
             "pair_index": int(self.current_example_idx),
             "is_training": bool(self.is_training_mode()),
             "is_completed": bool(self.is_current_pair_completed()),
-            "total_available": int(jnp.where(
-                self.is_training_mode(),
-                self.get_available_demo_count(),
-                self.get_available_test_count()
-            )),
-            "total_completed": int(jnp.where(
-                self.is_training_mode(),
-                self.get_completed_demo_count(),
-                self.get_completed_test_count()
-            )),
+            "total_available": int(
+                jnp.where(
+                    self.is_training_mode(),
+                    self.get_available_demo_count(),
+                    self.get_available_test_count(),
+                )
+            ),
+            "total_completed": int(
+                jnp.where(
+                    self.is_training_mode(),
+                    self.get_completed_demo_count(),
+                    self.get_completed_test_count(),
+                )
+            ),
         }
 
     def get_episode_progress(self) -> Dict[str, Any]:
         """Get overall episode progress information.
-        
+
         Note: This method converts JAX arrays to Python types for readability.
-        
+
         Returns:
             Dictionary containing episode progress metrics
         """
@@ -511,45 +523,45 @@ class ArcEnvState(eqx.Module):
 
     def get_observation_summary(self) -> Dict[str, Any]:
         """Get a summary of the observation for agents.
-        
+
         This method provides a structured summary of the most important
         information from the state that agents typically need.
-        
+
         Note: This method converts JAX arrays to Python types for readability.
         For JAX-compatible operations, use the individual utility methods directly.
-        
+
         Returns:
             Dictionary containing key observation information
         """
         grid_shape = self.get_actual_grid_shape()
-        
+
         return {
             # Core grid information
             "grid_shape": grid_shape,
             "similarity_score": float(self.similarity_score),
-            
             # Episode context
             "episode_mode": "train" if bool(self.is_training_mode()) else "test",
             "step_count": int(self.step_count),
             "episode_done": bool(self.episode_done),
-            
             # Pair information
             "current_pair_index": int(self.current_example_idx),
-            "available_pairs": int(jnp.where(
-                self.is_training_mode(),
-                self.get_available_demo_count(),
-                self.get_available_test_count()
-            )),
-            "completed_pairs": int(jnp.where(
-                self.is_training_mode(),
-                self.get_completed_demo_count(),
-                self.get_completed_test_count()
-            )),
-            
+            "available_pairs": int(
+                jnp.where(
+                    self.is_training_mode(),
+                    self.get_available_demo_count(),
+                    self.get_available_test_count(),
+                )
+            ),
+            "completed_pairs": int(
+                jnp.where(
+                    self.is_training_mode(),
+                    self.get_completed_demo_count(),
+                    self.get_completed_test_count(),
+                )
+            ),
             # Action space information
             "allowed_operations": int(self.get_allowed_operations_count()),
             "action_history_length": int(self.get_action_history_length()),
-            
             # Grid statistics
             "has_selection": bool(jnp.any(self.selected)),
             "has_clipboard_data": bool(jnp.any(self.clipboard != 0)),
@@ -561,41 +573,41 @@ class ArcEnvState(eqx.Module):
 
     def get_current_demo_pair_data(self) -> tuple[GridArray, GridArray, MaskArray]:
         """Get current demonstration pair data.
-        
+
         Returns:
             Tuple of (input_grid, output_grid, input_mask) for current demo pair
-            
+
         Raises:
             ValueError: If not in training mode or current pair is invalid
         """
         if not self.is_training_mode():
             raise ValueError("Cannot get demo pair data in test mode")
-        
+
         if not self.task_data.is_demo_pair_available(int(self.current_example_idx)):
             raise ValueError(f"Demo pair {self.current_example_idx} is not available")
-            
+
         return self.task_data.get_demo_pair_data(int(self.current_example_idx))
 
     def get_current_test_pair_data(self) -> tuple[GridArray, MaskArray]:
         """Get current test pair data.
-        
+
         Returns:
             Tuple of (input_grid, input_mask) for current test pair
-            
+
         Raises:
             ValueError: If not in test mode or current pair is invalid
         """
         if not self.is_test_mode():
             raise ValueError("Cannot get test pair data in training mode")
-            
+
         if not self.task_data.is_test_pair_available(int(self.current_example_idx)):
             raise ValueError(f"Test pair {self.current_example_idx} is not available")
-            
+
         return self.task_data.get_test_pair_data(int(self.current_example_idx))
 
     def get_available_demo_indices(self) -> Int[Array, "max_train_pairs"]:
         """Get indices of available demonstration pairs.
-        
+
         Returns:
             JAX array of indices for available demonstration pairs (padded with -1)
         """
@@ -605,7 +617,7 @@ class ArcEnvState(eqx.Module):
 
     def get_available_test_indices(self) -> Int[Array, "max_test_pairs"]:
         """Get indices of available test pairs.
-        
+
         Returns:
             JAX array of indices for available test pairs (padded with -1)
         """
@@ -615,7 +627,7 @@ class ArcEnvState(eqx.Module):
 
     def get_completed_demo_indices(self) -> Int[Array, "max_train_pairs"]:
         """Get indices of completed demonstration pairs.
-        
+
         Returns:
             JAX array of indices for completed demonstration pairs (padded with -1)
         """
@@ -625,7 +637,7 @@ class ArcEnvState(eqx.Module):
 
     def get_completed_test_indices(self) -> Int[Array, "max_test_pairs"]:
         """Get indices of completed test pairs.
-        
+
         Returns:
             JAX array of indices for completed test pairs (padded with -1)
         """
@@ -635,7 +647,7 @@ class ArcEnvState(eqx.Module):
 
     def get_uncompleted_demo_indices(self) -> Int[Array, "max_train_pairs"]:
         """Get indices of uncompleted demonstration pairs.
-        
+
         Returns:
             JAX array of indices for uncompleted demonstration pairs (padded with -1)
         """
@@ -645,7 +657,7 @@ class ArcEnvState(eqx.Module):
 
     def get_uncompleted_test_indices(self) -> Int[Array, "max_test_pairs"]:
         """Get indices of uncompleted test pairs.
-        
+
         Returns:
             JAX array of indices for uncompleted test pairs (padded with -1)
         """
@@ -655,108 +667,112 @@ class ArcEnvState(eqx.Module):
 
     def is_demo_pair_available(self, pair_idx: int) -> Bool[Array, ""]:
         """Check if a specific demonstration pair is available.
-        
+
         Args:
             pair_idx: Index of the demonstration pair to check
-            
+
         Returns:
             JAX boolean scalar array indicating if the pair is available
         """
         return jnp.where(
             (pair_idx >= 0) & (pair_idx < len(self.available_demo_pairs)),
             self.available_demo_pairs[pair_idx],
-            False
+            False,
         )
 
     def is_test_pair_available(self, pair_idx: int) -> Bool[Array, ""]:
         """Check if a specific test pair is available.
-        
+
         Args:
             pair_idx: Index of the test pair to check
-            
+
         Returns:
             JAX boolean scalar array indicating if the pair is available
         """
         return jnp.where(
             (pair_idx >= 0) & (pair_idx < len(self.available_test_pairs)),
             self.available_test_pairs[pair_idx],
-            False
+            False,
         )
 
     def is_demo_pair_completed(self, pair_idx: int) -> Bool[Array, ""]:
         """Check if a specific demonstration pair is completed.
-        
+
         Args:
             pair_idx: Index of the demonstration pair to check
-            
+
         Returns:
             JAX boolean scalar array indicating if the pair is completed
         """
         return jnp.where(
             (pair_idx >= 0) & (pair_idx < len(self.demo_completion_status)),
             self.demo_completion_status[pair_idx],
-            False
+            False,
         )
 
     def is_test_pair_completed(self, pair_idx: int) -> Bool[Array, ""]:
         """Check if a specific test pair is completed.
-        
+
         Args:
             pair_idx: Index of the test pair to check
-            
+
         Returns:
             JAX boolean scalar array indicating if the pair is completed
         """
         return jnp.where(
             (pair_idx >= 0) & (pair_idx < len(self.test_completion_status)),
             self.test_completion_status[pair_idx],
-            False
+            False,
         )
 
     def get_next_available_demo_index(self) -> Int[Array, ""]:
         """Get the next available demonstration pair index.
-        
+
         Returns:
             JAX scalar array with index of next available demo pair, or -1 if none available
         """
         current_idx = self.current_example_idx
-        
+
         # Simple linear search for next available pair
         def find_next(i):
             return jnp.where(
                 (i < len(self.available_demo_pairs)) & self.available_demo_pairs[i],
                 i,
-                -1
+                -1,
             )
-        
+
         # Check indices after current
         next_idx = -1
         for i in range(len(self.available_demo_pairs)):
             candidate = current_idx + 1 + i
             wrapped_candidate = candidate % len(self.available_demo_pairs)
-            is_valid = (candidate < len(self.available_demo_pairs)) & self.available_demo_pairs[candidate]
+            is_valid = (
+                candidate < len(self.available_demo_pairs)
+            ) & self.available_demo_pairs[candidate]
             is_wrapped_valid = self.available_demo_pairs[wrapped_candidate]
-            
+
             next_idx = jnp.where(
                 (next_idx == -1) & is_valid,
                 candidate,
                 jnp.where(
-                    (next_idx == -1) & (candidate >= len(self.available_demo_pairs)) & is_wrapped_valid,
+                    (next_idx == -1)
+                    & (candidate >= len(self.available_demo_pairs))
+                    & is_wrapped_valid,
                     wrapped_candidate,
-                    next_idx
-                )
+                    next_idx,
+                ),
             )
-        
+
         return next_idx
 
     def get_prev_available_demo_index(self) -> Int[Array, ""]:
         """Get the previous available demonstration pair index.
-        
+
         Returns:
             JAX scalar array with index of previous available demo pair, or -1 if none available
         """
         current_idx = self.current_example_idx
-        
+
         # Simple linear search for previous available pair
         prev_idx = -1
         for i in range(len(self.available_demo_pairs)):
@@ -764,55 +780,59 @@ class ArcEnvState(eqx.Module):
             wrapped_candidate = candidate % len(self.available_demo_pairs)
             is_valid = (candidate >= 0) & self.available_demo_pairs[candidate]
             is_wrapped_valid = self.available_demo_pairs[wrapped_candidate]
-            
+
             prev_idx = jnp.where(
                 (prev_idx == -1) & is_valid,
                 candidate,
                 jnp.where(
                     (prev_idx == -1) & (candidate < 0) & is_wrapped_valid,
                     wrapped_candidate,
-                    prev_idx
-                )
+                    prev_idx,
+                ),
             )
-        
+
         return prev_idx
 
     def get_next_available_test_index(self) -> Int[Array, ""]:
         """Get the next available test pair index.
-        
+
         Returns:
             JAX scalar array with index of next available test pair, or -1 if none available
         """
         current_idx = self.current_example_idx
-        
+
         # Simple linear search for next available pair
         next_idx = -1
         for i in range(len(self.available_test_pairs)):
             candidate = current_idx + 1 + i
             wrapped_candidate = candidate % len(self.available_test_pairs)
-            is_valid = (candidate < len(self.available_test_pairs)) & self.available_test_pairs[candidate]
+            is_valid = (
+                candidate < len(self.available_test_pairs)
+            ) & self.available_test_pairs[candidate]
             is_wrapped_valid = self.available_test_pairs[wrapped_candidate]
-            
+
             next_idx = jnp.where(
                 (next_idx == -1) & is_valid,
                 candidate,
                 jnp.where(
-                    (next_idx == -1) & (candidate >= len(self.available_test_pairs)) & is_wrapped_valid,
+                    (next_idx == -1)
+                    & (candidate >= len(self.available_test_pairs))
+                    & is_wrapped_valid,
                     wrapped_candidate,
-                    next_idx
-                )
+                    next_idx,
+                ),
             )
-        
+
         return next_idx
 
     def get_prev_available_test_index(self) -> Int[Array, ""]:
         """Get the previous available test pair index.
-        
+
         Returns:
             JAX scalar array with index of previous available test pair, or -1 if none available
         """
         current_idx = self.current_example_idx
-        
+
         # Simple linear search for previous available pair
         prev_idx = -1
         for i in range(len(self.available_test_pairs)):
@@ -820,52 +840,52 @@ class ArcEnvState(eqx.Module):
             wrapped_candidate = candidate % len(self.available_test_pairs)
             is_valid = (candidate >= 0) & self.available_test_pairs[candidate]
             is_wrapped_valid = self.available_test_pairs[wrapped_candidate]
-            
+
             prev_idx = jnp.where(
                 (prev_idx == -1) & is_valid,
                 candidate,
                 jnp.where(
                     (prev_idx == -1) & (candidate < 0) & is_wrapped_valid,
                     wrapped_candidate,
-                    prev_idx
-                )
+                    prev_idx,
+                ),
             )
-        
+
         return prev_idx
 
     def get_first_unsolved_demo_index(self) -> Int[Array, ""]:
         """Get the first unsolved demonstration pair index.
-        
+
         Returns:
             JAX scalar array with index of first unsolved demo pair, or -1 if all solved or none available
         """
         uncompleted_mask = self.available_demo_pairs & ~self.demo_completion_status
-        
+
         # Find first True value in mask
         first_idx = -1
         for i in range(len(uncompleted_mask)):
             first_idx = jnp.where((first_idx == -1) & uncompleted_mask[i], i, first_idx)
-        
+
         return first_idx
 
     def get_first_unsolved_test_index(self) -> Int[Array, ""]:
         """Get the first unsolved test pair index.
-        
+
         Returns:
             JAX scalar array with index of first unsolved test pair, or -1 if all solved or none available
         """
         uncompleted_mask = self.available_test_pairs & ~self.test_completion_status
-        
+
         # Find first True value in mask
         first_idx = -1
         for i in range(len(uncompleted_mask)):
             first_idx = jnp.where((first_idx == -1) & uncompleted_mask[i], i, first_idx)
-        
+
         return first_idx
 
     def get_pair_availability_summary(self) -> Dict[str, Any]:
         """Get a comprehensive summary of pair availability and completion status.
-        
+
         Returns:
             Dictionary containing detailed pair status information
         """
@@ -917,11 +937,13 @@ class ArcEnvState(eqx.Module):
             "allowed_operations_mask": None,
         }
 
+
 def create_arc_env_state(
     task_data: JaxArcTask,
     working_grid: GridArray,
     working_grid_mask: MaskArray,
     target_grid: GridArray,
+    target_grid_mask: MaskArray,
     max_train_pairs: int = DEFAULT_MAX_TRAIN_PAIRS,
     max_test_pairs: int = DEFAULT_MAX_TEST_PAIRS,
     step_count: int = 0,
@@ -931,16 +953,17 @@ def create_arc_env_state(
     action_history_length: int = 0,
 ) -> ArcEnvState:
     """Factory function to create ArcEnvState with dataset-appropriate sizes.
-    
+
     This function simplifies creating ArcEnvState instances by automatically
     creating the enhanced functionality arrays with the correct sizes based
     on the dataset configuration.
-    
+
     Args:
         task_data: The ARC task data
         working_grid: Current grid being modified
         working_grid_mask: Valid cells mask for the working grid
         target_grid: Goal grid for current example
+        target_grid_mask: Valid cells mask for the target grid
         max_train_pairs: Maximum number of training pairs (dataset-dependent)
         max_test_pairs: Maximum number of test pairs (dataset-dependent)
         step_count: Initial step count
@@ -948,10 +971,10 @@ def create_arc_env_state(
         current_example_idx: Initial example index
         episode_mode: Episode mode (0=train, 1=test)
         action_history_length: Initial action history length
-        
+
     Returns:
         ArcEnvState configured for the specified dataset sizes
-        
+
     Examples:
         ```python
         # For ARC-AGI 2024 (10 train, 4 test pairs)
@@ -960,26 +983,29 @@ def create_arc_env_state(
             working_grid=grid,
             working_grid_mask=mask,
             target_grid=target,
+            target_grid_mask=target_mask,
             max_train_pairs=10,
             max_test_pairs=4
         )
-        
+
         # For MiniARC (5 train, 1 test pair)
         state = create_arc_env_state(
             task_data=task,
             working_grid=grid,
             working_grid_mask=mask,
             target_grid=target,
+            target_grid_mask=target_mask,
             max_train_pairs=5,
             max_test_pairs=1
         )
-        
+
         # For augmented training (20 train pairs, 4 test pairs)
         state = create_arc_env_state(
             task_data=task,
             working_grid=grid,
             working_grid_mask=mask,
             target_grid=target,
+            target_grid_mask=target_mask,
             max_train_pairs=20,  # Increased for augmentation
             max_test_pairs=4
         )
@@ -990,6 +1016,7 @@ def create_arc_env_state(
         working_grid=working_grid,
         working_grid_mask=working_grid_mask,
         target_grid=target_grid,
+        target_grid_mask=target_grid_mask,
         step_count=jnp.array(step_count, dtype=jnp.int32),
         episode_done=jnp.array(episode_done),
         current_example_idx=jnp.array(current_example_idx, dtype=jnp.int32),

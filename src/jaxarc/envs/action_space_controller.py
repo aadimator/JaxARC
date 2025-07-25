@@ -264,10 +264,6 @@ class ActionSpaceController:
             config_clip = config.replace(invalid_operation_policy="clip")
             filtered = controller.filter_invalid_operation(50, state, config_clip)
             
-            # Replace with no-op
-            config_noop = config.replace(invalid_operation_policy="noop")
-            filtered = controller.filter_invalid_operation(50, state, config_noop)
-            
             # Pass through for explicit error handling
             config_pass = config.replace(invalid_operation_policy="passthrough")
             filtered = controller.filter_invalid_operation(50, state, config_pass)
@@ -356,10 +352,6 @@ class ActionSpaceController:
                 op_id_array,
                 self._find_nearest_valid_operation_jax(clipped_op, allowed_mask)
             )
-        elif policy == "noop":
-            # Replace with a safe no-op operation (operation 34 = SUBMIT)
-            noop_op = jnp.array(34, dtype=jnp.int32)
-            filtered_op = jnp.where(is_valid, op_id_array, noop_op)
         elif policy == "reject":
             # Return a special invalid operation ID (-1) for explicit error handling
             reject_op = jnp.array(-1, dtype=jnp.int32)

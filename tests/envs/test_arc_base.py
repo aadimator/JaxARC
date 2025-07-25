@@ -55,6 +55,7 @@ def create_test_state(task_data, working_grid, working_grid_mask, target_grid=No
         working_grid=working_grid,
         working_grid_mask=working_grid_mask,
         target_grid=target_grid,
+        target_grid_mask=working_grid_mask,  # Same mask as working grid
         **defaults
     )
 

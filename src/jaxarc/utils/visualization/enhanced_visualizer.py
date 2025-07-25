@@ -280,22 +280,36 @@ class EnhancedVisualizer:
         start_time = time.time()
 
         try:
+            # Convert JAX arrays to numpy arrays in step data to avoid hashability issues
+            safe_step_data = StepVisualizationData(
+                step_num=step_data.step_num,
+                before_grid=step_data.before_grid,
+                after_grid=step_data.after_grid,
+                action=self._convert_jax_arrays_to_numpy(step_data.action),
+                reward=step_data.reward,
+                info=self._convert_jax_arrays_to_numpy(step_data.info),
+                selection_mask=np.asarray(step_data.selection_mask) if step_data.selection_mask is not None else None,
+                changed_cells=np.asarray(step_data.changed_cells) if step_data.changed_cells is not None else None,
+                operation_name=step_data.operation_name,
+                timestamp=step_data.timestamp,
+            )
+
             # Store step data for episode summary
-            self.current_episode_data.append(step_data)
+            self.current_episode_data.append(safe_step_data)
 
             # Generate visualization based on formats
             saved_paths = []
             for output_format in self.config.output_formats:
                 if output_format == "svg":
-                    path = self._create_step_svg(step_data)
+                    path = self._create_step_svg(safe_step_data)
                     if path:
                         saved_paths.append(path)
                 elif output_format == "png":
-                    path = self._create_step_png(step_data)
+                    path = self._create_step_png(safe_step_data)
                     if path:
                         saved_paths.append(path)
                 elif output_format == "html":
-                    path = self._create_step_html(step_data)
+                    path = self._create_step_html(safe_step_data)
                     if path:
                         saved_paths.append(path)
 
@@ -380,6 +394,9 @@ class EnhancedVisualizer:
                 step_data.step_num, file_type="svg"
             )
 
+            # Convert JAX arrays in action to numpy arrays to avoid hashability issues
+            action_safe = self._convert_jax_arrays_to_numpy(step_data.action)
+
             # Detect changed cells if not provided
             changed_cells = step_data.changed_cells
             if changed_cells is None:
@@ -389,27 +406,31 @@ class EnhancedVisualizer:
 
             # Get operation name if not provided
             operation_name = step_data.operation_name
-            if not operation_name and "operation" in step_data.action:
+            if not operation_name and "operation" in action_safe:
                 # Try to infer fill color from grids for better description
                 fill_color = -1
-                if step_data.action["operation"] == 1:  # Fill Selected
+                if action_safe["operation"] == 1:  # Fill Selected
+                    # Extract selection data from action (handle both selection and bbox formats)
+                    selection_data = self._extract_selection_from_action(action_safe, step_data.before_grid)
                     fill_color = infer_fill_color_from_grids(
                         step_data.before_grid,
                         step_data.after_grid,
-                        np.asarray(step_data.action.get("selection", np.array([]))),
+                        selection_data,
                     )
                     if fill_color >= 0:
-                        step_data.action["fill_color"] = fill_color
+                        action_safe["fill_color"] = fill_color
 
+                # Ensure operation is a scalar integer
+                operation_id = int(action_safe["operation"]) if hasattr(action_safe["operation"], 'item') else action_safe["operation"]
                 operation_name = get_operation_display_name(
-                    step_data.action["operation"], step_data.action
+                    operation_id, action_safe
                 )
 
             # Create enhanced step visualization
             svg_content = draw_rl_step_svg_enhanced(
                 before_grid=step_data.before_grid,
                 after_grid=step_data.after_grid,
-                action=step_data.action,
+                action=action_safe,
                 reward=step_data.reward,
                 info=step_data.info,
                 step_num=step_data.step_num,
@@ -420,7 +441,7 @@ class EnhancedVisualizer:
 
             # Save SVG file
             step_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(step_path, "w") as f:
+            with open(step_path, "w", encoding='utf-8') as f:
                 f.write(svg_content)
 
             return step_path
@@ -472,7 +493,7 @@ class EnhancedVisualizer:
             if not svg_path:
                 return None
 
-            with open(svg_path) as f:
+            with open(svg_path, encoding='utf-8') as f:
                 svg_content = f.read()
 
             html_content = f"""
@@ -502,7 +523,7 @@ class EnhancedVisualizer:
 
             # Save HTML file
             step_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(step_path, "w") as f:
+            with open(step_path, "w", encoding='utf-8') as f:
                 f.write(html_content)
 
             return step_path
@@ -530,7 +551,7 @@ class EnhancedVisualizer:
 
             # Save summary file
             summary_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(summary_path, "w") as f:
+            with open(summary_path, "w", encoding='utf-8') as f:
                 f.write(svg_content)
 
             return summary_path
@@ -593,7 +614,7 @@ class EnhancedVisualizer:
 
             # Save comparison file
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, "w") as f:
+            with open(output_path, "w", encoding='utf-8') as f:
                 f.write(svg_content)
 
             logger.info(f"Created comparison visualization: {output_path}")
@@ -602,6 +623,82 @@ class EnhancedVisualizer:
         except Exception as e:
             logger.error(f"Error creating comparison visualization: {e}")
             return None
+
+    def _convert_jax_arrays_to_numpy(self, data: Any) -> Any:
+        """Convert JAX arrays to numpy arrays recursively to avoid hashability issues.
+        
+        Args:
+            data: Data structure that may contain JAX arrays
+            
+        Returns:
+            Data structure with JAX arrays converted to numpy arrays or Python scalars
+        """
+        if hasattr(data, '__array__') and hasattr(data, 'device'):
+            # This is likely a JAX array
+            arr = np.asarray(data)
+            # Convert scalar arrays to Python scalars for hashability
+            if arr.ndim == 0:
+                return arr.item()
+            return arr
+        elif isinstance(data, np.ndarray):
+            # Convert scalar numpy arrays to Python scalars for hashability
+            if data.ndim == 0:
+                return data.item()
+            return data
+        elif isinstance(data, dict):
+            return {key: self._convert_jax_arrays_to_numpy(value) for key, value in data.items()}
+        elif isinstance(data, (list, tuple)):
+            converted = [self._convert_jax_arrays_to_numpy(item) for item in data]
+            return type(data)(converted)
+        else:
+            return data
+
+    def _extract_selection_from_action(self, action: Dict[str, Any], grid: Any) -> np.ndarray:
+        """Extract selection data from action, handling both selection and bbox formats.
+        
+        Args:
+            action: Action dictionary that may contain 'selection' or 'bbox' keys
+            grid: Grid object to get dimensions for bbox conversion
+            
+        Returns:
+            Selection array (empty array if no selection data found)
+        """
+        if "selection" in action:
+            return np.asarray(action["selection"])
+        elif "bbox" in action:
+            # Convert bbox to selection mask
+            from .core import _extract_grid_data, _extract_valid_region
+            
+            bbox = np.asarray(action["bbox"])
+            if len(bbox) >= 4:
+                # Get grid dimensions
+                grid_data, grid_mask = _extract_grid_data(grid)
+                if grid_mask is not None:
+                    grid_mask = np.asarray(grid_mask)
+                
+                # Extract valid region to get actual dimensions
+                valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(
+                    grid_data, grid_mask
+                )
+                
+                if height > 0 and width > 0:
+                    # Extract and clip coordinates
+                    r1 = int(np.clip(bbox[0], 0, height - 1))
+                    c1 = int(np.clip(bbox[1], 0, width - 1))
+                    r2 = int(np.clip(bbox[2], 0, height - 1))
+                    c2 = int(np.clip(bbox[3], 0, width - 1))
+                    
+                    # Ensure proper ordering
+                    min_r, max_r = min(r1, r2), max(r1, r2)
+                    min_c, max_c = min(c1, c2), max(c1, c2)
+                    
+                    # Create selection mask for the valid region
+                    selection_mask = np.zeros((height, width), dtype=bool)
+                    selection_mask[min_r:max_r+1, min_c:max_c+1] = True
+                    return selection_mask
+        
+        # Return empty array if no selection data found
+        return np.array([])
 
     def cleanup(self) -> None:
         """Clean up resources and flush pending operations."""
