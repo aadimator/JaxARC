@@ -548,7 +548,7 @@ def arc_reset(
     key: PRNGKey,
     config: ConfigType,
     task_data: JaxArcTask | None = None,
-    episode_mode: str = "train",
+    episode_mode: int = 0,  # 0=train, 1=test (JAX-compatible integers)
     initial_pair_idx: int | None = None,
 ) -> Tuple[ArcEnvState, ObservationArray]:
     """
@@ -563,7 +563,7 @@ def arc_reset(
         config: Environment configuration (typed or Hydra DictConfig)
         task_data: Optional specific task data. If None, will use parser from config
                       or create demo task as fallback.
-        episode_mode: Episode mode ("train" or "test") for initialization
+        episode_mode: Episode mode (0=train, 1=test) for JAX-compatible initialization
         initial_pair_idx: Optional explicit pair index specification
 
     Returns:
@@ -572,13 +572,13 @@ def arc_reset(
     Examples:
         ```python
         # Reset in training mode with random demo pair selection
-        state, obs = arc_reset(key, config, task_data, episode_mode="train")
+        state, obs = arc_reset(key, config, task_data, episode_mode=0)
         
         # Reset in test mode with specific test pair
-        state, obs = arc_reset(key, config, task_data, episode_mode="test", initial_pair_idx=1)
+        state, obs = arc_reset(key, config, task_data, episode_mode=1, initial_pair_idx=1)
         
         # Reset with explicit pair selection in training mode
-        state, obs = arc_reset(key, config, task_data, episode_mode="train", initial_pair_idx=2)
+        state, obs = arc_reset(key, config, task_data, episode_mode=0, initial_pair_idx=2)
         ```
     """
     # Ensure we have a typed config
@@ -597,22 +597,28 @@ def arc_reset(
     # Import episode manager for pair selection
     from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
 
-    # Create episode configuration with proper mode validation
-    if episode_mode not in ["train", "test"]:
-        raise ValueError(f"episode_mode must be 'train' or 'test', got '{episode_mode}'")
+    # Import episode manager constants
+    from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager, EPISODE_MODE_TRAIN, EPISODE_MODE_TEST
     
-    episode_config = ArcEpisodeConfig(episode_mode=episode_mode)
+    # JAX-compliant integer-only episode mode validation
+    if episode_mode not in [EPISODE_MODE_TRAIN, EPISODE_MODE_TEST]:
+        raise ValueError(f"episode_mode must be {EPISODE_MODE_TRAIN} (train) or {EPISODE_MODE_TEST} (test), got '{episode_mode}'")
+    
+    # Use integer episode mode directly for JAX compatibility
+    episode_mode_int = episode_mode
+    episode_config = ArcEpisodeConfig(episode_mode=episode_mode_int)
 
     # Select initial pair based on mode and configuration strategy
     if initial_pair_idx is not None:
         # Use explicit pair index if provided
         selected_pair_idx = jnp.array(initial_pair_idx, dtype=jnp.int32)
         
-        # Validate the explicit pair index using task data methods
-        if episode_mode == "train":
-            selection_successful = task_data.is_demo_pair_available(initial_pair_idx)
-        else:
-            selection_successful = task_data.is_test_pair_available(initial_pair_idx)
+        # Validate the explicit pair index using JAX-compatible conditional logic
+        selection_successful = jax.lax.cond(
+            episode_mode_int == EPISODE_MODE_TRAIN,
+            lambda: task_data.is_demo_pair_available(initial_pair_idx),
+            lambda: task_data.is_test_pair_available(initial_pair_idx)
+        )
     else:
         # Use episode manager for pair selection based on configuration strategy
         selected_pair_idx, selection_successful = ArcEpisodeManager.select_initial_pair(
@@ -630,23 +636,29 @@ def arc_reset(
     demo_completion_status = jnp.zeros_like(available_demo_pairs)
     test_completion_status = jnp.zeros_like(available_test_pairs)
     
-    # Mode-specific grid initialization
-    if episode_mode == "train":
+    # JAX-compliant mode-specific grid initialization using conditional logic
+    def get_train_grids():
         # Training mode: use demonstration pair with target access
         initial_grid = task_data.input_grids_examples[selected_pair_idx]
         target_grid = task_data.output_grids_examples[selected_pair_idx]
         initial_mask = task_data.input_masks_examples[selected_pair_idx]
-        episode_mode_int = jnp.array(0, dtype=jnp.int32)  # 0 = train
-        
-    else:
+        return initial_grid, target_grid, initial_mask
+    
+    def get_test_grids():
         # Test mode: use test pair with target masking for proper evaluation
         initial_grid = task_data.test_input_grids[selected_pair_idx]
         initial_mask = task_data.test_input_masks[selected_pair_idx]
         # In test mode, target grid is masked (set to background color) to prevent cheating
-        # Use background color instead of zeros to avoid artificially high similarity
         background_color = typed_config.dataset.background_color
         target_grid = jnp.full_like(initial_grid, background_color)  # Masked target for evaluation
-        episode_mode_int = jnp.array(1, dtype=jnp.int32)  # 1 = test
+        return initial_grid, target_grid, initial_mask
+    
+    # Use JAX conditional to select grids based on episode mode
+    initial_grid, target_grid, initial_mask = jax.lax.cond(
+        episode_mode_int == EPISODE_MODE_TRAIN,
+        get_train_grids,
+        get_test_grids
+    )
 
     # Calculate initial similarity (will be 0.0 in test mode due to masked target)
     initial_similarity = compute_grid_similarity(initial_grid, target_grid)
@@ -757,6 +769,9 @@ def arc_step(
     """
     # Ensure we have a typed config
     typed_config = _ensure_config(config)
+    
+    # Import episode manager for control operations (needed for nested functions)
+    from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
 
     # Convert ARCLEAction to dict format if needed
     if isinstance(action, ARCLEAction):
@@ -786,50 +801,80 @@ def arc_step(
     # Check if this is a control operation (35-41) or grid operation (0-34)
     is_control_operation = operation >= 35
 
-    # Handle control operations using episode manager
-    if is_control_operation:
-        # Import episode manager for control operations
-        from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
+    # Define functions for control and grid operations
+    def handle_control_operation(state, action, operation, typed_config):
+        """Handle control operations (35-41) using full episode manager with JAX-compatible integer modes."""
+        # Episode manager already imported at function level
         
-        # Create episode configuration from main config
-        episode_config = ArcEpisodeConfig(
-            episode_mode="train" if state.is_training_mode() else "test",
-            demo_selection_strategy=getattr(typed_config, 'demo_selection_strategy', 'random'),
-            allow_demo_switching=getattr(typed_config, 'allow_demo_switching', True),
-            allow_test_switching=getattr(typed_config, 'allow_test_switching', False),
+        # Create episode configuration from main config using integer episode mode
+        episode_mode_int = jax.lax.cond(
+            state.is_training_mode(),
+            lambda: 0,  # EPISODE_MODE_TRAIN = 0 = train mode
+            lambda: 1   # EPISODE_MODE_TEST = 1 = test mode
         )
         
-        # Execute pair control operation
+        episode_config = ArcEpisodeConfig(
+            episode_mode=episode_mode_int,
+            demo_selection_strategy=getattr(typed_config.episode, 'demo_selection_strategy', 'random'),
+            allow_demo_switching=getattr(typed_config.episode, 'allow_demo_switching', True),
+            allow_test_switching=getattr(typed_config.episode, 'allow_test_switching', False),
+        )
+        
+        # Execute pair control operation using full episode manager
         new_state = ArcEpisodeManager.execute_pair_control_operation(
-            state, int(operation), episode_config
+            state, operation, episode_config
         )
         
         # For control operations, we need to update grids if pair was switched
-        if int(operation) in [35, 36, 37, 38, 40, 41]:  # Pair switching operations
+        # Use JAX-compatible conditional logic
+        is_pair_switching_op = jnp.isin(operation, jnp.array([35, 36, 37, 38, 40, 41]))
+        
+        def update_grids_for_pair_switch(state):
             # Update working grid and target based on new pair
-            if new_state.is_training_mode():
-                input_grid, target_grid, input_mask = new_state.task_data.get_demo_pair_data(
-                    int(new_state.current_example_idx)
+            def get_train_grids(state):
+                input_grid, target_grid, input_mask = state.task_data.get_demo_pair_data(
+                    state.current_example_idx
                 )
-            else:
-                input_grid, input_mask = new_state.task_data.get_test_pair_data(
-                    int(new_state.current_example_idx)
+                return input_grid, target_grid, input_mask
+            
+            def get_test_grids(state):
+                input_grid, input_mask = state.task_data.get_test_pair_data(
+                    state.current_example_idx
                 )
                 # In test mode, mask target grid
                 background_color = getattr(typed_config.dataset, 'background_color', 0)
                 target_grid = jnp.full_like(input_grid, background_color)
+                return input_grid, target_grid, input_mask
+            
+            # Use JAX conditional to get grids based on mode
+            input_grid, target_grid, input_mask = jax.lax.cond(
+                state.is_training_mode(),
+                get_train_grids,
+                get_test_grids,
+                state
+            )
             
             # Update state with new grids
-            new_state = eqx.tree_at(
+            updated_state = eqx.tree_at(
                 lambda s: (s.working_grid, s.working_grid_mask, s.target_grid, s.selected, s.clipboard),
-                new_state,
+                state,
                 (input_grid, input_mask, target_grid, jnp.zeros_like(state.selected), jnp.zeros_like(state.clipboard))
             )
             
             # Recalculate similarity for new pair
             from .grid_operations import compute_grid_similarity
-            new_similarity = compute_grid_similarity(new_state.working_grid, new_state.target_grid)
-            new_state = eqx.tree_at(lambda s: s.similarity_score, new_state, new_similarity)
+            new_similarity = compute_grid_similarity(updated_state.working_grid, updated_state.target_grid)
+            updated_state = eqx.tree_at(lambda s: s.similarity_score, updated_state, new_similarity)
+            
+            return updated_state
+        
+        # Use JAX conditional to update grids only if needed
+        new_state = jax.lax.cond(
+            is_pair_switching_op,
+            update_grids_for_pair_switch,
+            lambda s: s,  # No-op if not a pair switching operation
+            new_state
+        )
         
         # Create standardized action for history tracking (control operations use empty selection)
         standardized_action = {
@@ -837,9 +882,10 @@ def arc_step(
             "operation": operation
         }
         
-    else:
-        # Handle grid operations (0-34) using existing logic
+        return new_state, standardized_action
         
+    def handle_grid_operation(state, action, operation, typed_config):
+        """Handle grid operations (0-34) using existing logic."""
         # Get the appropriate action handler based on configuration
         handler = get_action_handler(typed_config.action.selection_format)
 
@@ -913,9 +959,20 @@ def arc_step(
 
         # Execute grid operation using existing grid operations
         new_state = execute_grid_operation(new_state, standardized_action["operation"])
+        
+        return new_state, standardized_action
+
+    # Use JAX-compatible conditional to choose between control and grid operations
+    new_state, standardized_action = jax.lax.cond(
+        is_control_operation,
+        lambda: handle_control_operation(state, action, operation, typed_config),
+        lambda: handle_grid_operation(state, action, operation, typed_config)
+    )
 
     # Add action history tracking for each step with memory optimization
-    if hasattr(typed_config, 'history') and getattr(typed_config.history, 'enabled', True):
+    # Use JAX-compatible conditional for history tracking
+    def add_to_history(state):
+        """Add action to history if enabled."""
         from .action_history import ActionHistoryTracker, HistoryConfig
         
         # Create history config from main config or use defaults
@@ -928,14 +985,23 @@ def arc_step(
         
         # Add action to history
         tracker = ActionHistoryTracker()
-        new_state = tracker.add_action(
-            new_state,
+        return tracker.add_action(
+            state,
             action,
             history_config,
             typed_config.action.selection_format,
             typed_config.dataset.max_grid_height,
             typed_config.dataset.max_grid_width
         )
+    
+    # Check if history is enabled and apply conditionally
+    history_enabled = hasattr(typed_config, 'history') and getattr(typed_config.history, 'enabled', True)
+    new_state = jax.lax.cond(
+        history_enabled,
+        add_to_history,
+        lambda s: s,  # No-op if history disabled
+        new_state
+    )
 
     # Update step count using Equinox tree_at
     new_state = eqx.tree_at(lambda s: s.step_count, new_state, state.step_count + 1)
@@ -952,23 +1018,24 @@ def arc_step(
     # Use create_observation function to generate focused agent view
     observation = create_observation(new_state, typed_config)
 
-    # Create enhanced info dict with additional context
+    # Create enhanced info dict with additional context (JAX-compatible)
     info = {
         "success": new_state.similarity_score >= 1.0,
         "similarity": new_state.similarity_score,
         "step_count": new_state.step_count,
         "similarity_improvement": new_state.similarity_score - state.similarity_score,
-        "is_control_operation": bool(is_control_operation),
-        "operation_type": "control" if is_control_operation else "grid",
-        "episode_mode": "train" if new_state.is_training_mode() else "test",
-        "current_pair_index": int(new_state.current_example_idx),
-        "available_demo_pairs": int(new_state.get_available_demo_count()),
-        "available_test_pairs": int(new_state.get_available_test_count()),
-        "action_history_length": int(new_state.get_action_history_length()),
+        "is_control_operation": is_control_operation,  # Keep as JAX array
+        "operation_type": jax.lax.cond(is_control_operation, lambda: 1, lambda: 0),  # 1=control, 0=grid
+        "episode_mode": new_state.episode_mode,  # Already integer (0=train, 1=test)
+        "current_pair_index": new_state.current_example_idx,
+        "available_demo_pairs": new_state.get_available_demo_count(),
+        "available_test_pairs": new_state.get_available_test_count(),
+        "action_history_length": new_state.get_action_history_length(),
     }
 
-    # Optional logging with enhanced information
-    if typed_config.logging.log_operations:
+    # Optional logging with enhanced information (JAX-compatible)
+    def log_operations():
+        """Log operations if enabled."""
         jax.debug.callback(
             lambda step, op, sim, rew, mode, pair: logger.info(
                 f"Step {int(step)}: op={int(op)} ({'control' if int(op) >= 35 else 'grid'}), "
@@ -983,7 +1050,8 @@ def arc_step(
             new_state.current_example_idx,
         )
 
-    if typed_config.logging.log_rewards:
+    def log_rewards():
+        """Log rewards if enabled."""
         jax.debug.callback(
             lambda rew, imp: logger.info(
                 f"Reward: {float(rew):.3f} (improvement: {float(imp):.3f})"
@@ -992,15 +1060,31 @@ def arc_step(
             info["similarity_improvement"],
         )
 
-    # Optional visualization callback with enhanced information
-    if typed_config.visualization.enabled:
+    # Use JAX-compatible conditionals for logging
+    jax.lax.cond(
+        typed_config.logging.log_operations,
+        log_operations,
+        lambda: None
+    )
+    
+    jax.lax.cond(
+        typed_config.logging.log_rewards,
+        log_rewards,
+        lambda: None
+    )
+
+    # Optional visualization callback with enhanced information (JAX-compatible)
+    def handle_visualization():
+        """Handle visualization if enabled."""
         # Clear output directory at episode start (step 0) - using JAX-compatible conditional
         def clear_if_needed():
-            if typed_config.storage.clear_output_on_start:
-                jax.debug.callback(
-                    lambda output_dir: _clear_output_directory(output_dir),
-                    typed_config.storage.base_output_dir,
-                )
+            # Note: This still has a Python conditional, but it's inside a callback
+            # so it won't be traced by JAX
+            jax.debug.callback(
+                lambda output_dir, should_clear: _clear_output_directory(output_dir) if should_clear else None,
+                typed_config.storage.base_output_dir,
+                typed_config.storage.clear_output_on_start,
+            )
 
         # Use lax.cond for JAX-compatible conditional on traced values
         jax.lax.cond(
@@ -1009,26 +1093,23 @@ def arc_step(
             lambda: None
         )
 
-        # Use enhanced JAX callback if available, otherwise fallback to legacy
-        try:
-            jax.debug.callback(
-                jax_save_step_visualization,
-                state,
-                standardized_action,
-                new_state,
-                reward,
-                info,
-                typed_config.storage.base_output_dir,
-            )
-        except Exception:
-            # Fallback to legacy visualization
-            jax.debug.callback(
-                save_rl_step_visualization,
-                state,
-                standardized_action,
-                new_state,
-                typed_config.debug.rl_steps_output_dir,
-            )
+        # Use enhanced JAX callback (simplified for JAX compatibility)
+        jax.debug.callback(
+            jax_save_step_visualization,
+            state,
+            standardized_action,
+            new_state,
+            reward,
+            info,
+            typed_config.storage.base_output_dir,
+        )
+
+    # Use JAX-compatible conditional for visualization
+    jax.lax.cond(
+        typed_config.visualization.enabled,
+        handle_visualization,
+        lambda: None
+    )
 
     return new_state, observation, reward, done, info
 
@@ -1083,7 +1164,8 @@ def arc_reset_training_mode(
         state, obs = arc_reset_training_mode(key, config, task_data, initial_pair_idx=2)
         ```
     """
-    return arc_reset(key, config, task_data, episode_mode="train", initial_pair_idx=initial_pair_idx)
+    from .episode_manager import EPISODE_MODE_TRAIN
+    return arc_reset(key, config, task_data, episode_mode=EPISODE_MODE_TRAIN, initial_pair_idx=initial_pair_idx)
 
 
 def arc_reset_evaluation_mode(
@@ -1112,4 +1194,5 @@ def arc_reset_evaluation_mode(
         state, obs = arc_reset_evaluation_mode(key, config, task_data, initial_pair_idx=1)
         ```
     """
-    return arc_reset(key, config, task_data, episode_mode="test", initial_pair_idx=initial_pair_idx)
+    from .episode_manager import EPISODE_MODE_TEST
+    return arc_reset(key, config, task_data, episode_mode=EPISODE_MODE_TEST, initial_pair_idx=initial_pair_idx)

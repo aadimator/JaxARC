@@ -33,6 +33,10 @@ from ..state import ArcEnvState
 from ..types import JaxArcTask
 from ..utils.jax_types import EpisodeMode, PairIndex
 
+# JAX-compatible episode mode constants
+EPISODE_MODE_TRAIN = 0
+EPISODE_MODE_TEST = 1
+
 
 @chex.dataclass
 class ArcEpisodeConfig:
@@ -43,7 +47,7 @@ class ArcEpisodeConfig:
     
     Attributes:
         # Mode settings
-        episode_mode: Episode mode ("train" or "test")
+        episode_mode: Episode mode (0=train, 1=test)
         
         # Multi-demonstration settings
         demo_selection_strategy: Strategy for selecting demonstration pairs
@@ -66,7 +70,7 @@ class ArcEpisodeConfig:
     """
     
     # Mode settings
-    episode_mode: Literal["train", "test"] = "train"
+    episode_mode: int = EPISODE_MODE_TRAIN  # 0=train, 1=test
     
     # Multi-demonstration settings
     demo_selection_strategy: Literal["sequential", "random"] = "random"
@@ -92,8 +96,8 @@ class ArcEpisodeConfig:
         errors = []
         
         # Validate mode
-        if self.episode_mode not in ["train", "test"]:
-            errors.append(f"episode_mode must be 'train' or 'test', got '{self.episode_mode}'")
+        if self.episode_mode not in [EPISODE_MODE_TRAIN, EPISODE_MODE_TEST]:
+            errors.append(f"episode_mode must be {EPISODE_MODE_TRAIN} (train) or {EPISODE_MODE_TEST} (test), got '{self.episode_mode}'")
         
         # Validate selection strategies
         valid_demo_strategies = ["sequential", "random"]
@@ -198,7 +202,7 @@ class ArcEpisodeManager:
             pair_idx, success = ArcEpisodeManager.select_initial_pair(key, task_data, config)
             ```
         """
-        if config.episode_mode == "train":
+        if config.episode_mode == EPISODE_MODE_TRAIN:
             return ArcEpisodeManager._select_demo_pair(key, task_data, config.demo_selection_strategy)
         else:
             return ArcEpisodeManager._select_test_pair(key, task_data, config.test_selection_strategy)
@@ -312,7 +316,7 @@ class ArcEpisodeManager:
         )
         
         # Check completion requirements
-        is_train_mode = config.episode_mode == "train"
+        is_train_mode = config.episode_mode == EPISODE_MODE_TRAIN
         
         # For training mode: check if all demos solved (if required)
         train_completion_check = jnp.where(
@@ -414,42 +418,42 @@ class ArcEpisodeManager:
         new_idx = jnp.where(
             operation_id == ARCLEOperationType.SWITCH_TO_NEXT_DEMO_PAIR,
             jnp.where(
-                config.allow_demo_switching & (state.episode_mode == 0),  # Training mode
+                config.allow_demo_switching & (state.episode_mode == EPISODE_MODE_TRAIN),  # Training mode
                 next_demo_idx,
                 state.current_example_idx
             ),
             jnp.where(
                 operation_id == ARCLEOperationType.SWITCH_TO_PREV_DEMO_PAIR,
                 jnp.where(
-                    config.allow_demo_switching & (state.episode_mode == 0),  # Training mode
+                    config.allow_demo_switching & (state.episode_mode == EPISODE_MODE_TRAIN),  # Training mode
                     prev_demo_idx,
                     state.current_example_idx
                 ),
                 jnp.where(
                     operation_id == ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_DEMO,
                     jnp.where(
-                        config.allow_demo_switching & (state.episode_mode == 0),  # Training mode
+                        config.allow_demo_switching & (state.episode_mode == EPISODE_MODE_TRAIN),  # Training mode
                         first_unsolved_demo_idx,
                         state.current_example_idx
                     ),
                     jnp.where(
                         operation_id == ARCLEOperationType.SWITCH_TO_NEXT_TEST_PAIR,
                         jnp.where(
-                            config.allow_test_switching & (state.episode_mode == 1),  # Test mode
+                            config.allow_test_switching & (state.episode_mode == EPISODE_MODE_TEST),  # Test mode
                             next_test_idx,
                             state.current_example_idx
                         ),
                         jnp.where(
                             operation_id == ARCLEOperationType.SWITCH_TO_PREV_TEST_PAIR,
                             jnp.where(
-                                config.allow_test_switching & (state.episode_mode == 1),  # Test mode
+                                config.allow_test_switching & (state.episode_mode == EPISODE_MODE_TEST),  # Test mode
                                 prev_test_idx,
                                 state.current_example_idx
                             ),
                             jnp.where(
                                 operation_id == ARCLEOperationType.SWITCH_TO_FIRST_UNSOLVED_TEST,
                                 jnp.where(
-                                    config.allow_test_switching & (state.episode_mode == 1),  # Test mode
+                                    config.allow_test_switching & (state.episode_mode == EPISODE_MODE_TEST),  # Test mode
                                     first_unsolved_test_idx,
                                     state.current_example_idx
                                 ),
@@ -467,11 +471,10 @@ class ArcEpisodeManager:
         # Reset similarity score if reset operation
         reset_similarity = jnp.where(should_reset, jnp.array(0.0), state.similarity_score)
         
-        # Update state with new index and potentially reset fields
-        return eqx.tree_at(
-            lambda s: (s.current_example_idx, s.similarity_score),
-            state,
-            (new_idx, reset_similarity)
+        # Update state with new index and potentially reset fields using JAX-compatible approach
+        return state.replace(
+            current_example_idx=new_idx,
+            similarity_score=reset_similarity
         )
     
 
@@ -549,7 +552,7 @@ class ArcEpisodeManager:
         )
         
         demo_valid = (
-            (state.episode_mode == 0) &  # Training mode
+            (state.episode_mode == EPISODE_MODE_TRAIN) &  # Training mode
             config.allow_demo_switching &
             (jnp.sum(state.available_demo_pairs) > 1)
         )
@@ -562,7 +565,7 @@ class ArcEpisodeManager:
         )
         
         test_valid = (
-            (state.episode_mode == 1) &  # Test mode
+            (state.episode_mode == EPISODE_MODE_TEST) &  # Test mode
             config.allow_test_switching &
             (jnp.sum(state.available_test_pairs) > 1)
         )

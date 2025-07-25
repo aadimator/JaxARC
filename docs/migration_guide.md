@@ -769,6 +769,775 @@ def test_migration_tools():
     assert migrated_config.debug.level == "standard"  # "on" -> "standard"
 ```
 
+## Enhanced ARC Step Logic Migration
+
+The ARC environment has been significantly enhanced with multi-demonstration training, test pair evaluation, action history tracking, and dynamic action space control. This section covers migrating to these new capabilities.
+
+### Overview of Enhanced Features
+
+The enhanced environment introduces:
+
+- **Multi-demonstration training** on all available demonstration pairs
+- **Test pair evaluation mode** without target grid access
+- **Comprehensive action history tracking** with configurable storage
+- **Dynamic action space control** with context-aware filtering
+- **Enhanced observation space** separate from internal state
+- **Episode management system** with flexible termination criteria
+
+### Breaking Changes in Enhanced Environment
+
+#### 1. Enhanced State Structure
+
+**Before (Basic State):**
+
+```python
+# Old ArcEnvState with basic fields
+class ArcEnvState(eqx.Module):
+    task_data: JaxArcTask
+    working_grid: GridArray
+    target_grid: GridArray
+    step_count: StepCount
+    episode_done: EpisodeDone
+    current_example_idx: EpisodeIndex
+    selected: SelectionArray
+    clipboard: GridArray
+    similarity_score: SimilarityScore
+```
+
+**After (Enhanced State):**
+
+```python
+# Enhanced ArcEnvState with multi-demonstration support
+class ArcEnvState(eqx.Module):
+    # Original fields (unchanged)
+    task_data: JaxArcTask
+    working_grid: GridArray
+    target_grid: GridArray
+    step_count: StepCount
+    episode_done: EpisodeDone
+    current_example_idx: EpisodeIndex
+    selected: SelectionArray
+    clipboard: GridArray
+    similarity_score: SimilarityScore
+    
+    # New enhanced fields
+    episode_mode: EpisodeMode  # 0=train, 1=test
+    available_demo_pairs: AvailablePairs
+    available_test_pairs: AvailablePairs
+    demo_completion_status: CompletionStatus
+    test_completion_status: CompletionStatus
+    action_history: ActionHistory
+    action_history_length: HistoryLength
+    allowed_operations_mask: OperationMask
+```
+
+#### 2. Enhanced Reset Function
+
+**Before (Basic Reset):**
+
+```python
+from jaxarc.envs import arc_reset
+
+# Simple reset with task data
+state = arc_reset(key, config, task_data=task)
+```
+
+**After (Enhanced Reset):**
+
+```python
+from jaxarc.envs import arc_reset
+
+# Enhanced reset with episode mode and pair selection
+state, observation = arc_reset(
+    key, 
+    config, 
+    task_data=task,
+    episode_mode="train",  # "train" or "test"
+    initial_pair_idx=None  # Let episode manager select
+)
+
+# Note: Now returns (state, observation) tuple
+```
+
+#### 3. Enhanced Step Function
+
+**Before (Basic Step):**
+
+```python
+from jaxarc.envs import arc_step
+
+# Basic step function
+state, reward, done, info = arc_step(state, action, config)
+```
+
+**After (Enhanced Step):**
+
+```python
+from jaxarc.envs import arc_step
+
+# Enhanced step with separate observation
+state, observation, reward, done, info = arc_step(state, action, config)
+
+# Note: Now returns (state, observation, reward, done, info)
+```
+
+#### 4. Expanded Action Space
+
+**Before (35 Operations):**
+
+```python
+# Original ARCLE operations (0-34)
+action = {
+    "selection": selection_mask,
+    "operation": 0  # FILL operation (0-34 range)
+}
+```
+
+**After (42 Operations):**
+
+```python
+# Enhanced operations including control operations (0-41)
+action = {
+    "selection": selection_mask,
+    "operation": 35  # SWITCH_TO_NEXT_DEMO_PAIR (new control operations 35-41)
+}
+
+# New control operations:
+# 35: SWITCH_TO_NEXT_DEMO_PAIR
+# 36: SWITCH_TO_PREV_DEMO_PAIR
+# 37: SWITCH_TO_NEXT_TEST_PAIR
+# 38: SWITCH_TO_PREV_TEST_PAIR
+# 39: RESET_CURRENT_PAIR
+# 40: SWITCH_TO_FIRST_UNSOLVED_DEMO
+# 41: SWITCH_TO_FIRST_UNSOLVED_TEST
+```
+
+### Step-by-Step Enhanced Migration
+
+#### Step 1: Update Configuration for Enhanced Features
+
+**Old basic configuration:**
+
+```python
+from jaxarc.envs.factory import ConfigFactory
+
+# Basic configuration without enhanced features
+config = ConfigFactory.create_development_config(
+    max_episode_steps=100,
+    debug_level="standard"
+)
+```
+
+**New enhanced configuration:**
+
+```python
+from jaxarc.envs.factory import ConfigFactory
+
+# Enhanced configuration with new feature groups
+config = ConfigFactory.create_research_config(
+    # Basic environment settings
+    max_episode_steps=100,
+    debug_level="standard",
+    
+    # Episode management settings
+    episode_mode="train",
+    demo_selection_strategy="random",
+    allow_demo_switching=True,
+    max_pairs_per_episode=4,
+    
+    # Action history settings
+    history_enabled=True,
+    max_history_length=1000,
+    store_selection_data=True,
+    
+    # Action space control
+    dynamic_action_filtering=True,
+    context_dependent_operations=True,
+    
+    # Enhanced observation
+    include_completion_status=True,
+    include_action_space_info=True,
+    observation_format="standard"
+)
+```
+
+#### Step 2: Update Reset Function Calls
+
+**Old reset pattern:**
+
+```python
+# Old reset returns only state
+state = arc_reset(key, config, task_data=task)
+
+# Access target grid directly from state
+target = state.target_grid
+```
+
+**New reset pattern:**
+
+```python
+# New reset returns (state, observation) tuple
+state, observation = arc_reset(
+    key, 
+    config, 
+    task_data=task,
+    episode_mode="train"  # Specify training or evaluation mode
+)
+
+# Access target grid from observation (may be None in test mode)
+target = observation.target_grid  # None in test mode for proper evaluation
+```
+
+#### Step 3: Update Step Function Calls
+
+**Old step pattern:**
+
+```python
+# Old step returns (state, reward, done, info)
+state, reward, done, info = arc_step(state, action, config)
+
+# Direct state access
+current_pair = state.current_example_idx
+```
+
+**New step pattern:**
+
+```python
+# New step returns (state, observation, reward, done, info)
+state, observation, reward, done, info = arc_step(state, action, config)
+
+# Access information through observation for agent view
+current_pair = observation.current_pair_idx
+episode_mode = observation.episode_mode
+allowed_ops = observation.allowed_operations_mask
+```
+
+#### Step 4: Handle New Action Operations
+
+**Old action handling:**
+
+```python
+# Limited to original 35 operations
+if action["operation"] >= 35:
+    raise ValueError(f"Invalid operation: {action['operation']}")
+
+# Simple action execution
+state, reward, done, info = arc_step(state, action, config)
+```
+
+**New action handling:**
+
+```python
+# Support for 42 operations including control operations
+if action["operation"] >= 42:
+    raise ValueError(f"Invalid operation: {action['operation']}")
+
+# Handle control operations (35-41)
+if action["operation"] >= 35:
+    # Control operations may switch pairs or reset state
+    print(f"Executing control operation: {action['operation']}")
+
+state, observation, reward, done, info = arc_step(state, action, config)
+
+# Check if pair was switched
+if action["operation"] in [35, 36, 37, 38, 40, 41]:
+    print(f"Switched to pair: {observation.current_pair_idx}")
+```
+
+#### Step 5: Update Multi-Demonstration Training
+
+**Old single-demonstration training:**
+
+```python
+# Old pattern: only used first demonstration pair
+state = arc_reset(key, config, task_data=task)
+
+# Training loop on single pair
+for step in range(100):
+    action = generate_action()  # Your action generation
+    state, reward, done, info = arc_step(state, action, config)
+    if done:
+        break
+```
+
+**New multi-demonstration training:**
+
+```python
+# New pattern: can train on all demonstration pairs
+state, observation = arc_reset(
+    key, 
+    config, 
+    task_data=task, 
+    episode_mode="train"
+)
+
+# Training loop with pair switching
+for step in range(200):
+    # Regular grid operations
+    if step % 50 != 0:
+        action = generate_grid_action()  # Your grid action generation
+    else:
+        # Periodically switch to next demonstration pair
+        action = {
+            "selection": jnp.zeros((30, 30), dtype=bool),
+            "operation": 35  # SWITCH_TO_NEXT_DEMO_PAIR
+        }
+    
+    state, observation, reward, done, info = arc_step(state, action, config)
+    
+    # Monitor progress across all demonstration pairs
+    print(f"Demo completion: {observation.demo_completion_status}")
+    
+    if done:
+        break
+```
+
+#### Step 6: Add Test Pair Evaluation
+
+**Old evaluation (no proper test mode):**
+
+```python
+# Old pattern: evaluation was same as training
+state = arc_reset(key, config, task_data=task)
+# Agent could see target grids during evaluation (incorrect)
+```
+
+**New proper test evaluation:**
+
+```python
+# New pattern: proper evaluation mode without target access
+state, observation = arc_reset(
+    key, 
+    config, 
+    task_data=task, 
+    episode_mode="test"  # Switch to evaluation mode
+)
+
+# Evaluation loop without target access
+for step in range(100):
+    action = generate_action()  # Your action generation
+    state, observation, reward, done, info = arc_step(state, action, config)
+    
+    # Verify no target access during evaluation
+    assert observation.target_grid is None, "Target should not be available in test mode"
+    
+    # Rewards only on submission in test mode
+    if action["operation"] == 34:  # SUBMIT
+        print(f"Submission reward: {reward}")
+    else:
+        assert reward == 0.0, "Should only get rewards on submission in test mode"
+    
+    if done:
+        break
+```
+
+#### Step 7: Add Action History Analysis
+
+**Old pattern (no action history):**
+
+```python
+# No action history tracking available
+state, reward, done, info = arc_step(state, action, config)
+# Could not analyze agent behavior over time
+```
+
+**New pattern (with action history):**
+
+```python
+# Enable action history in configuration
+config = ConfigFactory.create_research_config(
+    history_enabled=True,
+    max_history_length=1000,
+    store_selection_data=True
+)
+
+# Action history is automatically tracked
+state, observation, reward, done, info = arc_step(state, action, config)
+
+# Access action history for analysis
+print(f"Action history length: {state.action_history_length}")
+
+# Analyze recent actions in observation
+if observation.recent_actions is not None:
+    print(f"Recent actions available: {len(observation.recent_actions)}")
+
+# Full history analysis (see action_history_analysis_example.py)
+from jaxarc.envs.action_history import ActionHistoryTracker
+history_tracker = ActionHistoryTracker()
+action_sequence = history_tracker.get_action_sequence(state, 0, 10)
+```
+
+### Enhanced Configuration Options
+
+#### Episode Management Configuration
+
+```python
+from jaxarc.envs.config import ArcEpisodeConfig
+
+episode_config = ArcEpisodeConfig(
+    episode_mode="train",  # "train" or "test"
+    demo_selection_strategy="random",  # "sequential" or "random"
+    allow_demo_switching=True,
+    require_all_demos_solved=False,
+    terminate_on_first_success=False,
+    max_pairs_per_episode=4,
+    training_reward_frequency="step",  # "step" or "submit"
+    evaluation_reward_frequency="submit"  # Only "submit" for proper evaluation
+)
+```
+
+#### Action History Configuration
+
+```python
+from jaxarc.envs.config import HistoryConfig
+
+# Memory-efficient configuration
+minimal_history = HistoryConfig(
+    enabled=True,
+    max_history_length=100,
+    store_selection_data=False,  # Save memory
+    store_intermediate_grids=False,
+    compress_repeated_actions=True
+)
+
+# Research configuration with full tracking
+research_history = HistoryConfig(
+    enabled=True,
+    max_history_length=2000,
+    store_selection_data=True,
+    store_intermediate_grids=True,  # Memory intensive
+    compress_repeated_actions=False
+)
+```
+
+#### Action Space Control Configuration
+
+```python
+from jaxarc.envs.config import ActionConfig
+
+# Restricted action space for focused training
+restricted_config = ActionConfig(
+    allowed_operations=[0, 1, 2, 3, 4],  # Only basic operations
+    max_operations=5,
+    dynamic_action_filtering=True,
+    context_dependent_operations=True,
+    validate_actions=True,
+    allow_invalid_actions=False
+)
+
+# Full action space with dynamic control
+full_config = ActionConfig(
+    allowed_operations=None,  # All 42 operations
+    max_operations=42,
+    dynamic_action_filtering=True,
+    context_dependent_operations=True,
+    validate_actions=True,
+    allow_invalid_actions=True
+)
+```
+
+#### Enhanced Observation Configuration
+
+```python
+from jaxarc.envs.config import ObservationConfig
+
+# Minimal observation for production
+minimal_obs = ObservationConfig(
+    include_target_grid=True,
+    include_completion_status=False,
+    include_action_space_info=False,
+    include_recent_actions=False,
+    observation_format="minimal"
+)
+
+# Rich observation for research
+research_obs = ObservationConfig(
+    include_target_grid=True,
+    include_completion_status=True,
+    include_action_space_info=True,
+    include_recent_actions=True,
+    recent_action_count=10,
+    observation_format="rich"
+)
+```
+
+### Common Enhanced Migration Issues
+
+#### Issue 1: Reset Function Return Value Changed
+
+**Problem:**
+
+```python
+# Old code expecting single return value
+state = arc_reset(key, config, task_data=task)
+# TypeError: cannot unpack non-sequence ArcEnvState
+```
+
+**Solution:**
+
+```python
+# Update to handle tuple return
+state, observation = arc_reset(key, config, task_data=task, episode_mode="train")
+
+# Or if you only need state (not recommended)
+state, _ = arc_reset(key, config, task_data=task, episode_mode="train")
+```
+
+#### Issue 2: Step Function Return Value Changed
+
+**Problem:**
+
+```python
+# Old code expecting 4 return values
+state, reward, done, info = arc_step(state, action, config)
+# ValueError: too many values to unpack (expected 4)
+```
+
+**Solution:**
+
+```python
+# Update to handle 5 return values
+state, observation, reward, done, info = arc_step(state, action, config)
+
+# Or if you don't need observation
+state, _, reward, done, info = arc_step(state, action, config)
+```
+
+#### Issue 3: Invalid Operation Range
+
+**Problem:**
+
+```python
+# Old code assuming 35 operations max
+action = {"selection": mask, "operation": 40}
+# Error: operation 40 not recognized
+```
+
+**Solution:**
+
+```python
+# Update operation range validation
+if action["operation"] >= 42:  # Changed from 35 to 42
+    raise ValueError(f"Invalid operation: {action['operation']}")
+
+# Handle new control operations
+if action["operation"] >= 35:
+    print("Executing control operation")
+```
+
+#### Issue 4: Missing Enhanced Configuration Groups
+
+**Problem:**
+
+```python
+# Old config missing new groups
+config = JaxArcConfig(
+    environment=EnvironmentConfig(),
+    debug=DebugConfig()
+    # Missing new configuration groups
+)
+# AttributeError: 'JaxArcConfig' object has no attribute 'episode'
+```
+
+**Solution:**
+
+```python
+# Include all enhanced configuration groups
+config = JaxArcConfig(
+    environment=EnvironmentConfig(),
+    debug=DebugConfig(),
+    visualization=VisualizationConfig(),
+    storage=StorageConfig(),
+    logging=LoggingConfig(),
+    wandb=WandbConfig(),
+    # New enhanced groups
+    episode=ArcEpisodeConfig(),
+    history=HistoryConfig(),
+    action=ActionConfig(),
+    observation=ObservationConfig()
+)
+
+# Or use factory functions that include all groups
+config = ConfigFactory.create_research_config()
+```
+
+#### Issue 5: Target Grid Access in Test Mode
+
+**Problem:**
+
+```python
+# Trying to access target in test mode
+state, observation = arc_reset(key, config, episode_mode="test")
+target = observation.target_grid  # This will be None
+# AttributeError or unexpected None value
+```
+
+**Solution:**
+
+```python
+# Check episode mode before accessing target
+if observation.target_grid is not None:
+    # Training mode - target available
+    target = observation.target_grid
+    print("Training mode: target available")
+else:
+    # Test mode - no target access (correct behavior)
+    print("Test mode: target hidden for proper evaluation")
+    # Use alternative evaluation metrics
+```
+
+### Testing Enhanced Migration
+
+#### Test Enhanced State Structure
+
+```python
+def test_enhanced_state():
+    config = ConfigFactory.create_research_config()
+    key = jax.random.PRNGKey(42)
+    
+    # Test enhanced reset
+    state, observation = arc_reset(key, config, episode_mode="train")
+    
+    # Verify enhanced state fields
+    assert hasattr(state, 'episode_mode')
+    assert hasattr(state, 'available_demo_pairs')
+    assert hasattr(state, 'action_history')
+    assert hasattr(state, 'allowed_operations_mask')
+    
+    # Verify observation structure
+    assert hasattr(observation, 'working_grid')
+    assert hasattr(observation, 'episode_mode')
+    assert hasattr(observation, 'current_pair_idx')
+    assert hasattr(observation, 'allowed_operations_mask')
+```
+
+#### Test Multi-Demonstration Training
+
+```python
+def test_multi_demo_training():
+    config = ConfigFactory.create_research_config(
+        episode_mode="train",
+        allow_demo_switching=True
+    )
+    
+    key = jax.random.PRNGKey(42)
+    state, observation = arc_reset(key, config, episode_mode="train")
+    
+    # Test pair switching
+    switch_action = {
+        "selection": jnp.zeros((30, 30), dtype=bool),
+        "operation": 35  # SWITCH_TO_NEXT_DEMO_PAIR
+    }
+    
+    old_pair = observation.current_pair_idx
+    state, observation, reward, done, info = arc_step(state, switch_action, config)
+    
+    # Verify pair switching worked
+    if state.available_demo_pairs.sum() > 1:
+        assert observation.current_pair_idx != old_pair
+```
+
+#### Test Action History Tracking
+
+```python
+def test_action_history():
+    config = ConfigFactory.create_research_config(
+        history_enabled=True,
+        max_history_length=100
+    )
+    
+    key = jax.random.PRNGKey(42)
+    state, observation = arc_reset(key, config, episode_mode="train")
+    
+    # Execute some actions
+    for i in range(5):
+        action = {
+            "selection": jnp.zeros((30, 30), dtype=bool).at[i:i+2, i:i+2].set(True),
+            "operation": i % 10
+        }
+        state, observation, reward, done, info = arc_step(state, action, config)
+    
+    # Verify history tracking
+    assert state.action_history_length == 5
+    
+    # Test history retrieval
+    from jaxarc.envs.action_history import ActionHistoryTracker
+    tracker = ActionHistoryTracker()
+    history = tracker.get_action_sequence(state, 0, 5)
+    assert len(history) == 5
+```
+
+### Performance Considerations for Enhanced Features
+
+#### Memory Usage
+
+The enhanced features add memory overhead:
+
+```python
+# Memory-efficient configuration for production
+efficient_config = ConfigFactory.create_production_config(
+    # Minimal history tracking
+    history_enabled=True,
+    max_history_length=100,
+    store_selection_data=False,
+    store_intermediate_grids=False,
+    
+    # Minimal observation
+    observation_format="minimal",
+    include_recent_actions=False,
+    
+    # Basic action space
+    dynamic_action_filtering=False
+)
+
+# Research configuration with full features (higher memory usage)
+research_config = ConfigFactory.create_research_config(
+    # Full history tracking
+    max_history_length=2000,
+    store_selection_data=True,
+    store_intermediate_grids=True,
+    
+    # Rich observation
+    observation_format="rich",
+    include_recent_actions=True,
+    
+    # Dynamic action space
+    dynamic_action_filtering=True
+)
+```
+
+#### JAX Compatibility
+
+All enhanced features maintain full JAX compatibility:
+
+```python
+# JIT compilation works with enhanced features
+@jax.jit
+def enhanced_step(state, action, config):
+    return arc_step(state, action, config)
+
+# Vectorization across multiple environments
+batch_step = jax.vmap(enhanced_step, in_axes=(0, 0, None))
+
+# Parallel processing
+parallel_step = jax.pmap(enhanced_step, in_axes=(0, 0, None))
+```
+
+### Enhanced Migration Checklist
+
+- [ ] Update reset function calls to handle (state, observation) tuple
+- [ ] Update step function calls to handle (state, observation, reward, done, info) tuple
+- [ ] Update action operation range validation (35 → 42 operations)
+- [ ] Add enhanced configuration groups (episode, history, action, observation)
+- [ ] Test multi-demonstration training with pair switching
+- [ ] Test proper test pair evaluation without target access
+- [ ] Configure action history tracking based on memory requirements
+- [ ] Update action space control for dynamic filtering
+- [ ] Test enhanced observation space usage
+- [ ] Verify JAX compatibility with enhanced features
+- [ ] Update examples and documentation for enhanced features
+- [ ] Performance test with enhanced features enabled
+
 ## Getting Help
 
 If you encounter issues during migration:
@@ -777,7 +1546,9 @@ If you encounter issues during migration:
 2. **Review the API reference** for new function signatures
 3. **Use validation utilities** to catch configuration errors early
 4. **Enable debug logging** to understand what's happening
-5. **Open an issue** on GitHub with your specific migration problem
+5. **Test enhanced features incrementally** starting with basic multi-demo training
+6. **Check memory usage** when enabling full action history tracking
+7. **Open an issue** on GitHub with your specific migration problem
 
 ## Gradual Migration Strategy
 
