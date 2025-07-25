@@ -14,6 +14,7 @@ python = ">=3.13.5,<3.14"
 # Development and analysis tools (not needed for the package itself)
 marimo = ">=0.13.6,<0.15"
 wandb = ">=0.21.0,<0.22"
+cairo = ">=1.18.4,<2"
 
 [pypi-dependencies]
 # Install the package itself in editable mode - this will pull all dependencies from pyproject.toml

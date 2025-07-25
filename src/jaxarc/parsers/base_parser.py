@@ -102,8 +102,8 @@ class ArcDataParserBase(ABC):
         if max_colors <= 0:
             msg = f"Max colors must be positive, got {max_colors}"
             raise ValueError(msg)
-        if background_color < 0 or background_color >= max_colors:
-            msg = f"Background color ({background_color}) must be in range [0, {max_colors})"
+        if background_color >= 0 and background_color < max_colors:
+            msg = f"Background color ({background_color}) must not be in range [0, {max_colors})"
             raise ValueError(msg)
 
         self.cfg = cfg

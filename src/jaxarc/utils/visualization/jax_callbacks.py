@@ -23,7 +23,6 @@ import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 
-from jaxarc.state import ArcEnvState
 from jaxarc.types import Grid
 from jaxarc.utils.jax_types import GridArray, MaskArray
 
@@ -107,7 +106,7 @@ def serialize_jax_array(arr: jnp.ndarray | np.ndarray) -> np.ndarray:
         return np.array([])
 
 
-def serialize_arc_state(state: ArcEnvState) -> dict[str, Any]:
+def serialize_arc_state(state: "ArcEnvState") -> dict[str, Any]:
     """Serialize ArcEnvState for safe callback usage.
 
     Args:
@@ -118,15 +117,31 @@ def serialize_arc_state(state: ArcEnvState) -> dict[str, Any]:
     """
     try:
         return {
+            # Core grid data
             "working_grid": serialize_jax_array(state.working_grid),
             "working_grid_mask": serialize_jax_array(state.working_grid_mask),
             "target_grid": serialize_jax_array(state.target_grid),
             "target_grid_mask": serialize_jax_array(state.target_grid_mask),
+            
+            # Episode management
             "step_count": int(state.step_count),
-            "episode_index": int(state.episode_index),
-            "task_index": int(state.task_index),
-            "done": bool(state.done),
-            "similarity": float(state.similarity),
+            "episode_done": bool(state.episode_done),
+            "current_example_idx": int(state.current_example_idx),
+            
+            # Grid operations
+            "selected": serialize_jax_array(state.selected),
+            "clipboard": serialize_jax_array(state.clipboard),
+            "similarity_score": float(state.similarity_score),
+            
+            # Enhanced functionality fields
+            "episode_mode": int(state.episode_mode),
+            "available_demo_pairs": serialize_jax_array(state.available_demo_pairs),
+            "available_test_pairs": serialize_jax_array(state.available_test_pairs),
+            "demo_completion_status": serialize_jax_array(state.demo_completion_status),
+            "test_completion_status": serialize_jax_array(state.test_completion_status),
+            "action_history": serialize_jax_array(state.action_history),
+            "action_history_length": int(state.action_history_length),
+            "allowed_operations_mask": serialize_jax_array(state.allowed_operations_mask),
         }
     except Exception as e:
         logger.warning(f"Failed to serialize ArcEnvState: {e}")
@@ -263,9 +278,9 @@ def log_grid_callback(
 
 
 def save_step_visualization_callback(
-    before_state: ArcEnvState,
+    before_state: "ArcEnvState",
     action: dict[str, Any],
-    after_state: ArcEnvState,
+    after_state: "ArcEnvState",
     output_dir: str,
     step_label: str = "Step",
 ) -> None:
@@ -303,17 +318,50 @@ def save_step_visualization_callback(
 
         # Extract action components
         selection_mask = action_data.get("selection", np.array([]))
+        
+        # Handle bbox actions by converting to selection mask
+        if "bbox" in action_data and len(selection_mask) == 0:
+            bbox = action_data["bbox"]
+            if len(bbox) >= 4:
+                # Get grid dimensions
+                grid_height, grid_width = before_grid.data.shape
+                
+                # Extract and clip coordinates
+                r1 = int(np.clip(bbox[0], 0, grid_height - 1))
+                c1 = int(np.clip(bbox[1], 0, grid_width - 1))
+                r2 = int(np.clip(bbox[2], 0, grid_height - 1))
+                c2 = int(np.clip(bbox[3], 0, grid_width - 1))
+                
+                # Ensure proper ordering
+                min_r, max_r = min(r1, r2), max(r1, r2)
+                min_c, max_c = min(c1, c2), max(c1, c2)
+                
+                # Create selection mask
+                selection_mask = np.zeros((grid_height, grid_width), dtype=bool)
+                selection_mask[min_r:max_r+1, min_c:max_c+1] = True
+        
         operation_id = action_data.get("operation", 0)
         step_number = before_data.get("step_count", 0)
 
-        # Generate visualization
+        # Generate visualization using the new signature
+        action_for_viz = {"operation": operation_id}
+        if len(selection_mask) > 0:
+            action_for_viz["selection"] = selection_mask
+        elif "bbox" in action_data:
+            action_for_viz["bbox"] = action_data["bbox"]
+            
+        info_for_viz = {
+            "similarity": after_data.get("similarity_score", 0.0),
+            "step_count": step_number
+        }
+        
         svg_content = draw_rl_step_svg(
             before_grid=before_grid,
             after_grid=after_grid,
-            selection_mask=selection_mask,
-            operation_id=operation_id,
-            step_number=step_number,
-            label=step_label,
+            action=action_for_viz,
+            reward=0.0,  # We don't have reward info in this callback
+            info=info_for_viz,
+            step_num=step_number,
         )
 
         # Save to file
@@ -408,9 +456,9 @@ def jax_log_grid(
 
 
 def jax_save_step_visualization(
-    before_state: ArcEnvState,
+    before_state: "ArcEnvState",
     action: dict[str, Any],
-    after_state: ArcEnvState,
+    after_state: "ArcEnvState",
     reward: float,
     info: dict[str, Any],
     output_dir: str,

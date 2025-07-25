@@ -88,8 +88,10 @@ class TestStateAndActionSerialization:
 
     def test_serialize_arc_state(self):
         """Test ArcEnvState serialization."""
-        # Create mock state
+        # Create mock state with all required fields
         mock_state = MagicMock(spec=ArcEnvState)
+        
+        # Core grid data
         mock_state.working_grid = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
         mock_state.working_grid_mask = jnp.array(
             [[True, True], [True, True]], dtype=jnp.bool_
@@ -98,30 +100,70 @@ class TestStateAndActionSerialization:
         mock_state.target_grid_mask = jnp.array(
             [[True, True], [True, True]], dtype=jnp.bool_
         )
+        
+        # Episode management
         mock_state.step_count = 5
-        mock_state.episode_index = 1
-        mock_state.task_index = 10
-        mock_state.done = False
-        mock_state.similarity = 0.8
+        mock_state.current_example_idx = 1
+        mock_state.episode_done = False
+        
+        # Grid operations
+        mock_state.selected = jnp.array([[False, True], [True, False]], dtype=jnp.bool_)
+        mock_state.clipboard = jnp.array([[0, 0], [0, 0]], dtype=jnp.int32)
+        mock_state.similarity_score = 0.8
+        
+        # Enhanced functionality fields
+        mock_state.episode_mode = 0
+        mock_state.available_demo_pairs = jnp.array([True, True, False], dtype=jnp.bool_)
+        mock_state.available_test_pairs = jnp.array([True, False], dtype=jnp.bool_)
+        mock_state.demo_completion_status = jnp.array([True, False, False], dtype=jnp.bool_)
+        mock_state.test_completion_status = jnp.array([False, False], dtype=jnp.bool_)
+        mock_state.action_history = jnp.zeros((10, 20), dtype=jnp.float32)
+        mock_state.action_history_length = 3
+        mock_state.allowed_operations_mask = jnp.ones(42, dtype=jnp.bool_)
 
         result = serialize_arc_state(mock_state)
 
         assert isinstance(result, dict)
+        
+        # Check core fields
         assert "working_grid" in result
         assert "working_grid_mask" in result
         assert "target_grid" in result
         assert "target_grid_mask" in result
         assert "step_count" in result
-        assert "episode_index" in result
-        assert "task_index" in result
-        assert "done" in result
-        assert "similarity" in result
+        assert "current_example_idx" in result
+        assert "episode_done" in result
+        assert "similarity_score" in result
+        
+        # Check enhanced functionality fields
+        assert "selected" in result
+        assert "clipboard" in result
+        assert "episode_mode" in result
+        assert "available_demo_pairs" in result
+        assert "available_test_pairs" in result
+        assert "demo_completion_status" in result
+        assert "test_completion_status" in result
+        assert "action_history" in result
+        assert "action_history_length" in result
+        assert "allowed_operations_mask" in result
+        
+        # Check that backward compatibility aliases are NOT present (removed)
+        assert "episode_index" not in result  # Old alias removed
+        assert "done" not in result  # Old alias removed  
+        assert "similarity" not in result  # Old alias removed
 
+        # Check values
         assert result["step_count"] == 5
-        assert result["episode_index"] == 1
-        assert result["task_index"] == 10
-        assert result["done"] is False
-        assert result["similarity"] == 0.8
+        assert result["current_example_idx"] == 1
+        assert result["episode_done"] is False
+        assert result["similarity_score"] == 0.8
+        assert result["episode_mode"] == 0
+        assert result["action_history_length"] == 3
+        
+        # Check that the correct field names are used
+        assert result["current_example_idx"] == 1
+        assert result["episode_done"] is False
+        assert result["similarity_score"] == 0.8
 
         # Check that arrays were serialized
         assert isinstance(result["working_grid"], np.ndarray)

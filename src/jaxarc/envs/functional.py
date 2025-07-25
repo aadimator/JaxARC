@@ -676,6 +676,7 @@ def arc_reset(
         working_grid=initial_grid,
         working_grid_mask=initial_mask,
         target_grid=target_grid,
+        target_grid_mask=initial_mask,  # Same mask as working grid
         step_count=jnp.array(0, dtype=jnp.int32),
         episode_done=jnp.array(False),
         current_example_idx=selected_pair_idx,

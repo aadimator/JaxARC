@@ -52,6 +52,7 @@ def sample_state(sample_task):
         working_grid=grid_data,
         working_grid_mask=grid_mask,
         target_grid=grid_data,
+        target_grid_mask=grid_mask,
         step_count=jnp.array(0, dtype=jnp.int32),
         episode_done=jnp.array(False),
         current_example_idx=jnp.array(0, dtype=jnp.int32),
@@ -97,6 +98,7 @@ def test_equinox_validation(sample_state):
             working_grid=sample_state.working_grid,
             working_grid_mask=jnp.ones((2, 2), dtype=bool),  # Wrong shape
             target_grid=sample_state.target_grid,
+            target_grid_mask=sample_state.target_grid_mask,
             step_count=sample_state.step_count,
             episode_done=sample_state.episode_done,
             current_example_idx=sample_state.current_example_idx,

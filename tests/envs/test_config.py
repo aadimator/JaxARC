@@ -212,7 +212,7 @@ class TestEquinoxConfigModules:
         assert any("invalid_operation_policy" in error for error in errors)
 
         # Test all valid operation policies
-        valid_policies = ["clip", "noop", "reject", "passthrough"]
+        valid_policies = ["clip", "reject", "passthrough"]
         for policy in valid_policies:
             config = ActionConfig(invalid_operation_policy=policy)
             errors = config.validate()

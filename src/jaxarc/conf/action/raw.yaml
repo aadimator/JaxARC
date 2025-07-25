@@ -32,4 +32,4 @@ allow_invalid_actions: false # Allow invalid actions (standardized naming)
 # Dynamic Action Space Control
 dynamic_action_filtering: false # Disable runtime operation filtering for minimal setup
 context_dependent_operations: false # Disable context-based operation availability
-invalid_operation_policy: "clip" # How to handle invalid operations: clip, noop, reject, passthrough, penalize
+invalid_operation_policy: "clip" # How to handle invalid operations: clip, reject, passthrough, penalize

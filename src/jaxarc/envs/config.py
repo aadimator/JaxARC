@@ -890,7 +890,7 @@ class ActionConfig(eqx.Module):
     # Dynamic action space control settings
     dynamic_action_filtering: Bool = False  # Enable runtime operation filtering
     context_dependent_operations: Bool = False  # Allow context-based operation availability
-    invalid_operation_policy: Literal["clip", "noop", "reject", "passthrough", "penalize"] = "clip"
+    invalid_operation_policy: Literal["clip", "reject", "passthrough", "penalize"] = "clip"
 
     def validate(self) -> list[str]:
         """Validate action configuration and return list of errors."""
@@ -942,7 +942,7 @@ class ActionConfig(eqx.Module):
                         )
 
             # Validate dynamic action space control settings
-            valid_policies = ["clip", "noop", "reject", "passthrough", "penalize"]
+            valid_policies = ["clip", "reject", "passthrough", "penalize"]
             validate_string_choice(
                 self.invalid_operation_policy, "invalid_operation_policy", valid_policies
             )
