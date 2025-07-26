@@ -10,6 +10,7 @@ from loguru import logger
 from omegaconf import DictConfig
 from pyprojroot import here
 
+from jaxarc.envs.config import DatasetConfig
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.task_manager import create_jax_task_index
 
@@ -31,17 +32,14 @@ class ArcAgiParser(ArcDataParserBase):
     arrays and boolean masks for efficient processing in the SARL environment.
     """
 
-    def __init__(
-        self,
-        cfg: DictConfig,
-    ) -> None:
+    def __init__(self, config: DatasetConfig) -> None:
         """Initialize the ArcAgiParser with configuration.
 
         Args:
-            cfg: Configuration object containing dataset paths and parser settings,
-                 including max_grid_height, max_grid_width, max_train_pairs, and max_test_pairs
+            config: Typed dataset configuration containing paths and parser settings,
+                   including max_grid_height, max_grid_width, max_train_pairs, and max_test_pairs
         """
-        super().__init__(cfg)
+        super().__init__(config)
 
         # Load and cache all tasks in memory
         self._task_ids: list[str] = []
@@ -49,23 +47,24 @@ class ArcAgiParser(ArcDataParserBase):
 
         self._load_and_cache_tasks()
 
+    def get_data_path(self) -> str:
+        """Get the actual data path for ARC-AGI based on split.
+        
+        ARC-AGI structure: {base_path}/data/{split}
+        where split can be 'training' or 'evaluation'
+        
+        Returns:
+            str: The resolved path to the ARC-AGI data directory
+        """
+        base_path = self.config.dataset_path
+        split = "training" if self.config.task_split == "train" else "evaluation"
+        return f"{base_path}/data/{split}"
+
     def _load_and_cache_tasks(self) -> None:
         """Load and cache all tasks from individual JSON files in GitHub format."""
         try:
-            # Load from default split (usually 'training')
-            default_split = self.cfg.get("default_split", "training")
-            split_config = self.cfg.get(default_split, {})
-
-            # GitHub format uses directory paths instead of file paths
-            data_dir_path = split_config.get("path")
-            if not data_dir_path:
-                # Check if this is legacy Kaggle format configuration
-                if "challenges" in split_config:
-                    raise RuntimeError(
-                        "Legacy Kaggle format detected. Please update configuration to use GitHub format with 'path' instead of 'challenges'/'solutions'"
-                    )
-                raise RuntimeError("No data path specified in configuration")
-
+            # Get resolved data path based on split
+            data_dir_path = self.get_data_path()
             data_dir = here(data_dir_path)
             if not data_dir.exists() or not data_dir.is_dir():
                 raise RuntimeError(f"Data directory not found: {data_dir}")

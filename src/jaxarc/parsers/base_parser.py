@@ -12,6 +12,7 @@ from typing import Any
 
 from omegaconf import DictConfig
 
+from jaxarc.envs.config import DatasetConfig
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.jax_types import (
     ColorValue,
@@ -35,12 +36,11 @@ class ArcDataParserBase(ABC):
     implementations should handle dataset-specific formats while maintaining
     a consistent API.
 
-    The parser is designed to work with configuration-driven maximum dimensions
-    for grid sizes, ensuring all JAX arrays have static shapes required for
-    efficient JIT compilation.
+    The parser is designed to work with typed DatasetConfig objects,
+    ensuring all JAX arrays have static shapes required for efficient JIT compilation.
 
     Attributes:
-        cfg: Hydra configuration object containing parser-specific settings
+        config: Typed dataset configuration containing parser settings
         max_grid_height: Maximum height for grid padding
         max_grid_width: Maximum width for grid padding
         min_grid_height: Minimum height for valid grids
@@ -51,70 +51,59 @@ class ArcDataParserBase(ABC):
         max_test_pairs: Maximum number of test pairs per task
     """
 
-    def __init__(
-        self,
-        cfg: DictConfig,
-    ) -> None:
-        """Initialize the parser with configuration.
+    def __init__(self, config: DatasetConfig) -> None:
+        """Initialize the parser with typed configuration.
 
         Args:
-            cfg: Hydra configuration object containing parser settings such as
-                dataset paths, max dimensions, and other parser-specific parameters
+            config: Typed dataset configuration containing parser settings such as
+                   dataset paths, max dimensions, and other parser-specific parameters
 
         Raises:
-            ValueError: If any of the maximum dimensions are non-positive
-            KeyError: If required configuration fields are missing
+            ValueError: If configuration validation fails
         """
-        # Extract configuration settings
-        try:
-            # Grid configuration
-            max_grid_height = cfg.max_grid_height
-            max_grid_width = cfg.max_grid_width
-            min_grid_height = cfg.min_grid_height
-            min_grid_width = cfg.min_grid_width
-            max_colors = cfg.max_colors
-            background_color = cfg.background_color
-
-            # Task configuration
-            max_train_pairs = cfg.max_train_pairs
-            max_test_pairs = cfg.max_test_pairs
-        except (AttributeError, KeyError) as e:
-            msg = f"Missing required configuration field: {e}"
-            raise KeyError(msg) from e
-
-        # Validate grid dimensions
-        if max_grid_height <= 0 or max_grid_width <= 0:
-            msg = f"Grid dimensions must be positive, got {max_grid_height}x{max_grid_width}"
-            raise ValueError(msg)
-        if min_grid_height <= 0 or min_grid_width <= 0:
-            msg = f"Minimum grid dimensions must be positive, got {min_grid_height}x{min_grid_width}"
-            raise ValueError(msg)
-        if min_grid_height > max_grid_height or min_grid_width > max_grid_width:
-            msg = f"Minimum dimensions ({min_grid_height}x{min_grid_width}) cannot exceed maximum ({max_grid_height}x{max_grid_width})"
+        # Validate the configuration
+        validation_errors = config.validate()
+        if validation_errors:
+            msg = f"Configuration validation failed: {'; '.join(validation_errors)}"
             raise ValueError(msg)
 
-        # Validate task configuration
-        if max_train_pairs <= 0 or max_test_pairs <= 0:
-            msg = f"Max pairs must be positive, got train={max_train_pairs}, test={max_test_pairs}"
-            raise ValueError(msg)
+        # Store the typed configuration
+        self.config = config
+        
+        # Extract commonly used values for convenience
+        self.max_grid_height = config.max_grid_height
+        self.max_grid_width = config.max_grid_width
+        self.min_grid_height = config.min_grid_height
+        self.min_grid_width = config.min_grid_width
+        self.max_colors = config.max_colors
+        self.background_color = config.background_color
+        self.max_train_pairs = config.max_train_pairs
+        self.max_test_pairs = config.max_test_pairs
 
-        # Validate color configuration
-        if max_colors <= 0:
-            msg = f"Max colors must be positive, got {max_colors}"
-            raise ValueError(msg)
-        if background_color >= 0 and background_color < max_colors:
-            msg = f"Background color ({background_color}) must not be in range [0, {max_colors})"
-            raise ValueError(msg)
+    def get_data_path(self) -> str:
+        """Get the actual data path based on dataset type and split.
+        
+        This method should be overridden by subclasses to handle dataset-specific
+        path resolution based on the task_split.
+        
+        Returns:
+            str: The resolved path to the data directory
+        """
+        # Default implementation just returns the configured path
+        return self.config.dataset_path
 
-        self.cfg = cfg
-        self.max_grid_height = max_grid_height
-        self.max_grid_width = max_grid_width
-        self.min_grid_height = min_grid_height
-        self.min_grid_width = min_grid_width
-        self.max_colors = max_colors
-        self.background_color = background_color
-        self.max_train_pairs = max_train_pairs
-        self.max_test_pairs = max_test_pairs
+    @classmethod
+    def from_hydra(cls, hydra_config):
+        """Create parser from Hydra configuration for backward compatibility.
+        
+        Args:
+            hydra_config: Raw Hydra DictConfig for dataset configuration
+            
+        Returns:
+            Parser instance initialized with typed config
+        """
+        dataset_config = DatasetConfig.from_hydra(hydra_config)
+        return cls(dataset_config)
 
     @abstractmethod
     def load_task_file(self, task_file_path: str) -> Any:

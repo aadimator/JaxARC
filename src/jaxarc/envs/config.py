@@ -184,6 +184,7 @@ class DatasetConfig(eqx.Module):
     # Dataset identification
     dataset_name: str = "arc-agi-1"
     dataset_path: str = ""
+    dataset_repo: str = ""
 
     # Dataset-specific grid constraints
     max_grid_height: Int = 30
@@ -193,7 +194,7 @@ class DatasetConfig(eqx.Module):
 
     # Color constraints
     max_colors: Int = 10
-    background_color: Int = 0
+    background_color: Int = -1
 
     # Task Configuration
     max_train_pairs: Int = 10
@@ -289,9 +290,8 @@ class DatasetConfig(eqx.Module):
         """Create dataset config from Hydra DictConfig."""
         return cls(
             dataset_name=cfg.get("dataset_name", "arc-agi-1"),
-            dataset_path=cfg.get(
-                "dataset_path", cfg.get("data_root", "")
-            ),  # Support both keys
+            dataset_path=cfg.get("dataset_path", ""),
+            dataset_repo=cfg.get("dataset_repo", ""),
             max_grid_height=cfg.get("max_grid_height", 30),
             max_grid_width=cfg.get("max_grid_width", 30),
             min_grid_height=cfg.get("min_grid_height", 3),

@@ -17,6 +17,7 @@ from loguru import logger
 from omegaconf import DictConfig
 from pyprojroot import here
 
+from jaxarc.envs.config import DatasetConfig
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.task_manager import create_jax_task_index
 
@@ -37,14 +38,14 @@ class MiniArcParser(ArcDataParserBase):
     and maintains compatibility with the existing JaxArcTask interface.
     """
 
-    def __init__(self, cfg: DictConfig) -> None:
+    def __init__(self, config: DatasetConfig) -> None:
         """Initialize the MiniArcParser with configuration.
 
         Args:
-            cfg: Configuration object containing dataset paths and parser settings,
-                 optimized for 5x5 grid constraints
+            config: Typed dataset configuration containing paths and parser settings,
+                   optimized for 5x5 grid constraints
         """
-        super().__init__(cfg)
+        super().__init__(config)
 
         # Validate and warn about grid constraints for MiniARC optimization
         self._validate_grid_constraints()
@@ -55,6 +56,17 @@ class MiniArcParser(ArcDataParserBase):
 
         # Load and cache all tasks
         self._load_and_cache_tasks()
+
+    def get_data_path(self) -> str:
+        """Get the actual data path for MiniARC based on split.
+        
+        MiniARC structure: {base_path}/data/MiniARC (only one dataset)
+        
+        Returns:
+            str: The resolved path to the MiniARC data directory
+        """
+        base_path = self.config.dataset_path
+        return f"{base_path}/data/MiniARC"
 
     def _validate_grid_constraints(self) -> None:
         """Validate configuration is optimized for 5x5 grids."""
@@ -72,14 +84,8 @@ class MiniArcParser(ArcDataParserBase):
     def _load_and_cache_tasks(self) -> None:
         """Load and cache all tasks from the MiniARC flat directory structure."""
         try:
-            # Get tasks path from configuration
-            tasks_config = self.cfg.get("tasks", {})
-            tasks_path = tasks_config.get("path")
-
-            if not tasks_path:
-                msg = "MiniARC tasks path not specified in configuration"
-                raise ValueError(msg)
-
+            # Get resolved data path
+            tasks_path = self.get_data_path()
             tasks_dir = here(tasks_path)
             if not tasks_dir.exists():
                 logger.warning(f"MiniARC tasks directory not found: {tasks_dir}")

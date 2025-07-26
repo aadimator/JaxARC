@@ -18,6 +18,7 @@ from loguru import logger
 from omegaconf import DictConfig
 from pyprojroot import here
 
+from jaxarc.envs.config import DatasetConfig
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.task_manager import create_jax_task_index
 
@@ -43,14 +44,14 @@ class ConceptArcParser(ArcDataParserBase):
     with the existing JaxArcTask interface.
     """
 
-    def __init__(self, cfg: DictConfig) -> None:
+    def __init__(self, config: DatasetConfig) -> None:
         """Initialize the ConceptArcParser with configuration.
 
         Args:
-            cfg: Configuration object containing dataset paths and parser settings,
-                 including concept group definitions and corpus path
+            config: Typed dataset configuration containing paths and parser settings,
+                   including concept group definitions and corpus path
         """
-        super().__init__(cfg)
+        super().__init__(config)
 
         # Initialize concept group storage
         self._concept_groups: dict[str, list[str]] = {}
@@ -61,24 +62,33 @@ class ConceptArcParser(ArcDataParserBase):
         # Load and cache all tasks
         self._load_and_cache_tasks()
 
+    def get_data_path(self) -> str:
+        """Get the actual data path for ConceptARC based on split.
+        
+        ConceptARC structure: {base_path}/corpus (only one dataset)
+        
+        Returns:
+            str: The resolved path to the ConceptARC corpus directory
+        """
+        base_path = self.config.dataset_path
+        return f"{base_path}/corpus"
+
     def _load_and_cache_tasks(self) -> None:
         """Load and cache all tasks from the ConceptARC corpus directory structure."""
         try:
-            # Get corpus path from configuration
-            corpus_config = self.cfg.get("corpus", {})
-            corpus_path = corpus_config.get("path")
-
-            if not corpus_path:
-                msg = "ConceptARC corpus path not specified in configuration"
-                raise ValueError(msg)
-
+            # Get resolved corpus path
+            corpus_path = self.get_data_path()
             corpus_dir = here(corpus_path)
             if not corpus_dir.exists():
                 logger.warning(f"ConceptARC corpus directory not found: {corpus_dir}")
                 return
 
-            # Get expected concept groups from configuration
-            expected_concept_groups = corpus_config.get("concept_groups", [])
+            # Define expected concept groups for ConceptARC
+            expected_concept_groups = [
+                "AboveBelow", "Center", "CleanUp", "CompleteShape", "Copy", "Count",
+                "ExtendToBoundary", "ExtractObjects", "FilledNotFilled", "HorizontalVertical",
+                "InsideOutside", "MoveToBoundary", "Order", "SameDifferent", "TopBottom2D", "TopBottom3D"
+            ]
 
             # Discover concept groups from directory structure
             self._discover_concept_groups(corpus_dir, expected_concept_groups)
