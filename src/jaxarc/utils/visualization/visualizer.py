@@ -151,6 +151,17 @@ class VisualizationConfig:
 
 
 @chex.dataclass
+class TaskVisualizationData:
+    """Data structure for task visualization information."""
+    
+    task_id: str
+    task_data: Any  # JaxArcTask - using Any to avoid circular import
+    current_pair_index: int
+    episode_mode: Literal["train", "test"]
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@chex.dataclass
 class StepVisualizationData:
     """Data structure for step visualization information."""
 
@@ -164,6 +175,10 @@ class StepVisualizationData:
     changed_cells: Optional[jnp.ndarray] = None
     operation_name: str = ""
     timestamp: float = field(default_factory=time.time)
+    # Task context fields
+    task_id: str = ""
+    task_pair_index: int = 0
+    total_task_pairs: int = 1
 
 
 @chex.dataclass
@@ -262,6 +277,33 @@ class Visualizer:
         if self.wandb_integration:
             self.wandb_integration.log_episode_start(episode_num, task_id)
 
+    def start_episode_with_task(self, episode_num: int, task_data: Any, task_id: str = "", current_pair_index: int = 0, episode_mode: Literal["train", "test"] = "train") -> None:
+        """Start episode and create task visualization first.
+        
+        Args:
+            episode_num: Episode number
+            task_data: JaxArcTask data structure
+            task_id: Optional task identifier
+            current_pair_index: Index of current task pair being worked on
+            episode_mode: Whether this is train or test mode
+        """
+        # Start the regular episode
+        self.start_episode(episode_num, task_id)
+        
+        if self.config.debug_level == "off":
+            return
+            
+        # Create task visualization data
+        task_viz_data = TaskVisualizationData(
+            task_id=task_id,
+            task_data=task_data,
+            current_pair_index=current_pair_index,
+            episode_mode=episode_mode,
+        )
+        
+        # Create and save task visualization
+        self._create_task_visualization(task_viz_data)
+
     def visualize_step(
         self,
         step_data: StepVisualizationData,
@@ -292,6 +334,9 @@ class Visualizer:
                 changed_cells=np.asarray(step_data.changed_cells) if step_data.changed_cells is not None else None,
                 operation_name=step_data.operation_name,
                 timestamp=step_data.timestamp,
+                task_id=step_data.task_id,
+                task_pair_index=step_data.task_pair_index,
+                total_task_pairs=step_data.total_task_pairs,
             )
 
             # Store step data for episode summary
@@ -437,6 +482,9 @@ class Visualizer:
                 operation_name=operation_name,
                 changed_cells=changed_cells,
                 config=self.config,
+                task_id=step_data.task_id,
+                task_pair_index=step_data.task_pair_index,
+                total_task_pairs=step_data.total_task_pairs,
             )
 
             # Save SVG file
@@ -530,6 +578,93 @@ class Visualizer:
 
         except Exception as e:
             logger.error(f"Error creating step HTML: {e}")
+            return None
+
+    def _create_task_visualization(self, task_data: TaskVisualizationData) -> Optional[Path]:
+        """Create SVG visualization of the complete task.
+        
+        Args:
+            task_data: Task visualization data
+            
+        Returns:
+            Path to saved task visualization file, or None if not created
+        """
+        if self.current_episode_num is None:
+            return None
+            
+        try:
+            from .core import draw_parsed_task_data_svg
+            
+            # Get task file path
+            task_path = self.episode_manager.get_step_path(0, file_type="svg")
+            task_path = task_path.parent / f"task_{task_data.task_id}.svg"
+            
+            # Create task visualization using existing SVG function
+            svg_drawing = draw_parsed_task_data_svg(
+                task_data=task_data.task_data,
+                width=40.0,  # Wider for better task display
+                height=25.0,  # Taller for better task display
+                include_test=(task_data.episode_mode == "test"),
+                border_colors=["#2E8B57", "#B22222"]  # Green for input, red for output
+            )
+            
+            # Convert drawing to SVG string
+            svg_content = svg_drawing.as_svg()
+            
+            # Add task metadata as title
+            title_text = f"Task {task_data.task_id} - {task_data.episode_mode.title()} Mode"
+            if task_data.current_pair_index >= 0:
+                title_text += f" (Pair {task_data.current_pair_index + 1})"
+                
+            # Insert title into SVG - find the end of the opening svg tag
+            svg_lines = svg_content.split('\n')
+            title_line = f'<text x="50%" y="15" text-anchor="middle" font-size="0.8" font-weight="bold" fill="#333">{title_text}</text>'
+            
+            # Find where to insert title (after the complete opening svg tag)
+            insert_index = -1
+            for i, line in enumerate(svg_lines):
+                if '<svg' in line:
+                    # Check if this line contains the complete opening tag
+                    if '>' in line:
+                        insert_index = i + 1
+                        break
+                    else:
+                        # Multi-line svg tag, find the closing >
+                        for j in range(i + 1, len(svg_lines)):
+                            if '>' in svg_lines[j]:
+                                insert_index = j + 1
+                                break
+                        break
+            
+            if insert_index > 0:
+                svg_lines.insert(insert_index, title_line)
+                svg_content = '\n'.join(svg_lines)
+            
+            # Save task visualization file
+            task_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(task_path, "w", encoding='utf-8') as f:
+                f.write(svg_content)
+                
+            # Log task visualization creation
+            if self.config.debug_level in ["verbose", "full"]:
+                logger.info(f"Created task visualization: {task_path}")
+                
+            # Log to wandb if enabled
+            if self.wandb_integration:
+                self.wandb_integration.log_step_visualization(
+                    0,  # Step 0 for task visualization
+                    {
+                        "task_id": task_data.task_id,
+                        "episode_mode": task_data.episode_mode,
+                        "current_pair_index": task_data.current_pair_index,
+                    },
+                    task_path,
+                )
+                
+            return task_path
+            
+        except Exception as e:
+            logger.error(f"Error creating task visualization: {e}")
             return None
 
     def _create_episode_summary(

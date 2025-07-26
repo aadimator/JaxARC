@@ -76,7 +76,8 @@ def _extract_grid_data(
     Raises:
         ValueError: If input type is not supported
     """
-    if isinstance(grid_input, Grid):
+    # Check for Grid type by duck typing (more robust than isinstance)
+    if hasattr(grid_input, 'data') and hasattr(grid_input, 'mask'):
         return np.asarray(grid_input.data), np.asarray(grid_input.mask)
     if isinstance(grid_input, (jnp.ndarray, np.ndarray)):
         return np.asarray(grid_input), None
@@ -2053,6 +2054,9 @@ def draw_rl_step_svg_enhanced(
     config: Optional[Any] = None,
     max_width: float = 1400.0,
     max_height: float = 700.0,
+    task_id: str = "",
+    task_pair_index: int = 0,
+    total_task_pairs: int = 1,
 ) -> str:
     """Generate enhanced SVG visualization of a single RL step with more information.
 
@@ -2063,6 +2067,7 @@ def draw_rl_step_svg_enhanced(
     - Reward information and metrics
     - Operation name and details
     - Step metadata
+    - Task context information
 
     Args:
         before_grid: Grid state before the action
@@ -2076,6 +2081,9 @@ def draw_rl_step_svg_enhanced(
         config: Optional visualization configuration
         max_width: Maximum width of the entire visualization
         max_height: Maximum height of the entire visualization
+        task_id: Task identifier for context
+        task_pair_index: Current task pair index
+        total_task_pairs: Total number of task pairs
 
     Returns:
         SVG string containing the enhanced visualization
@@ -2123,15 +2131,40 @@ def draw_rl_step_svg_enhanced(
         )
     )
 
-    # Add reward information
+    # Add task context information
+    task_context_text = ""
+    if task_id:
+        task_context_text = f"Task: {task_id}"
+    if total_task_pairs > 1:
+        if task_context_text:
+            task_context_text += f" | Pair {task_pair_index + 1}/{total_task_pairs}"
+        else:
+            task_context_text = f"Pair {task_pair_index + 1}/{total_task_pairs}"
+    
+    if task_context_text:
+        drawing.append(
+            draw.Text(
+                task_context_text,
+                font_size=16,
+                x=total_width / 2,
+                y=65,
+                text_anchor="middle",
+                font_family="Anuphan",
+                font_weight="400",
+                fill="#6c757d",
+            )
+        )
+
+    # Add reward information (adjusted position for task context)
     reward_color = "#27ae60" if reward > 0 else "#e74c3c" if reward < 0 else "#95a5a6"
     reward_text = f"Reward: {reward:.3f}"
+    reward_y = 85 if task_context_text else 70
     drawing.append(
         draw.Text(
             reward_text,
             font_size=20,
             x=total_width / 2,
-            y=70,
+            y=reward_y,
             text_anchor="middle",
             font_family="Anuphan",
             font_weight="500",

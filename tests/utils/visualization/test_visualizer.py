@@ -180,6 +180,9 @@ class TestStepVisualizationData:
             reward=0.5,
             info={"similarity": 0.8},
             operation_name="Fill 1",
+            task_id="test_task",
+            task_pair_index=0,
+            total_task_pairs=1,
         )
 
         assert step_data.step_num == 5
@@ -201,6 +204,9 @@ class TestStepVisualizationData:
             action={},
             reward=0.0,
             info={},
+            task_id="",
+            task_pair_index=0,
+            total_task_pairs=1,
         )
 
         assert step_data.selection_mask is None
@@ -343,6 +349,9 @@ class TestVisualizer:
                     action={},
                     reward=0.0,
                     info={},
+                    task_id="",
+                    task_pair_index=0,
+                    total_task_pairs=1,
                 )
 
                 result = visualizer.visualize_step(step_data)
@@ -372,6 +381,9 @@ class TestVisualizer:
                     action={"operation": 1},
                     reward=0.5,
                     info={},
+                    task_id="",
+                    task_pair_index=0,
+                    total_task_pairs=1,
                 )
 
                 with patch.object(
@@ -453,6 +465,9 @@ class TestVisualizer:
                     action={},
                     reward=0.0,
                     info={},
+                    task_id="",
+                    task_pair_index=0,
+                    total_task_pairs=1,
                 )
 
                 # Test that the method handles errors gracefully

@@ -323,8 +323,14 @@ def run_rl_loop(
         # Initialize the agent
         agent_state = agent.init_agent(agent_key)
 
-        # Start visualization for the episode
-        visualizer.start_episode(episode_idx, task_id=task_id)
+        # Start visualization for the episode with task visualization
+        visualizer.start_episode_with_task(
+            episode_num=episode_idx, 
+            task_data=task, 
+            task_id=task_id, 
+            current_pair_index=0,  # Assuming we start with the first pair
+            episode_mode="train"
+        )
 
         # Debug: Show allowed operations for this episode
         allowed_mask = action_controller.get_allowed_operations(state, config.action)
@@ -376,7 +382,10 @@ def run_rl_loop(
                 after_grid=Grid(data=state.working_grid, mask=state.working_grid_mask),
                 action=action_log,
                 reward=float(reward),
-                info=info_log
+                info=info_log,
+                task_id=task_id,
+                task_pair_index=0,  # Assuming we're working with the first pair
+                total_task_pairs=task.num_train_pairs
             )
             visualizer.visualize_step(step_data)
 
