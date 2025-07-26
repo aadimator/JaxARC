@@ -359,6 +359,28 @@ class JaxArcTask(eqx.Module):
             "grid_shape": self.get_grid_shape(),
         }
 
+    def get_task_id(self) -> str | None:
+        """Get the task ID for this task.
+        
+        This is a convenience method that looks up the task ID from the global
+        task manager using the stored task_index.
+        
+        Note: This method is NOT JAX-compatible and should not be used
+        within JAX transformations (jit, vmap, etc.). Use only for
+        debugging, logging, visualization, or other non-JAX code.
+        
+        Returns:
+            String task ID if found in the global task manager, None otherwise
+            
+        Example:
+            ```python
+            task = parser.get_task_by_id("some_task")
+            task_id = task.get_task_id()  # Returns "some_task"
+            ```
+        """
+        from jaxarc.utils import get_task_id_globally
+        return get_task_id_globally(int(self.task_index))
+
 
 # Type Aliases for IDs
 AgentID = NewType("AgentID", int)
