@@ -41,27 +41,6 @@ from .async_logger import (
     AsyncLoggerContext,
     LogEntry,
 )
-from .config_composition import (
-    ConfigComposer,
-    create_config_composer,
-    get_config_help,
-    quick_compose,
-)
-from .config_migration import (
-    ConfigMigrator,
-    check_config_compatibility,
-    create_config_documentation,
-    migrate_legacy_config,
-)
-
-# Import configuration management utilities
-from .config_validation import (
-    ConfigValidator,
-    ValidationError,
-    format_validation_errors,
-    validate_and_raise,
-    validate_config,
-)
 
 # Import core visualization functions from the core module
 from .core import (
@@ -88,18 +67,19 @@ from .core import (
     visualize_task_pair_rich,
 )
 
-# Import visualization system
-from .visualizer import (
-    EpisodeSummaryData,
-    StepVisualizationData,
-    VisualizationConfig,
-    Visualizer,
-)
-
 # Import episode management functionality
 from .episode_manager import (
     EpisodeConfig,
     EpisodeManager,
+)
+
+# Import wandb integration functionality from integrations
+from .integrations.wandb import (
+    WandbConfig,
+    WandbIntegration,
+    create_development_wandb_config,
+    create_research_wandb_config,
+    create_wandb_config,
 )
 
 # Import JAX integration and performance optimization
@@ -136,13 +116,12 @@ from .replay_system import (
     ReplayValidationResult,
 )
 
-# Import wandb integration functionality
-from .wandb_integration import (
-    WandbConfig,
-    WandbIntegration,
-    create_development_wandb_config,
-    create_research_wandb_config,
-    create_wandb_config,
+# Import visualization system
+from .visualizer import (
+    EpisodeSummaryData,
+    StepVisualizationData,
+    VisualizationConfig,
+    Visualizer,
 )
 
 # Import wandb sync utilities
@@ -155,92 +134,79 @@ from .wandb_sync import (
 
 # Re-export all public functions for backward compatibility
 __all__ = [
-    # Core visualization functions
-    "log_grid_to_console",
-    "draw_grid_svg",
-    "visualize_grid_rich",
-    # Task visualization functions
-    "visualize_task_pair_rich",
-    "draw_task_pair_svg",
-    "visualize_parsed_task_data_rich",
-    "draw_parsed_task_data_svg",
-    # RL visualization functions
-    "draw_rl_step_svg",
-    "save_rl_step_visualization",
-    # Utility functions
-    "save_svg_drawing",
-    "setup_matplotlib_style",
     # Constants
     "ARC_COLOR_PALETTE",
-    # Episode management
-    "EpisodeConfig",
-    "EpisodeManager",
+    "AnalysisConfig",
     # Async logging
     "AsyncLogger",
     "AsyncLoggerConfig",
-    "LogEntry",
     "AsyncLoggerContext",
-    # Wandb integration
-    "WandbConfig",
-    "WandbIntegration",
-    "create_wandb_config",
-    "create_research_wandb_config",
-    "create_development_wandb_config",
-    # Wandb sync utilities
-    "WandbSyncManager",
-    "create_sync_manager",
-    "sync_offline_wandb_data",
-    "check_wandb_status",
-    # Visualization system
-    "VisualizationConfig",
-    "Visualizer",
-    "StepVisualizationData",
-    "EpisodeSummaryData",
+    "CallbackPerformanceMonitor",
+    "CompressedStorage",
     # Configuration management
-    "ConfigValidator",
-    "ValidationError",
-    "validate_config",
-    "format_validation_errors",
-    "validate_and_raise",
-    "ConfigComposer",
-    "create_config_composer",
-    "quick_compose",
-    "get_config_help",
-    "ConfigMigrator",
-    "migrate_legacy_config",
-    "check_config_compatibility",
-    "create_config_documentation",
+    "EpisodeAnalysisTools",
+    # Episode management
+    "EpisodeConfig",
+    "EpisodeManager",
+    "EpisodeReplaySystem",
+    "EpisodeSummaryData",
+    "FailureModeAnalysis",
+    "GarbageCollectionOptimizer",
+    "JAXCallbackError",
+    "LazyLoader",
+    "LogEntry",
+    "MemoryManager",
+    "MemoryUsageMonitor",
+    "PerformanceMetrics",
     # Replay and analysis functionality
     "ReplayConfig",
     "ReplayValidationResult",
-    "EpisodeReplaySystem",
-    "AnalysisConfig",
-    "FailureModeAnalysis",
-    "PerformanceMetrics",
-    "EpisodeAnalysisTools",
-    # JAX integration and performance optimization
-    "jax_debug_callback",
-    "jax_log_grid",
-    "jax_save_step_visualization",
-    "jax_log_episode_summary",
-    "serialize_jax_array",
-    "serialize_arc_state",
-    "serialize_action",
-    "get_callback_performance_stats",
-    "reset_callback_performance_stats",
-    "print_callback_performance_report",
-    "CallbackPerformanceMonitor",
-    "JAXCallbackError",
-    "MemoryManager",
-    "MemoryUsageMonitor",
-    "LazyLoader",
-    "CompressedStorage",
+    "StepVisualizationData",
     "VisualizationCache",
-    "GarbageCollectionOptimizer",
-    "get_memory_manager",
-    "create_lazy_visualization_loader",
-    "optimize_array_memory",
+    # Visualization system
+    "VisualizationConfig",
+    "Visualizer",
+    # Wandb integration
+    "WandbConfig",
+    "WandbIntegration",
+    # Wandb sync utilities
+    "WandbSyncManager",
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
     "_extract_grid_data",
+    "check_wandb_status",
+    "create_development_wandb_config",
+    "create_lazy_visualization_loader",
+    "create_research_wandb_config",
+    "create_sync_manager",
+    "create_wandb_config",
+    "draw_grid_svg",
+    "draw_parsed_task_data_svg",
+    # RL visualization functions
+    "draw_rl_step_svg",
+    "draw_task_pair_svg",
+    "get_callback_performance_stats",
+    "get_memory_manager",
+    # JAX integration and performance optimization
+    "jax_debug_callback",
+    "jax_log_episode_summary",
+    "jax_log_grid",
+    "jax_save_step_visualization",
+    # Core visualization functions
+    "log_grid_to_console",
+    "optimize_array_memory",
+    "print_callback_performance_report",
+    "reset_callback_performance_stats",
+    "save_rl_step_visualization",
+    # Utility functions
+    "save_svg_drawing",
+    "serialize_action",
+    "serialize_arc_state",
+    "serialize_jax_array",
+    "setup_matplotlib_style",
+    "sync_offline_wandb_data",
+    "visualize_grid_rich",
+    "visualize_parsed_task_data_rich",
+    # Task visualization functions
+    "visualize_task_pair_rich",
 ]

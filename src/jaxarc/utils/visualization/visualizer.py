@@ -21,7 +21,7 @@ from jaxarc.types import Grid
 
 from .async_logger import AsyncLogger, AsyncLoggerConfig
 from .episode_manager import EpisodeConfig, EpisodeManager
-from .wandb_integration import WandbConfig, WandbIntegration
+from .integrations.wandb import WandbConfig, WandbIntegration
 
 
 @chex.dataclass
