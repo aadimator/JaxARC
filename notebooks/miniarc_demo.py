@@ -55,9 +55,9 @@ def _():
     from jaxarc.parsers import MiniArcParser
     from jaxarc.utils.config import get_config
     from jaxarc.utils.visualization import (
-        EnhancedVisualizer,
         EpisodeManager,
         VisualizationConfig,
+        Visualizer,
         WandbConfig,
         WandbIntegration,
         create_research_wandb_config,
@@ -68,7 +68,7 @@ def _():
     return (
         ArcEnvConfig,
         Dict,
-        EnhancedVisualizer,
+        Visualizer,
         EpisodeManager,
         MiniArcParser,
         NamedTuple,
@@ -160,7 +160,7 @@ def _(mo):
 
 @app.cell
 def _(
-    EnhancedVisualizer,
+    Visualizer,
     EpisodeManager,
     Panel,
     VisualizationConfig,
@@ -191,8 +191,8 @@ def _(
             max_storage_gb=1.0,
         )
 
-        # Create enhanced visualizer
-        visualizer = EnhancedVisualizer(
+        # Create visualizer
+        visualizer = Visualizer(
             vis_config=vis_config, episode_manager=episode_manager
         )
 

@@ -46,9 +46,7 @@ from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
 # Functional API
 from .functional import (
     arc_reset,
-    arc_reset_with_hydra,
     arc_step,
-    arc_step_with_hydra,
 )
 
 # Grid operations
@@ -103,9 +101,7 @@ __all__ = [
     "VisualizationConfig",
     "WandbConfig",
     "arc_reset",
-    "arc_reset_with_hydra",
     "arc_step",
-    "arc_step_with_hydra",
     "bbox_handler",
     "create_debug_observation",
     "create_evaluation_observation",

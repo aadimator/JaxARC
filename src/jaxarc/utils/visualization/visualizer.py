@@ -1,6 +1,6 @@
-"""Enhanced visualization system for JaxARC.
+"""Visualization system for JaxARC.
 
-This module provides the main VisualizationConfig and EnhancedVisualizer classes
+This module provides the main VisualizationConfig and Visualizer classes
 that integrate all visualization components including episode management,
 async logging, and wandb integration.
 """
@@ -188,8 +188,8 @@ class EpisodeSummaryData:
             object.__setattr__(self, "end_time", time.time())
 
 
-class EnhancedVisualizer:
-    """Enhanced visualization system integrating all components.
+class Visualizer:
+    """Visualization system integrating all components.
 
     This class provides a unified interface for visualization that integrates
     episode management, async logging, wandb integration, and performance
@@ -203,7 +203,7 @@ class EnhancedVisualizer:
         async_logger: Optional[AsyncLogger] = None,
         wandb_integration: Optional[WandbIntegration] = None,
     ):
-        """Initialize the enhanced visualizer.
+        """Initialize the visualizer.
 
         Args:
             config: Visualization configuration
@@ -234,7 +234,7 @@ class EnhancedVisualizer:
         }
 
         logger.info(
-            f"Enhanced visualizer initialized with debug level: {config.debug_level}"
+            f"Visualizer initialized with debug level: {config.debug_level}"
         )
 
     def start_episode(self, episode_num: int, task_id: str = "") -> None:
@@ -715,7 +715,7 @@ class EnhancedVisualizer:
             if self.wandb_integration:
                 self.wandb_integration.finish_run()
 
-            logger.info("Enhanced visualizer cleanup completed")
+            logger.info("Visualizer cleanup completed")
 
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")

@@ -183,7 +183,7 @@ dev_config = VisualizationConfig(
 )
 
 # Enable all debugging features
-visualizer = EnhancedVisualizer(
+visualizer = Visualizer(
     vis_config=dev_config,
     enable_performance_monitoring=True,
     enable_memory_monitoring=True,
@@ -243,7 +243,7 @@ prod_config = VisualizationConfig(
 )
 
 # Minimal monitoring
-visualizer = EnhancedVisualizer(
+visualizer = Visualizer(
     vis_config=prod_config, enable_auto_cleanup=True, enable_performance_monitoring=True
 )
 
@@ -428,7 +428,7 @@ def test_visualizer_basic_functionality():
     """Test basic visualizer functionality."""
 
     vis_config = VisualizationConfig(debug_level="minimal")
-    visualizer = EnhancedVisualizer(vis_config)
+    visualizer = Visualizer(vis_config)
 
     # Test initialization
     assert visualizer.is_initialized()
@@ -496,7 +496,7 @@ def test_full_workflow_integration():
 def test_error_recovery():
     """Test error recovery mechanisms."""
 
-    visualizer = EnhancedVisualizer()
+    visualizer = Visualizer()
 
     # Simulate various error conditions
     with pytest.raises(MemoryError):
@@ -527,7 +527,7 @@ def benchmark_visualization_performance():
     results = {}
 
     for config in configs:
-        visualizer = EnhancedVisualizer(VisualizationConfig(**config))
+        visualizer = Visualizer(VisualizationConfig(**config))
 
         # Benchmark
         start_time = time.perf_counter()

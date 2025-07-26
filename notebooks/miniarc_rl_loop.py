@@ -46,12 +46,12 @@ from jaxarc.envs.config import JaxArcConfig
 from jaxarc.parsers import MiniArcParser
 from jaxarc.types import Grid
 from jaxarc.utils.visualization import (
-    EnhancedVisualizer,
     EpisodeConfig,
     EpisodeManager,
     EpisodeSummaryData,
     StepVisualizationData,
     VisualizationConfig,
+    Visualizer,
     WandbConfig,
     WandbIntegration,
 )
@@ -109,15 +109,15 @@ def setup_configuration() -> DictConfig:
 # %% [markdown]
 # ## 2. Visualization and Logging Setup
 #
-# We'll initialize the `EnhancedVisualizer` for saving step-by-step visual logs of the agent's behavior and the `WandbIntegration` for comprehensive experiment tracking. For this demo, wandb will run in offline mode.
+# We'll initialize the `Visualizer` for saving step-by-step visual logs of the agent's behavior and the `WandbIntegration` for comprehensive experiment tracking. For this demo, wandb will run in offline mode.
 
 # %%
-def setup_visualization_and_logging() -> tuple[EnhancedVisualizer, WandbIntegration]:
+def setup_visualization_and_logging() -> tuple[Visualizer, WandbIntegration]:
     """
     Initializes the visualization, logging, and wandb integration components.
 
     Returns:
-        Tuple[EnhancedVisualizer, WandbIntegration]: The initialized visualizer and wandb integration objects.
+        Tuple[Visualizer, WandbIntegration]: The initialized visualizer and wandb integration objects.
     """
     logger.info("Setting up visualization and logging...")
 
@@ -136,8 +136,8 @@ def setup_visualization_and_logging() -> tuple[EnhancedVisualizer, WandbIntegrat
     # Correctly pass the config object to the EpisodeManager
     episode_manager = EpisodeManager(config=episode_config)
 
-    # Correctly pass vis_config as the 'config' argument to EnhancedVisualizer
-    visualizer = EnhancedVisualizer(
+    # Correctly pass vis_config as the 'config' argument to Visualizer
+    visualizer = Visualizer(
         config=vis_config, episode_manager=episode_manager
     )
     
@@ -257,7 +257,7 @@ class RandomAgent:
 # %%
 def run_rl_loop(
     hydra_config: DictConfig,
-    visualizer: EnhancedVisualizer,
+    visualizer: Visualizer,
     wandb_integration: WandbIntegration,
     num_episodes: int = 5,
     max_steps_per_episode: int = 20,
@@ -267,7 +267,7 @@ def run_rl_loop(
 
     Args:
         hydra_config (DictConfig): The environment configuration from Hydra.
-        visualizer (EnhancedVisualizer): The visualization utility.
+        visualizer (Visualizer): The visualization utility.
         wandb_integration (WandbIntegration): The wandb utility.
         num_episodes (int): The number of episodes to run.
         max_steps_per_episode (int): The maximum number of steps per episode.

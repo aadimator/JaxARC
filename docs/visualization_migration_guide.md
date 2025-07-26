@@ -25,12 +25,12 @@ Run both systems side-by-side to ensure compatibility:
 from jaxarc.utils.visualization import log_grid_to_console, draw_grid_svg
 
 # New system (add alongside)
-from jaxarc.utils.visualization import EnhancedVisualizer, VisualizationConfig
+from jaxarc.utils.visualization import Visualizer, VisualizationConfig
 
 # Initialize both systems
 old_viz_enabled = True
 vis_config = VisualizationConfig(debug_level="standard")
-new_visualizer = EnhancedVisualizer(vis_config)
+new_visualizer = Visualizer(vis_config)
 
 
 # In your training loop
@@ -186,7 +186,7 @@ old_config = {
 }
 
 new_config = migrate_old_config(old_config)
-visualizer = EnhancedVisualizer(new_config)
+visualizer = Visualizer(new_config)
 ```
 
 ## Code Migration Examples
@@ -211,13 +211,13 @@ def old_visualization(grid, title, step_num):
 
 
 # NEW CODE
-from jaxarc.utils.visualization import EnhancedVisualizer, VisualizationConfig
+from jaxarc.utils.visualization import Visualizer, VisualizationConfig
 
 # Initialize once
 vis_config = VisualizationConfig(
     debug_level="standard", output_formats=["svg"], log_frequency=10
 )
-visualizer = EnhancedVisualizer(vis_config)
+visualizer = Visualizer(vis_config)
 
 
 def new_visualization(before_state, action, after_state, reward, info, step_num):
@@ -490,7 +490,7 @@ def validate_migration():
 
     # Test new system
     print("  Testing new visualization system...")
-    from jaxarc.utils.visualization import EnhancedVisualizer, VisualizationConfig
+    from jaxarc.utils.visualization import Visualizer, VisualizationConfig
 
     vis_config = VisualizationConfig(
         debug_level="standard",
@@ -498,7 +498,7 @@ def validate_migration():
         log_frequency=2,  # Every other step, like old system
     )
 
-    new_visualizer = EnhancedVisualizer(vis_config)
+    new_visualizer = Visualizer(vis_config)
     new_visualizer.start_episode(0)
 
     new_outputs = []
