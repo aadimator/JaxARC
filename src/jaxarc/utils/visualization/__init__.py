@@ -88,12 +88,12 @@ from .core import (
     visualize_task_pair_rich,
 )
 
-# Import enhanced visualization system
-from .enhanced_visualizer import (
-    EnhancedVisualizer,
+# Import visualization system
+from .visualizer import (
     EpisodeSummaryData,
     StepVisualizationData,
     VisualizationConfig,
+    Visualizer,
 )
 
 # Import episode management functionality
@@ -191,9 +191,9 @@ __all__ = [
     "create_sync_manager",
     "sync_offline_wandb_data",
     "check_wandb_status",
-    # Enhanced visualization system
+    # Visualization system
     "VisualizationConfig",
-    "EnhancedVisualizer",
+    "Visualizer",
     "StepVisualizationData",
     "EpisodeSummaryData",
     # Configuration management

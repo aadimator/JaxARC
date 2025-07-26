@@ -86,7 +86,7 @@ wandb_integration = WandbIntegration(wandb_config)
 import jax
 from jaxarc.envs import arc_reset, arc_step, create_standard_config
 from jaxarc.utils.visualization import (
-    EnhancedVisualizer,
+    Visualizer,
     VisualizationConfig,
     EpisodeManager,
     AsyncLogger,
@@ -114,7 +114,7 @@ wandb_integration = WandbIntegration(wandb_config)
 
 # Create enhanced visualizer
 vis_config = VisualizationConfig(debug_level="standard")
-visualizer = EnhancedVisualizer(
+visualizer = Visualizer(
     vis_config=vis_config,
     episode_manager=episode_manager,
     async_logger=async_logger,
@@ -730,7 +730,7 @@ import hydra
 from omegaconf import DictConfig
 
 from jaxarc.envs import arc_reset, arc_step, create_standard_config
-from jaxarc.utils.visualization import EnhancedVisualizer, create_visualizer_from_config
+from jaxarc.utils.visualization import Visualizer, create_visualizer_from_config
 
 
 @hydra.main(config_path="conf", config_name="config", version_base=None)

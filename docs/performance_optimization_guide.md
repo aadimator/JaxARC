@@ -25,7 +25,7 @@ from jaxarc.utils.visualization import (
     VisualizationConfig,
     AsyncLoggerConfig,
     EpisodeConfig,
-    EnhancedVisualizer,
+    Visualizer,
 )
 
 # Performance-optimized configuration
@@ -53,7 +53,7 @@ episode_config = EpisodeConfig(
 )
 
 # Create optimized visualizer
-visualizer = EnhancedVisualizer(
+visualizer = Visualizer(
     vis_config=vis_config,
     async_logger_config=async_config,
     episode_config=episode_config,

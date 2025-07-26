@@ -21,7 +21,7 @@ from ..logging.structured_logger import (
     StructuredLogger,
 )
 from .core import draw_rl_step_svg
-from .enhanced_visualizer import VisualizationConfig
+from .visualizer import VisualizationConfig
 
 
 @chex.dataclass

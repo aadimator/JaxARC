@@ -11,7 +11,7 @@ debugging.
 ```python
 import jax
 from jaxarc.envs import arc_reset, arc_step, create_standard_config
-from jaxarc.utils.visualization import EnhancedVisualizer, VisualizationConfig
+from jaxarc.utils.visualization import Visualizer, VisualizationConfig
 
 # Create configuration with enhanced visualization
 config = create_standard_config()
@@ -23,7 +23,7 @@ vis_config = VisualizationConfig(
 )
 
 # Initialize enhanced visualizer
-visualizer = EnhancedVisualizer(vis_config)
+visualizer = Visualizer(vis_config)
 
 # Use in training loop
 key = jax.random.PRNGKey(42)
@@ -57,12 +57,12 @@ for step in range(100):
 
 ### 1. Enhanced Visualizer
 
-The `EnhancedVisualizer` is the main interface that integrates all visualization
+The `Visualizer` is the main interface that integrates all visualization
 components:
 
 ```python
 from jaxarc.utils.visualization import (
-    EnhancedVisualizer,
+    Visualizer,
     VisualizationConfig,
     EpisodeManager,
     AsyncLogger,
@@ -87,7 +87,7 @@ async_logger = AsyncLogger(queue_size=1000, worker_threads=2)
 wandb_integration = WandbIntegration(project_name="my-arc-experiments")
 
 # Create enhanced visualizer
-visualizer = EnhancedVisualizer(
+visualizer = Visualizer(
     vis_config=vis_config,
     episode_manager=episode_manager,
     async_logger=async_logger,
@@ -694,7 +694,7 @@ if memory_manager.get_memory_usage() > 0.9:  # 90% of limit
    ```python
    # Add async logging for better performance
    async_logger = AsyncLogger()
-   visualizer = EnhancedVisualizer(vis_config, async_logger=async_logger)
+   visualizer = Visualizer(vis_config, async_logger=async_logger)
    ```
 
 ### Backward Compatibility

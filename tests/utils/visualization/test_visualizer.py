@@ -10,11 +10,11 @@ import jax.numpy as jnp
 import pytest
 
 from jaxarc.types import Grid
-from jaxarc.utils.visualization.enhanced_visualizer import (
-    EnhancedVisualizer,
+from jaxarc.utils.visualization.visualizer import (
     EpisodeSummaryData,
     StepVisualizationData,
     VisualizationConfig,
+    Visualizer,
 )
 
 
@@ -248,20 +248,20 @@ class TestEpisodeSummaryData:
         assert summary.end_time > 0  # Should be set automatically
 
 
-class TestEnhancedVisualizer:
-    """Test EnhancedVisualizer class."""
+class TestVisualizer:
+    """Test Visualizer class."""
 
     def test_visualizer_initialization(self):
         """Test visualizer initialization."""
         config = VisualizationConfig()
 
         with patch(
-            "jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"
+            "jaxarc.utils.visualization.visualizer.EpisodeManager"
         ) as mock_em:
             with patch(
-                "jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"
+                "jaxarc.utils.visualization.visualizer.AsyncLogger"
             ) as mock_al:
-                visualizer = EnhancedVisualizer(config)
+                visualizer = Visualizer(config)
 
                 assert visualizer.config == config
                 assert visualizer.current_episode_num is None
@@ -276,9 +276,9 @@ class TestEnhancedVisualizer:
         config = VisualizationConfig()
         config.wandb_config.enabled = False
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
-                visualizer = EnhancedVisualizer(config)
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
+                visualizer = Visualizer(config)
 
                 assert visualizer.wandb_integration is None
 
@@ -287,12 +287,12 @@ class TestEnhancedVisualizer:
         config = VisualizationConfig()
         config.wandb_config.enabled = True
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
                 with patch(
-                    "jaxarc.utils.visualization.enhanced_visualizer.WandbIntegration"
+                    "jaxarc.utils.visualization.visualizer.WandbIntegration"
                 ) as mock_wandb:
-                    visualizer = EnhancedVisualizer(config)
+                    visualizer = Visualizer(config)
 
                     mock_wandb.assert_called_once()
                     assert visualizer.wandb_integration is not None
@@ -302,14 +302,14 @@ class TestEnhancedVisualizer:
         config = VisualizationConfig(debug_level="standard")
 
         with patch(
-            "jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"
+            "jaxarc.utils.visualization.visualizer.EpisodeManager"
         ) as mock_em_class:
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
                 mock_em = MagicMock()
                 mock_em.start_new_episode.return_value = Path("/test/episode/1")
                 mock_em_class.return_value = mock_em
 
-                visualizer = EnhancedVisualizer(config)
+                visualizer = Visualizer(config)
                 visualizer.start_episode(1, "task_001")
 
                 assert visualizer.current_episode_num == 1
@@ -320,9 +320,9 @@ class TestEnhancedVisualizer:
         """Test starting episode with debug off."""
         config = VisualizationConfig(debug_level="off")
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
-                visualizer = EnhancedVisualizer(config)
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
+                visualizer = Visualizer(config)
                 visualizer.start_episode(1, "task_001")
 
                 # Should not set episode data when debug is off
@@ -332,9 +332,9 @@ class TestEnhancedVisualizer:
         """Test step visualization skipping based on config."""
         config = VisualizationConfig(debug_level="standard")  # Every 10th step
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
-                visualizer = EnhancedVisualizer(config)
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
+                visualizer = Visualizer(config)
 
                 step_data = StepVisualizationData(
                     step_num=5,  # Not divisible by 10
@@ -355,14 +355,14 @@ class TestEnhancedVisualizer:
         config = VisualizationConfig(debug_level="full", output_formats=["svg"])
 
         with patch(
-            "jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"
+            "jaxarc.utils.visualization.visualizer.EpisodeManager"
         ) as mock_em_class:
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
                 mock_em = MagicMock()
                 mock_em.get_step_path.return_value = Path("/test/step.svg")
                 mock_em_class.return_value = mock_em
 
-                visualizer = EnhancedVisualizer(config)
+                visualizer = Visualizer(config)
                 visualizer.current_episode_num = 1
 
                 step_data = StepVisualizationData(
@@ -386,9 +386,9 @@ class TestEnhancedVisualizer:
         """Test episode summary visualization."""
         config = VisualizationConfig(debug_level="standard")
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
-                visualizer = EnhancedVisualizer(config)
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
+                visualizer = Visualizer(config)
 
                 summary_data = EpisodeSummaryData(
                     episode_num=1,
@@ -417,9 +417,9 @@ class TestEnhancedVisualizer:
         """Test episode summary with debug off."""
         config = VisualizationConfig(debug_level="off")
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
-                visualizer = EnhancedVisualizer(config)
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
+                visualizer = Visualizer(config)
 
                 summary_data = EpisodeSummaryData(
                     episode_num=1,
@@ -441,9 +441,9 @@ class TestEnhancedVisualizer:
         """Test error handling in step SVG creation."""
         config = VisualizationConfig()
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
-                visualizer = EnhancedVisualizer(config)
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
+                visualizer = Visualizer(config)
                 visualizer.current_episode_num = 1
 
                 step_data = StepVisualizationData(
@@ -467,9 +467,9 @@ class TestEnhancedVisualizer:
         """Test performance report generation."""
         config = VisualizationConfig()
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
-                visualizer = EnhancedVisualizer(config)
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
+                visualizer = Visualizer(config)
 
                 # Update some performance stats
                 visualizer._update_performance_stats(0.1)
@@ -489,17 +489,17 @@ class TestEnhancedVisualizer:
         config = VisualizationConfig()
 
         with patch(
-            "jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"
+            "jaxarc.utils.visualization.visualizer.EpisodeManager"
         ) as mock_em_class:
             with patch(
-                "jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"
+                "jaxarc.utils.visualization.visualizer.AsyncLogger"
             ) as mock_al_class:
                 mock_em = MagicMock()
                 mock_al = MagicMock()
                 mock_em_class.return_value = mock_em
                 mock_al_class.return_value = mock_al
 
-                visualizer = EnhancedVisualizer(config)
+                visualizer = Visualizer(config)
                 visualizer.cleanup()
 
                 # Should call cleanup methods
@@ -511,15 +511,15 @@ class TestEnhancedVisualizer:
         config = VisualizationConfig()
         config.wandb_config.enabled = True
 
-        with patch("jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"):
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
+        with patch("jaxarc.utils.visualization.visualizer.EpisodeManager"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
                 with patch(
-                    "jaxarc.utils.visualization.enhanced_visualizer.WandbIntegration"
+                    "jaxarc.utils.visualization.visualizer.WandbIntegration"
                 ) as mock_wandb_class:
                     mock_wandb = MagicMock()
                     mock_wandb_class.return_value = mock_wandb
 
-                    visualizer = EnhancedVisualizer(config)
+                    visualizer = Visualizer(config)
                     visualizer.cleanup()
 
                     # Should finish wandb run
@@ -530,14 +530,14 @@ class TestEnhancedVisualizer:
         config = VisualizationConfig()
 
         with patch(
-            "jaxarc.utils.visualization.enhanced_visualizer.EpisodeManager"
+            "jaxarc.utils.visualization.visualizer.EpisodeManager"
         ) as mock_em_class:
-            with patch("jaxarc.utils.visualization.enhanced_visualizer.AsyncLogger"):
+            with patch("jaxarc.utils.visualization.visualizer.AsyncLogger"):
                 mock_em = MagicMock()
                 mock_em.config.get_base_path.return_value = Path("/test/base")
                 mock_em_class.return_value = mock_em
 
-                visualizer = EnhancedVisualizer(config)
+                visualizer = Visualizer(config)
 
                 episodes_data = [
                     EpisodeSummaryData(

@@ -3375,10 +3375,10 @@ def create_metrics_visualization(
     return drawing.as_svg()
 
 
-# Update the enhanced visualizer to use these new functions
-def update_enhanced_visualizer_step_creation():
-    """Update the enhanced visualizer to use the new step visualization functions."""
-    # This is a placeholder function to indicate where the EnhancedVisualizer
+# Update the visualizer to use these new functions
+def update_visualizer_step_creation():
+    """Update the visualizer to use the new step visualization functions."""
+    # This is a placeholder function to indicate where the Visualizer
     # would be updated to use the new helper functions above.
     # The actual integration would happen in the _create_step_svg method.
 

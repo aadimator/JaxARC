@@ -20,10 +20,10 @@ from jaxarc.types import JaxArcTask
 from jaxarc.utils.visualization import (
     AsyncLogger,
     AsyncLoggerConfig,
-    EnhancedVisualizer,
     EpisodeConfig,
     EpisodeManager,
     VisualizationConfig,
+    Visualizer,
     WandbIntegration,
     _clear_output_directory,
 )
@@ -54,7 +54,7 @@ class ArcEnvironment:
     _state: Optional[ArcEnvState]
     _episode_count: int
     action_handler: Any  # Action handler type depends on selection format
-    _enhanced_visualizer: Optional[EnhancedVisualizer]
+    _visualizer: Optional[Visualizer]
     _episode_manager: Optional[EpisodeManager]
     _async_logger: Optional[AsyncLogger]
     _wandb_integration: Optional[WandbIntegration]
@@ -72,8 +72,8 @@ class ArcEnvironment:
         # Get the action handler for this environment's selection format
         self.action_handler = get_action_handler(config.action.selection_format)
 
-        # Initialize enhanced visualization system if enabled
-        self._enhanced_visualizer: Optional[EnhancedVisualizer] = None
+        # Initialize visualization system if enabled
+        self._visualizer: Optional[Visualizer] = None
         self._episode_manager: Optional[EpisodeManager] = None
         self._async_logger: Optional[AsyncLogger] = None
         self._wandb_integration: Optional[WandbIntegration] = None
@@ -83,8 +83,8 @@ class ArcEnvironment:
         logger.info("ArcEnvironment initialized with unified JaxArcConfig")
         logger.info(f"Using {config.action.selection_format} selection format")
 
-        if self._enhanced_visualizer is not None:
-            logger.info("Enhanced visualization system enabled")
+        if self._visualizer is not None:
+            logger.info("Visualization system enabled")
 
     def _setup_enhanced_visualization(self) -> None:
         """Setup enhanced visualization system based on configuration."""
@@ -117,8 +117,8 @@ class ArcEnvironment:
             # Create wandb integration if configured
             self._wandb_integration = self._create_wandb_integration()
 
-            # Create enhanced visualizer
-            self._enhanced_visualizer = EnhancedVisualizer(
+            # Create visualizer
+            self._visualizer = Visualizer(
                 vis_config=vis_config,
                 episode_manager=self._episode_manager,
                 async_logger=self._async_logger,
@@ -126,9 +126,9 @@ class ArcEnvironment:
             )
 
         except Exception as e:
-            logger.warning(f"Failed to setup enhanced visualization: {e}")
+            logger.warning(f"Failed to setup visualization: {e}")
             logger.warning("Falling back to legacy visualization")
-            self._enhanced_visualizer = None
+            self._visualizer = None
 
     def _create_visualization_config(self) -> VisualizationConfig:
         """Create visualization configuration from unified config."""
@@ -183,10 +183,10 @@ class ArcEnvironment:
         Returns:
             Tuple of (initial_state, initial_observation)
         """
-        # Start new episode in enhanced visualization system
-        if self._enhanced_visualizer is not None:
+        # Start new episode in visualization system
+        if self._visualizer is not None:
             self._episode_count += 1
-            self._enhanced_visualizer.start_episode(self._episode_count)
+            self._visualizer.start_episode(self._episode_count)
         # Legacy visualization directory clearing
         elif (
             self.config.environment.debug_level != "off"
@@ -196,9 +196,9 @@ class ArcEnvironment:
 
         self._state, obs = arc_reset(key, self.config, task_data)
 
-        # Log episode start with enhanced visualization
-        if self._enhanced_visualizer is not None:
-            self._enhanced_visualizer.log_episode_start(
+        # Log episode start with visualization
+        if self._visualizer is not None:
+            self._visualizer.log_episode_start(
                 episode_num=self._episode_count,
                 task_data=self._state.task_data,
                 initial_state=self._state,
@@ -234,9 +234,9 @@ class ArcEnvironment:
             self._state, action, self.config
         )
 
-        # Enhanced visualization step logging
-        if self._enhanced_visualizer is not None:
-            self._enhanced_visualizer.log_step(
+        # Visualization step logging
+        if self._visualizer is not None:
+            self._visualizer.log_step(
                 step_num=int(self._state.step_count),
                 before_state=prev_state,
                 action=action,
@@ -247,7 +247,7 @@ class ArcEnvironment:
 
             # Log episode end if done
             if done:
-                self._enhanced_visualizer.log_episode_end(
+                self._visualizer.log_episode_end(
                     episode_num=self._episode_count,
                     final_state=self._state,
                     total_reward=info.get("total_reward", float(reward)),
