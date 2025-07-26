@@ -10,6 +10,7 @@ inclusion: always
 - Keep implementations as simple as needed - avoid overengineering
 - Prefer clear, readable code over clever optimizations unless performance is critical
 - Use straightforward solutions that are easy to understand and maintain
+- This is a research project, not a production intended application, so simplicity is preferred
 
 ### JAX Compliance Requirements
 - **Pure Functions**: All core functionality must be JAX-compliant with pure functions

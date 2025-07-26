@@ -277,7 +277,7 @@ def run_rl_loop(
     config = JaxArcConfig.from_hydra(hydra_config)
 
     # --- Dataset Loading ---
-    parser = MiniArcParser(hydra_config.dataset)
+    parser = MiniArcParser(config.dataset)
     training_tasks = parser.get_available_task_ids()
 
     # --- Action Space Controller Initialization ---

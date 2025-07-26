@@ -1,33 +1,21 @@
-# ARC-AGI-2 Dataset Configuration (GitHub Format)
-# This configuration contains dataset-specific settings for ARC-AGI-2
+# ARC-AGI-2 Dataset Configuration
+# Standard configuration for ARC-AGI-2 dataset from GitHub (arcprize/ARC-AGI-2)
 
 # Dataset Information
 dataset_name: "ARC-AGI-2"
-dataset_year: 2025
-description: "ARC-AGI-2 dataset from GitHub (arcprize/ARC-AGI-2)"
-
-default_split: "training" # Default split to use
-
-# Data Paths - GitHub format uses directories
-data_root: "data/raw/ARC-AGI-2"
-training:
-  path: "${dataset.data_root}/data/training"
-evaluation:
-  path: "${dataset.data_root}/data/evaluation"
-
-# Parser Configuration
-parser:
-  _target_: jaxarc.parsers.ArcAgiParser
-  description: "General ARC-AGI parser supporting both ARC-AGI-1 and ARC-AGI-2"
+dataset_path: "data/raw/ARC-AGI-2"
+dataset_repo: "https://github.com/arcprize/ARC-AGI-2"
+task_split: "train"
+shuffle_tasks: true
 
 # Grid Configuration
-max_grid_height: 30 # Maximum height for JAX array padding
-max_grid_width: 30 # Maximum width for JAX array padding
-min_grid_height: 1 # Minimum height for valid grids
-min_grid_width: 1 # Minimum width for valid grids
-max_colors: 10 # Maximum number of colors (ARC uses 0-9)
-background_color: -1 # Default background color (for padded array)
+max_grid_height: 30
+max_grid_width: 30
+min_grid_height: 1
+min_grid_width: 1
+max_colors: 10
+background_color: -1
 
-# Task Configuration for JAX Environment
-max_train_pairs: 10 # Maximum number of training pairs per task
-max_test_pairs: 4 # Maximum number of test pairs per task
+# Task Configuration
+max_train_pairs: 10
+max_test_pairs: 4

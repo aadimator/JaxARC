@@ -1,54 +1,21 @@
 # MiniARC Dataset Configuration
-# This configuration contains dataset-specific settings for MiniARC
+# Standard configuration for MiniARC dataset (5x5 grids for rapid prototyping)
 
 # Dataset Information
 dataset_name: "MiniARC"
-dataset_year: 2022
-description:
-  "MiniARC dataset with 5x5 grids for rapid prototyping and testing. Compact
-  version of ARC with 400 training and 400 evaluation tasks optimized for faster
-  experimentation."
-
-default_split: "training" # Default split to use
-
-# Data Paths (adjust these to your local dataset location)
-data_root: "data/raw/MiniARC"
-tasks:
-  path: "${dataset.data_root}/data/MiniARC"
-
-# Parser Configuration
-parser:
-  _target_: jaxarc.parsers.MiniArcParser
-  description:
-    "MiniARC parser optimized for 5x5 grids with performance optimizations for
-    smaller data structures"
+dataset_path: "data/raw/MiniARC"
+dataset_repo: "https://github.com/KSB21ST/MINI-ARC"
+task_split: "train"
+shuffle_tasks: true
 
 # Grid Configuration - Optimized for 5x5 grids
-max_grid_height: 5 # Maximum height optimized for MiniARC (5x5 constraint)
-max_grid_width: 5 # Maximum width optimized for MiniARC (5x5 constraint)
-min_grid_height: 1 # Minimum height for valid grids
-min_grid_width: 1 # Minimum width for valid grids
-max_colors: 10 # Maximum number of colors (ARC uses 0-9)
-background_color: -1 # Default background color (for padded array)
+max_grid_height: 5
+max_grid_width: 5
+min_grid_height: 1
+min_grid_width: 1
+max_colors: 10
+background_color: -1
 
-# Task Configuration for JAX Environment - Optimized for smaller dataset
-# MiniARC typically has fewer demonstration pairs and usually 1 test pair per task
-max_train_pairs: 8 # Maximum number of training pairs per task (typical for MiniARC)
-max_test_pairs: 1 # Maximum number of test pairs per task (usually 1 test pair per task)
-
-# MiniARC-specific optimization flags
-optimization:
-  enable_5x5_optimizations: true # Enable optimizations specific to 5x5 grids
-  fast_processing: true # Enable faster processing for smaller grids
-  reduced_memory_usage: true # Optimize memory usage for smaller data structures
-  batch_processing_size: 64 # Larger batch sizes possible due to smaller grids
-
-# MiniARC-specific metadata
-metadata:
-  repository_url: "https://github.com/KSB21ST/MINI-ARC"
-  purpose: "Rapid prototyping and testing with compact ARC tasks"
-  performance_benefits:
-    - "Faster training iterations"
-    - "Reduced computational requirements"
-    - "Ideal for algorithm development and testing"
-    - "Quick experimentation cycles"
+# Task Configuration - Optimized for smaller dataset
+max_train_pairs: 8
+max_test_pairs: 1
