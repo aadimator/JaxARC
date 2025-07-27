@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Literal, Optional, Tuple
 
 import chex
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Int, PRNGKeyArray
@@ -37,8 +38,7 @@ EPISODE_MODE_TRAIN = 0
 EPISODE_MODE_TEST = 1
 
 
-@chex.dataclass
-class ArcEpisodeConfig:
+class ArcEpisodeConfig(eqx.Module):
     """Configuration for episode management behavior.
     
     This configuration is separate from the existing visualization EpisodeConfig
@@ -90,7 +90,7 @@ class ArcEpisodeConfig:
     training_reward_frequency: Literal["step", "submit"] = "step"
     evaluation_reward_frequency: Literal["submit"] = "submit"
 
-    def validate(self) -> list[str]:
+    def validate(self) -> tuple[str, ...]:
         """Validate episode configuration and return list of errors."""
         errors = []
         
