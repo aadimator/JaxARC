@@ -62,8 +62,7 @@ from ..utils.jax_types import (
 )
 
 
-@chex.dataclass
-class HistoryConfig:
+class HistoryConfig(eqx.Module):
     """Configuration for action history tracking.
     
     This configuration controls how action history is stored and managed,

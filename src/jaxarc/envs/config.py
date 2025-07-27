@@ -19,16 +19,16 @@ Each configuration class has a single, clear responsibility:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 import equinox as eqx
 import yaml
-from jaxtyping import Bool, Float, Int
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 # Import episode configuration
 from .episode_manager import ArcEpisodeConfig
+
 # Import action history configuration
 from .action_history import HistoryConfig
 
@@ -70,7 +70,9 @@ def validate_float_range(
         raise ConfigValidationError(msg)
 
 
-def validate_string_choice(value: str, field_name: str, choices: list[str]) -> None:
+def validate_string_choice(
+    value: str, field_name: str, choices: tuple[str, ...]
+) -> None:
     """Validate that a string value is one of the allowed choices."""
     if not isinstance(value, str):
         msg = f"{field_name} must be a string, got {type(value).__name__}"
@@ -105,20 +107,20 @@ class EnvironmentConfig(eqx.Module):
     """
 
     # Episode settings
-    max_episode_steps: Int = 100
-    auto_reset: Bool = True
+    max_episode_steps: int = 100
+    auto_reset: bool = True
 
     # Environment behavior
-    strict_validation: Bool = True
-    allow_invalid_actions: Bool = False
+    strict_validation: bool = True
+    allow_invalid_actions: bool = False
 
     # Debug level (moved from separate DebugConfig)
     debug_level: Literal["off", "minimal", "standard", "verbose", "research"] = (
         "standard"
     )
 
-    def validate(self) -> list[str]:
-        """Validate environment configuration and return list of errors."""
+    def validate(self) -> tuple[str, ...]:
+        """Validate environment configuration and return tuple of errors."""
         errors = []
 
         try:
@@ -130,7 +132,7 @@ class EnvironmentConfig(eqx.Module):
                 )
 
             # Validate debug level
-            valid_levels = ["off", "minimal", "standard", "verbose", "research"]
+            valid_levels = ("off", "minimal", "standard", "verbose", "research")
             validate_string_choice(self.debug_level, "debug_level", valid_levels)
 
         except ConfigValidationError as e:
@@ -162,6 +164,15 @@ class EnvironmentConfig(eqx.Module):
         }
         return level_mapping.get(self.debug_level, "standard")
 
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(
+                f"EnvironmentConfig must be hashable for JAX compatibility: {e}"
+            )
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> EnvironmentConfig:
         """Create environment config from Hydra DictConfig."""
@@ -187,25 +198,25 @@ class DatasetConfig(eqx.Module):
     dataset_repo: str = ""
 
     # Dataset-specific grid constraints
-    max_grid_height: Int = 30
-    max_grid_width: Int = 30
-    min_grid_height: Int = 3
-    min_grid_width: Int = 3
+    max_grid_height: int = 30
+    max_grid_width: int = 30
+    min_grid_height: int = 3
+    min_grid_width: int = 3
 
     # Color constraints
-    max_colors: Int = 10
-    background_color: Int = -1
+    max_colors: int = 10
+    background_color: int = -1
 
     # Task Configuration
-    max_train_pairs: Int = 10
-    max_test_pairs: Int = 3
+    max_train_pairs: int = 10
+    max_test_pairs: int = 3
 
     # Task sampling parameters
     task_split: str = "train"
-    shuffle_tasks: Bool = True
+    shuffle_tasks: bool = True
 
-    def validate(self) -> list[str]:
-        """Validate dataset configuration and return list of errors."""
+    def validate(self) -> tuple[str, ...]:
+        """Validate dataset configuration and return tuple of errors."""
         errors = []
 
         try:
@@ -239,12 +250,16 @@ class DatasetConfig(eqx.Module):
 
             # Validate color constraints
             validate_positive_int(self.max_colors, "max_colors")
-            
+
             # Validate background_color: -1 is valid for padding, 0-9 are valid ARC colors
             if not isinstance(self.background_color, int):
-                errors.append(f"background_color must be an integer, got {type(self.background_color).__name__}")
+                errors.append(
+                    f"background_color must be an integer, got {type(self.background_color).__name__}"
+                )
             elif self.background_color < -1:
-                errors.append(f"background_color must be >= -1 (for padding) or a valid color index, got {self.background_color}")
+                errors.append(
+                    f"background_color must be >= -1 (for padding) or a valid color index, got {self.background_color}"
+                )
 
             if self.max_colors < 2:
                 errors.append("max_colors must be at least 2")
@@ -285,6 +300,15 @@ class DatasetConfig(eqx.Module):
 
         return errors
 
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(
+                f"DatasetConfig must be hashable for JAX compatibility: {e}"
+            )
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> DatasetConfig:
         """Create dataset config from Hydra DictConfig."""
@@ -313,46 +337,75 @@ class VisualizationConfig(eqx.Module):
     """
 
     # Core settings
-    enabled: Bool = True
+    enabled: bool = True
     level: Literal["off", "minimal", "standard", "verbose", "full"] = "standard"
 
     # Output formats and quality - handled in from_hydra
-    output_formats: List[str] = None  # Will be set in from_hydra
+    output_formats: tuple[str, ...] = ("svg",)  # Changed from List[str] to tuple
     image_quality: Literal["low", "medium", "high"] = "high"
 
+    def __init__(self, **kwargs):
+        """Initialize with automatic list-to-tuple conversion."""
+        output_formats = kwargs.get("output_formats", ("svg",))
+        if isinstance(output_formats, str):
+            output_formats = (output_formats,)
+        elif hasattr(output_formats, '__iter__') and not isinstance(output_formats, (str, tuple)):
+            # Handle ListConfig and other iterable types
+            output_formats = tuple(output_formats) if output_formats else ("svg",)
+        elif not isinstance(output_formats, tuple):
+            output_formats = ("svg",)
+
+        # Set all fields
+        self.enabled = kwargs.get("enabled", True)
+        self.level = kwargs.get("level", "standard")
+        self.output_formats = output_formats
+        self.image_quality = kwargs.get("image_quality", "high")
+        self.show_coordinates = kwargs.get("show_coordinates", False)
+        self.show_operation_names = kwargs.get("show_operation_names", True)
+        self.highlight_changes = kwargs.get("highlight_changes", True)
+        self.include_metrics = kwargs.get("include_metrics", True)
+        self.color_scheme = kwargs.get("color_scheme", "default")
+        self.visualize_episodes = kwargs.get("visualize_episodes", True)
+        self.episode_summaries = kwargs.get("episode_summaries", True)
+        self.step_visualizations = kwargs.get("step_visualizations", True)
+        self.enable_comparisons = kwargs.get("enable_comparisons", True)
+        self.save_intermediate_states = kwargs.get("save_intermediate_states", False)
+        self.lazy_loading = kwargs.get("lazy_loading", True)
+        self.max_memory_mb = kwargs.get("max_memory_mb", 500)
+
     # Display settings
-    show_coordinates: Bool = False
-    show_operation_names: Bool = True
-    highlight_changes: Bool = True
-    include_metrics: Bool = True
+    show_coordinates: bool = False
+    show_operation_names: bool = True
+    highlight_changes: bool = True
+    include_metrics: bool = True
     color_scheme: Literal["default", "high_contrast", "colorblind"] = "default"
 
     # Episode visualization
-    visualize_episodes: Bool = True
-    episode_summaries: Bool = True
-    step_visualizations: Bool = True
+    visualize_episodes: bool = True
+    episode_summaries: bool = True
+    step_visualizations: bool = True
 
     # Comparison and analysis
-    enable_comparisons: Bool = True
-    save_intermediate_states: Bool = False
+    enable_comparisons: bool = True
+    save_intermediate_states: bool = False
 
     # Memory and performance
-    lazy_loading: Bool = True
-    max_memory_mb: Int = 500  # Standardized naming: max_* pattern
+    lazy_loading: bool = True
+    max_memory_mb: int = 500  # Standardized naming: max_* pattern
 
-    def validate(self) -> list[str]:
-        """Validate visualization configuration and return list of errors."""
+    def validate(self) -> tuple[str, ...]:
+        """Validate visualization configuration and return tuple of errors."""
         errors = []
 
         try:
             # Validate level choices
-            valid_levels = ["off", "minimal", "standard", "verbose", "full"]
+            valid_levels = ("off", "minimal", "standard", "verbose", "full")
             validate_string_choice(self.level, "level", valid_levels)
 
-            valid_quality = ["low", "medium", "high"]
+            valid_quality = ("low", "medium", "high")
             validate_string_choice(self.image_quality, "image_quality", valid_quality)
 
-            valid_schemes = ["default", "high_contrast", "colorblind"]
+            valid_schemes = ("default", "high_contrast", "colorblind")
             validate_string_choice(self.color_scheme, "color_scheme", valid_schemes)
 
             # Validate numeric fields
@@ -362,7 +415,7 @@ class VisualizationConfig(eqx.Module):
                 logger.warning(f"max_memory_mb is very large: {self.max_memory_mb}")
 
             # Validate output formats
-            valid_formats = ["svg", "png", "html", "console"]
+            valid_formats = ("svg", "png", "html", "console")
             if hasattr(self.output_formats, "__iter__"):
                 for fmt in self.output_formats:
                     if fmt not in valid_formats:
@@ -382,17 +435,31 @@ class VisualizationConfig(eqx.Module):
 
         return errors
 
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(
+                f"VisualizationConfig must be hashable for JAX compatibility: {e}"
+            )
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> VisualizationConfig:
         """Create visualization config from Hydra DictConfig."""
         output_formats = cfg.get("output_formats", ["svg"])
         if isinstance(output_formats, str):
-            output_formats = [output_formats]
+            output_formats = (output_formats,)
+        elif hasattr(output_formats, '__iter__') and not isinstance(output_formats, (str, tuple)):
+            # Handle ListConfig and other iterable types
+            output_formats = tuple(output_formats) if output_formats else ("svg",)
+        elif not isinstance(output_formats, tuple):
+            output_formats = ("svg",)
 
         return cls(
+            output_formats=output_formats,  # Pass as keyword argument
             enabled=cfg.get("enabled", True),
             level=cfg.get("level", "standard"),
-            output_formats=output_formats,
             image_quality=cfg.get("image_quality", "high"),
             show_coordinates=cfg.get("show_coordinates", False),
             show_operation_names=cfg.get("show_operation_names", True),
@@ -428,42 +495,42 @@ class StorageConfig(eqx.Module):
     logs_dir: str = "logs"
 
     # Storage limits
-    max_episodes_per_run: Int = 100
-    max_storage_gb: Float = 5.0
+    max_episodes_per_run: int = 100
+    max_storage_gb: float = 5.0
 
     # Cleanup settings
     cleanup_policy: Literal["none", "size_based", "oldest_first", "manual"] = (
         "size_based"
     )
     cleanup_frequency: Literal["never", "after_run", "daily", "manual"] = "after_run"
-    keep_recent_episodes: Int = 10
+    keep_recent_episodes: int = 10
 
     # File organization
-    create_run_subdirs: Bool = True
+    create_run_subdirs: bool = True
     timestamp_format: str = "%Y%m%d_%H%M%S"
-    compress_old_files: Bool = True
-    clear_output_on_start: Bool = True
+    compress_old_files: bool = True
+    clear_output_on_start: bool = True
 
     # Safety settings
-    auto_cleanup: Bool = True
-    warn_on_storage_limit: Bool = True
-    fail_on_storage_full: Bool = False
+    auto_cleanup: bool = True
+    warn_on_storage_limit: bool = True
+    fail_on_storage_full: bool = False
 
-    def validate(self) -> list[str]:
-        """Validate storage configuration and return list of errors."""
+    def validate(self) -> tuple[str, ...]:
+        """Validate storage configuration and return tuple of errors."""
         errors = []
 
         try:
             # Validate policy choices
-            valid_policies = ["none", "minimal", "standard", "research"]
+            valid_policies = ("none", "minimal", "standard", "research")
             validate_string_choice(self.policy, "policy", valid_policies)
 
-            valid_cleanup_policies = ["none", "size_based", "oldest_first", "manual"]
+            valid_cleanup_policies = ("none", "size_based", "oldest_first", "manual")
             validate_string_choice(
                 self.cleanup_policy, "cleanup_policy", valid_cleanup_policies
             )
 
-            valid_cleanup_freq = ["never", "after_run", "daily", "manual"]
+            valid_cleanup_freq = ("never", "after_run", "daily", "manual")
             validate_string_choice(
                 self.cleanup_frequency, "cleanup_frequency", valid_cleanup_freq
             )
@@ -508,6 +575,15 @@ class StorageConfig(eqx.Module):
 
         return errors
 
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(
+                f"StorageConfig must be hashable for JAX compatibility: {e}"
+            )
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> StorageConfig:
         """Create storage config from Hydra DictConfig."""
@@ -542,40 +618,40 @@ class LoggingConfig(eqx.Module):
     """
 
     # Core logging settings
-    structured_logging: Bool = True
+    structured_logging: bool = True
     log_format: Literal["json", "text", "structured"] = "json"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    compression: Bool = True
-    include_full_states: Bool = False
+    compression: bool = True
+    include_full_states: bool = False
 
     # What to log (specific content flags)
-    log_operations: Bool = False
-    log_grid_changes: Bool = False
-    log_rewards: Bool = False
-    log_episode_start: Bool = True
-    log_episode_end: Bool = True
-    log_key_moments: Bool = True
+    log_operations: bool = False
+    log_grid_changes: bool = False
+    log_rewards: bool = False
+    log_episode_start: bool = True
+    log_episode_end: bool = True
+    log_key_moments: bool = True
 
     # Logging frequency and timing
-    log_frequency: Int = 10  # Log every N steps
+    log_frequency: int = 10  # Log every N steps
 
     # Async logging settings
-    queue_size: Int = 500
-    worker_threads: Int = 1
-    batch_size: Int = 5
-    flush_interval: Float = 10.0
-    enable_compression: Bool = True
+    queue_size: int = 500
+    worker_threads: int = 1
+    batch_size: int = 5
+    flush_interval: float = 10.0
+    enable_compression: bool = True
 
-    def validate(self) -> list[str]:
-        """Validate logging configuration and return list of errors."""
+    def validate(self) -> tuple[str, ...]:
+        """Validate logging configuration and return tuple of errors."""
         errors = []
 
         try:
             # Validate format choices
-            valid_formats = ["json", "text", "structured"]
+            valid_formats = ("json", "text", "structured")
             validate_string_choice(self.log_format, "log_format", valid_formats)
 
-            valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR"]
+            valid_levels = ("DEBUG", "INFO", "WARNING", "ERROR")
             validate_string_choice(self.log_level, "log_level", valid_levels)
 
             # Validate numeric fields
@@ -610,6 +686,15 @@ class LoggingConfig(eqx.Module):
 
         return errors
 
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(
+                f"LoggingConfig must be hashable for JAX compatibility: {e}"
+            )
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> LoggingConfig:
         """Create logging config from Hydra DictConfig."""
@@ -642,40 +727,78 @@ class WandbConfig(eqx.Module):
     """
 
     # Core wandb settings
-    enabled: Bool = False
+    enabled: bool = False
     project_name: str = "jaxarc-experiments"
     entity: str | None = None
-    tags: List[str] = None  # Will be set in from_hydra
+    tags: tuple[str, ...] = ("jaxarc",)  # Changed from List[str] to tuple
     notes: str = "JaxARC experiment"
     group: str | None = None
     job_type: str = "training"
 
     # Logging settings
-    log_frequency: Int = 10
+    log_frequency: int = 10
     image_format: Literal["png", "svg", "both"] = "png"
-    max_image_size: tuple[Int, Int] = (800, 600)
+    max_image_size: tuple[int, int] = (800, 600)  # Changed Int to int
 
     # Advanced options
-    log_gradients: Bool = False
-    log_model_topology: Bool = False
-    log_system_metrics: Bool = True
+    log_gradients: bool = False
+    log_model_topology: bool = False
+    log_system_metrics: bool = True
 
     # Error handling
-    offline_mode: Bool = False
-    retry_attempts: Int = 3
-    retry_delay: Float = 1.0
+    offline_mode: bool = False
+    retry_attempts: int = 3
+    retry_delay: float = 1.0
 
     # Storage
-    save_code: Bool = True
-    save_config: Bool = True
+    save_code: bool = True
+    save_config: bool = True
 
-    def validate(self) -> list[str]:
-        """Validate wandb configuration and return list of errors."""
+    def __init__(self, **kwargs):
+        """Initialize with automatic list-to-tuple conversion."""
+        tags = kwargs.get("tags", ("jaxarc",))
+        if isinstance(tags, str):
+            tags = (tags,)
+        elif hasattr(tags, '__iter__') and not isinstance(tags, (str, tuple)):
+            # Handle ListConfig and other iterable types
+            tags = tuple(tags)
+        elif not isinstance(tags, tuple):
+            tags = ("jaxarc",)
+
+        max_image_size = kwargs.get("max_image_size", (800, 600))
+        if hasattr(max_image_size, '__iter__') and not isinstance(max_image_size, (str, tuple)):
+            # Handle ListConfig and other iterable types
+            max_image_size = tuple(max_image_size)
+        elif not isinstance(max_image_size, tuple):
+            max_image_size = (800, 600)
+
+        # Set all fields
+        self.enabled = kwargs.get("enabled", False)
+        self.project_name = kwargs.get("project_name", "jaxarc-experiments")
+        self.entity = kwargs.get("entity", None)
+        self.tags = tags
+        self.notes = kwargs.get("notes", "JaxARC experiment")
+        self.group = kwargs.get("group", None)
+        self.job_type = kwargs.get("job_type", "training")
+        self.log_frequency = kwargs.get("log_frequency", 10)
+        self.image_format = kwargs.get("image_format", "png")
+        self.max_image_size = max_image_size
+        self.log_gradients = kwargs.get("log_gradients", False)
+        self.log_model_topology = kwargs.get("log_model_topology", False)
+        self.log_system_metrics = kwargs.get("log_system_metrics", True)
+        self.offline_mode = kwargs.get("offline_mode", False)
+        self.retry_attempts = kwargs.get("retry_attempts", 3)
+        self.retry_delay = kwargs.get("retry_delay", 1.0)
+        self.save_code = kwargs.get("save_code", True)
+        self.save_config = kwargs.get("save_config", True)
+
+    def validate(self) -> tuple[str, ...]:
+        """Validate wandb configuration and return tuple of errors."""
         errors = []
 
         try:
             # Validate format choices
-            valid_formats = ["png", "svg", "both"]
+            valid_formats = ("png", "svg", "both")
             validate_string_choice(self.image_format, "image_format", valid_formats)
 
             # Validate project name
@@ -712,24 +835,37 @@ class WandbConfig(eqx.Module):
 
         return errors
 
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(f"WandbConfig must be hashable for JAX compatibility: {e}")
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> WandbConfig:
         """Create wandb config from Hydra DictConfig."""
         tags = cfg.get("tags", ["jaxarc"])
         if isinstance(tags, str):
-            tags = [tags]
+            tags = (tags,)
+        elif hasattr(tags, '__iter__') and not isinstance(tags, (str, tuple)):
+            # Handle ListConfig and other iterable types
+            tags = tuple(tags)
+        elif not isinstance(tags, tuple):
+            tags = ("jaxarc",)
 
         max_image_size = cfg.get("max_image_size", [800, 600])
-        if max_image_size is not None and len(max_image_size) == 2:
+        if hasattr(max_image_size, '__iter__') and not isinstance(max_image_size, (str, tuple)):
+            # Handle ListConfig and other iterable types
             max_image_size = tuple(max_image_size)
-        else:
+        elif not isinstance(max_image_size, tuple):
             max_image_size = (800, 600)
 
         return cls(
+            tags=tags,  # Pass as keyword argument
             enabled=cfg.get("enabled", False),
             project_name=cfg.get("project_name", "jaxarc-experiments"),
             entity=cfg.get("entity"),
-            tags=tags,
             notes=cfg.get("notes", "JaxARC experiment"),
             group=cfg.get("group"),
             job_type=cfg.get("job_type", "training"),
@@ -755,34 +891,38 @@ class RewardConfig(eqx.Module):
     """
 
     # Basic reward settings
-    reward_on_submit_only: Bool = True
-    step_penalty: Float = -0.01
-    success_bonus: Float = 10.0
-    similarity_weight: Float = 1.0
+    reward_on_submit_only: bool = True
+    step_penalty: float = -0.01
+    success_bonus: float = 10.0
+    similarity_weight: float = 1.0
 
     # Additional reward shaping
-    progress_bonus: Float = 0.0
-    invalid_action_penalty: Float = -0.1
-    
-    # Enhanced mode-specific reward settings
-    control_operation_penalty: Float = -0.01  # Penalty for control operations
-    pair_switching_bonus: Float = 0.0  # Bonus for beneficial pair switching
-    
-    # Mode-specific reward structures
-    training_similarity_weight: Float = 1.0  # Similarity weight in training mode
-    evaluation_similarity_weight: Float = 0.0  # Similarity weight in evaluation mode (masked)
-    
-    # Pair-type specific bonuses
-    demo_completion_bonus: Float = 1.0  # Bonus for completing demonstration pairs
-    test_completion_bonus: Float = 5.0  # Bonus for completing test pairs
-    
-    # Advanced reward shaping
-    consecutive_success_bonus: Float = 0.0  # Bonus for solving multiple pairs in sequence
-    efficiency_bonus_threshold: int = 50  # Step threshold for efficiency bonus
-    efficiency_bonus: Float = 1.0  # Bonus for solving pairs efficiently
+    progress_bonus: float = 0.0
+    invalid_action_penalty: float = -0.1
 
-    def validate(self) -> list[str]:
-        """Validate reward configuration and return list of errors."""
+    # Enhanced mode-specific reward settings
+    control_operation_penalty: float = -0.01  # Penalty for control operations
+    pair_switching_bonus: float = 0.0  # Bonus for beneficial pair switching
+
+    # Mode-specific reward structures
+    training_similarity_weight: float = 1.0  # Similarity weight in training mode
+    evaluation_similarity_weight: float = (
+        0.0  # Similarity weight in evaluation mode (masked)
+    )
+
+    # Pair-type specific bonuses
+    demo_completion_bonus: float = 1.0  # Bonus for completing demonstration pairs
+    test_completion_bonus: float = 5.0  # Bonus for completing test pairs
+
+    # Advanced reward shaping
+    consecutive_success_bonus: float = (
+        0.0  # Bonus for solving multiple pairs in sequence
+    )
+    efficiency_bonus_threshold: int = 50  # Step threshold for efficiency bonus
+    efficiency_bonus: float = 1.0  # Bonus for solving pairs efficiently
+
+    def validate(self) -> tuple[str, ...]:
+        """Validate reward configuration and return tuple of errors."""
         errors = []
 
         try:
@@ -794,16 +934,35 @@ class RewardConfig(eqx.Module):
             validate_float_range(
                 self.invalid_action_penalty, "invalid_action_penalty", -10.0, 1.0
             )
-            
+
             # Validate enhanced reward fields
-            validate_float_range(self.control_operation_penalty, "control_operation_penalty", -10.0, 1.0)
-            validate_float_range(self.pair_switching_bonus, "pair_switching_bonus", -10.0, 10.0)
-            validate_float_range(self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0)
-            validate_float_range(self.evaluation_similarity_weight, "evaluation_similarity_weight", 0.0, 10.0)
-            validate_float_range(self.demo_completion_bonus, "demo_completion_bonus", -100.0, 100.0)
-            validate_float_range(self.test_completion_bonus, "test_completion_bonus", -100.0, 100.0)
-            validate_float_range(self.consecutive_success_bonus, "consecutive_success_bonus", -10.0, 10.0)
-            validate_non_negative_int(self.efficiency_bonus_threshold, "efficiency_bonus_threshold")
+            validate_float_range(
+                self.control_operation_penalty, "control_operation_penalty", -10.0, 1.0
+            )
+            validate_float_range(
+                self.pair_switching_bonus, "pair_switching_bonus", -10.0, 10.0
+            )
+            validate_float_range(
+                self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0
+            )
+            validate_float_range(
+                self.evaluation_similarity_weight,
+                "evaluation_similarity_weight",
+                0.0,
+                10.0,
+            )
+            validate_float_range(
+                self.demo_completion_bonus, "demo_completion_bonus", -100.0, 100.0
+            )
+            validate_float_range(
+                self.test_completion_bonus, "test_completion_bonus", -100.0, 100.0
+            )
+            validate_float_range(
+                self.consecutive_success_bonus, "consecutive_success_bonus", -10.0, 10.0
+            )
+            validate_non_negative_int(
+                self.efficiency_bonus_threshold, "efficiency_bonus_threshold"
+            )
             validate_float_range(self.efficiency_bonus, "efficiency_bonus", -10.0, 10.0)
 
             # Issue warnings for potentially problematic configurations
@@ -826,12 +985,12 @@ class RewardConfig(eqx.Module):
                 logger.warning(
                     f"invalid_action_penalty should typically be negative or zero, got {self.invalid_action_penalty}"
                 )
-                
+
             if self.control_operation_penalty > 0:
                 logger.warning(
                     f"control_operation_penalty should typically be negative or zero, got {self.control_operation_penalty}"
                 )
-                
+
             # Warn about evaluation similarity weight
             if self.evaluation_similarity_weight > 0:
                 logger.warning(
@@ -842,6 +1001,15 @@ class RewardConfig(eqx.Module):
             errors.append(str(e))
 
         return errors
+
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(
+                f"RewardConfig must be hashable for JAX compatibility: {e}"
+            )
 
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> RewardConfig:
@@ -876,29 +1044,59 @@ class ActionConfig(eqx.Module):
     selection_format: Literal["mask", "point", "bbox"] = "mask"
 
     # Selection parameters
-    selection_threshold: Float = 0.5
-    allow_partial_selection: Bool = True
+    selection_threshold: float = 0.5
+    allow_partial_selection: bool = True
 
     # Operation parameters
-    max_operations: Int = 42  # Updated to include enhanced control operations (0-41)
-    allowed_operations: Optional[List[Int]] = None
+    max_operations: int = 42  # Updated to include enhanced control operations (0-41)
+    allowed_operations: Optional[tuple[int, ...]] = (
+        None  # Changed from List[Int] to tuple
+    )
 
     # Validation settings
-    validate_actions: Bool = True
-    allow_invalid_actions: Bool = False  # Standardized naming: allow_* pattern
-    
-    # Dynamic action space control settings
-    dynamic_action_filtering: Bool = False  # Enable runtime operation filtering
-    context_dependent_operations: Bool = False  # Allow context-based operation availability
-    invalid_operation_policy: Literal["clip", "reject", "passthrough", "penalize"] = "clip"
+    validate_actions: bool = True
+    allow_invalid_actions: bool = False  # Standardized naming: allow_* pattern
 
-    def validate(self) -> list[str]:
-        """Validate action configuration and return list of errors."""
+    # Dynamic action space control settings
+    dynamic_action_filtering: bool = False  # Enable runtime operation filtering
+    context_dependent_operations: bool = (
+        False  # Allow context-based operation availability
+    )
+    invalid_operation_policy: Literal["clip", "reject", "passthrough", "penalize"] = (
+        "clip"
+    )
+
+    def __init__(self, **kwargs):
+        """Initialize with automatic list-to-tuple conversion."""
+        allowed_operations = kwargs.get("allowed_operations", None)
+        if allowed_operations is not None:
+            if hasattr(allowed_operations, '__iter__') and not isinstance(allowed_operations, (str, tuple)):
+                # Handle ListConfig and other iterable types
+                allowed_operations = tuple(allowed_operations) if allowed_operations else None
+            elif not isinstance(allowed_operations, tuple):
+                allowed_operations = tuple(allowed_operations) if allowed_operations else None
+
+        # Set all fields
+        self.selection_format = kwargs.get("selection_format", "mask")
+        self.selection_threshold = kwargs.get("selection_threshold", 0.5)
+        self.allow_partial_selection = kwargs.get("allow_partial_selection", True)
+        self.max_operations = kwargs.get("max_operations", 42)
+        self.allowed_operations = allowed_operations
+        self.validate_actions = kwargs.get("validate_actions", True)
+        self.allow_invalid_actions = kwargs.get("allow_invalid_actions", False)
+        self.dynamic_action_filtering = kwargs.get("dynamic_action_filtering", False)
+        self.context_dependent_operations = kwargs.get(
+            "context_dependent_operations", False
+        )
+        self.invalid_operation_policy = kwargs.get("invalid_operation_policy", "clip")
+
+    def validate(self) -> tuple[str, ...]:
+        """Validate action configuration and return tuple of errors."""
         errors = []
 
         try:
             # Validate selection format
-            valid_formats = ["mask", "point", "bbox"]
+            valid_formats = ("mask", "point", "bbox")
             validate_string_choice(
                 self.selection_format, "selection_format", valid_formats
             )
@@ -913,10 +1111,10 @@ class ActionConfig(eqx.Module):
             if self.max_operations > 100:
                 logger.warning(f"max_operations is very large: {self.max_operations}")
 
-            # Validate allowed operations list if provided
+            # Validate allowed operations tuple if provided
             if self.allowed_operations is not None:
-                if not isinstance(self.allowed_operations, list):
-                    errors.append("allowed_operations must be a list or None")
+                if not isinstance(self.allowed_operations, tuple):
+                    errors.append("allowed_operations must be a tuple or None")
                 elif not self.allowed_operations:
                     errors.append("allowed_operations cannot be empty if specified")
                 else:
@@ -942,9 +1140,11 @@ class ActionConfig(eqx.Module):
                         )
 
             # Validate dynamic action space control settings
-            valid_policies = ["clip", "reject", "passthrough", "penalize"]
+            valid_policies = ("clip", "reject", "passthrough", "penalize")
             validate_string_choice(
-                self.invalid_operation_policy, "invalid_operation_policy", valid_policies
+                self.invalid_operation_policy,
+                "invalid_operation_policy",
+                valid_policies,
             )
 
             # Cross-field validation warnings
@@ -957,7 +1157,7 @@ class ActionConfig(eqx.Module):
                 logger.warning(
                     "allow_invalid_actions has no effect when validate_actions=False"
                 )
-                
+
             if not self.dynamic_action_filtering and self.context_dependent_operations:
                 logger.warning(
                     "context_dependent_operations has no effect when dynamic_action_filtering=False"
@@ -968,19 +1168,34 @@ class ActionConfig(eqx.Module):
 
         return errors
 
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(
+                f"ActionConfig must be hashable for JAX compatibility: {e}"
+            )
+
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> ActionConfig:
         """Create action config from Hydra DictConfig."""
         allowed_ops = cfg.get("allowed_operations")
-        if allowed_ops is not None and not isinstance(allowed_ops, list):
-            allowed_ops = list(allowed_ops) if allowed_ops else None
+        if allowed_ops is not None:
+            if hasattr(allowed_ops, '__iter__') and not isinstance(allowed_ops, (str, tuple)):
+                # Handle ListConfig and other iterable types
+                allowed_ops = tuple(allowed_ops) if allowed_ops else None
+            elif not isinstance(allowed_ops, tuple):
+                allowed_ops = tuple(allowed_ops) if allowed_ops else None
 
         return cls(
+            allowed_operations=allowed_ops,  # Pass as keyword argument
             selection_format=cfg.get("selection_format", "mask"),
             selection_threshold=cfg.get("selection_threshold", 0.5),
             allow_partial_selection=cfg.get("allow_partial_selection", True),
-            max_operations=cfg.get("num_operations", 42),  # Updated to include enhanced operations
-            allowed_operations=allowed_ops,
+            max_operations=cfg.get(
+                "num_operations", 42
+            ),  # Updated to include enhanced operations
             validate_actions=cfg.get("validate_actions", True),
             allow_invalid_actions=not cfg.get(
                 "clip_invalid_actions", True
@@ -989,8 +1204,6 @@ class ActionConfig(eqx.Module):
             context_dependent_operations=cfg.get("context_dependent_operations", False),
             invalid_operation_policy=cfg.get("invalid_operation_policy", "clip"),
         )
-
-
 
 
 class JaxArcConfig(eqx.Module):
@@ -1044,11 +1257,20 @@ class JaxArcConfig(eqx.Module):
         self.episode = episode or ArcEpisodeConfig()
         self.history = history or HistoryConfig()
 
-    def validate(self) -> List[str]:
+    def __check_init__(self):
+        """Validate hashability after initialization."""
+        try:
+            hash(self)
+        except TypeError as e:
+            raise ValueError(
+                f"JaxArcConfig must be hashable for JAX compatibility: {e}"
+            )
+
+    def validate(self) -> tuple[str, ...]:
         """Comprehensive validation method that checks cross-config consistency.
 
         Returns:
-            List of validation error messages. Empty list means validation passed.
+            Tuple of validation error messages. Empty tuple means validation passed.
         """
         all_errors = []
 
@@ -1062,7 +1284,7 @@ class JaxArcConfig(eqx.Module):
         all_errors.extend(self.logging.validate())
         all_errors.extend(self.wandb.validate())
         all_errors.extend(self.episode.validate())
-        
+
         # Validate history config (HistoryConfig uses @chex.dataclass validation in __post_init__)
         # The validation happens automatically during construction, so no explicit validate() call needed
 
@@ -1070,9 +1292,9 @@ class JaxArcConfig(eqx.Module):
         cross_validation_errors = self._validate_cross_config_consistency()
         all_errors.extend(cross_validation_errors)
 
-        return all_errors
+        return tuple(all_errors)
 
-    def _validate_cross_config_consistency(self) -> List[str]:
+    def _validate_cross_config_consistency(self) -> tuple[str, ...]:
         """Validate consistency between different configuration sections."""
         errors = []
         warnings = []
@@ -1109,10 +1331,10 @@ class JaxArcConfig(eqx.Module):
         except Exception as e:
             errors.append(f"Cross-configuration validation error: {e}")
 
-        return errors
+        return tuple(errors)
 
     def _validate_debug_level_consistency(
-        self, errors: List[str], warnings: List[str]
+        self, errors: list[str], warnings: list[str]
     ) -> None:
         """Validate debug level consistency across configurations."""
         debug_level = self.environment.debug_level
@@ -1150,7 +1372,7 @@ class JaxArcConfig(eqx.Module):
             )
 
     def _validate_storage_consistency(
-        self, errors: List[str], warnings: List[str]
+        self, errors: list[str], warnings: list[str]
     ) -> None:
         """Validate storage configuration consistency."""
         # Storage policy vs features consistency
@@ -1185,7 +1407,7 @@ class JaxArcConfig(eqx.Module):
                 errors.append("Structured logging enabled but logs_dir is empty")
 
     def _validate_performance_consistency(
-        self, errors: List[str], warnings: List[str]
+        self, errors: list[str], warnings: list[str]
     ) -> None:
         """Validate performance-related configuration consistency."""
         # Memory limits vs visualization level
@@ -1221,7 +1443,7 @@ class JaxArcConfig(eqx.Module):
             )
 
     def _validate_wandb_consistency(
-        self, errors: List[str], warnings: List[str]
+        self, errors: list[str], warnings: list[str]
     ) -> None:
         """Validate WandB integration consistency."""
         if self.wandb.enabled:
@@ -1251,7 +1473,7 @@ class JaxArcConfig(eqx.Module):
                 )
 
     def _validate_action_environment_consistency(
-        self, errors: List[str], warnings: List[str]
+        self, errors: list[str], warnings: list[str]
     ) -> None:
         """Validate action space and environment consistency."""
         # Action space vs episode length
@@ -1282,7 +1504,7 @@ class JaxArcConfig(eqx.Module):
             )
 
     def _validate_reward_consistency(
-        self, errors: List[str], warnings: List[str]
+        self, errors: list[str], warnings: list[str]
     ) -> None:
         """Validate reward configuration consistency."""
         # Reward timing vs episode length
@@ -1634,7 +1856,7 @@ class JaxArcConfig(eqx.Module):
                     logging_cfg[key] = value
                 elif key in [
                     "episode_mode",
-                    "demo_selection_strategy", 
+                    "demo_selection_strategy",
                     "allow_demo_switching",
                     "test_selection_strategy",
                     "allow_test_switching",
@@ -1642,14 +1864,14 @@ class JaxArcConfig(eqx.Module):
                     "max_pairs_per_episode",
                     "success_threshold",
                     "training_reward_frequency",
-                    "evaluation_reward_frequency"
+                    "evaluation_reward_frequency",
                 ]:
                     episode_cfg[key] = value
                 elif key in [
                     "max_history_length",
                     "store_selection_data",
                     "store_intermediate_grids",
-                    "compress_repeated_actions"
+                    "compress_repeated_actions",
                 ]:
                     history_cfg[key] = value
 
@@ -1678,14 +1900,16 @@ class JaxArcConfig(eqx.Module):
         logging = LoggingConfig.from_hydra(DictConfig(logging_cfg))
         wandb = WandbConfig.from_hydra(DictConfig(wandb_cfg))
         episode = ArcEpisodeConfig.from_hydra(episode_cfg)
-        
+
         # Create history config (HistoryConfig uses @chex.dataclass, not from_hydra)
         history = HistoryConfig(
             enabled=history_cfg.get("enabled", True),
             max_history_length=history_cfg.get("max_history_length", 1000),
             store_selection_data=history_cfg.get("store_selection_data", True),
             store_intermediate_grids=history_cfg.get("store_intermediate_grids", False),
-            compress_repeated_actions=history_cfg.get("compress_repeated_actions", True),
+            compress_repeated_actions=history_cfg.get(
+                "compress_repeated_actions", True
+            ),
         )
 
         return cls(
