@@ -22,8 +22,6 @@ import jax
 import jax.numpy as jnp
 import chex
 import equinox as eqx
-from typing import Dict, Any, Tuple
-from hypothesis import given, strategies as st
 
 from jaxarc.envs.episode_manager import ArcEpisodeManager, ArcEpisodeConfig
 from jaxarc.state import ArcEnvState, create_arc_env_state

@@ -10,7 +10,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from omegaconf import DictConfig
 
 from jaxarc.envs.config import DatasetConfig
 from jaxarc.types import JaxArcTask
@@ -96,11 +95,39 @@ class ArcDataParserBase(ABC):
     def from_hydra(cls, hydra_config):
         """Create parser from Hydra configuration for backward compatibility.
         
+        This class method provides backward compatibility with existing Hydra-based
+        configurations while internally using typed DatasetConfig objects for
+        better type safety and validation.
+        
         Args:
-            hydra_config: Raw Hydra DictConfig for dataset configuration
+            hydra_config: Raw Hydra DictConfig for dataset configuration containing
+                         fields like dataset_path, max_grid_height, max_grid_width,
+                         and other dataset-specific settings.
             
         Returns:
-            Parser instance initialized with typed config
+            Parser instance initialized with typed DatasetConfig converted from
+            the provided Hydra configuration.
+            
+        Examples:
+            ```python
+            from omegaconf import DictConfig
+            
+            # Hydra configuration
+            hydra_config = DictConfig({
+                "dataset_path": "data/raw/MiniARC",
+                "max_grid_height": 5,
+                "max_grid_width": 5,
+                # ... other fields
+            })
+            
+            # Create parser using from_hydra
+            parser = MiniArcParser.from_hydra(hydra_config)
+            ```
+            
+        Note:
+            This method is provided for backward compatibility. For new code,
+            prefer creating DatasetConfig objects directly and using the
+            standard __init__ method.
         """
         dataset_config = DatasetConfig.from_hydra(hydra_config)
         return cls(dataset_config)

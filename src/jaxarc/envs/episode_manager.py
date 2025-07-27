@@ -24,14 +24,13 @@ from __future__ import annotations
 from typing import Literal, Optional, Tuple
 
 import chex
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Int, PRNGKeyArray
 
 from ..state import ArcEnvState
 from ..types import JaxArcTask
-from ..utils.jax_types import EpisodeMode, PairIndex
+from ..utils.jax_types import PairIndex
 
 # JAX-compatible episode mode constants
 EPISODE_MODE_TRAIN = 0
@@ -388,7 +387,6 @@ class ArcEpisodeManager:
         from ..types import ARCLEOperationType
         
         # Use JAX-compatible conditional logic with individual field updates
-        from ..types import ARCLEOperationType
         
         # Calculate new index for each operation type
         next_demo_idx = ArcEpisodeManager._find_next_available_index(state.current_example_idx, state.available_demo_pairs)

@@ -21,13 +21,11 @@ import jax
 import jax.numpy as jnp
 import chex
 import equinox as eqx
-from typing import Dict, Any, Optional, List
-from hypothesis import given, strategies as st
 
 from jaxarc.envs.action_space_controller import ActionSpaceController
 from jaxarc.envs.config import ActionConfig
 from jaxarc.state import ArcEnvState, create_arc_env_state
-from jaxarc.types import JaxArcTask, Grid
+from jaxarc.types import JaxArcTask
 from jaxarc.utils import jax_types
 
 # Constants for readability

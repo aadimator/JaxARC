@@ -22,21 +22,15 @@ import jax
 import jax.numpy as jnp
 import chex
 import equinox as eqx
-from typing import Dict, Any
 
 from jaxarc.state import ArcEnvState, create_arc_env_state
 from jaxarc.envs.observations import (
-    ArcObservation,
     ObservationConfig,
     create_observation,
     create_minimal_observation,
-    create_standard_observation,
-    create_rich_observation,
-    create_training_observation,
     create_evaluation_observation,
-    create_debug_observation,
 )
-from jaxarc.types import JaxArcTask, Grid
+from jaxarc.types import JaxArcTask
 from jaxarc.utils import jax_types
 
 

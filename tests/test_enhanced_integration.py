@@ -19,33 +19,24 @@ from __future__ import annotations
 
 import time
 import tracemalloc
-from typing import Dict, Any, Tuple, List, Optional
-from unittest.mock import Mock, patch
+from typing import Optional
 
 import pytest
 import jax
 import jax.numpy as jnp
-import chex
 import equinox as eqx
-from hypothesis import given, strategies as st
 
 from jaxarc.envs import ArcEnvironment
 from jaxarc.envs.config import JaxArcConfig
 from jaxarc.envs.functional import arc_reset, arc_step, create_observation
-from jaxarc.envs.episode_manager import ArcEpisodeManager, ArcEpisodeConfig
-from jaxarc.envs.action_history import ActionHistoryTracker, HistoryConfig
-from jaxarc.envs.action_space_controller import ActionSpaceController
+from jaxarc.envs.episode_manager import ArcEpisodeConfig
+from jaxarc.envs.action_history import HistoryConfig
 from jaxarc.envs.observations import (
-    ArcObservation,
     ObservationConfig,
-    create_minimal_observation,
-    create_standard_observation,
-    create_rich_observation,
 )
 from jaxarc.state import ArcEnvState
-from jaxarc.types import JaxArcTask, ARCLEOperationType
+from jaxarc.types import JaxArcTask
 from jaxarc.utils.config import get_config
-from jaxarc.utils import jax_types
 
 
 def create_enhanced_config(

@@ -31,9 +31,7 @@ from jaxarc.envs.functional import (
     _is_episode_done,
     _validate_operation,
     arc_reset,
-    arc_reset_with_hydra,
     arc_step,
-    arc_step_with_hydra,
 )
 from jaxarc.state import ArcEnvState
 from jaxarc.types import ARCLEAction, JaxArcTask
@@ -145,7 +143,7 @@ class TestArcReset:
         assert state.step_count == 0
         assert not state.episode_done
 
-    def test_arc_reset_with_hydra_config(self):
+    def test_arc_reset_config(self):
         """Test arc_reset with Hydra DictConfig."""
         hydra_config = OmegaConf.create(
             {
@@ -262,8 +260,8 @@ class TestArcReset:
         assert batch_states.target_grid.shape[0] == batch_size
         assert batch_states.similarity_score.shape[0] == batch_size
 
-    def test_arc_reset_with_hydra_convenience_function(self):
-        """Test arc_reset_with_hydra convenience function."""
+    def test_arc_reset_convenience_function(self):
+        """Test arc_reset convenience function."""
         hydra_config = OmegaConf.create(
             {
                 "max_episode_steps": 30,
@@ -271,7 +269,7 @@ class TestArcReset:
             }
         )
 
-        state, obs = arc_reset_with_hydra(self.key, hydra_config)
+        state, obs = arc_reset(self.key, hydra_config)
 
         assert isinstance(state, ArcEnvState)
         assert state.step_count == 0
@@ -428,7 +426,7 @@ class TestArcStep:
             # Skip test if ARCLEAction has changed
             pytest.skip("ARCLEAction interface has changed, skipping test")
 
-    def test_arc_step_with_hydra_config(self):
+    def test_arc_step_config(self):
         """Test arc_step with Hydra DictConfig."""
         hydra_config = OmegaConf.create(
             {
@@ -549,8 +547,8 @@ class TestArcStep:
         # Check values
         assert jnp.all(step_counts == 1)  # All step counts should be 1
 
-    def test_arc_step_with_hydra_convenience_function(self):
-        """Test arc_step_with_hydra convenience function."""
+    def test_arc_step_convenience_function(self):
+        """Test arc_step convenience function."""
         hydra_config = OmegaConf.create(
             {
                 "max_episode_steps": 20,
@@ -558,14 +556,14 @@ class TestArcStep:
             }
         )
 
-        state, obs = arc_reset_with_hydra(self.key, hydra_config)
+        state, obs = arc_reset(self.key, hydra_config)
 
         action = {
             "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
             "operation": jnp.array(1, dtype=jnp.int32),
         }
 
-        new_state, new_obs, reward, done, info = arc_step_with_hydra(
+        new_state, new_obs, reward, done, info = arc_step(
             state, action, hydra_config
         )
 

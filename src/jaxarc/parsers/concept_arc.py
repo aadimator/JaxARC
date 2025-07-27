@@ -15,7 +15,6 @@ from typing import Any
 import chex
 import jax
 from loguru import logger
-from omegaconf import DictConfig
 from pyprojroot import here
 
 from jaxarc.envs.config import DatasetConfig
@@ -45,11 +44,34 @@ class ConceptArcParser(ArcDataParserBase):
     """
 
     def __init__(self, config: DatasetConfig) -> None:
-        """Initialize the ConceptArcParser with configuration.
+        """Initialize the ConceptArcParser with typed configuration.
+
+        This parser accepts a typed DatasetConfig object for better type safety
+        and validation. For backward compatibility with Hydra configurations,
+        use the from_hydra() class method.
 
         Args:
             config: Typed dataset configuration containing paths and parser settings,
-                   including concept group definitions and corpus path
+                   including dataset_path (corpus directory), max_grid_height, max_grid_width,
+                   and other required fields for ConceptARC dataset processing.
+
+        Examples:
+            ```python
+            # Direct typed config usage (preferred)
+            from jaxarc.envs.config import DatasetConfig
+            from omegaconf import DictConfig
+            
+            hydra_config = DictConfig({...})
+            dataset_config = DatasetConfig.from_hydra(hydra_config)
+            parser = ConceptArcParser(dataset_config)
+            
+            # Alternative: use from_hydra class method
+            parser = ConceptArcParser.from_hydra(hydra_config)
+            ```
+
+        Raises:
+            ValueError: If configuration is invalid or concept groups are not found
+            RuntimeError: If corpus directory is not found or contains no concept groups
         """
         super().__init__(config)
 

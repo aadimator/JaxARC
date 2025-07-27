@@ -11,7 +11,7 @@ import jax
 import jax.numpy as jnp
 
 from jaxarc.envs import ArcEnvironment
-from jaxarc.envs.config_factory import ConfigFactory
+from jaxarc.envs.config import JaxArcConfig
 from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.config import get_config
@@ -26,9 +26,9 @@ class TestBasicIntegration:
         cfg = get_config()
 
         # Create environment config using the correct factory
-        from jaxarc.envs.config_factory import ConfigFactory
+        from jaxarc.envs.config import JaxArcConfig
 
-        env_config = ConfigFactory.from_hydra(cfg)
+        env_config = JaxArcConfig.from_hydra(cfg)
 
         # Create environment
         env = ArcEnvironment(env_config)
@@ -42,7 +42,7 @@ class TestBasicIntegration:
         """Test a simple environment workflow without complex task creation."""
         # Get configuration and create environment
         cfg = get_config()
-        env_config = ConfigFactory.from_hydra(cfg)
+        env_config = JaxArcConfig.from_hydra(cfg)
 
         # Disable all logging to avoid callback issues
         import equinox as eqx
@@ -153,7 +153,7 @@ class TestBasicIntegration:
 
         # Get configuration and create environment
         cfg = get_config()
-        env_config = ConfigFactory.from_hydra(cfg)
+        env_config = JaxArcConfig.from_hydra(cfg)
 
         # Disable logging to avoid visualization callback issues
         import equinox as eqx
@@ -198,7 +198,7 @@ class TestBasicIntegration:
         """Test that the integrated system works with JAX transformations."""
         # Get configuration and create environment
         cfg = get_config()
-        env_config = ConfigFactory.from_hydra(cfg)
+        env_config = JaxArcConfig.from_hydra(cfg)
 
         # Disable logging to avoid visualization callback issues
         import equinox as eqx
@@ -336,7 +336,7 @@ class TestConfigurationIntegration:
         assert hasattr(cfg, "reward")
 
         # Test configuration can create environment config
-        env_config = ConfigFactory.from_hydra(cfg)
+        env_config = JaxArcConfig.from_hydra(cfg)
         assert env_config is not None
 
     def test_config_validation(self):
@@ -344,7 +344,7 @@ class TestConfigurationIntegration:
         cfg = get_config()
 
         # Should not raise for valid config
-        env_config = ConfigFactory.from_hydra(cfg)
+        env_config = JaxArcConfig.from_hydra(cfg)
         env = ArcEnvironment(env_config)
 
         # Basic validation

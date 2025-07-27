@@ -81,7 +81,9 @@ with initialize_config_dir(config_dir=str(config_dir), version_base=None):
     mask_cfg = compose(config_name="config", overrides=["action=standard"])
 
 # Dataset Parser
-parser = ArcAgiParser(point_cfg.dataset)
+from jaxarc.envs.config import DatasetConfig
+typed_dataset_config = DatasetConfig.from_hydra(point_cfg.dataset)
+parser = ArcAgiParser(typed_dataset_config)
 
 # Create unified config objects directly
 unified_point_config = JaxArcConfig.from_hydra(point_cfg)

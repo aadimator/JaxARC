@@ -84,13 +84,22 @@ from omegaconf import DictConfig
 # python scripts/download_dataset.py miniarc
 
 # 2. Load a task
-parser_config = DictConfig(
-    {
-        "tasks": {"path": "data/raw/MiniARC/data/MiniARC"},
-        "grid": {"max_grid_height": 5, "max_grid_width": 5},
-    }
+from jaxarc.envs.config import DatasetConfig
+
+# Preferred: Use typed configuration
+dataset_config = DatasetConfig(
+    dataset_path="data/raw/MiniARC",
+    max_grid_height=5,
+    max_grid_width=5,
+    max_colors=10,
+    background_color=0,
+    task_split="train"
 )
-parser = MiniArcParser(parser_config)
+parser = MiniArcParser(dataset_config)
+
+# Alternative: Use Hydra config with from_hydra method
+# parser_config = DictConfig({...})
+# parser = MiniArcParser.from_hydra(parser_config)
 key = jax.random.PRNGKey(42)
 task = parser.get_random_task(key)
 

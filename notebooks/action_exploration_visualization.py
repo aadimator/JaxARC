@@ -118,7 +118,9 @@ def load_and_explore_dataset(config):
     """Load dataset and explore available tasks."""
     try:
         # Initialize the ARC-AGI parser
-        parser = ArcAgiParser(config.dataset)
+        from jaxarc.envs.config import DatasetConfig
+        typed_dataset_config = DatasetConfig.from_hydra(config.dataset)
+        parser = ArcAgiParser(typed_dataset_config)
 
         # Get available task IDs
         available_task_ids = parser.get_available_task_ids()

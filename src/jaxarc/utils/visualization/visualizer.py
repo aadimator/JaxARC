@@ -152,7 +152,19 @@ class VisualizationConfig:
 
 @chex.dataclass
 class TaskVisualizationData:
-    """Data structure for task visualization information."""
+    """Data structure for task visualization information.
+    
+    This dataclass encapsulates all information needed to create comprehensive
+    task visualizations showing demonstration pairs, test inputs, and metadata
+    for research and debugging purposes.
+    
+    Attributes:
+        task_id: Unique identifier for the task being visualized
+        task_data: JaxArcTask data structure (using Any to avoid circular import)
+        current_pair_index: Index of the currently active task pair (0-based)
+        episode_mode: Whether this is "train" or "test" mode visualization
+        metadata: Additional metadata for enhanced visualization context
+    """
     
     task_id: str
     task_data: Any  # JaxArcTask - using Any to avoid circular import
@@ -163,7 +175,27 @@ class TaskVisualizationData:
 
 @chex.dataclass
 class StepVisualizationData:
-    """Data structure for step visualization information."""
+    """Data structure for step visualization information.
+    
+    This dataclass contains all information needed to create detailed step-by-step
+    visualizations including grid states, actions, rewards, and task context for
+    comprehensive analysis and debugging.
+    
+    Attributes:
+        step_num: Step number in the current episode (0-based)
+        before_grid: Grid state before action execution
+        after_grid: Grid state after action execution
+        action: Action that was executed (standardized dict format)
+        reward: Reward received for this step
+        info: Additional information from environment step
+        selection_mask: Optional mask showing selected cells
+        changed_cells: Optional mask showing cells that changed
+        operation_name: Human-readable name of the operation performed
+        timestamp: Unix timestamp when step was recorded
+        task_id: Identifier of the task being solved
+        task_pair_index: Index of current task pair being worked on
+        total_task_pairs: Total number of task pairs available
+    """
 
     step_num: int
     before_grid: Grid
@@ -280,12 +312,32 @@ class Visualizer:
     def start_episode_with_task(self, episode_num: int, task_data: Any, task_id: str = "", current_pair_index: int = 0, episode_mode: Literal["train", "test"] = "train") -> None:
         """Start episode and create task visualization first.
         
+        This method combines episode initialization with task visualization creation,
+        providing researchers with immediate visual context about the task being
+        solved. The task visualization shows all demonstration pairs and test inputs
+        to help understand the pattern recognition challenge.
+        
         Args:
-            episode_num: Episode number
-            task_data: JaxArcTask data structure
-            task_id: Optional task identifier
-            current_pair_index: Index of current task pair being worked on
-            episode_mode: Whether this is train or test mode
+            episode_num: Episode number for tracking and file organization
+            task_data: JaxArcTask data structure containing demonstration and test pairs
+            task_id: Optional task identifier for labeling and organization
+            current_pair_index: Index of current task pair being worked on (0-based)
+            episode_mode: Whether this is "train" or "test" mode, affects visualization
+                         content and target visibility
+        
+        Examples:
+            ```python
+            # Start training episode with task visualization
+            visualizer.start_episode_with_task(1, task_data, "task_001", 0, "train")
+            
+            # Start test episode with task visualization
+            visualizer.start_episode_with_task(5, task_data, "eval_task", 2, "test")
+            ```
+        
+        Note:
+            Creates task visualization as the first item in episode visualization
+            sequence. Task visualization includes all available pairs with proper
+            mode-specific target handling (visible in train, hidden in test).
         """
         # Start the regular episode
         self.start_episode(episode_num, task_id)
@@ -583,11 +635,36 @@ class Visualizer:
     def _create_task_visualization(self, task_data: TaskVisualizationData) -> Optional[Path]:
         """Create SVG visualization of the complete task.
         
+        This method generates a comprehensive visualization of the ARC task showing
+        all demonstration pairs and test inputs. It provides essential context for
+        understanding the pattern recognition challenge before step-by-step execution.
+        
         Args:
-            task_data: Task visualization data
+            task_data: TaskVisualizationData containing task information, current pair
+                      index, episode mode, and metadata for visualization generation
             
         Returns:
-            Path to saved task visualization file, or None if not created
+            Optional[Path]: Path to saved task visualization SVG file, or None if
+                           creation failed or visualization is disabled
+        
+        Examples:
+            ```python
+            # Create task visualization data
+            task_viz = TaskVisualizationData(
+                task_id="task_001",
+                task_data=jax_arc_task,
+                current_pair_index=0,
+                episode_mode="train"
+            )
+            
+            # Generate visualization
+            viz_path = visualizer._create_task_visualization(task_viz)
+            ```
+        
+        Note:
+            Uses existing SVG drawing functions with enhanced metadata display.
+            Automatically handles mode-specific target visibility and adds
+            descriptive titles and pair indexing information.
         """
         if self.current_episode_num is None:
             return None

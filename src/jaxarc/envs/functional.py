@@ -18,13 +18,11 @@ from omegaconf import DictConfig
 from jaxarc.utils.visualization import (
     _clear_output_directory,
     jax_save_step_visualization,
-    save_rl_step_visualization,
 )
 
 from ..state import ArcEnvState
 from ..types import ARCLEAction, JaxArcTask
 from ..utils.jax_types import (
-    ACTION_RECORD_FIELDS,
     EpisodeDone,
     ObservationArray,
     OperationId,
@@ -567,7 +565,34 @@ def _create_demo_task(config: JaxArcConfig) -> JaxArcTask:
 def _get_or_create_task_data(
     task_data: JaxArcTask | None, config: JaxArcConfig
 ) -> JaxArcTask:
-    """Get task data or create demo task - focused helper function."""
+    """Get task data or create demo task - focused helper function.
+    
+    This helper function ensures that valid task data is available for environment
+    initialization. If no task data is provided, it creates a simple demo task
+    suitable for testing and development purposes.
+    
+    Args:
+        task_data: Optional JaxArcTask data. If None, a demo task will be created.
+        config: Environment configuration used for demo task creation parameters
+               including grid dimensions, colors, and dataset settings.
+    
+    Returns:
+        JaxArcTask: Valid task data ready for environment initialization.
+                   Either the provided task_data or a newly created demo task.
+    
+    Examples:
+        ```python
+        # With existing task data
+        task = _get_or_create_task_data(existing_task, config)
+        
+        # Without task data (creates demo)
+        demo_task = _get_or_create_task_data(None, config)
+        ```
+    
+    Note:
+        Demo tasks are created with simple patterns suitable for testing.
+        For production training, always provide real task data from parsers.
+    """
     if task_data is None:
         # Create demo task as fallback
         # Parsers are handled separately in the new system
@@ -583,7 +608,37 @@ def _select_initial_pair(
     episode_mode: int,
     initial_pair_idx: int | None,
 ) -> Tuple[jnp.ndarray, bool]:
-    """Select initial pair based on mode and configuration - focused helper function."""
+    """Select initial pair based on mode and configuration - focused helper function.
+    
+    This helper function handles the selection of which task pair to use for episode
+    initialization. It supports both explicit pair specification and automatic
+    selection based on episode mode and configuration strategy.
+    
+    Args:
+        key: JAX PRNG key for random pair selection when needed
+        task_data: JaxArcTask containing available demonstration and test pairs
+        episode_mode: Episode mode (0=train, 1=test) determining pair type selection
+        initial_pair_idx: Optional explicit pair index. If None, uses episode manager
+                         selection strategy based on configuration.
+    
+    Returns:
+        Tuple containing:
+        - selected_pair_idx: JAX array with selected pair index (int32)
+        - selection_successful: Boolean indicating if selection was valid
+    
+    Examples:
+        ```python
+        # Explicit pair selection
+        pair_idx, success = _select_initial_pair(key, task, 0, 2)
+        
+        # Automatic selection based on mode
+        pair_idx, success = _select_initial_pair(key, task, 1, None)
+        ```
+    
+    Note:
+        Uses episode manager for intelligent pair selection strategies.
+        Falls back to index 0 if selection fails for any reason.
+    """
     # Import episode manager for pair selection
     from .episode_manager import (
         ArcEpisodeConfig,
@@ -631,7 +686,37 @@ def _initialize_grids(
     episode_mode: int,
     config: JaxArcConfig,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Initialize grids based on episode mode - focused helper function."""
+    """Initialize grids based on episode mode - focused helper function.
+    
+    This helper function sets up the initial, target, and mask grids based on the
+    episode mode and selected pair. It handles the critical difference between
+    training mode (with target access) and test mode (with target masking).
+    
+    Args:
+        task_data: JaxArcTask containing demonstration and test pair data
+        selected_pair_idx: JAX array with the index of the selected pair
+        episode_mode: Episode mode (0=train, 1=test) determining grid initialization
+        config: Environment configuration containing dataset settings like background_color
+    
+    Returns:
+        Tuple containing:
+        - initial_grid: Starting grid for the episode (JAX array)
+        - target_grid: Target grid (visible in train mode, masked in test mode)
+        - initial_mask: Boolean mask indicating valid grid cells
+    
+    Examples:
+        ```python
+        # Training mode initialization
+        init_grid, target, mask = _initialize_grids(task, idx, 0, config)
+        
+        # Test mode initialization (target masked)
+        init_grid, masked_target, mask = _initialize_grids(task, idx, 1, config)
+        ```
+    
+    Note:
+        In test mode, target grids are filled with background color to prevent
+        cheating while maintaining proper evaluation conditions.
+    """
     from .episode_manager import EPISODE_MODE_TRAIN
 
     # JAX-compliant mode-specific grid initialization using conditional logic
@@ -670,7 +755,39 @@ def _create_initial_state(
     episode_mode: int,
     config: JaxArcConfig,
 ) -> ArcEnvState:
-    """Create initial state - focused helper function."""
+    """Create initial state - focused helper function.
+    
+    This helper function constructs the complete initial ArcEnvState with all
+    required fields properly initialized. It handles enhanced functionality
+    including action history, operation masks, and completion tracking.
+    
+    Args:
+        task_data: JaxArcTask containing complete task information
+        initial_grid: Starting grid configuration (JAX array)
+        target_grid: Target grid (visible or masked based on mode)
+        initial_mask: Boolean mask for valid grid cells
+        selected_pair_idx: Index of the currently selected pair
+        episode_mode: Episode mode (0=train, 1=test)
+        config: Environment configuration for state initialization parameters
+    
+    Returns:
+        ArcEnvState: Complete initial environment state with all fields properly
+                    initialized including action history, completion tracking,
+                    and operation masks.
+    
+    Examples:
+        ```python
+        # Create initial state for training
+        state = _create_initial_state(task, grid, target, mask, idx, 0, config)
+        
+        # Create initial state for testing
+        state = _create_initial_state(task, grid, masked_target, mask, idx, 1, config)
+        ```
+    
+    Note:
+        Initializes enhanced features like action history storage, completion
+        status tracking, and dynamic operation control for full functionality.
+    """
     # Calculate initial similarity (will be 0.0 in test mode due to masked target)
     initial_similarity = compute_grid_similarity(initial_grid, target_grid)
 
@@ -741,18 +858,30 @@ def arc_reset(
 
     This enhanced reset function provides comprehensive support for multi-demonstration
     training and test pair evaluation with proper mode-specific initialization,
-    action history setup, and dynamic operation control.
+    action history setup, and dynamic operation control. The function has been
+    decomposed into focused helper functions for better maintainability while
+    preserving JAX compatibility and performance.
+
+    The reset process involves:
+    1. Task data acquisition or demo task creation
+    2. Initial pair selection based on mode and strategy
+    3. Grid initialization with proper target masking
+    4. Complete state creation with enhanced features
 
     Args:
         key: JAX PRNG key for reproducible randomization
-        config: Environment configuration (typed or Hydra DictConfig)
+        config: Environment configuration (typed JaxArcConfig or Hydra DictConfig).
+               Automatically converted to typed config if needed.
         task_data: Optional specific task data. If None, will use parser from config
-                      or create demo task as fallback.
-        episode_mode: Episode mode (0=train, 1=test) for JAX-compatible initialization
-        initial_pair_idx: Optional explicit pair index specification
+                  or create demo task as fallback.
+        episode_mode: Episode mode (0=train, 1=test) for JAX-compatible initialization.
+                     Determines pair type selection and target visibility.
+        initial_pair_idx: Optional explicit pair index specification. If None,
+                         uses episode manager selection strategy.
 
     Returns:
         Tuple of (initial_state, initial_observation) with enhanced functionality
+        including action history, completion tracking, and operation control.
 
     Examples:
         ```python
@@ -764,7 +893,17 @@ def arc_reset(
 
         # Reset with explicit pair selection in training mode
         state, obs = arc_reset(key, config, task_data, episode_mode=0, initial_pair_idx=2)
+        
+        # Using typed config (preferred)
+        from jaxarc.envs.config import JaxArcConfig
+        typed_config = JaxArcConfig.from_hydra(hydra_config)
+        state, obs = arc_reset(key, typed_config, task_data)
         ```
+
+    Note:
+        Function has been decomposed into helper functions (_get_or_create_task_data,
+        _select_initial_pair, _initialize_grids, _create_initial_state) for better
+        maintainability while preserving performance and JAX compatibility.
     """
     # Ensure we have a typed config
     typed_config = _ensure_config(config)
@@ -819,7 +958,41 @@ def _process_action(
     action: ActionType,
     config: JaxArcConfig,
 ) -> Tuple[ArcEnvState, Dict[str, Any], bool]:
-    """Process action and return updated state - focused helper function."""
+    """Process action and return updated state - focused helper function.
+    
+    This helper function handles the complete action processing pipeline including
+    validation, format conversion, operation execution, and state updates. It
+    supports both grid operations (0-34) and control operations (35-41).
+    
+    Args:
+        state: Current environment state before action execution
+        action: Action to execute (dict format or ARCLEAction)
+        config: Environment configuration for action processing settings
+    
+    Returns:
+        Tuple containing:
+        - new_state: Updated environment state after action execution
+        - standardized_action: Action in standardized dict format
+        - is_control_operation: Boolean indicating if this was a control operation
+    
+    Examples:
+        ```python
+        # Process grid operation
+        action = {"selection": mask, "operation": 15}
+        new_state, std_action, is_control = _process_action(state, action, config)
+        
+        # Process control operation
+        action = {"selection": empty_mask, "operation": 35}
+        new_state, std_action, is_control = _process_action(state, action, config)
+        ```
+    
+    Raises:
+        ValueError: If action format is invalid or required fields are missing
+    
+    Note:
+        Automatically handles action format conversion, validation, and routing
+        to appropriate handlers based on operation type (grid vs control).
+    """
     # Import episode manager for control operations (needed for nested functions)
     from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
 
@@ -1054,7 +1227,32 @@ def _update_state(
     action: Dict[str, Any],
     config: JaxArcConfig,
 ) -> ArcEnvState:
-    """Update state with action history and step count - focused helper function."""
+    """Update state with action history and step count - focused helper function.
+    
+    This helper function handles post-action state updates including action history
+    tracking, step count incrementation, and other bookkeeping operations that
+    need to occur after action execution.
+    
+    Args:
+        old_state: Environment state before action execution
+        new_state: Environment state after action execution but before updates
+        action: Standardized action that was executed
+        config: Environment configuration for history and update settings
+    
+    Returns:
+        ArcEnvState: Updated state with action history, incremented step count,
+                    and other post-action updates applied.
+    
+    Examples:
+        ```python
+        # Update state after action processing
+        updated_state = _update_state(old_state, new_state, action, config)
+        ```
+    
+    Note:
+        Conditionally applies action history tracking based on configuration.
+        Always increments step count and handles other required state updates.
+    """
 
     # Add action history tracking for each step with memory optimization
     # Use JAX-compatible conditional for history tracking
@@ -1108,7 +1306,37 @@ def _calculate_reward_and_done(
     config: JaxArcConfig,
     is_control_operation: bool,
 ) -> Tuple[RewardValue, EpisodeDone, ArcEnvState]:
-    """Calculate reward and done status - focused helper function."""
+    """Calculate reward and done status - focused helper function.
+    
+    This helper function computes the reward signal and episode termination
+    status based on state transitions, configuration settings, and operation type.
+    It handles mode-specific reward calculation and enhanced termination logic.
+    
+    Args:
+        old_state: Environment state before action execution
+        new_state: Environment state after action execution
+        config: Environment configuration for reward and termination settings
+        is_control_operation: Whether the executed action was a control operation
+    
+    Returns:
+        Tuple containing:
+        - reward: Calculated reward value (JAX scalar)
+        - done: Boolean indicating if episode should terminate
+        - final_state: State with episode_done flag properly updated
+    
+    Examples:
+        ```python
+        # Calculate reward and termination for grid operation
+        reward, done, state = _calculate_reward_and_done(old, new, config, False)
+        
+        # Calculate reward and termination for control operation
+        reward, done, state = _calculate_reward_and_done(old, new, config, True)
+        ```
+    
+    Note:
+        Uses enhanced reward calculation with mode-specific logic and control
+        operation adjustments. Updates episode_done flag in returned state.
+    """
     # Mode-specific reward calculation logic
     reward = _calculate_enhanced_reward(
         old_state, new_state, config, is_control_operation
@@ -1131,7 +1359,19 @@ def arc_step(
     """
     Execute single step in ARC environment with comprehensive functionality.
 
-    This enhanced step function provides:
+    This enhanced step function provides comprehensive action processing with
+    support for both grid operations (0-34) and control operations (35-41).
+    The function has been decomposed into focused helper functions for better
+    maintainability while preserving JAX compatibility and performance.
+
+    The step process involves:
+    1. Action processing and validation
+    2. State updates with history tracking
+    3. Reward calculation with mode-specific logic
+    4. Episode termination checking
+    5. Observation generation for agent
+
+    Features:
     - Support for enhanced non-parametric control operations (35-41)
     - Action history tracking for each step with memory optimization
     - Dynamic action space validation and filtering
@@ -1140,12 +1380,20 @@ def arc_step(
     - Focused agent observation generation
 
     Args:
-        state: Current environment state with enhanced functionality
-        action: Action to execute (dict or ARCLEAction)
-        config: Environment configuration (typed or Hydra DictConfig)
+        state: Current environment state with enhanced functionality including
+               action history, completion tracking, and operation control
+        action: Action to execute (dict format or ARCLEAction). Must contain
+               'operation' field and appropriate selection data based on format.
+        config: Environment configuration (typed JaxArcConfig or Hydra DictConfig).
+               Automatically converted to typed config if needed.
 
     Returns:
-        Tuple of (new_state, agent_observation, reward, done, info)
+        Tuple of (new_state, agent_observation, reward, done, info) where:
+        - new_state: Updated environment state after action execution
+        - agent_observation: Focused observation for agent (currently working grid)
+        - reward: Calculated reward value with mode-specific logic
+        - done: Boolean indicating episode termination
+        - info: Dictionary with step information and context
 
     Examples:
         ```python
@@ -1160,7 +1408,17 @@ def arc_step(
         # Control operation - reset current pair
         action = {"selection": jnp.zeros_like(mask), "operation": 39}
         new_state, obs, reward, done, info = arc_step(state, action, config)
+        
+        # Using typed config (preferred)
+        from jaxarc.envs.config import JaxArcConfig
+        typed_config = JaxArcConfig.from_hydra(hydra_config)
+        new_state, obs, reward, done, info = arc_step(state, action, typed_config)
         ```
+
+    Note:
+        Function has been decomposed into helper functions (_process_action,
+        _update_state, _calculate_reward_and_done) for better maintainability
+        while preserving performance and JAX compatibility.
     """
     # Ensure we have a typed config
     typed_config = _ensure_config(config)

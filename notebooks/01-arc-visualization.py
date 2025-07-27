@@ -78,7 +78,9 @@ print(
 
 # %%
 # Initialize parser with configuration
-parser = ArcAgiParser(cfg=dataset_config)
+from jaxarc.envs.config import DatasetConfig
+typed_dataset_config = DatasetConfig.from_hydra(dataset_config)
+parser = ArcAgiParser(typed_dataset_config)
 
 # Get available task information
 available_tasks = parser.get_available_task_ids()
