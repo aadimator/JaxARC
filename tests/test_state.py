@@ -137,6 +137,7 @@ class TestStateInitialization:
                 test_completion_status=sample_state.test_completion_status,
                 action_history=sample_state.action_history,
                 action_history_length=sample_state.action_history_length,
+                action_history_write_pos=sample_state.action_history_write_pos,
                 allowed_operations_mask=sample_state.allowed_operations_mask,
             )
             invalid_state.__check_init__()
@@ -156,6 +157,16 @@ class TestStateInitialization:
                 selected=sample_state.selected,
                 clipboard=sample_state.clipboard,
                 similarity_score=sample_state.similarity_score,
+                # Enhanced functionality fields
+                episode_mode=sample_state.episode_mode,
+                available_demo_pairs=sample_state.available_demo_pairs,
+                available_test_pairs=sample_state.available_test_pairs,
+                demo_completion_status=sample_state.demo_completion_status,
+                test_completion_status=sample_state.test_completion_status,
+                action_history=sample_state.action_history,
+                action_history_length=sample_state.action_history_length,
+                action_history_write_pos=sample_state.action_history_write_pos,
+                allowed_operations_mask=sample_state.allowed_operations_mask,
             )
             invalid_state.__check_init__()
 
@@ -174,6 +185,16 @@ class TestStateInitialization:
                 selected=sample_state.selected,
                 clipboard=sample_state.clipboard,
                 similarity_score=sample_state.similarity_score,
+                # Enhanced functionality fields
+                episode_mode=sample_state.episode_mode,
+                available_demo_pairs=sample_state.available_demo_pairs,
+                available_test_pairs=sample_state.available_test_pairs,
+                demo_completion_status=sample_state.demo_completion_status,
+                test_completion_status=sample_state.test_completion_status,
+                action_history=sample_state.action_history,
+                action_history_length=sample_state.action_history_length,
+                action_history_write_pos=sample_state.action_history_write_pos,
+                allowed_operations_mask=sample_state.allowed_operations_mask,
             )
             invalid_state.__check_init__()
 
@@ -192,6 +213,16 @@ class TestStateInitialization:
                 selected=sample_state.selected,
                 clipboard=sample_state.clipboard,
                 similarity_score=sample_state.similarity_score,
+                # Enhanced functionality fields
+                episode_mode=sample_state.episode_mode,
+                available_demo_pairs=sample_state.available_demo_pairs,
+                available_test_pairs=sample_state.available_test_pairs,
+                demo_completion_status=sample_state.demo_completion_status,
+                test_completion_status=sample_state.test_completion_status,
+                action_history=sample_state.action_history,
+                action_history_length=sample_state.action_history_length,
+                action_history_write_pos=sample_state.action_history_write_pos,
+                allowed_operations_mask=sample_state.allowed_operations_mask,
             )
             invalid_state.__check_init__()
 
