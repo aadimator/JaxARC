@@ -579,10 +579,15 @@ class TestArcStep:
             }
             arc_step(self.state, action, self.config)
 
-        # Missing selection field for mask format
-        with pytest.raises(ValueError, match="must contain 'selection'"):
-            action = {"operation": jnp.array(0, dtype=jnp.int32)}
-            arc_step(self.state, action, self.config)
+        # Test with invalid structured action - should raise error
+        from jaxarc.envs.structured_actions import MaskAction
+        with pytest.raises(ValueError):
+            # Create an invalid action (operation out of range)
+            invalid_action = MaskAction(
+                operation=jnp.array(999, dtype=jnp.int32),  # Invalid operation
+                selection=jnp.ones_like(self.state.working_grid, dtype=jnp.bool_)
+            )
+            arc_step(self.state, invalid_action, self.config)
 
         # Invalid action type
         with pytest.raises(ValueError, match="Action must be a dictionary"):
@@ -908,15 +913,20 @@ class TestFunctionalAPIIntegration:
         state, obs = arc_reset(self.key, self.config)
 
         # Test with invalid action - should raise error
+        from jaxarc.envs.structured_actions import MaskAction
         with pytest.raises(ValueError):
-            invalid_action = {"operation": 0}  # Missing selection
+            # Create an invalid action (operation out of range)
+            invalid_action = MaskAction(
+                operation=jnp.array(-1, dtype=jnp.int32),  # Invalid operation
+                selection=jnp.ones_like(state.working_grid, dtype=jnp.bool_)
+            )
             arc_step(state, invalid_action, self.config)
 
         # Test with valid action after error - should still work
-        valid_action = {
-            "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
-            "operation": jnp.array(0, dtype=jnp.int32),
-        }
+        valid_action = MaskAction(
+            operation=jnp.array(0, dtype=jnp.int32),
+            selection=jnp.ones_like(state.working_grid, dtype=jnp.bool_)
+        )
 
         new_state, new_obs, reward, done, info = arc_step(
             state, valid_action, self.config

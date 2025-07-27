@@ -21,7 +21,7 @@ from jaxarc.utils.visualization import (
 )
 
 from ..state import ArcEnvState
-from ..types import ARCLEAction, JaxArcTask
+from ..types import JaxArcTask
 from ..utils.jax_types import (
     EpisodeDone,
     ObservationArray,
@@ -30,13 +30,12 @@ from ..utils.jax_types import (
     get_action_record_fields,
     RewardValue,
 )
-from .actions import get_action_handler
 from .config import JaxArcConfig
 from .grid_operations import compute_grid_similarity, execute_grid_operation
+from .structured_actions import StructuredAction, PointAction, BboxAction, MaskAction
 
 # Type aliases for cleaner signatures
 ConfigType = Union[JaxArcConfig, DictConfig]
-ActionType = Union[Dict[str, Any], ARCLEAction]
 
 
 def _ensure_config(config: ConfigType) -> JaxArcConfig:
@@ -955,63 +954,103 @@ def arc_reset(
 
 def _process_action(
     state: ArcEnvState,
-    action: ActionType,
+    action: Union[StructuredAction, Dict[str, Any]],
     config: JaxArcConfig,
-) -> Tuple[ArcEnvState, Dict[str, Any], bool]:
-    """Process action and return updated state - focused helper function.
+) -> Tuple[ArcEnvState, StructuredAction, bool]:
+    """Process action and return updated state.
     
-    This helper function handles the complete action processing pipeline including
-    validation, format conversion, operation execution, and state updates. It
-    supports both grid operations (0-34) and control operations (35-41).
+    This function handles the complete action processing pipeline supporting both
+    structured actions and dictionary actions for backward compatibility. It supports 
+    both grid operations (0-34) and control operations (35-41) with proper validation 
+    and execution.
     
     Args:
         state: Current environment state before action execution
-        action: Action to execute (dict format or ARCLEAction)
+        action: Action to execute (StructuredAction or dict with 'operation' and 'selection')
         config: Environment configuration for action processing settings
     
     Returns:
         Tuple containing:
         - new_state: Updated environment state after action execution
-        - standardized_action: Action in standardized dict format
+        - validated_action: Validated structured action
         - is_control_operation: Boolean indicating if this was a control operation
     
     Examples:
         ```python
-        # Process grid operation
-        action = {"selection": mask, "operation": 15}
-        new_state, std_action, is_control = _process_action(state, action, config)
+        # Process structured point action
+        action = PointAction(operation=15, row=5, col=10)
+        new_state, validated_action, is_control = _process_action(state, action, config)
         
-        # Process control operation
-        action = {"selection": empty_mask, "operation": 35}
-        new_state, std_action, is_control = _process_action(state, action, config)
+        # Process dictionary action (backward compatibility)
+        action = {"operation": 15, "selection": jnp.array([5, 10])}
+        new_state, validated_action, is_control = _process_action(state, action, config)
         ```
     
     Raises:
-        ValueError: If action format is invalid or required fields are missing
+        ValueError: If action format is invalid or operation is out of range
     
     Note:
-        Automatically handles action format conversion, validation, and routing
-        to appropriate handlers based on operation type (grid vs control).
+        Supports both structured actions and dictionary actions for backward compatibility.
+        Automatically validates action parameters and clips to valid ranges.
     """
-    # Import episode manager for control operations (needed for nested functions)
+    # Import episode manager for control operations
     from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
+    from .structured_actions import PointAction, BboxAction, MaskAction, create_mask_action
 
-    # Convert ARCLEAction to dict format if needed
-    if isinstance(action, ARCLEAction):
-        action = {
-            "selection": action.selection,
-            "operation": action.operation,
-        }
+    # Get grid shape for validation
+    grid_shape = state.working_grid.shape
 
-    # Validate action format
-    if not isinstance(action, dict):
-        raise ValueError("Action must be a dictionary")
+    # Convert dictionary action to structured action if needed
+    if isinstance(action, dict):
+        # Handle dictionary action for backward compatibility
+        operation = action["operation"]
+        selection = action["selection"]
+        
+        # Convert to MaskAction (most general format)
+        if selection.ndim == 2:
+            # Already a 2D mask
+            validated_action = create_mask_action(operation, selection)
+        elif selection.ndim == 1 and len(selection) == 2:
+            # Point format [row, col] - convert to mask
+            mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
+            row = jnp.clip(selection[0].astype(jnp.int32), 0, grid_shape[0] - 1)
+            col = jnp.clip(selection[1].astype(jnp.int32), 0, grid_shape[1] - 1)
+            mask = mask.at[row, col].set(True)
+            validated_action = create_mask_action(operation, mask)
+        elif selection.ndim == 1 and len(selection) == 4:
+            # Bbox format [r1, c1, r2, c2] - convert to mask
+            r1, c1, r2, c2 = selection.astype(jnp.int32)
+            r1 = jnp.clip(r1, 0, grid_shape[0] - 1)
+            c1 = jnp.clip(c1, 0, grid_shape[1] - 1)
+            r2 = jnp.clip(r2, 0, grid_shape[0] - 1)
+            c2 = jnp.clip(c2, 0, grid_shape[1] - 1)
+            
+            min_r, max_r = jnp.minimum(r1, r2), jnp.maximum(r1, r2)
+            min_c, max_c = jnp.minimum(c1, c2), jnp.maximum(c1, c2)
+            
+            rows = jnp.arange(grid_shape[0])
+            cols = jnp.arange(grid_shape[1])
+            row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
+            
+            mask = (
+                (row_mesh >= min_r)
+                & (row_mesh <= max_r)
+                & (col_mesh >= min_c)
+                & (col_mesh <= max_c)
+            )
+            validated_action = create_mask_action(operation, mask)
+        elif selection.ndim == 1 and len(selection) == grid_shape[0] * grid_shape[1]:
+            # Flattened mask - reshape to 2D
+            mask = selection.reshape(grid_shape).astype(jnp.bool_)
+            validated_action = create_mask_action(operation, mask)
+        else:
+            raise ValueError(f"Unsupported selection format: shape {selection.shape}")
+    else:
+        # Handle structured action
+        validated_action = action.validate(grid_shape, max_operations=42)
 
-    if "operation" not in action:
-        raise ValueError("Action must contain 'operation' field")
-
-    # Validate and normalize operation with enhanced range (0-41)
-    operation = _validate_operation(action["operation"], config)
+    # Extract operation from validated action
+    operation = validated_action.operation
 
     # Apply dynamic action space validation and filtering if enabled
     if (
@@ -1026,15 +1065,34 @@ def _process_action(
         operation = controller.filter_invalid_operation_jax(
             operation, state, config.action
         )
+        
+        # Update validated action with filtered operation
+        if isinstance(validated_action, PointAction):
+            validated_action = PointAction(
+                operation=operation,
+                row=validated_action.row,
+                col=validated_action.col
+            )
+        elif isinstance(validated_action, BboxAction):
+            validated_action = BboxAction(
+                operation=operation,
+                r1=validated_action.r1,
+                c1=validated_action.c1,
+                r2=validated_action.r2,
+                c2=validated_action.c2
+            )
+        elif isinstance(validated_action, MaskAction):
+            validated_action = MaskAction(
+                operation=operation,
+                selection=validated_action.selection
+            )
 
     # Check if this is a control operation (35-41) or grid operation (0-34)
     is_control_operation = operation >= 35
 
     # Define functions for control and grid operations
     def handle_control_operation(state, action, operation, config):
-        """Handle control operations (35-41) using full episode manager with JAX-compatible integer modes."""
-        # Episode manager already imported at function level
-
+        """Handle control operations (35-41) using episode manager."""
         # Create episode configuration from main config using integer episode mode
         episode_mode_int = jax.lax.cond(
             state.is_training_mode(),
@@ -1051,13 +1109,12 @@ def _process_action(
             allow_test_switching=getattr(config.episode, "allow_test_switching", False),
         )
 
-        # Execute pair control operation using full episode manager
+        # Execute pair control operation using episode manager
         new_state = ArcEpisodeManager.execute_pair_control_operation(
             state, operation, episode_config
         )
 
         # For control operations, we need to update grids if pair was switched
-        # Use JAX-compatible conditional logic
         is_pair_switching_op = jnp.isin(operation, jnp.array([35, 36, 37, 38, 40, 41]))
 
         def update_grids_for_pair_switch(state):
@@ -1102,8 +1159,6 @@ def _process_action(
             )
 
             # Recalculate similarity for new pair
-            from .grid_operations import compute_grid_similarity
-
             new_similarity = compute_grid_similarity(
                 updated_state.working_grid, updated_state.target_grid
             )
@@ -1121,110 +1176,50 @@ def _process_action(
             new_state,
         )
 
-        # Create standardized action for history tracking (control operations use empty selection)
-        standardized_action = {
-            "selection": jnp.zeros_like(state.selected),
-            "operation": operation,
-        }
-
-        return new_state, standardized_action
+        return new_state
 
     def handle_grid_operation(state, action, operation, config):
-        """Handle grid operations (0-34) using existing logic."""
-        # Get the appropriate action handler based on configuration
-        handler = get_action_handler(config.action.selection_format)
-
-        # Extract action data based on selection format
-        if config.action.selection_format == "point":
-            if "point" not in action:
-                raise ValueError("Action must contain 'point' field")
-            action_data = jnp.array(action["point"])
-        elif config.action.selection_format == "bbox":
-            if "bbox" not in action:
-                raise ValueError("Action must contain 'bbox' field")
-            action_data = jnp.array(action["bbox"])
-        elif config.action.selection_format == "mask":
-            if "mask" in action:
-                mask = action["mask"]
-                # Handle both 2D (grid shape) and 1D (flattened) masks
-                if len(mask.shape) == 2:
-                    # 2D mask - validate shape
-                    if mask.shape != state.working_grid_mask.shape:
-                        raise ValueError(
-                            f"Selection shape {mask.shape} doesn't match grid shape {state.working_grid_mask.shape}"
-                        )
-                    action_data = mask.flatten()
-                elif len(mask.shape) == 1:
-                    # 1D mask - validate size
-                    expected_size = state.working_grid_mask.size
-                    if mask.size != expected_size:
-                        raise ValueError(
-                            f"Selection size {mask.size} doesn't match grid size {expected_size}"
-                        )
-                    action_data = mask
-                else:
-                    raise ValueError(
-                        f"Mask must be 1D or 2D array, got shape {mask.shape}"
-                    )
-            elif "selection" in action:
-                selection = action["selection"]
-                # Handle both 2D (grid shape) and 1D (flattened) selections
-                if len(selection.shape) == 2:
-                    # 2D selection - validate shape
-                    if selection.shape != state.working_grid_mask.shape:
-                        raise ValueError(
-                            f"Selection shape {selection.shape} doesn't match grid shape {state.working_grid_mask.shape}"
-                        )
-                    action_data = selection.flatten()
-                elif len(selection.shape) == 1:
-                    # 1D selection - validate size
-                    expected_size = state.working_grid_mask.size
-                    if selection.size != expected_size:
-                        raise ValueError(
-                            f"Selection size {selection.size} doesn't match grid size {expected_size}"
-                        )
-                    action_data = selection
-                else:
-                    raise ValueError(
-                        f"Selection must be 1D or 2D array, got shape {selection.shape}"
-                    )
-            else:
-                raise ValueError("Action must contain 'selection' field")
+        """Handle grid operations (0-34) using structured actions and action handlers."""
+        from .actions import point_handler, bbox_handler, mask_handler
+        from .structured_actions import PointAction, BboxAction, MaskAction
+        
+        # Use appropriate action handler based on action type
+        if isinstance(action, PointAction):
+            selection_mask = point_handler(action, state.working_grid_mask)
+        elif isinstance(action, BboxAction):
+            selection_mask = bbox_handler(action, state.working_grid_mask)
+        elif isinstance(action, MaskAction):
+            selection_mask = mask_handler(action, state.working_grid_mask)
         else:
-            raise ValueError(
-                f"Unknown selection format: {config.action.selection_format}"
-            )
+            # Fallback to the action's own method if handler not available
+            selection_mask = action.to_selection_mask(grid_shape)
+            # Constrain to working grid area
+            selection_mask = selection_mask & state.working_grid_mask
 
-        # Handler creates standardized selection mask
-        selection_mask = handler(action_data, state.working_grid_mask)
-
-        # Create standardized action dictionary
-        standardized_action = {"selection": selection_mask, "operation": operation}
-
-        # Update selection in state using Equinox tree_at for better performance
+        # Update selection in state
         new_state = eqx.tree_at(
-            lambda s: s.selected, state, standardized_action["selection"]
+            lambda s: s.selected, state, selection_mask
         )
 
-        # Execute grid operation using existing grid operations
-        new_state = execute_grid_operation(new_state, standardized_action["operation"])
+        # Execute grid operation
+        new_state = execute_grid_operation(new_state, operation)
 
-        return new_state, standardized_action
+        return new_state
 
     # Use JAX-compatible conditional to choose between control and grid operations
-    new_state, standardized_action = jax.lax.cond(
+    new_state = jax.lax.cond(
         is_control_operation,
-        lambda: handle_control_operation(state, action, operation, config),
-        lambda: handle_grid_operation(state, action, operation, config),
+        lambda: handle_control_operation(state, validated_action, operation, config),
+        lambda: handle_grid_operation(state, validated_action, operation, config),
     )
 
-    return new_state, standardized_action, is_control_operation
+    return new_state, validated_action, is_control_operation
 
 
 def _update_state(
     old_state: ArcEnvState,
     new_state: ArcEnvState,
-    action: Dict[str, Any],
+    action: StructuredAction,
     config: JaxArcConfig,
 ) -> ArcEnvState:
     """Update state with action history and step count - focused helper function.
@@ -1236,7 +1231,7 @@ def _update_state(
     Args:
         old_state: Environment state before action execution
         new_state: Environment state after action execution but before updates
-        action: Standardized action that was executed
+        action: Structured action that was executed
         config: Environment configuration for history and update settings
     
     Returns:
@@ -1353,7 +1348,7 @@ def _calculate_reward_and_done(
 
 def arc_step(
     state: ArcEnvState,
-    action: ActionType,
+    action: StructuredAction,
     config: ConfigType,
 ) -> Tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, Dict[str, Any]]:
     """
@@ -1382,8 +1377,8 @@ def arc_step(
     Args:
         state: Current environment state with enhanced functionality including
                action history, completion tracking, and operation control
-        action: Action to execute (dict format or ARCLEAction). Must contain
-               'operation' field and appropriate selection data based on format.
+        action: Structured action to execute (PointAction, BboxAction, or MaskAction).
+               Contains operation ID and selection data in type-safe format.
         config: Environment configuration (typed JaxArcConfig or Hydra DictConfig).
                Automatically converted to typed config if needed.
 
@@ -1397,16 +1392,21 @@ def arc_step(
 
     Examples:
         ```python
-        # Standard grid operation
-        action = {"selection": mask, "operation": 15}
+        # Point-based grid operation
+        action = PointAction(operation=15, row=5, col=10)
+        new_state, obs, reward, done, info = arc_step(state, action, config)
+
+        # Bounding box grid operation
+        action = BboxAction(operation=10, r1=2, c1=3, r2=5, c2=7)
+        new_state, obs, reward, done, info = arc_step(state, action, config)
+
+        # Mask-based grid operation
+        mask = jnp.zeros((30, 30), dtype=jnp.bool_).at[5:10, 5:10].set(True)
+        action = MaskAction(operation=20, selection=mask)
         new_state, obs, reward, done, info = arc_step(state, action, config)
 
         # Control operation - switch to next demo pair
-        action = {"selection": jnp.zeros_like(mask), "operation": 35}
-        new_state, obs, reward, done, info = arc_step(state, action, config)
-
-        # Control operation - reset current pair
-        action = {"selection": jnp.zeros_like(mask), "operation": 39}
+        action = PointAction(operation=35, row=0, col=0)  # Coordinates ignored for control ops
         new_state, obs, reward, done, info = arc_step(state, action, config)
         
         # Using typed config (preferred)
@@ -1429,7 +1429,7 @@ def arc_step(
     )
 
     # Update state with action history and step count
-    updated_state = _update_state(state, new_state, action, typed_config)
+    updated_state = _update_state(state, new_state, standardized_action, typed_config)
 
     # Calculate reward and done status
     reward, done, final_state = _calculate_reward_and_done(
@@ -1466,7 +1466,7 @@ def arc_step(
                 f"mode={'train' if int(mode) == 0 else 'test'}, pair={int(pair)}"
             ),
             final_state.step_count,
-            standardized_action["operation"],
+            standardized_action.operation,
             final_state.similarity_score,
             reward,
             final_state.episode_mode,

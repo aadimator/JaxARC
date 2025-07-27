@@ -45,7 +45,8 @@ class ArcEnvironment:
         key = jax.random.PRNGKey(42)
         state, obs = env.reset(key)
 
-        action = {"selection": jnp.array([0, 0, 2, 2]), "operation": 0}
+        from jaxarc.envs import create_bbox_action
+        action = create_bbox_action(operation=0, r1=0, c1=0, r2=2, c2=2)
         next_state, next_obs, reward, info = env.step(action)
         ```
     """
@@ -212,10 +213,9 @@ class ArcEnvironment:
         """Step environment with given action.
 
         Args:
-            action: Action to take (format depends on config.action.selection_format)
-                   For point: {"point": [row, col], "operation": operation_id}
-                   For bbox: {"bbox": [r1, c1, r2, c2], "operation": operation_id}
-                   For mask: {"mask": mask_array, "operation": operation_id}
+            action: Structured action to take (PointAction, BboxAction, or MaskAction)
+                   Use create_point_action(), create_bbox_action(), or create_mask_action() 
+                   factory functions to create actions
 
         Returns:
             Tuple of (next_state, observation, reward, info)

@@ -42,7 +42,7 @@ def create_sample_episodes(logger: StructuredLogger) -> None:
         logger.log_step(
             step_num=step,
             before_state={"type": "ArcEnvState", "step_count": step},
-            action={"operation": 10 + step, "selection": [[1, 0], [0, 1]]},
+            action={"operation": 10 + step, "selection": [[1, 0], [0, 1]]},  # Mock action for demo
             after_state={"type": "ArcEnvState", "step_count": step + 1},
             reward=0.2 + step * 0.1,
             info={"similarity": 0.1 + step * 0.2},
@@ -75,7 +75,7 @@ def create_sample_episodes(logger: StructuredLogger) -> None:
         logger.log_step(
             step_num=step,
             before_state={"type": "ArcEnvState", "step_count": step},
-            action={"operation": 15 + (step % 3), "selection": [[1, 1], [0, 0]]},
+            action={"operation": 15 + (step % 3), "selection": [[1, 1], [0, 0]]},  # Mock action for demo
             after_state={"type": "ArcEnvState", "step_count": step + 1},
             reward=0.05 + (step % 2) * 0.1,
             info={"similarity": 0.3 + step * 0.05},

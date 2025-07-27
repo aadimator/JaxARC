@@ -360,8 +360,9 @@ class TestArcEnvironment:
         state, _ = env.reset(key, task_data=task_data)
 
         # Create a function that can be JIT compiled
+        from jaxarc.envs.structured_actions import MaskAction
         def step_fn(state, selection, operation):
-            action = {"selection": selection, "operation": operation}
+            action = MaskAction(selection=selection, operation=operation)
             return env.step(state, action)
 
         # This should compile without errors

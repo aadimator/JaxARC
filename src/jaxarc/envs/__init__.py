@@ -16,6 +16,19 @@ from .action_space_controller import ActionSpaceController
 
 # Action handlers
 from .actions import bbox_handler, get_action_handler, mask_handler, point_handler
+
+# Structured actions
+from .structured_actions import (
+    BaseAction,
+    BboxAction,
+    MaskAction,
+    PointAction,
+    StructuredAction,
+    create_bbox_action,
+    create_mask_action,
+    create_point_action,
+
+)
 from .config import (
     ActionConfig as UnifiedActionConfig,
 )
@@ -87,14 +100,19 @@ __all__ = [
     "ArcEpisodeConfig",
     "ArcEpisodeManager",
     "ArcObservation",
+    "BaseAction",
+    "BboxAction",
     "ConfigValidationError",
     "EnvironmentConfig",
     "JaxArcConfig",
     "LoggingConfig",
+    "MaskAction",
     "MultiBinary",
     "ObservationConfig",
+    "PointAction",
     "Space",
     "StorageConfig",
+    "StructuredAction",
     "UnifiedActionConfig",
     "UnifiedDatasetConfig",
     "UnifiedRewardConfig",
@@ -103,10 +121,14 @@ __all__ = [
     "arc_reset",
     "arc_step",
     "bbox_handler",
+
+    "create_bbox_action",
     "create_debug_observation",
     "create_evaluation_observation",
+    "create_mask_action",
     "create_minimal_observation",
     "create_observation",
+    "create_point_action",
     "create_rich_observation",
     "create_standard_observation",
     "create_training_observation",

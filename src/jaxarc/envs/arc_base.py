@@ -139,14 +139,18 @@ class ArcEnvironment:
         return state, observation
 
     def step(
-        self, state: ArcEnvState, action: dict
+        self, state: ArcEnvState, action
     ) -> tuple[ArcEnvState, jnp.ndarray, jnp.ndarray, jnp.ndarray, dict]:
-        """Execute single step with grid operation."""
+        """Execute single step with structured action."""
+        # Convert structured action to selection mask
+        grid_shape = state.working_grid.shape
+        selection_mask = action.to_selection_mask(grid_shape)
+        
         # Update selection in state using Equinox tree_at for better performance
-        state = eqx.tree_at(lambda s: s.selected, state, action["selection"])
+        state = eqx.tree_at(lambda s: s.selected, state, selection_mask)
 
         # Execute operation using existing grid_operations
-        new_state = execute_grid_operation(state, action["operation"])
+        new_state = execute_grid_operation(state, action.operation)
 
         # Update step count using Equinox tree_at
         new_state = eqx.tree_at(lambda s: s.step_count, new_state, state.step_count + 1)
