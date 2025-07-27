@@ -219,7 +219,7 @@ class ActionSpaceController:
             # Use in JIT-compiled function
             @jax.jit
             def step_with_validation(state, action, config):
-                op_id = jnp.array(action["operation"])
+                op_id = action.operation  # Structured action
                 is_valid = controller.validate_operation_jax(op_id, state, config)
                 # Handle validation result...
                 return new_state
@@ -297,7 +297,7 @@ class ActionSpaceController:
             ```python
             @jax.jit
             def step_with_filtering(state, action, config):
-                op_id = jnp.array(action["operation"])
+                op_id = action.operation  # Structured action
                 filtered_op = controller.filter_invalid_operation_jax(op_id, state, config)
                 return filtered_op
             ```
@@ -841,7 +841,9 @@ class ActionSpaceController:
             @jax.jit
             def random_valid_action(key, state, config):
                 operation = controller.sample_valid_operation_jax(key, state, config)
-                return {"operation": operation, "selection": default_selection}
+                # Return structured action based on selection format
+                from jaxarc.envs.structured_actions import create_mask_action
+                return create_mask_action(operation=operation, selection=default_selection)
             ```
         """
         allowed_mask = self.get_allowed_operations(state, config)
@@ -985,7 +987,7 @@ class ActionSpaceController:
             ```python
             @jax.jit
             def step_with_error_handling(state, action, config):
-                op_id = jnp.array(action["operation"])
+                op_id = action.operation  # Structured action
                 filtered_op, had_error = controller.handle_invalid_operation_jax(
                     op_id, state, config
                 )
@@ -994,10 +996,10 @@ class ActionSpaceController:
                 penalty = jnp.where(had_error, -1.0, 0.0)
                 
                 # Use filtered operation for actual step
-                filtered_action = action.copy()
-                filtered_action["operation"] = filtered_op
+                # Note: In practice, you'd create a new structured action with filtered_op
+                # This is just a documentation example
                 
-                return step_function(state, filtered_action), penalty
+                return step_function(state, action), penalty
             ```
         """
         # Check if operation is valid
@@ -1192,14 +1194,14 @@ class ActionSpaceController:
             ```python
             @jax.jit
             def process_action_with_constraints(action, state, config):
-                op_id = jnp.array(action["operation"])
+                op_id = action.operation  # Structured action
                 filtered_op, is_valid, penalty = controller.apply_operation_constraints_jax(
                     op_id, state, config, apply_penalty=True
                 )
                 
                 # Use filtered operation for execution
-                filtered_action = action.copy()
-                filtered_action["operation"] = filtered_op
+                # Note: In practice, you'd create a new structured action with filtered_op
+                # This is just a documentation example
                 
                 # Apply penalty to reward
                 reward_penalty = jnp.where(is_valid, 0.0, penalty)

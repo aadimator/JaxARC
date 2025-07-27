@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import pytest
 import jax
+from jaxarc.envs.structured_actions import PointAction, BboxAction, MaskAction
 import jax.numpy as jnp
 from hypothesis import given, strategies as st
 
@@ -489,7 +490,7 @@ class TestActionHistoryTracker:
     
     def test_add_action_point_format(self, tracker, sample_state, history_config):
         """Test adding point-format action to history."""
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         
         new_state = tracker.add_action(
             sample_state, action, history_config, "point", 5, 5
@@ -508,7 +509,7 @@ class TestActionHistoryTracker:
     
     def test_add_action_bbox_format(self, tracker, sample_state, history_config):
         """Test adding bbox-format action to history."""
-        action = {"bbox": [1, 2, 4, 5], "operation": 20}
+        action = BboxAction(operation=jnp.array(20, dtype=jnp.int32), r1=jnp.array(1, dtype=jnp.int32), c1=jnp.array(2, dtype=jnp.int32), r2=jnp.array(4, dtype=jnp.int32), c2=jnp.array(5, dtype=jnp.int32))
         
         new_state = tracker.add_action(
             sample_state, action, history_config, "bbox", 5, 5
@@ -527,8 +528,8 @@ class TestActionHistoryTracker:
     
     def test_add_action_mask_format(self, tracker, sample_state, history_config):
         """Test adding mask-format action to history."""
-        mask = jnp.ones((5, 5)) * 0.5  # Half-selected mask
-        action = {"mask": mask, "operation": 28}
+        mask = jnp.ones((5, 5), dtype=jnp.bool_)  # Selected mask
+        action = MaskAction(operation=jnp.array(28, dtype=jnp.int32), selection=mask)
         
         new_state = tracker.add_action(
             sample_state, action, history_config, "mask", 5, 5
@@ -548,7 +549,7 @@ class TestActionHistoryTracker:
     def test_add_action_disabled_history(self, tracker, sample_state):
         """Test that actions are not stored when history is disabled."""
         disabled_config = HistoryConfig(enabled=False)
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         
         new_state = tracker.add_action(
             sample_state, action, disabled_config, "point", 5, 5
@@ -561,9 +562,9 @@ class TestActionHistoryTracker:
     def test_multiple_actions_sequential(self, tracker, sample_state, history_config):
         """Test adding multiple actions sequentially."""
         actions = [
-            {"point": [1, 1], "operation": 10},
-            {"point": [2, 2], "operation": 11},
-            {"point": [3, 3], "operation": 12},
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(1, dtype=jnp.int32), col=jnp.array(1, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(11, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(2, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(12, dtype=jnp.int32), row=jnp.array(3, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32)),
         ]
         
         current_state = sample_state
@@ -596,11 +597,11 @@ class TestActionHistoryTracker:
         
         # Add more actions than buffer size
         actions = [
-            {"point": [1, 1], "operation": 10},
-            {"point": [2, 2], "operation": 11},
-            {"point": [3, 3], "operation": 12},
-            {"point": [4, 4], "operation": 13},  # This should overwrite first action
-            {"point": [5, 5], "operation": 14},  # This should overwrite second action
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(1, dtype=jnp.int32), col=jnp.array(1, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(11, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(2, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(12, dtype=jnp.int32), row=jnp.array(3, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(13, dtype=jnp.int32), row=jnp.array(4, dtype=jnp.int32), col=jnp.array(4, dtype=jnp.int32)),  # This should overwrite first action
+            PointAction(operation=jnp.array(14, dtype=jnp.int32), row=jnp.array(5, dtype=jnp.int32), col=jnp.array(5, dtype=jnp.int32)),  # This should overwrite second action
         ]
         
         current_state = test_state
@@ -631,9 +632,9 @@ class TestActionHistoryTracker:
         """Test retrieving full action sequence."""
         # Add several actions
         actions = [
-            {"point": [1, 1], "operation": 10},
-            {"point": [2, 2], "operation": 11},
-            {"point": [3, 3], "operation": 12},
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(1, dtype=jnp.int32), col=jnp.array(1, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(11, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(2, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(12, dtype=jnp.int32), row=jnp.array(3, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32)),
         ]
         
         current_state = sample_state
@@ -659,11 +660,11 @@ class TestActionHistoryTracker:
         """Test retrieving action sequence with start/end indices."""
         # Add several actions
         actions = [
-            {"point": [1, 1], "operation": 10},
-            {"point": [2, 2], "operation": 11},
-            {"point": [3, 3], "operation": 12},
-            {"point": [4, 4], "operation": 13},
-            {"point": [5, 5], "operation": 14},
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(1, dtype=jnp.int32), col=jnp.array(1, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(11, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(2, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(12, dtype=jnp.int32), row=jnp.array(3, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(13, dtype=jnp.int32), row=jnp.array(4, dtype=jnp.int32), col=jnp.array(4, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(14, dtype=jnp.int32), row=jnp.array(5, dtype=jnp.int32), col=jnp.array(5, dtype=jnp.int32)),
         ]
         
         current_state = sample_state
@@ -703,7 +704,7 @@ class TestActionHistoryTracker:
     def test_clear_history(self, tracker, sample_state, history_config):
         """Test clearing action history."""
         # Add some actions first
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         state_with_history = tracker.add_action(
             sample_state, action, history_config, "point", 5, 5
         )
@@ -727,7 +728,7 @@ class TestActionHistoryTracker:
         assert tracker.get_action_count(sample_state) == 0
         
         # Add action
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         new_state = tracker.add_action(
             sample_state, action, history_config, "point", 5, 5
         )
@@ -746,7 +747,7 @@ class TestActionHistoryTracker:
         assert tracker.is_history_full(test_state) is False
         
         # Add one action
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         state1 = tracker.add_action(test_state, action, small_config, "point", 5, 5)
         assert tracker.is_history_full(state1) is False
         
@@ -763,11 +764,11 @@ class TestActionHistoryTracker:
         """Test getting recent actions convenience method."""
         # Add several actions
         actions = [
-            {"point": [1, 1], "operation": 10},
-            {"point": [2, 2], "operation": 11},
-            {"point": [3, 3], "operation": 12},
-            {"point": [4, 4], "operation": 13},
-            {"point": [5, 5], "operation": 14},
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(1, dtype=jnp.int32), col=jnp.array(1, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(11, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(2, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(12, dtype=jnp.int32), row=jnp.array(3, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(13, dtype=jnp.int32), row=jnp.array(4, dtype=jnp.int32), col=jnp.array(4, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(14, dtype=jnp.int32), row=jnp.array(5, dtype=jnp.int32), col=jnp.array(5, dtype=jnp.int32)),
         ]
         
         current_state = sample_state
@@ -789,10 +790,10 @@ class TestActionHistoryTracker:
         """Test filtering actions by pair index."""
         # Add actions for different pairs
         actions = [
-            {"point": [1, 1], "operation": 10},  # pair 0
-            {"point": [2, 2], "operation": 11},  # pair 1  
-            {"point": [3, 3], "operation": 12},  # pair 0
-            {"point": [4, 4], "operation": 13},  # pair 1
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(1, dtype=jnp.int32), col=jnp.array(1, dtype=jnp.int32)),  # pair 0
+            PointAction(operation=jnp.array(11, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(2, dtype=jnp.int32)),  # pair 1  
+            PointAction(operation=jnp.array(12, dtype=jnp.int32), row=jnp.array(3, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32)),  # pair 0
+            PointAction(operation=jnp.array(13, dtype=jnp.int32), row=jnp.array(4, dtype=jnp.int32), col=jnp.array(4, dtype=jnp.int32)),  # pair 1
         ]
         
         current_state = sample_state
@@ -825,9 +826,9 @@ class TestActionHistoryTracker:
         
         # Add some actions
         actions = [
-            {"point": [1, 1], "operation": 10},
-            {"point": [2, 2], "operation": 11},
-            {"point": [3, 3], "operation": 10},  # Repeat operation
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(1, dtype=jnp.int32), col=jnp.array(1, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(11, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(2, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(3, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32)),  # Repeat operation
         ]
         
         current_state = sample_state
@@ -904,7 +905,7 @@ class TestActionHistoryJAXCompatibility:
     
     def test_add_action_jit_compilation(self, tracker, sample_state, history_config):
         """Test that add_action can be JIT compiled."""
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         
         @jax.jit
         def jit_add_action(state, action_data):
@@ -919,7 +920,7 @@ class TestActionHistoryJAXCompatibility:
     def test_get_action_sequence_jit_compilation(self, tracker, sample_state, history_config):
         """Test that get_action_sequence can be JIT compiled."""
         # Add an action first
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         state_with_history = tracker.add_action(
             sample_state, action, history_config, "point", 5, 5
         )
@@ -939,7 +940,7 @@ class TestActionHistoryJAXCompatibility:
     def test_clear_history_jit_compilation(self, tracker, sample_state, history_config):
         """Test that clear_history can be JIT compiled."""
         # Add an action first
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         state_with_history = tracker.add_action(
             sample_state, action, history_config, "point", 5, 5
         )
@@ -998,9 +999,9 @@ class TestActionHistoryJAXCompatibility:
         
         # Create batch of actions
         actions = [
-            {"point": [1, 1], "operation": 10},
-            {"point": [2, 2], "operation": 11},
-            {"point": [3, 3], "operation": 12},
+            PointAction(operation=jnp.array(10, dtype=jnp.int32), row=jnp.array(1, dtype=jnp.int32), col=jnp.array(1, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(11, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(2, dtype=jnp.int32)),
+            PointAction(operation=jnp.array(12, dtype=jnp.int32), row=jnp.array(3, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32)),
         ]
         
         # Test vmapped add_action
@@ -1018,7 +1019,7 @@ class TestActionHistoryJAXCompatibility:
     
     def test_static_shape_preservation(self, tracker, sample_state, history_config):
         """Test that all operations preserve static shapes."""
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         
         # Original shapes
         original_history_shape = sample_state.action_history.shape
@@ -1210,7 +1211,7 @@ class TestActionHistoryUtilityFunctions:
             dataset = Dataset()
         
         config = MockConfig()
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         
         new_state = add_action_to_state(state, action, config)
         
@@ -1266,7 +1267,7 @@ class TestActionHistoryUtilityFunctions:
             dataset = Dataset()
         
         config = MockConfig()
-        action = {"point": [2, 3], "operation": 15}
+        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
         
         # Custom history config
         history_config = HistoryConfig(
@@ -1337,7 +1338,7 @@ class TestActionHistoryProperties:
         # Add actions
         current_state = state
         for i in range(num_actions):
-            action = {"point": [i % 5, (i + 1) % 5], "operation": i % NUM_OPERATIONS}
+            action = PointAction(operation=jnp.array(i % NUM_OPERATIONS, dtype=jnp.int32), row=jnp.array(i % 5, dtype=jnp.int32), col=jnp.array((i + 1) % 5, dtype=jnp.int32))
             current_state = tracker.add_action(
                 current_state, action, config, "point", 5, 5
             )

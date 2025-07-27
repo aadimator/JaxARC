@@ -95,7 +95,7 @@ class TestRefactoredComponents:
             step_num=5,
             before_grid=before_grid,
             after_grid=after_grid,
-            action={"operation": 1, "color": 2},
+            action={"operation": 1, "color": 2},  # Mock action for demo
             reward=1.5,
             info={"success": True},
             task_id="test_task_001",
@@ -209,7 +209,7 @@ class TestRefactoredComponents:
             step_num=1,
             before_grid=jnp.zeros((2, 2), dtype=jnp.int32),
             after_grid=jnp.ones((2, 2), dtype=jnp.int32),
-            action={"operation": 1},
+            action={"operation": 1},  # Mock action for demo
             reward=1.0,
             info={},
             task_id="test",

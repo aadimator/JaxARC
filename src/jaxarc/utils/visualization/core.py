@@ -1975,7 +1975,11 @@ def save_rl_step_visualization(
     )
 
     # Extract action components
-    operation_id = int(action["operation"])
+    # Note: This handles both structured actions and legacy dictionary format for visualization
+    if hasattr(action, 'operation'):
+        operation_id = int(action.operation)
+    else:
+        operation_id = int(action["operation"])  # Legacy format for visualization only
     step_number = int(state.step_count)
 
     # Create dummy reward and info for visualization
@@ -2579,9 +2583,13 @@ def draw_rl_step_svg_enhanced(
         info_items.append(f"Total Steps: {step_val}")
 
     # Add action details
-    if "operation" in action:
-        op_val = int(action['operation']) if hasattr(action['operation'], 'item') else action['operation']
+    # Handle both structured actions and legacy dictionary format for visualization
+    if hasattr(action, 'operation'):
+        op_val = int(action.operation) if hasattr(action.operation, 'item') else action.operation
         info_items.append(f"Operation ID: {op_val}")
+    elif "operation" in action:
+        op_val = int(action['operation']) if hasattr(action['operation'], 'item') else action['operation']
+        info_items.append(f"Operation ID: {op_val}")  # Legacy format for visualization only
 
     # Display info items
     info_text = " | ".join(info_items) if info_items else "No additional information"

@@ -506,7 +506,9 @@ class Visualizer:
             if not operation_name and "operation" in action_safe:
                 # Try to infer fill color from grids for better description
                 fill_color = -1
-                if action_safe["operation"] == 1:  # Fill Selected
+                # Handle both structured actions and legacy dictionary format for visualization
+                operation_id = action_safe.operation if hasattr(action_safe, 'operation') else action_safe["operation"]
+                if operation_id == 1:  # Fill Selected
                     # Extract selection data from action (handle both selection and bbox formats)
                     selection_data = self._extract_selection_from_action(action_safe, step_data.before_grid)
                     fill_color = infer_fill_color_from_grids(
@@ -518,7 +520,11 @@ class Visualizer:
                         action_safe["fill_color"] = fill_color
 
                 # Ensure operation is a scalar integer
-                operation_id = int(action_safe["operation"]) if hasattr(action_safe["operation"], 'item') else action_safe["operation"]
+                # Handle both structured actions and legacy dictionary format for visualization
+                if hasattr(action_safe, 'operation'):
+                    operation_id = int(action_safe.operation) if hasattr(action_safe.operation, 'item') else action_safe.operation
+                else:
+                    operation_id = int(action_safe["operation"]) if hasattr(action_safe["operation"], 'item') else action_safe["operation"]
                 operation_name = get_operation_display_name(
                     operation_id, action_safe
                 )

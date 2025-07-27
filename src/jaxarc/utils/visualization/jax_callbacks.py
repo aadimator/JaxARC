@@ -343,8 +343,9 @@ def save_step_visualization_callback(
         operation_id = action_data.get("operation", 0)
         step_number = before_data.get("step_count", 0)
 
-        # Generate visualization using the new signature
-        action_for_viz = {"operation": operation_id}
+        # Generate visualization using structured action
+        # Note: This is for visualization purposes only - actual actions should use structured format
+        action_for_viz = {"operation": operation_id}  # Mock action for visualization
         if len(selection_mask) > 0:
             action_for_viz["selection"] = selection_mask
         elif "bbox" in action_data:
