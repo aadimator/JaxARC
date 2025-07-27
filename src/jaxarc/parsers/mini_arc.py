@@ -14,7 +14,6 @@ from typing import Any
 import chex
 import jax
 from loguru import logger
-from omegaconf import DictConfig
 from pyprojroot import here
 
 from jaxarc.envs.config import DatasetConfig
@@ -39,11 +38,33 @@ class MiniArcParser(ArcDataParserBase):
     """
 
     def __init__(self, config: DatasetConfig) -> None:
-        """Initialize the MiniArcParser with configuration.
+        """Initialize the MiniArcParser with typed configuration.
+
+        This parser accepts a typed DatasetConfig object for better type safety
+        and validation. For backward compatibility with Hydra configurations,
+        use the from_hydra() class method.
 
         Args:
             config: Typed dataset configuration containing paths and parser settings,
-                   optimized for 5x5 grid constraints
+                   optimized for 5x5 grid constraints. Must include dataset_path,
+                   max_grid_height, max_grid_width, and other required fields.
+
+        Examples:
+            ```python
+            # Direct typed config usage (preferred)
+            from jaxarc.envs.config import DatasetConfig
+            from omegaconf import DictConfig
+            
+            hydra_config = DictConfig({...})
+            dataset_config = DatasetConfig.from_hydra(hydra_config)
+            parser = MiniArcParser(dataset_config)
+            
+            # Alternative: use from_hydra class method
+            parser = MiniArcParser.from_hydra(hydra_config)
+            ```
+
+        Raises:
+            ValueError: If configuration is invalid or missing required fields
         """
         super().__init__(config)
 

@@ -39,13 +39,11 @@ from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Int
 
 from ..state import ArcEnvState
 from ..utils.jax_types import (
     NUM_OPERATIONS,
     OperationMask,
-    OperationId,
 )
 
 

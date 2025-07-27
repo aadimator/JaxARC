@@ -835,7 +835,7 @@ class RewardConfig(eqx.Module):
             # Warn about evaluation similarity weight
             if self.evaluation_similarity_weight > 0:
                 logger.warning(
-                    f"evaluation_similarity_weight > 0 may lead to cheating in test mode due to target masking"
+                    "evaluation_similarity_weight > 0 may lead to cheating in test mode due to target masking"
                 )
 
         except ConfigValidationError as e:

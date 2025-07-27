@@ -47,7 +47,7 @@ Examples:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal
 
 import chex
 import equinox as eqx

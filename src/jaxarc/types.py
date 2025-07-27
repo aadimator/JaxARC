@@ -14,7 +14,7 @@ from typing import NewType
 import chex
 import equinox as eqx
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Int
+from jaxtyping import Array, Bool
 
 # Import JAXTyping definitions
 from jaxarc.utils.jax_types import (

@@ -30,8 +30,6 @@ from rich.text import Text
 try:
     import matplotlib.pyplot as plt
     import seaborn as sns
-    from matplotlib import patches
-    from matplotlib.gridspec import GridSpec
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:

@@ -300,7 +300,9 @@ def _(mo):
 @app.cell
 def _(MiniArcParser, OmegaConf, Panel, console, miniarc_config):
     # Load dataset
-    parser = MiniArcParser(miniarc_config.dataset)
+    from jaxarc.envs.config import DatasetConfig
+    typed_dataset_config = DatasetConfig.from_hydra(miniarc_config.dataset)
+    parser = MiniArcParser(typed_dataset_config)
 
     console.print(
         Panel(

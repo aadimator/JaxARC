@@ -19,9 +19,7 @@ from __future__ import annotations
 import pytest
 import jax
 import jax.numpy as jnp
-import chex
 from hypothesis import given, strategies as st
-from typing import Dict, Any
 
 from jaxarc.envs.action_history import (
     ActionHistoryTracker,
@@ -30,16 +28,12 @@ from jaxarc.envs.action_history import (
     add_action_to_state,
     create_action_history_tracker_for_config,
 )
-from jaxarc.state import ArcEnvState, create_arc_env_state
+from jaxarc.state import create_arc_env_state
 from jaxarc.utils.jax_types import (
-    MAX_HISTORY_LENGTH,
-    ACTION_RECORD_FIELDS,
     get_selection_data_size,
     get_action_record_fields,
     NUM_OPERATIONS,
 )
-from jaxarc.types import JaxArcTask
-from tests.jax_testing_utils import JaxShapeChecker, JaxTransformationValidator
 from tests.test_utils import MockDataGenerator
 
 

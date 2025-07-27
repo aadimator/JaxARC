@@ -9,14 +9,12 @@ This module tests the enhanced reward calculation system that provides:
 - JIT-compilable and efficient implementation
 """
 
-import jax
 import jax.numpy as jnp
 import pytest
 from omegaconf import OmegaConf
 
 from jaxarc.envs.config import RewardConfig
 from jaxarc.envs.functional import (
-    _calculate_enhanced_reward,
     _calculate_training_step_reward,
     _calculate_training_submit_reward,
     _calculate_evaluation_step_reward,

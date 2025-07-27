@@ -47,7 +47,7 @@ import chex
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float, Int
+from jaxtyping import Array, Bool, Int
 
 from ..state import ArcEnvState
 from ..utils.jax_types import (

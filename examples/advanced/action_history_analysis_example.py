@@ -18,9 +18,8 @@ from jaxarc.envs import arc_reset, arc_step
 from jaxarc.envs.factory import ConfigFactory
 from jaxarc.envs.action_history import ActionHistoryTracker, HistoryConfig
 from jaxarc.parsers import ArcAgiParser
-from jaxarc.utils.visualization import log_grid_to_console
 from omegaconf import DictConfig
-from typing import List, Dict, Any
+from typing import List
 
 
 def create_history_tracking_config(history_mode: str = "standard"):

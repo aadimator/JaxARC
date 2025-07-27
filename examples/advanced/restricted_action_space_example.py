@@ -16,11 +16,10 @@ import jax
 import jax.numpy as jnp
 from jaxarc.envs import arc_reset, arc_step
 from jaxarc.envs.factory import ConfigFactory
-from jaxarc.envs.action_space import ActionSpaceController, ActionConfig
+from jaxarc.envs.action_space import ActionSpaceController
 from jaxarc.parsers import ArcAgiParser
-from jaxarc.utils.visualization import log_grid_to_console
 from omegaconf import DictConfig
-from typing import List, Dict, Any
+from typing import Dict
 
 
 def create_restricted_action_configs():
