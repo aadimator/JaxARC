@@ -934,8 +934,12 @@ def arc_reset(
         typed_config,
     )
 
+    # Validate initial state consistency
+    from ..utils.error_handling import JAXErrorHandler
+    validated_state = JAXErrorHandler.validate_state_consistency(state)
+
     # Create initial observation using the enhanced create_observation function
-    observation = create_observation(state, typed_config)
+    observation = create_observation(validated_state, typed_config)
 
     # Optional logging with enhanced information
     if typed_config.logging.log_operations:
@@ -947,12 +951,12 @@ def arc_reset(
             ),
             episode_mode,
             selected_pair_idx,
-            state.similarity_score,
-            jnp.sum(state.available_demo_pairs),
-            jnp.sum(state.available_test_pairs),
+            validated_state.similarity_score,
+            jnp.sum(validated_state.available_demo_pairs),
+            jnp.sum(validated_state.available_test_pairs),
         )
 
-    return state, observation
+    return validated_state, observation
 
 
 def _process_action(
@@ -1419,10 +1423,10 @@ def arc_step(
     typed_config = _ensure_config(config)
     
     # Validate action and state before processing
-    from jaxarc.utils.error_handling import validate_action, validate_state_consistency
+    from ..utils.error_handling import JAXErrorHandler
     
-    validated_action = validate_action(action, typed_config)
-    validated_state = validate_state_consistency(state)
+    validated_action = JAXErrorHandler.validate_action(action, typed_config)
+    validated_state = JAXErrorHandler.validate_state_consistency(state)
 
     # Process action and get updated state
     new_state, standardized_action, is_control_operation = _process_action(

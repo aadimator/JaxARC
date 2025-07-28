@@ -41,12 +41,19 @@ def point_handler(
     Returns:
         Boolean mask with same shape as working_grid_mask with single point selected
     """
+    # Validate action coordinates using JAX-compatible error handling
+    from ..utils.error_handling import assert_in_range
+    
     # Get grid dimensions from working_grid_mask
     grid_height, grid_width = working_grid_mask.shape
 
-    # Extract and clip coordinates to valid range
-    row = jnp.clip(action.row, 0, grid_height - 1)
-    col = jnp.clip(action.col, 0, grid_width - 1)
+    # Validate coordinates are within bounds (with error handling)
+    validated_row = assert_in_range(action.row, 0, grid_height - 1, "point_row")
+    validated_col = assert_in_range(action.col, 0, grid_width - 1, "point_col")
+
+    # Extract and clip coordinates to valid range (fallback for graceful degradation)
+    row = jnp.clip(validated_row, 0, grid_height - 1)
+    col = jnp.clip(validated_col, 0, grid_width - 1)
 
     # Create mask with single point
     mask = jnp.zeros((grid_height, grid_width), dtype=jnp.bool_)
@@ -69,14 +76,23 @@ def bbox_handler(
     Returns:
         Boolean mask with same shape as working_grid_mask with rectangular region selected
     """
+    # Validate action coordinates using JAX-compatible error handling
+    from ..utils.error_handling import assert_in_range
+    
     # Get grid dimensions from working_grid_mask
     grid_height, grid_width = working_grid_mask.shape
 
-    # Extract and clip coordinates to valid range
-    r1 = jnp.clip(action.r1, 0, grid_height - 1)
-    c1 = jnp.clip(action.c1, 0, grid_width - 1)
-    r2 = jnp.clip(action.r2, 0, grid_height - 1)
-    c2 = jnp.clip(action.c2, 0, grid_width - 1)
+    # Validate all coordinates are within bounds
+    validated_r1 = assert_in_range(action.r1, 0, grid_height - 1, "bbox_r1")
+    validated_c1 = assert_in_range(action.c1, 0, grid_width - 1, "bbox_c1")
+    validated_r2 = assert_in_range(action.r2, 0, grid_height - 1, "bbox_r2")
+    validated_c2 = assert_in_range(action.c2, 0, grid_width - 1, "bbox_c2")
+
+    # Extract and clip coordinates to valid range (fallback for graceful degradation)
+    r1 = jnp.clip(validated_r1, 0, grid_height - 1)
+    c1 = jnp.clip(validated_c1, 0, grid_width - 1)
+    r2 = jnp.clip(validated_r2, 0, grid_height - 1)
+    c2 = jnp.clip(validated_c2, 0, grid_width - 1)
 
     # Ensure proper ordering (min, max)
     min_r, max_r = jnp.minimum(r1, r2), jnp.maximum(r1, r2)
@@ -112,8 +128,14 @@ def mask_handler(
     Returns:
         Boolean mask with same shape as working_grid_mask with selection applied
     """
+    # Validate mask shape matches working grid
+    from ..utils.error_handling import assert_shape_matches
+    
+    expected_shape = working_grid_mask.shape
+    validated_selection = assert_shape_matches(action.selection, expected_shape, "mask_selection")
+    
     # Get the selection mask from the action
-    mask = action.selection.astype(jnp.bool_)
+    mask = validated_selection.astype(jnp.bool_)
 
     # Constrain to working grid area
     return mask & working_grid_mask

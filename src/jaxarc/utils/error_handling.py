@@ -1,699 +1,540 @@
 """
-JAX-compatible error handling using Equinox error utilities.
+JAX-compatible error handling utilities using Equinox.
 
-This module provides runtime error handling that works within JAX transformations
-using equinox.error_if and equinox.branched_error_if. It supports environment
-variable configuration for different error handling modes.
+This module provides comprehensive error handling capabilities that work within
+JAX transformations using equinox.error_if and equinox.branched_error_if.
+It supports environment variable-based configuration for different error modes.
 
 Key Features:
 - JAX-compatible error checking using equinox.error_if
 - Branched error handling with specific error messages
 - Environment variable configuration (EQX_ON_ERROR)
-- Action validation with runtime error checking
-- Grid operation validation with detailed diagnostics
-- Debugging support with breakpoint mode
-
-Environment Variables:
-- EQX_ON_ERROR: Controls error handling behavior
-  - "raise" (default): Raise runtime errors
-  - "nan": Return NaN values and continue
-  - "breakpoint": Open debugger on errors
-- EQX_ON_ERROR_BREAKPOINT_FRAMES: Number of frames to show in breakpoint mode
-
-Examples:
-    ```python
-    import os
-    from jaxarc.utils.error_handling import (
-        JAXErrorHandler,
-        setup_error_environment,
-        validate_action,
-        validate_grid_operation
-    )
-
-    # Setup error handling
-    setup_error_environment()
-
-    # Validate actions
-    validated_action = validate_action(action, config)
-
-    # Validate grid operations
-    validated_state = validate_grid_operation(state, operation_id)
-
-    # Use custom error checking
-    result = JAXErrorHandler.check_bounds(
-        value, min_val=0, max_val=10, 
-        error_msg="Value out of bounds"
-    )
-    ```
+- Action validation with detailed error messages
+- Grid operation error checking
+- Batch processing error diagnosis
 """
 
 from __future__ import annotations
 
 import os
-from typing import Any, List, Optional, Union
+from typing import Any, Callable, Literal, Union
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Int
+from loguru import logger
 
-from ..state import ArcEnvState
-from ..envs.config import JaxArcConfig
 from ..envs.structured_actions import StructuredAction, PointAction, BboxAction, MaskAction
-from .jax_types import OperationId
+from ..envs.config import JaxArcConfig
+from ..state import ArcEnvState
+from ..utils.jax_types import GridArray, SelectionArray
+
+
+# Error mode configuration
+ErrorMode = Literal["raise", "nan", "breakpoint"]
 
 
 class JAXErrorHandler:
-    """JAX-compatible error handling using Equinox error utilities.
+    """JAX-compatible error handling using Equinox.
     
-    This class provides static methods for runtime error checking that work
-    within JAX transformations. It uses equinox.error_if and equinox.branched_error_if
-    for JAX-compatible error handling.
-    
-    The error handling behavior can be controlled via the EQX_ON_ERROR environment
-    variable:
-    - "raise": Raise runtime errors (default)
-    - "nan": Return NaN values and continue execution
-    - "breakpoint": Open debugger on errors
+    This class provides static methods for error handling that work within
+    JAX transformations. It uses equinox.error_if and equinox.branched_error_if
+    for runtime error checking that survives JIT compilation.
     """
-
-    ERROR_MODES = {
-        "raise": "Raise runtime errors",
-        "nan": "Return NaN and continue",
-        "breakpoint": "Open debugger"
-    }
-
+    
+    @staticmethod
+    def setup_error_environment() -> None:
+        """Setup error handling environment variables.
+        
+        Sets default error handling mode if not already configured.
+        Supports EQX_ON_ERROR environment variable for debugging.
+        """
+        # Set default error handling mode if not configured
+        if "EQX_ON_ERROR" not in os.environ:
+            os.environ["EQX_ON_ERROR"] = "raise"
+        
+        # Set debug frame count for breakpoints
+        if "EQX_ON_ERROR_BREAKPOINT_FRAMES" not in os.environ:
+            os.environ["EQX_ON_ERROR_BREAKPOINT_FRAMES"] = "3"
+        
+        logger.debug(f"Error handling mode: {os.environ.get('EQX_ON_ERROR', 'raise')}")
+    
     @staticmethod
     @eqx.filter_jit
-    def check_bounds(
-        value: Union[Int[Array, ""], float, int],
-        min_val: Union[Int[Array, ""], float, int],
-        max_val: Union[Int[Array, ""], float, int],
-        error_msg: str = "Value out of bounds"
-    ) -> Union[Int[Array, ""], float, int]:
-        """Check if value is within bounds with JAX-compatible error handling.
+    def validate_action(action: StructuredAction, config: JaxArcConfig) -> StructuredAction:
+        """Validate structured action with runtime error checking.
+        
+        This function validates action parameters and raises JAX-compatible
+        errors for invalid actions. It works with all structured action types.
         
         Args:
-            value: Value to check
-            min_val: Minimum allowed value (inclusive)
-            max_val: Maximum allowed value (exclusive)
-            error_msg: Error message to display
+            action: Structured action to validate (PointAction, BboxAction, or MaskAction)
+            config: Environment configuration for validation parameters
             
         Returns:
-            The original value if valid
+            Validated action (same as input if valid)
             
         Raises:
-            RuntimeError: If value is out of bounds (when EQX_ON_ERROR="raise")
-            
-        Examples:
-            ```python
-            # Check operation ID bounds
-            op_id = JAXErrorHandler.check_bounds(
-                operation_id, 0, 42, "Operation ID out of range"
-            )
-            
-            # Check grid coordinates
-            row = JAXErrorHandler.check_bounds(
-                row, 0, grid_height, "Row coordinate out of bounds"
-            )
-            ```
+            RuntimeError: If action parameters are invalid (via equinox.error_if)
         """
-        # Convert to JAX arrays for consistent handling
-        if not isinstance(value, jnp.ndarray):
-            value = jnp.array(value)
-        if not isinstance(min_val, jnp.ndarray):
-            min_val = jnp.array(min_val)
-        if not isinstance(max_val, jnp.ndarray):
-            max_val = jnp.array(max_val)
-            
-        # Check bounds condition
-        out_of_bounds = (value < min_val) | (value >= max_val)
+        # Validate operation bounds
+        max_operations = 42  # Operations 0-41
+        action = eqx.error_if(
+            action,
+            (action.operation < 0) | (action.operation >= max_operations),
+            f"Invalid operation ID: must be in [0, {max_operations-1}], got operation"
+        )
         
-        return eqx.error_if(value, out_of_bounds, error_msg)
-
-    @staticmethod
-    @eqx.filter_jit
-    def check_array_shape(
-        array: Array,
-        expected_shape: tuple,
-        error_msg: str = "Array shape mismatch"
-    ) -> Array:
-        """Check if array has expected shape.
-        
-        Args:
-            array: Array to check
-            expected_shape: Expected shape tuple
-            error_msg: Error message to display
-            
-        Returns:
-            The original array if shape is correct
-            
-        Examples:
-            ```python
-            # Check grid shape
-            grid = JAXErrorHandler.check_array_shape(
-                grid, (30, 30), "Grid must be 30x30"
-            )
-            ```
-        """
-        # Check each dimension
-        shape_mismatch = jnp.array(False)
-        
-        if len(array.shape) != len(expected_shape):
-            shape_mismatch = jnp.array(True)
+        # Type-specific validation using JAX conditionals
+        if isinstance(action, PointAction):
+            action = JAXErrorHandler._validate_point_action(action, config)
+        elif isinstance(action, BboxAction):
+            action = JAXErrorHandler._validate_bbox_action(action, config)
+        elif isinstance(action, MaskAction):
+            action = JAXErrorHandler._validate_mask_action(action, config)
         else:
-            for i, (actual, expected) in enumerate(zip(array.shape, expected_shape)):
-                if expected is not None:  # Allow None for flexible dimensions
-                    shape_mismatch = shape_mismatch | (actual != expected)
-        
-        return eqx.error_if(array, shape_mismatch, error_msg)
-
-    @staticmethod
-    @eqx.filter_jit
-    def check_array_dtype(
-        array: Array,
-        expected_dtype: jnp.dtype,
-        error_msg: str = "Array dtype mismatch"
-    ) -> Array:
-        """Check if array has expected dtype.
-        
-        Args:
-            array: Array to check
-            expected_dtype: Expected dtype
-            error_msg: Error message to display
-            
-        Returns:
-            The original array if dtype is correct
-            
-        Examples:
-            ```python
-            # Check grid dtype
-            grid = JAXErrorHandler.check_array_dtype(
-                grid, jnp.int32, "Grid must be int32"
+            # This should not happen with proper typing, but add safety check
+            action = eqx.error_if(
+                action,
+                True,  # Always error for unknown action types
+                f"Unknown action type: {type(action)}"
             )
-            ```
-        """
-        dtype_mismatch = array.dtype != expected_dtype
-        return eqx.error_if(array, dtype_mismatch, error_msg)
-
+        
+        return action
+    
     @staticmethod
     @eqx.filter_jit
-    def validate_operation_id(
-        operation_id: OperationId,
-        max_operations: int = 42,
-        error_msg: Optional[str] = None
-    ) -> OperationId:
-        """Validate operation ID is within valid range.
+    def _validate_point_action(action: PointAction, config: JaxArcConfig) -> PointAction:
+        """Validate point action coordinates.
         
         Args:
-            operation_id: Operation ID to validate
-            max_operations: Maximum number of operations (exclusive)
-            error_msg: Custom error message
+            action: Point action to validate
+            config: Environment configuration
             
         Returns:
-            Validated operation ID
-            
-        Examples:
-            ```python
-            op_id = JAXErrorHandler.validate_operation_id(operation_id)
-            ```
+            Validated point action
         """
-        if error_msg is None:
-            error_msg = f"Operation ID must be in range [0, {max_operations})"
-            
-        return JAXErrorHandler.check_bounds(
-            operation_id, 0, max_operations, error_msg
-        )
-
-    @staticmethod
-    @eqx.filter_jit
-    def validate_grid_coordinates(
-        row: Int[Array, ""],
-        col: Int[Array, ""],
-        grid_height: int,
-        grid_width: int
-    ) -> tuple[Int[Array, ""], Int[Array, ""]]:
-        """Validate grid coordinates are within bounds.
+        max_height = config.dataset.max_grid_height
+        max_width = config.dataset.max_grid_width
         
-        Args:
-            row: Row coordinate
-            col: Column coordinate
-            grid_height: Grid height
-            grid_width: Grid width
-            
-        Returns:
-            Tuple of validated (row, col) coordinates
-            
-        Examples:
-            ```python
-            row, col = JAXErrorHandler.validate_grid_coordinates(
-                row, col, 30, 30
-            )
-            ```
-        """
-        validated_row = JAXErrorHandler.check_bounds(
-            row, 0, grid_height, f"Row must be in range [0, {grid_height})"
-        )
-        validated_col = JAXErrorHandler.check_bounds(
-            col, 0, grid_width, f"Column must be in range [0, {grid_width})"
+        # Check row bounds
+        action = eqx.error_if(
+            action,
+            (action.row < 0) | (action.row >= max_height),
+            f"Point row out of bounds: must be in [0, {max_height-1}]"
         )
         
-        return validated_row, validated_col
-
+        # Check column bounds
+        action = eqx.error_if(
+            action,
+            (action.col < 0) | (action.col >= max_width),
+            f"Point col out of bounds: must be in [0, {max_width-1}]"
+        )
+        
+        return action
+    
     @staticmethod
     @eqx.filter_jit
-    def validate_bbox_coordinates(
-        r1: Int[Array, ""], c1: Int[Array, ""],
-        r2: Int[Array, ""], c2: Int[Array, ""],
-        grid_height: int, grid_width: int
-    ) -> tuple[Int[Array, ""], Int[Array, ""], Int[Array, ""], Int[Array, ""]]:
-        """Validate bounding box coordinates.
+    def _validate_bbox_action(action: BboxAction, config: JaxArcConfig) -> BboxAction:
+        """Validate bounding box action coordinates.
         
         Args:
-            r1, c1: Top-left coordinates
-            r2, c2: Bottom-right coordinates
-            grid_height: Grid height
-            grid_width: Grid width
+            action: Bbox action to validate
+            config: Environment configuration
             
         Returns:
-            Tuple of validated (r1, c1, r2, c2) coordinates
-            
-        Examples:
-            ```python
-            r1, c1, r2, c2 = JAXErrorHandler.validate_bbox_coordinates(
-                r1, c1, r2, c2, 30, 30
-            )
-            ```
+            Validated bbox action
         """
-        # Validate individual coordinates
-        r1 = JAXErrorHandler.check_bounds(r1, 0, grid_height, "r1 out of bounds")
-        c1 = JAXErrorHandler.check_bounds(c1, 0, grid_width, "c1 out of bounds")
-        r2 = JAXErrorHandler.check_bounds(r2, 0, grid_height, "r2 out of bounds")
-        c2 = JAXErrorHandler.check_bounds(c2, 0, grid_width, "c2 out of bounds")
+        max_height = config.dataset.max_grid_height
+        max_width = config.dataset.max_grid_width
         
-        # Validate bbox ordering
-        r1 = eqx.error_if(r1, r1 > r2, "r1 must be <= r2")
-        c1 = eqx.error_if(c1, c1 > c2, "c1 must be <= c2")
+        # Check all coordinate bounds
+        action = eqx.error_if(
+            action,
+            (action.r1 < 0) | (action.r1 >= max_height),
+            f"Bbox r1 out of bounds: must be in [0, {max_height-1}]"
+        )
         
-        return r1, c1, r2, c2
-
+        action = eqx.error_if(
+            action,
+            (action.c1 < 0) | (action.c1 >= max_width),
+            f"Bbox c1 out of bounds: must be in [0, {max_width-1}]"
+        )
+        
+        action = eqx.error_if(
+            action,
+            (action.r2 < 0) | (action.r2 >= max_height),
+            f"Bbox r2 out of bounds: must be in [0, {max_height-1}]"
+        )
+        
+        action = eqx.error_if(
+            action,
+            (action.c2 < 0) | (action.c2 >= max_width),
+            f"Bbox c2 out of bounds: must be in [0, {max_width-1}]"
+        )
+        
+        return action
+    
     @staticmethod
     @eqx.filter_jit
-    def branched_operation_error(
-        state: ArcEnvState,
-        has_error: Bool[Array, ""],
-        error_type: Int[Array, ""]
+    def _validate_mask_action(action: MaskAction, config: JaxArcConfig) -> MaskAction:
+        """Validate mask action selection.
+        
+        Args:
+            action: Mask action to validate
+            config: Environment configuration
+            
+        Returns:
+            Validated mask action
+        """
+        max_height = config.dataset.max_grid_height
+        max_width = config.dataset.max_grid_width
+        expected_shape = (max_height, max_width)
+        
+        # Check mask shape
+        actual_shape = action.selection.shape
+        shape_matches = (actual_shape[0] == expected_shape[0]) & (actual_shape[1] == expected_shape[1])
+        
+        action = eqx.error_if(
+            action,
+            ~shape_matches,
+            f"Mask selection shape mismatch: expected {expected_shape}, got shape"
+        )
+        
+        return action
+    
+    @staticmethod
+    @eqx.filter_jit
+    def validate_grid_operation(
+        state: ArcEnvState, 
+        operation_id: jnp.int32,
+        selection: SelectionArray
     ) -> ArcEnvState:
-        """Handle operation errors with specific error messages.
+        """Validate grid operation with specific error messages.
+        
+        This function validates that a grid operation can be performed
+        on the current state with the given selection.
         
         Args:
             state: Current environment state
-            has_error: Whether an error occurred
-            error_type: Type of error (index into error messages)
+            operation_id: Operation ID to validate
+            selection: Selection mask for the operation
             
         Returns:
-            State (unchanged if no error)
+            Validated state (same as input if valid)
             
-        Examples:
-            ```python
-            state = JAXErrorHandler.branched_operation_error(
-                state, has_error, error_type
-            )
-            ```
+        Raises:
+            RuntimeError: If operation cannot be performed (via equinox.branched_error_if)
         """
+        # Define operation-specific error messages
         error_messages = [
-            "Fill operation failed: invalid color value",
-            "Flood fill failed: no valid selection",
-            "Move operation failed: invalid direction",
-            "Rotate operation failed: invalid angle",
-            "Copy operation failed: no selection",
-            "Paste operation failed: empty clipboard",
-            "Clear operation failed: no selection",
-            "Invert operation failed: invalid grid state",
-            "Mirror operation failed: invalid axis",
-            "Transpose operation failed: non-square selection",
-            "Scale operation failed: invalid scale factor",
-            "Crop operation failed: invalid bounds",
-            "Extend operation failed: invalid extension",
-            "Pattern operation failed: invalid pattern",
-            "Filter operation failed: invalid filter type",
-            "Transform operation failed: invalid transformation",
-            "Composite operation failed: incompatible operations",
-            "Validation operation failed: invalid state",
-            "Unknown operation error"
+            "Fill operation failed: invalid color or selection",
+            "Flood fill failed: no valid selection or color",
+            "Move operation failed: invalid direction or selection",
+            "Rotate operation failed: invalid angle or selection",
+            "Copy operation failed: invalid selection area",
+            "Paste operation failed: clipboard empty or invalid position",
+            "Clear operation failed: invalid selection",
+            "Invert operation failed: invalid selection",
+            "Mirror operation failed: invalid axis or selection",
+            "Transpose operation failed: invalid selection area",
+            "Scale operation failed: invalid factor or selection",
+            "Crop operation failed: invalid selection bounds",
+            "Extend operation failed: invalid direction or amount",
+            "Shift operation failed: invalid direction or amount",
+            "Wrap operation failed: invalid direction or amount",
+            "Overlay operation failed: invalid overlay data",
+            "Mask operation failed: invalid mask data",
+            "Filter operation failed: invalid filter parameters",
+            "Transform operation failed: invalid transformation matrix",
+            "Blend operation failed: invalid blend parameters",
+            "Extract operation failed: invalid extraction parameters",
+            "Insert operation failed: invalid insertion parameters",
+            "Replace operation failed: invalid replacement parameters",
+            "Swap operation failed: invalid swap parameters",
+            "Duplicate operation failed: invalid duplication parameters",
+            "Remove operation failed: invalid removal parameters",
+            "Resize operation failed: invalid size parameters",
+            "Pad operation failed: invalid padding parameters",
+            "Trim operation failed: invalid trim parameters",
+            "Align operation failed: invalid alignment parameters",
+            "Distribute operation failed: invalid distribution parameters",
+            "Group operation failed: invalid grouping parameters",
+            "Ungroup operation failed: invalid ungrouping parameters",
+            "Lock operation failed: invalid lock parameters",
+            "Unlock operation failed: invalid unlock parameters",
+            "Freeze operation failed: invalid freeze parameters",
+            "Thaw operation failed: invalid thaw parameters",
+            "Save operation failed: invalid save parameters",
+            "Load operation failed: invalid load parameters",
+            "Undo operation failed: no operations to undo",
+            "Redo operation failed: no operations to redo",
+            "Reset operation failed: invalid reset parameters",
+            "Submit operation failed: invalid submission state"
         ]
         
-        return eqx.branched_error_if(state, has_error, error_type, error_messages)
-
-
-def setup_error_environment() -> None:
-    """Setup error handling environment variables with defaults.
-    
-    This function configures the error handling environment variables
-    if they are not already set, providing sensible defaults for
-    development and production use.
-    
-    Examples:
-        ```python
-        # Setup error handling at application startup
-        setup_error_environment()
+        # Basic validation checks
+        has_selection = jnp.any(selection)
+        valid_operation = (operation_id >= 0) & (operation_id < 42)
         
-        # Override for debugging
-        import os
-        os.environ["EQX_ON_ERROR"] = "breakpoint"
-        setup_error_environment()
-        ```
-    """
-    # Set default error handling mode
-    if "EQX_ON_ERROR" not in os.environ:
-        os.environ["EQX_ON_ERROR"] = "raise"
-    
-    # Set default frame count for breakpoints
-    if "EQX_ON_ERROR_BREAKPOINT_FRAMES" not in os.environ:
-        os.environ["EQX_ON_ERROR_BREAKPOINT_FRAMES"] = "3"
-    
-    # Validate error mode
-    error_mode = os.environ["EQX_ON_ERROR"]
-    if error_mode not in JAXErrorHandler.ERROR_MODES:
-        valid_modes = list(JAXErrorHandler.ERROR_MODES.keys())
-        raise ValueError(
-            f"Invalid EQX_ON_ERROR mode '{error_mode}'. "
-            f"Valid modes: {valid_modes}"
+        # Check for basic operation requirements
+        needs_selection_ops = jnp.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])  # Operations that need selection
+        needs_selection = jnp.isin(operation_id, needs_selection_ops)
+        
+        # Determine error condition and type
+        selection_error = needs_selection & (~has_selection)
+        operation_error = ~valid_operation
+        
+        # Combine error conditions
+        has_error = selection_error | operation_error
+        
+        # Determine error index (which error message to use)
+        error_index = jnp.where(
+            operation_error,
+            0,  # Use first error message for invalid operations
+            jnp.clip(operation_id, 0, len(error_messages) - 1)
         )
+        
+        # Use branched error for specific operation error messages
+        return eqx.branched_error_if(
+            state,
+            has_error,
+            error_index,
+            error_messages
+        )
+    
+    @staticmethod
+    @eqx.filter_jit
+    def validate_state_consistency(state: ArcEnvState) -> ArcEnvState:
+        """Validate state consistency with detailed error messages.
+        
+        This function performs comprehensive state validation to ensure
+        all state fields are consistent and valid.
+        
+        Args:
+            state: Environment state to validate
+            
+        Returns:
+            Validated state (same as input if valid)
+            
+        Raises:
+            RuntimeError: If state is inconsistent (via equinox.error_if)
+        """
+        # Check grid shape consistency
+        working_shape = state.working_grid.shape
+        target_shape = state.target_grid.shape
+        shapes_match = jnp.array_equal(jnp.array(working_shape), jnp.array(target_shape))
+        
+        state = eqx.error_if(
+            state,
+            ~shapes_match,
+            "Working grid and target grid shapes must match"
+        )
+        
+        # Check mask consistency
+        mask_shape = state.working_grid_mask.shape
+        grid_mask_matches = jnp.array_equal(jnp.array(working_shape), jnp.array(mask_shape))
+        
+        state = eqx.error_if(
+            state,
+            ~grid_mask_matches,
+            "Working grid mask shape must match working grid"
+        )
+        
+        # Check step count bounds
+        state = eqx.error_if(
+            state,
+            state.step_count < 0,
+            "Step count cannot be negative"
+        )
+        
+        # Check similarity score bounds
+        state = eqx.error_if(
+            state,
+            (state.similarity_score < 0.0) | (state.similarity_score > 1.0),
+            "Similarity score must be in range [0.0, 1.0]"
+        )
+        
+        # Check episode mode validity
+        valid_modes = jnp.array([0, 1])  # 0=train, 1=test
+        mode_valid = jnp.isin(state.episode_mode, valid_modes)
+        
+        state = eqx.error_if(
+            state,
+            ~mode_valid,
+            "Episode mode must be 0 (train) or 1 (test)"
+        )
+        
+        return state
+    
+    @staticmethod
+    def validate_batch_actions(
+        actions: StructuredAction,
+        config: JaxArcConfig,
+        batch_size: int
+    ) -> StructuredAction:
+        """Validate batch of structured actions.
+        
+        This function validates a batch of actions and provides clear
+        error messages with batch indices for debugging.
+        
+        Args:
+            actions: Batch of structured actions
+            config: Environment configuration
+            batch_size: Expected batch size
+            
+        Returns:
+            Validated batch of actions
+            
+        Note:
+            This function is not JIT-compiled to allow for better error reporting
+            with batch indices in error messages.
+        """
+        try:
+            # Use vmap to validate each action in the batch
+            validate_fn = lambda action: JAXErrorHandler.validate_action(action, config)
+            validated_actions = jax.vmap(validate_fn)(actions)
+            return validated_actions
+            
+        except Exception as e:
+            # Provide enhanced error message with batch context
+            error_msg = f"Batch action validation failed (batch_size={batch_size}): {str(e)}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+    
+    @staticmethod
+    def get_error_mode() -> ErrorMode:
+        """Get current error handling mode from environment variable.
+        
+        Returns:
+            Current error mode ("raise", "nan", or "breakpoint")
+        """
+        mode = os.environ.get("EQX_ON_ERROR", "raise").lower()
+        if mode in ["raise", "nan", "breakpoint"]:
+            return mode
+        else:
+            logger.warning(f"Unknown error mode '{mode}', defaulting to 'raise'")
+            return "raise"
+    
+    @staticmethod
+    def set_error_mode(mode: ErrorMode) -> None:
+        """Set error handling mode via environment variable.
+        
+        Args:
+            mode: Error mode to set ("raise", "nan", or "breakpoint")
+        """
+        if mode not in ["raise", "nan", "breakpoint"]:
+            raise ValueError(f"Invalid error mode: {mode}. Must be 'raise', 'nan', or 'breakpoint'")
+        
+        os.environ["EQX_ON_ERROR"] = mode
+        logger.info(f"Error handling mode set to: {mode}")
+    
+    @staticmethod
+    def configure_debugging(
+        mode: ErrorMode = "raise",
+        breakpoint_frames: int = 3,
+        enable_nan_checks: bool = True
+    ) -> None:
+        """Configure debugging environment for error handling.
+        
+        Args:
+            mode: Error handling mode
+            breakpoint_frames: Number of frames to capture for breakpoints
+            enable_nan_checks: Whether to enable NaN checking
+        """
+        JAXErrorHandler.set_error_mode(mode)
+        
+        # Set breakpoint frame count
+        os.environ["EQX_ON_ERROR_BREAKPOINT_FRAMES"] = str(breakpoint_frames)
+        
+        # Configure NaN checking if requested
+        if enable_nan_checks:
+            os.environ["JAX_DEBUG_NANS"] = "True"
+        
+        logger.info(f"Debugging configured: mode={mode}, frames={breakpoint_frames}, nan_checks={enable_nan_checks}")
+
+
+# Utility functions for common error patterns
+
+@eqx.filter_jit
+def assert_positive(value: jnp.ndarray, name: str = "value") -> jnp.ndarray:
+    """Assert that a value is positive using JAX-compatible error checking.
+    
+    Args:
+        value: Value to check
+        name: Name of the value for error message
+        
+    Returns:
+        The value if positive
+        
+    Raises:
+        RuntimeError: If value is not positive
+    """
+    return eqx.error_if(
+        value,
+        value <= 0,
+        f"{name} must be positive"
+    )
 
 
 @eqx.filter_jit
-def validate_action(action: StructuredAction, config: JaxArcConfig) -> StructuredAction:
-    """Validate structured action with runtime error checking.
-    
-    This function validates all aspects of a structured action including
-    operation ID, coordinates, and format-specific constraints.
+def assert_in_range(
+    value: jnp.ndarray, 
+    min_val: float, 
+    max_val: float, 
+    name: str = "value"
+) -> jnp.ndarray:
+    """Assert that a value is within a specified range.
     
     Args:
-        action: Structured action to validate
-        config: Environment configuration
+        value: Value to check
+        min_val: Minimum allowed value
+        max_val: Maximum allowed value
+        name: Name of the value for error message
         
     Returns:
-        Validated action (unchanged if valid)
+        The value if in range
         
     Raises:
-        RuntimeError: If action is invalid (when EQX_ON_ERROR="raise")
-        
-    Examples:
-        ```python
-        # Validate point action
-        point_action = PointAction(operation=0, row=5, col=7)
-        validated = validate_action(point_action, config)
-        
-        # Validate bbox action
-        bbox_action = BboxAction(operation=1, r1=2, c1=3, r2=8, c2=9)
-        validated = validate_action(bbox_action, config)
-        ```
+        RuntimeError: If value is out of range
     """
-    # Validate operation ID
-    action = eqx.tree_at(
-        lambda a: a.operation,
-        action,
-        JAXErrorHandler.validate_operation_id(action.operation)
+    return eqx.error_if(
+        value,
+        (value < min_val) | (value > max_val),
+        f"{name} must be in range [{min_val}, {max_val}]"
     )
-    
-    # Get grid dimensions from config
-    grid_height = config.dataset.max_grid_height
-    grid_width = config.dataset.max_grid_width
-    
-    # Format-specific validation
-    if isinstance(action, PointAction):
-        # Validate point coordinates
-        validated_row, validated_col = JAXErrorHandler.validate_grid_coordinates(
-            action.row, action.col, grid_height, grid_width
-        )
-        action = eqx.tree_at(
-            lambda a: (a.row, a.col),
-            action,
-            (validated_row, validated_col)
-        )
-        
-    elif isinstance(action, BboxAction):
-        # Validate bbox coordinates
-        r1, c1, r2, c2 = JAXErrorHandler.validate_bbox_coordinates(
-            action.r1, action.c1, action.r2, action.c2,
-            grid_height, grid_width
-        )
-        action = eqx.tree_at(
-            lambda a: (a.r1, a.c1, a.r2, a.c2),
-            action,
-            (r1, c1, r2, c2)
-        )
-        
-    elif isinstance(action, MaskAction):
-        # Validate mask shape
-        expected_shape = (grid_height, grid_width)
-        action = eqx.tree_at(
-            lambda a: a.selection,
-            action,
-            JAXErrorHandler.check_array_shape(
-                action.selection, expected_shape, 
-                f"Mask selection must have shape {expected_shape}"
-            )
-        )
-        
-        # Validate mask dtype
-        action = eqx.tree_at(
-            lambda a: a.selection,
-            action,
-            JAXErrorHandler.check_array_dtype(
-                action.selection, jnp.bool_, 
-                "Mask selection must be boolean"
-            )
-        )
-    
-    return action
 
 
 @eqx.filter_jit
-def validate_grid_operation(
-    state: ArcEnvState, 
-    operation_id: OperationId
-) -> ArcEnvState:
-    """Validate grid operation with specific error messages.
-    
-    This function validates that a grid operation can be performed on the
-    current state, checking for common error conditions.
+def assert_shape_matches(
+    array: jnp.ndarray, 
+    expected_shape: tuple[int, ...], 
+    name: str = "array"
+) -> jnp.ndarray:
+    """Assert that an array has the expected shape.
     
     Args:
-        state: Current environment state
-        operation_id: Operation to validate
+        array: Array to check
+        expected_shape: Expected shape
+        name: Name of the array for error message
         
     Returns:
-        State (unchanged if valid)
+        The array if shape matches
         
     Raises:
-        RuntimeError: If operation cannot be performed
-        
-    Examples:
-        ```python
-        # Validate before performing operation
-        validated_state = validate_grid_operation(state, operation_id)
-        ```
+        RuntimeError: If shape doesn't match
     """
-    # Validate operation ID
-    validated_op_id = JAXErrorHandler.validate_operation_id(operation_id)
+    actual_shape = array.shape
     
-    # Check if operation is allowed
-    operation_allowed = state.is_operation_allowed(validated_op_id)
-    state = eqx.error_if(
-        state, 
-        ~operation_allowed,
-        f"Operation {validated_op_id} is not currently allowed"
+    # Convert to JAX arrays for comparison
+    actual_shape_array = jnp.array(actual_shape)
+    expected_shape_array = jnp.array(expected_shape)
+    
+    # Check if shapes match exactly
+    shapes_match = jnp.array_equal(actual_shape_array, expected_shape_array)
+    
+    return eqx.error_if(
+        array,
+        ~shapes_match,
+        f"{name} shape mismatch: expected {expected_shape}"
     )
-    
-    # Operation-specific validation
-    has_selection = jnp.any(state.selected)
-    has_clipboard = jnp.any(state.clipboard != 0)
-    
-    # Define error conditions for different operations
-    # This is a simplified example - real implementation would have more conditions
-    error_conditions = jnp.array([
-        # Fill operations (0-9) need selection
-        (validated_op_id < 10) & (~has_selection),
-        # Copy operations (10-19) need selection  
-        ((validated_op_id >= 10) & (validated_op_id < 20)) & (~has_selection),
-        # Paste operations (20-29) need clipboard
-        ((validated_op_id >= 20) & (validated_op_id < 30)) & (~has_clipboard),
-        # Transform operations (30-39) need selection
-        ((validated_op_id >= 30) & (validated_op_id < 40)) & (~has_selection),
-    ])
-    
-    # Check if any error condition is met
-    has_error = jnp.any(error_conditions)
-    error_type = jnp.argmax(error_conditions)  # Get first error type
-    
-    return JAXErrorHandler.branched_operation_error(state, has_error, error_type)
-
-
-@eqx.filter_jit
-def validate_state_consistency(state: ArcEnvState) -> ArcEnvState:
-    """Validate state consistency with detailed error messages.
-    
-    This function performs comprehensive validation of the environment state
-    to ensure all components are consistent and valid.
-    
-    Args:
-        state: Environment state to validate
-        
-    Returns:
-        State (unchanged if valid)
-        
-    Raises:
-        RuntimeError: If state is inconsistent
-        
-    Examples:
-        ```python
-        # Validate state after updates
-        validated_state = validate_state_consistency(state)
-        ```
-    """
-    # Check grid shape consistency
-    state = eqx.error_if(
-        state,
-        state.working_grid.shape != state.target_grid.shape,
-        "Working grid and target grid shapes must match"
-    )
-    
-    # Check mask consistency
-    state = eqx.error_if(
-        state,
-        state.working_grid_mask.shape != state.working_grid.shape,
-        "Working grid mask shape must match working grid"
-    )
-    
-    state = eqx.error_if(
-        state,
-        state.target_grid_mask.shape != state.target_grid.shape,
-        "Target grid mask shape must match target grid"
-    )
-    
-    # Check selection consistency
-    state = eqx.error_if(
-        state,
-        state.selected.shape != state.working_grid.shape,
-        "Selection mask shape must match working grid"
-    )
-    
-    # Check clipboard consistency
-    state = eqx.error_if(
-        state,
-        state.clipboard.shape != state.working_grid.shape,
-        "Clipboard shape must match working grid"
-    )
-    
-    # Check step count bounds
-    state = eqx.error_if(
-        state,
-        state.step_count < 0,
-        "Step count cannot be negative"
-    )
-    
-    # Check similarity score bounds
-    state = eqx.error_if(
-        state,
-        (state.similarity_score < 0.0) | (state.similarity_score > 1.0),
-        "Similarity score must be in range [0.0, 1.0]"
-    )
-    
-    # Check episode mode validity
-    state = eqx.error_if(
-        state,
-        (state.episode_mode != 0) & (state.episode_mode != 1),
-        "Episode mode must be 0 (train) or 1 (test)"
-    )
-    
-    # Check current example index bounds
-    max_pairs = jnp.where(
-        state.episode_mode == 0,
-        len(state.available_demo_pairs),
-        len(state.available_test_pairs)
-    )
-    
-    state = eqx.error_if(
-        state,
-        (state.current_example_idx < 0) | (state.current_example_idx >= max_pairs),
-        "Current example index out of bounds"
-    )
-    
-    return state
-
-
-def get_error_mode() -> str:
-    """Get current error handling mode from environment variable.
-    
-    Returns:
-        Current error mode ("raise", "nan", or "breakpoint")
-        
-    Examples:
-        ```python
-        mode = get_error_mode()
-        if mode == "breakpoint":
-            print("Debugging mode enabled")
-        ```
-    """
-    return os.environ.get("EQX_ON_ERROR", "raise")
-
-
-def set_error_mode(mode: str) -> None:
-    """Set error handling mode via environment variable.
-    
-    Args:
-        mode: Error mode ("raise", "nan", or "breakpoint")
-        
-    Raises:
-        ValueError: If mode is invalid
-        
-    Examples:
-        ```python
-        # Enable debugging mode
-        set_error_mode("breakpoint")
-        
-        # Enable graceful degradation
-        set_error_mode("nan")
-        
-        # Enable strict error checking
-        set_error_mode("raise")
-        ```
-    """
-    if mode not in JAXErrorHandler.ERROR_MODES:
-        valid_modes = list(JAXErrorHandler.ERROR_MODES.keys())
-        raise ValueError(f"Invalid error mode '{mode}'. Valid modes: {valid_modes}")
-    
-    os.environ["EQX_ON_ERROR"] = mode
-
-
-def enable_debug_mode(frames: int = 3) -> None:
-    """Enable debugging mode with breakpoints on errors.
-    
-    Args:
-        frames: Number of stack frames to show in debugger
-        
-    Examples:
-        ```python
-        # Enable debugging with default frame count
-        enable_debug_mode()
-        
-        # Enable debugging with more context
-        enable_debug_mode(frames=5)
-        ```
-    """
-    set_error_mode("breakpoint")
-    os.environ["EQX_ON_ERROR_BREAKPOINT_FRAMES"] = str(frames)
-
-
-def disable_debug_mode() -> None:
-    """Disable debugging mode and return to normal error handling.
-    
-    Examples:
-        ```python
-        # Disable debugging mode
-        disable_debug_mode()
-        ```
-    """
-    set_error_mode("raise")
