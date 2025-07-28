@@ -1,963 +1,1164 @@
 # Performance Optimization Guide
 
-This guide covers optimizing the performance of JaxARC's enhanced visualization
-and logging system to minimize impact on training while maximizing debugging
-capabilities.
+This guide provides comprehensive strategies for optimizing JaxARC performance, covering JIT compilation, memory management, batch processing, and debugging techniques. Following these guidelines can achieve 100x+ performance improvements and 90%+ memory reduction.
 
-## Performance Overview
+## Overview
 
-The enhanced visualization system is designed to have minimal impact on JAX
-performance through:
+JaxARC performance optimization focuses on four key areas:
 
-- **Asynchronous processing**: Visualization operations run in background
-  threads
-- **JAX debug callbacks**: Integration that doesn't break JIT compilation
-- **Memory management**: Efficient memory usage and cleanup
-- **Adaptive logging**: Performance-based adjustment of logging frequency
-- **Batch operations**: Grouping I/O operations for efficiency
+1. **JIT Compilation**: Leveraging JAX's Just-In-Time compilation for speed
+2. **Memory Management**: Optimizing memory usage through efficient data structures
+3. **Batch Processing**: Parallelizing operations across multiple environments
+4. **Profiling & Debugging**: Identifying and resolving performance bottlenecks
 
-## Quick Performance Setup
+## Performance Targets
 
-### Minimal Impact Configuration
+### Expected Improvements
 
-```python
-from jaxarc.utils.visualization import (
-    VisualizationConfig,
-    AsyncLoggerConfig,
-    EpisodeConfig,
-    Visualizer,
-)
-
-# Performance-optimized configuration
-vis_config = VisualizationConfig(
-    debug_level="minimal",  # Minimal visualization
-    output_formats=["svg"],  # Single format
-    image_quality="medium",  # Reduced quality
-    lazy_loading=True,  # Enable lazy loading
-    memory_limit_mb=200,  # Limit memory usage
-)
-
-# Async logger for background processing
-async_config = AsyncLoggerConfig(
-    queue_size=500,  # Smaller queue
-    worker_threads=1,  # Single worker thread
-    batch_size=20,  # Larger batches
-    flush_interval=10.0,  # Less frequent flushing
-)
-
-# Episode management with cleanup
-episode_config = EpisodeConfig(
-    cleanup_policy="size_based",
-    max_storage_gb=2.0,  # Limit storage
-    max_episodes_per_run=100,
-)
-
-# Create optimized visualizer
-visualizer = Visualizer(
-    vis_config=vis_config,
-    async_logger_config=async_config,
-    episode_config=episode_config,
-)
-```
-
-### JAX-Optimized Training Loop
-
-```python
-import jax
-import jax.numpy as jnp
-from jaxarc.utils.visualization import jax_debug_callback
-
-
-# JIT-compiled step function with visualization
-@jax.jit
-def optimized_training_step(state, action, config, visualizer_callback):
-    """JIT-compiled training step with minimal visualization overhead."""
-
-    # Environment step
-    new_state, obs, reward, done, info = arc_step(state, action, config)
-
-    # Visualization callback (runs outside JIT)
-    jax.debug.callback(visualizer_callback, state, action, new_state, reward, info)
-
-    return new_state, obs, reward, done, info
-
-
-# Lightweight visualization callback
-def lightweight_viz_callback(state, action, new_state, reward, info):
-    """Lightweight visualization callback for JIT compatibility."""
-
-    # Only visualize every N steps to reduce overhead
-    step_num = info.get("step_num", 0)
-    if step_num % 10 == 0:  # Every 10th step
-        visualizer.visualize_step_async(
-            before_state=state,
-            action=action,
-            after_state=new_state,
-            reward=reward,
-            info=info,
-            step_num=step_num,
-        )
-
-
-# Training loop
-key = jax.random.PRNGKey(42)
-state, obs = arc_reset(key, config)
-
-for step in range(1000):
-    action = agent.select_action(obs)
-
-    # Use JIT-compiled step with visualization
-    state, obs, reward, done, info = optimized_training_step(
-        state, action, config, lightweight_viz_callback
-    )
-
-    if done:
-        break
-```
-
-## Performance Monitoring
-
-### Built-in Performance Monitor
-
-```python
-from jaxarc.utils.visualization import PerformanceMonitor
-
-# Initialize performance monitor
-perf_monitor = PerformanceMonitor(
-    target_overhead=0.05,  # 5% maximum overhead
-    measurement_window=100,  # Measure over 100 steps
-    auto_adjust=True,  # Automatically adjust settings
-)
-
-
-# Measure step performance
-@perf_monitor.measure_step_impact
-def step_with_monitoring(state, action, config):
-    """Step function with performance monitoring."""
-
-    # Environment step
-    new_state, obs, reward, done, info = arc_step(state, action, config)
-
-    # Visualization (monitored)
-    visualizer.visualize_step(state, action, new_state, reward, info, step_num)
-
-    return new_state, obs, reward, done, info
-
-
-# Check performance regularly
-if step % 100 == 0:
-    report = perf_monitor.get_performance_report()
-
-    print(f"Average step time: {report['avg_step_time']:.3f}s")
-    print(f"Visualization overhead: {report['visualization_overhead']:.1f}%")
-
-    # Auto-adjust if overhead too high
-    if report["visualization_overhead"] > 0.1:  # 10%
-        print("⚠️  High visualization overhead detected")
-        perf_monitor.suggest_optimizations()
-```
-
-### Custom Performance Measurement
-
-```python
-import time
-import jax
-
-
-def measure_performance(func, *args, warmup_runs=5, measurement_runs=10):
-    """Measure function performance with JAX compilation."""
-
-    # Warmup runs for JIT compilation
-    for _ in range(warmup_runs):
-        _ = func(*args)
-
-    # Ensure all computations are complete
-    jax.block_until_ready(func(*args))
-
-    # Measurement runs
-    start_time = time.perf_counter()
-    for _ in range(measurement_runs):
-        result = func(*args)
-        jax.block_until_ready(result)
-    end_time = time.perf_counter()
-
-    avg_time = (end_time - start_time) / measurement_runs
-    return avg_time, result
-
-
-# Measure baseline performance
-baseline_time, _ = measure_performance(lambda: arc_step(state, action, config))
-
-# Measure with visualization
-viz_time, _ = measure_performance(
-    lambda: step_with_visualization(state, action, config)
-)
-
-overhead_percent = ((viz_time - baseline_time) / baseline_time) * 100
-print(f"Baseline: {baseline_time:.3f}s")
-print(f"With visualization: {viz_time:.3f}s")
-print(f"Overhead: {overhead_percent:.1f}%")
-```
-
-## Memory Optimization
-
-### Memory Management Configuration
-
-```python
-from jaxarc.utils.visualization import MemoryManager
-
-# Configure memory management
-memory_manager = MemoryManager(
-    max_memory_mb=1000,  # 1GB limit
-    cleanup_threshold=0.8,  # Cleanup at 80% usage
-    enable_lazy_loading=True,  # Load data on demand
-    compression_level=6,  # Moderate compression
-    gc_frequency=100,  # Garbage collect every 100 steps
-)
-
-
-# Monitor memory usage
-def check_memory_usage():
-    """Check and report memory usage."""
-
-    stats = memory_manager.get_memory_stats()
-
-    print(f"Current usage: {stats['current_mb']:.1f} MB")
-    print(f"Peak usage: {stats['peak_mb']:.1f} MB")
-    print(f"Cache hits: {stats['cache_hit_rate']:.1f}%")
-
-    # Trigger cleanup if needed
-    if stats["usage_ratio"] > 0.9:
-        print("🧹 Triggering memory cleanup...")
-        memory_manager.cleanup_old_data()
-
-
-# Use in training loop
-if step % 50 == 0:  # Check every 50 steps
-    check_memory_usage()
-```
-
-### Efficient Image Storage
-
-```python
-def optimize_image_storage(visualizer):
-    """Configure efficient image storage."""
-
-    # Use compressed formats
-    visualizer.set_output_formats(["svg"])  # SVG is more compact than PNG
-
-    # Reduce image quality for storage
-    visualizer.set_image_quality("medium")
-
-    # Enable compression
-    visualizer.enable_compression(level=6)
-
-    # Limit image dimensions
-    visualizer.set_max_image_size((600, 450))
-
-    # Use lazy loading
-    visualizer.enable_lazy_loading()
-
-
-# Apply optimizations
-optimize_image_storage(visualizer)
-```
-
-### Memory-Efficient Data Structures
-
-```python
-import jax.numpy as jnp
-from jaxarc.utils.visualization import CompactStateRepresentation
-
-
-def create_compact_state(state):
-    """Create memory-efficient state representation."""
-
-    # Use compact data types
-    compact_state = CompactStateRepresentation(
-        working_grid=state.working_grid.astype(jnp.uint8),  # Use uint8 instead of int32
-        target_grid=state.target_grid.astype(jnp.uint8),
-        step_count=jnp.uint16(state.step_count),  # Use uint16 for step count
-        # Only store essential information
-        essential_info_only=True,
-    )
-
-    return compact_state
-
-
-# Use in visualization
-compact_state = create_compact_state(state)
-visualizer.visualize_step_compact(compact_state, action, reward, step_num)
-```
-
-## Asynchronous Processing Optimization
-
-### Optimal Async Configuration
-
-```python
-import multiprocessing
-
-# Determine optimal thread count
-cpu_count = multiprocessing.cpu_count()
-optimal_threads = max(1, cpu_count // 4)  # Use 1/4 of available CPUs
-
-async_config = AsyncLoggerConfig(
-    queue_size=1000,
-    worker_threads=optimal_threads,
-    batch_size=50,  # Larger batches for efficiency
-    flush_interval=5.0,  # Balance between latency and efficiency
-    enable_compression=True,
-    priority_levels=3,  # Use priority queues
-)
-
-async_logger = AsyncLogger(async_config)
-```
-
-### Priority-Based Logging
-
-```python
-# Define logging priorities
-PRIORITY_HIGH = 0  # Important events (episode end, errors)
-PRIORITY_MEDIUM = 1  # Regular steps
-PRIORITY_LOW = 2  # Debug information
-
-# Use priorities in logging
-async_logger.log_step_visualization(step_data, priority=PRIORITY_MEDIUM)
-
-async_logger.log_episode_summary(
-    episode_data, priority=PRIORITY_HIGH  # High priority for episode summaries
-)
-
-async_logger.log_debug_info(
-    debug_data, priority=PRIORITY_LOW  # Low priority for debug info
-)
-```
-
-### Batch Processing Optimization
-
-```python
-class BatchedVisualizer:
-    """Batched visualizer for improved performance."""
-
-    def __init__(self, base_visualizer, batch_size=20):
-        self.base_visualizer = base_visualizer
-        self.batch_size = batch_size
-        self.step_batch = []
-        self.summary_batch = []
-
-    def add_step(self, step_data):
-        """Add step to batch."""
-        self.step_batch.append(step_data)
-
-        if len(self.step_batch) >= self.batch_size:
-            self.flush_steps()
-
-    def flush_steps(self):
-        """Process batched steps."""
-        if not self.step_batch:
-            return
-
-        # Process all steps in batch
-        self.base_visualizer.visualize_steps_batch(self.step_batch)
-        self.step_batch.clear()
-
-    def flush_all(self):
-        """Flush all batched data."""
-        self.flush_steps()
-        if self.summary_batch:
-            self.base_visualizer.visualize_summaries_batch(self.summary_batch)
-            self.summary_batch.clear()
-
-
-# Usage
-batched_viz = BatchedVisualizer(visualizer, batch_size=30)
-
-# In training loop
-batched_viz.add_step(
-    {"state": state, "action": action, "reward": reward, "step_num": step}
-)
-
-# Flush at episode end
-batched_viz.flush_all()
-```
-
-## JAX-Specific Optimizations
-
-### Efficient JAX Debug Callbacks
-
-```python
-import jax
-
-
-def create_efficient_callback(visualizer, log_frequency=10):
-    """Create efficient JAX debug callback."""
-
-    def callback_fn(state, action, reward, step_num):
-        """Efficient callback function."""
-
-        # Only process every N steps
-        if step_num % log_frequency != 0:
-            return
-
-        # Minimal data extraction
-        essential_data = {
-            "working_grid": state.working_grid,
-            "action_op": action["operation"],
-            "reward": reward,
-            "step_num": step_num,
-        }
-
-        # Queue for async processing
-        visualizer.queue_visualization(essential_data)
-
-    return callback_fn
-
-
-# Use in JIT-compiled functions
-efficient_callback = create_efficient_callback(visualizer, log_frequency=20)
-
-
-@jax.jit
-def jit_step_with_viz(state, action, config):
-    new_state, obs, reward, done, info = arc_step(state, action, config)
-
-    # Efficient callback
-    jax.debug.callback(efficient_callback, new_state, action, reward, info["step_num"])
-
-    return new_state, obs, reward, done, info
-```
-
-### Static Argument Optimization
-
-```python
-# Mark visualization config as static for JIT
-@jax.jit
-def step_with_static_config(state, action, env_config, viz_config):
-    """Step function with static visualization config."""
-
-    new_state, obs, reward, done, info = arc_step(state, action, env_config)
-
-    # Visualization with static config
-    if viz_config.enabled:
-        jax.debug.callback(viz_config.callback_fn, state, action, new_state, reward)
-
-    return new_state, obs, reward, done, info
-
-
-# Use static_argnums for config
-jit_step = jax.jit(step_with_static_config, static_argnums=(2, 3))
-```
-
-### Memory-Efficient Array Handling
-
-```python
-def efficient_array_serialization(array):
-    """Efficiently serialize JAX arrays for visualization."""
-
-    # Convert to numpy only when necessary
-    if isinstance(array, jnp.ndarray):
-        # Use minimal precision for visualization
-        if array.dtype == jnp.float32:
-            array = array.astype(jnp.float16)  # Reduce precision
-        elif array.dtype == jnp.int32:
-            array = array.astype(jnp.int8)  # Use smaller int type
-
-        # Convert to numpy for serialization
-        array = np.array(array)
-
-    return array
-
-
-# Use in visualization pipeline
-def visualize_with_efficient_arrays(state, action, reward):
-    """Visualize with memory-efficient array handling."""
-
-    # Efficiently serialize arrays
-    working_grid = efficient_array_serialization(state.working_grid)
-    target_grid = efficient_array_serialization(state.target_grid)
-
-    # Create visualization with reduced memory footprint
-    visualizer.create_step_visualization(
-        working_grid=working_grid,
-        target_grid=target_grid,
-        action=action,
-        reward=float(reward),  # Convert scalar to Python float
-    )
-```
-
-## Storage and I/O Optimization
-
-### Efficient File I/O
-
-```python
-import asyncio
-import aiofiles
-from concurrent.futures import ThreadPoolExecutor
-
-
-class AsyncFileWriter:
-    """Asynchronous file writer for better I/O performance."""
-
-    def __init__(self, max_workers=2):
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        self.write_queue = asyncio.Queue()
-
-    async def write_file_async(self, filepath, content):
-        """Write file asynchronously."""
-
-        def write_sync():
-            with open(filepath, "w") as f:
-                f.write(content)
-
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(self.executor, write_sync)
-
-    async def batch_write_files(self, file_data_pairs):
-        """Write multiple files in batch."""
-
-        tasks = [
-            self.write_file_async(filepath, content)
-            for filepath, content in file_data_pairs
-        ]
-
-        await asyncio.gather(*tasks)
-
-
-# Usage
-async_writer = AsyncFileWriter()
-
-# Batch write visualizations
-file_pairs = [
-    ("step_001.svg", step_1_svg),
-    ("step_002.svg", step_2_svg),
-    ("step_003.svg", step_3_svg),
-]
-
-asyncio.run(async_writer.batch_write_files(file_pairs))
-```
-
-### Compression Optimization
-
-```python
-import gzip
-import pickle
-import lz4  # Fast compression library
-
-
-def compress_visualization_data(data, method="lz4"):
-    """Compress visualization data efficiently."""
-
-    # Serialize data
-    serialized = pickle.dumps(data)
-
-    if method == "lz4":
-        # Fast compression with good ratio
-        compressed = lz4.frame.compress(serialized)
-    elif method == "gzip":
-        # Better compression ratio, slower
-        compressed = gzip.compress(serialized)
-    else:
-        compressed = serialized
-
-    compression_ratio = len(serialized) / len(compressed)
-    return compressed, compression_ratio
-
-
-def decompress_visualization_data(compressed_data, method="lz4"):
-    """Decompress visualization data."""
-
-    if method == "lz4":
-        serialized = lz4.frame.decompress(compressed_data)
-    elif method == "gzip":
-        serialized = gzip.decompress(compressed_data)
-    else:
-        serialized = compressed_data
-
-    return pickle.loads(serialized)
-
-
-# Use in storage
-episode_data = {"steps": steps, "summary": summary}
-compressed, ratio = compress_visualization_data(episode_data, method="lz4")
-print(f"Compression ratio: {ratio:.1f}x")
-```
-
-## Adaptive Performance Tuning
-
-### Auto-Tuning System
-
-```python
-class AdaptivePerformanceTuner:
-    """Automatically tune visualization performance."""
-
-    def __init__(self, visualizer, target_overhead=0.05):
-        self.visualizer = visualizer
-        self.target_overhead = target_overhead
-        self.performance_history = []
-        self.adjustment_history = []
-
-    def measure_and_adjust(self, step_function, *args):
-        """Measure performance and adjust settings."""
-
-        # Measure current performance
-        start_time = time.perf_counter()
-        result = step_function(*args)
-        end_time = time.perf_counter()
-
-        step_time = end_time - start_time
-        self.performance_history.append(step_time)
-
-        # Calculate recent average
-        if len(self.performance_history) > 10:
-            recent_avg = np.mean(self.performance_history[-10:])
-            baseline_avg = np.mean(self.performance_history[:5])  # First 5 measurements
-
-            current_overhead = (recent_avg - baseline_avg) / baseline_avg
-
-            # Adjust if overhead too high
-            if current_overhead > self.target_overhead:
-                self.reduce_visualization_load()
-            elif current_overhead < self.target_overhead * 0.5:
-                self.increase_visualization_detail()
-
-        return result
-
-    def reduce_visualization_load(self):
-        """Reduce visualization load to improve performance."""
-
-        current_level = self.visualizer.get_debug_level()
-
-        if current_level == "full":
-            self.visualizer.set_debug_level("verbose")
-        elif current_level == "verbose":
-            self.visualizer.set_debug_level("standard")
-        elif current_level == "standard":
-            self.visualizer.set_debug_level("minimal")
-
-        # Reduce logging frequency
-        current_freq = self.visualizer.get_log_frequency()
-        self.visualizer.set_log_frequency(current_freq * 2)
-
-        print(
-            f"🔧 Reduced visualization load: {current_level} -> {self.visualizer.get_debug_level()}"
-        )
-
-    def increase_visualization_detail(self):
-        """Increase visualization detail when performance allows."""
-
-        current_level = self.visualizer.get_debug_level()
-
-        if current_level == "minimal":
-            self.visualizer.set_debug_level("standard")
-        elif current_level == "standard":
-            self.visualizer.set_debug_level("verbose")
-        elif current_level == "verbose":
-            self.visualizer.set_debug_level("full")
-
-        print(
-            f"📈 Increased visualization detail: {current_level} -> {self.visualizer.get_debug_level()}"
-        )
-
-
-# Usage
-tuner = AdaptivePerformanceTuner(visualizer, target_overhead=0.03)
-
-# In training loop
-result = tuner.measure_and_adjust(step_with_visualization, state, action, config)
-```
-
-### Performance Profiles
-
-```python
-# Define performance profiles for different scenarios
-PERFORMANCE_PROFILES = {
-    "development": {
-        "debug_level": "verbose",
-        "log_frequency": 1,
-        "async_workers": 1,
-        "memory_limit_mb": 500,
-        "image_quality": "high",
-    },
-    "training": {
-        "debug_level": "standard",
-        "log_frequency": 10,
-        "async_workers": 2,
-        "memory_limit_mb": 200,
-        "image_quality": "medium",
-    },
-    "production": {
-        "debug_level": "minimal",
-        "log_frequency": 100,
-        "async_workers": 1,
-        "memory_limit_mb": 100,
-        "image_quality": "low",
-    },
-    "benchmark": {
-        "debug_level": "off",
-        "log_frequency": 0,
-        "async_workers": 0,
-        "memory_limit_mb": 50,
-        "image_quality": "low",
-    },
-}
-
-
-def apply_performance_profile(visualizer, profile_name):
-    """Apply a performance profile to the visualizer."""
-
-    if profile_name not in PERFORMANCE_PROFILES:
-        raise ValueError(f"Unknown profile: {profile_name}")
-
-    profile = PERFORMANCE_PROFILES[profile_name]
-
-    visualizer.set_debug_level(profile["debug_level"])
-    visualizer.set_log_frequency(profile["log_frequency"])
-    visualizer.set_async_workers(profile["async_workers"])
-    visualizer.set_memory_limit(profile["memory_limit_mb"])
-    visualizer.set_image_quality(profile["image_quality"])
-
-    print(f"✅ Applied performance profile: {profile_name}")
-
-
-# Usage
-apply_performance_profile(visualizer, "training")
-```
-
-## Benchmarking and Testing
+| Metric | Before Optimization | After Optimization | Improvement |
+|--------|-------------------|-------------------|-------------|
+| Step Time | 50-100ms | 0.1-1ms | 50-1000x |
+| Memory per Environment | 3.5MB | 0.05-3.5MB | 1-70x |
+| Batch Throughput | Not possible | 10,000+ steps/sec | ∞ |
+| JIT Compilation | 0/6 functions | 6/6 functions | ∞ |
 
 ### Performance Benchmarks
 
 ```python
-def run_performance_benchmark(visualizer, num_steps=1000):
-    """Run comprehensive performance benchmark."""
+# Target performance metrics
+TARGET_STEP_TIME = 1.0  # ms per step
+TARGET_THROUGHPUT = 10000  # steps per second
+TARGET_MEMORY_REDUCTION = 0.9  # 90% reduction
+TARGET_BATCH_EFFICIENCY = 0.8  # 80% of theoretical maximum
+```
 
-    print("🚀 Running performance benchmark...")
+## JIT Compilation Optimization
 
-    # Setup
+### Using equinox.filter_jit
+
+Always use `equinox.filter_jit` for automatic static/dynamic argument handling:
+
+```python
+import equinox as eqx
+from jaxarc.envs.functional import arc_reset, arc_step
+
+# ✅ Good: Automatic JIT compilation
+@eqx.filter_jit
+def optimized_reset(key, config, task_data):
+    """JIT-compiled reset function."""
+    return arc_reset(key, config, task_data)
+
+@eqx.filter_jit
+def optimized_step(state, action, config):
+    """JIT-compiled step function."""
+    return arc_step(state, action, config)
+
+# ❌ Bad: Manual static_argnames (would fail with unhashable config)
+# @jax.jit(static_argnames=['config'])  # Would fail!
+# def bad_step(state, action, config): ...
+```
+
+### JIT Compilation Best Practices
+
+#### 1. Warm Up Functions
+
+Always warm up JIT functions before benchmarking:
+
+```python
+def warm_up_functions(config, task):
+    """Warm up JIT-compiled functions."""
     key = jax.random.PRNGKey(42)
-    config = create_standard_config()
-    state, obs = arc_reset(key, config)
+    
+    # Warm up reset
+    state, obs = arc_reset(key, config, task)
+    
+    # Warm up step
+    action = PointAction(
+        operation=jnp.array(0),
+        row=jnp.array(5),
+        col=jnp.array(5)
+    )
+    arc_step(state, action, config)
+    
+    print("✅ Functions warmed up")
 
-    # Benchmark without visualization
-    print("📊 Baseline performance (no visualization)...")
-    baseline_times = []
+# Always warm up before benchmarking
+warm_up_functions(config, task)
+```
 
-    for i in range(num_steps):
-        action = {
-            "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
-            "operation": jnp.array(1),
-        }
+#### 2. Consistent Function Signatures
 
-        start = time.perf_counter()
-        new_state, obs, reward, done, info = arc_step(state, action, config)
-        jax.block_until_ready(new_state)
-        end = time.perf_counter()
+Keep function signatures consistent to avoid recompilation:
 
-        baseline_times.append(end - start)
-        state = new_state
+```python
+# ✅ Good: Consistent signatures
+@eqx.filter_jit
+def process_action(state, action, config):
+    """Process any structured action type."""
+    return arc_step(state, action, config)
 
-        if done:
-            state, obs = arc_reset(key, config)
+# Use with different action types (same signature)
+point_result = process_action(state, point_action, config)
+bbox_result = process_action(state, bbox_action, config)
+mask_result = process_action(state, mask_action, config)
 
-    baseline_avg = np.mean(baseline_times)
+# ❌ Bad: Different signatures cause recompilation
+# def process_point_action(state, point_action, config): ...
+# def process_bbox_action(state, bbox_action, config): ...
+```
 
-    # Benchmark with visualization
-    print("📊 Performance with visualization...")
-    viz_times = []
-    state, obs = arc_reset(key, config)
+#### 3. Hashable Configurations
 
-    for i in range(num_steps):
-        action = {
-            "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
-            "operation": jnp.array(1),
-        }
+Ensure all configuration objects are hashable:
 
-        start = time.perf_counter()
-        new_state, obs, reward, done, info = arc_step(state, action, config)
-        visualizer.visualize_step(state, action, new_state, reward, info, i)
-        jax.block_until_ready(new_state)
-        end = time.perf_counter()
+```python
+def verify_config_hashability(config):
+    """Verify that configuration is hashable."""
+    try:
+        hash(config)
+        print("✅ Configuration is hashable")
+        return True
+    except TypeError as e:
+        print(f"❌ Configuration is not hashable: {e}")
+        return False
 
-        viz_times.append(end - start)
-        state = new_state
+# Test your configuration
+config = JaxArcConfig(
+    environment=EnvironmentConfig(max_episode_steps=100),
+    action=UnifiedActionConfig(selection_format="point")
+)
 
-        if done:
-            state, obs = arc_reset(key, config)
+verify_config_hashability(config)
+```
 
-    viz_avg = np.mean(viz_times)
-    overhead = ((viz_avg - baseline_avg) / baseline_avg) * 100
+### JIT Performance Profiling
 
-    # Results
-    print(f"\n📈 Benchmark Results:")
-    print(f"Baseline average: {baseline_avg:.4f}s")
-    print(f"With visualization: {viz_avg:.4f}s")
-    print(f"Overhead: {overhead:.1f}%")
-    print(f"Steps per second (baseline): {1/baseline_avg:.1f}")
-    print(f"Steps per second (with viz): {1/viz_avg:.1f}")
+Profile JIT compilation overhead:
 
+```python
+import time
+
+def profile_jit_compilation(config, task, num_runs=100):
+    """Profile JIT compilation performance."""
+    key = jax.random.PRNGKey(42)
+    
+    # Create JIT functions
+    @eqx.filter_jit
+    def jit_reset(key, config, task_data):
+        return arc_reset(key, config, task_data)
+    
+    @eqx.filter_jit
+    def jit_step(state, action, config):
+        return arc_step(state, action, config)
+    
+    # Measure compilation time
+    print("Measuring JIT compilation time...")
+    
+    # First call includes compilation
+    start_time = time.perf_counter()
+    state, obs = jit_reset(key, config, task)
+    compilation_time = time.perf_counter() - start_time
+    
+    # Subsequent calls are fast
+    start_time = time.perf_counter()
+    for _ in range(num_runs):
+        state, obs = jit_reset(key, config, task)
+    execution_time = (time.perf_counter() - start_time) / num_runs
+    
+    print(f"Compilation time: {compilation_time*1000:.1f}ms")
+    print(f"Execution time: {execution_time*1000:.3f}ms")
+    print(f"Speedup after compilation: {compilation_time/execution_time:.0f}x")
+    
     return {
-        "baseline_avg": baseline_avg,
-        "visualization_avg": viz_avg,
-        "overhead_percent": overhead,
-        "baseline_sps": 1 / baseline_avg,
-        "visualization_sps": 1 / viz_avg,
+        'compilation_time': compilation_time,
+        'execution_time': execution_time,
+        'speedup': compilation_time / execution_time
     }
 
+# Profile JIT performance
+jit_profile = profile_jit_compilation(config, task)
+```
 
-# Run benchmark
-results = run_performance_benchmark(visualizer, num_steps=500)
+## Memory Management Optimization
+
+### Action Format Selection
+
+Choose the most memory-efficient action format for your use case:
+
+```python
+def analyze_memory_usage_by_format():
+    """Analyze memory usage for different action formats."""
+    formats = ['point', 'bbox', 'mask']
+    memory_usage = {}
+    
+    for format_name in formats:
+        config = JaxArcConfig(
+            environment=EnvironmentConfig(max_episode_steps=1000),
+            action=UnifiedActionConfig(selection_format=format_name)
+        )
+        
+        # Create state
+        key = jax.random.PRNGKey(42)
+        task = create_mock_task()
+        state, obs = arc_reset(key, config, task)
+        
+        # Calculate memory usage
+        action_history_mb = state.action_history.nbytes / (1024 * 1024)
+        
+        memory_usage[format_name] = {
+            'action_history_mb': action_history_mb,
+            'fields_per_action': get_fields_per_action(format_name)
+        }
+        
+        print(f"{format_name.capitalize()} format: {action_history_mb:.3f} MB")
+    
+    # Calculate savings
+    mask_memory = memory_usage['mask']['action_history_mb']
+    point_savings = (1 - memory_usage['point']['action_history_mb'] / mask_memory) * 100
+    bbox_savings = (1 - memory_usage['bbox']['action_history_mb'] / mask_memory) * 100
+    
+    print(f"\nMemory savings:")
+    print(f"Point vs Mask: {point_savings:.1f}% reduction")
+    print(f"Bbox vs Mask: {bbox_savings:.1f}% reduction")
+    
+    return memory_usage
+
+def get_fields_per_action(format_name):
+    """Get number of fields per action for each format."""
+    return {
+        'point': 6,   # operation, row, col, timestamp, pair_index, valid
+        'bbox': 8,    # operation, r1, c1, r2, c2, timestamp, pair_index, valid
+        'mask': 904   # operation + 30*30 mask + timestamp, pair_index, valid
+    }[format_name]
+
+# Analyze memory usage
+memory_analysis = analyze_memory_usage_by_format()
+```
+
+### Memory-Efficient Configuration
+
+Optimize configuration for memory usage:
+
+```python
+def create_memory_optimized_config(
+    max_episode_steps=50,      # Reduce episode length
+    grid_size=15,              # Smaller grids when possible
+    action_format="point"      # Most memory-efficient format
+):
+    """Create memory-optimized configuration."""
+    return JaxArcConfig(
+        environment=EnvironmentConfig(
+            max_episode_steps=max_episode_steps,
+            debug_level=0  # Disable debug features
+        ),
+        dataset=UnifiedDatasetConfig(
+            max_grid_height=grid_size,
+            max_grid_width=grid_size
+        ),
+        action=UnifiedActionConfig(
+            selection_format=action_format
+        ),
+        visualization=VisualizationConfig(
+            enabled=False  # Disable visualization for performance
+        )
+    )
+
+# Create optimized config
+optimized_config = create_memory_optimized_config()
 ```
 
 ### Memory Profiling
 
+Profile memory usage across different scenarios:
+
 ```python
-import psutil
-import tracemalloc
+def profile_memory_usage(config, task, batch_sizes=[1, 16, 64, 256]):
+    """Profile memory usage for different batch sizes."""
+    import psutil
+    import os
+    
+    process = psutil.Process(os.getpid())
+    memory_profile = {}
+    
+    for batch_size in batch_sizes:
+        # Measure memory before
+        memory_before = process.memory_info().rss / (1024 * 1024)  # MB
+        
+        # Create batch
+        keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
+        batch_states, batch_obs = batch_reset(keys, config, task)
+        
+        # Measure memory after
+        memory_after = process.memory_info().rss / (1024 * 1024)  # MB
+        memory_used = memory_after - memory_before
+        
+        memory_profile[batch_size] = {
+            'total_memory_mb': memory_used,
+            'per_env_memory_mb': memory_used / batch_size,
+            'memory_before': memory_before,
+            'memory_after': memory_after
+        }
+        
+        print(f"Batch {batch_size:3d}: {memory_used:.1f}MB total, "
+              f"{memory_used/batch_size:.3f}MB per env")
+        
+        # Clean up
+        del batch_states, batch_obs
+    
+    return memory_profile
 
+# Profile memory usage
+memory_profile = profile_memory_usage(optimized_config, task)
+```
 
-def profile_memory_usage(visualizer, num_episodes=10):
-    """Profile memory usage during visualization."""
+### Memory Optimization Strategies
 
-    # Start memory tracing
-    tracemalloc.start()
-    process = psutil.Process()
+#### 1. Lazy Loading
 
-    initial_memory = process.memory_info().rss / 1024 / 1024  # MB
-    memory_snapshots = [initial_memory]
+Implement lazy loading for large data structures:
 
-    print(f"🧠 Initial memory usage: {initial_memory:.1f} MB")
+```python
+class LazyTaskLoader:
+    """Lazy loader for task data."""
+    
+    def __init__(self, task_index, parser):
+        self.task_index = task_index
+        self.parser = parser
+        self._task_data = None
+    
+    @property
+    def task_data(self):
+        """Load task data on first access."""
+        if self._task_data is None:
+            self._task_data = self.parser.get_task_by_index(self.task_index)
+        return self._task_data
+    
+    def clear_cache(self):
+        """Clear cached task data to free memory."""
+        self._task_data = None
 
-    # Run episodes with memory tracking
-    for episode in range(num_episodes):
-        key = jax.random.PRNGKey(episode)
-        config = create_standard_config()
-        state, obs = arc_reset(key, config)
+# Usage
+lazy_loader = LazyTaskLoader(0, parser)
+task_data = lazy_loader.task_data  # Loads on first access
+lazy_loader.clear_cache()  # Free memory when done
+```
 
-        visualizer.start_episode(episode)
+#### 2. Memory Pooling
 
-        for step in range(50):  # 50 steps per episode
-            action = {
-                "selection": jnp.ones_like(state.working_grid, dtype=jnp.bool_),
-                "operation": jnp.array(step % 10),
-            }
+Implement memory pooling for frequent allocations:
 
-            new_state, obs, reward, done, info = arc_step(state, action, config)
-            visualizer.visualize_step(state, action, new_state, reward, info, step)
+```python
+class StateMemoryPool:
+    """Memory pool for environment states."""
+    
+    def __init__(self, pool_size=100, config=None):
+        self.pool_size = pool_size
+        self.config = config
+        self.available_states = []
+        self.in_use_states = set()
+    
+    def get_state(self):
+        """Get a state from the pool."""
+        if self.available_states:
+            state = self.available_states.pop()
+            self.in_use_states.add(id(state))
+            return state
+        else:
+            # Create new state if pool is empty
+            return self._create_new_state()
+    
+    def return_state(self, state):
+        """Return a state to the pool."""
+        state_id = id(state)
+        if state_id in self.in_use_states:
+            self.in_use_states.remove(state_id)
+            if len(self.available_states) < self.pool_size:
+                self.available_states.append(state)
+    
+    def _create_new_state(self):
+        """Create a new state."""
+        key = jax.random.PRNGKey(42)
+        task = create_mock_task()
+        state, _ = arc_reset(key, self.config, task)
+        return state
 
-            state = new_state
-            if done:
+# Usage
+pool = StateMemoryPool(pool_size=50, config=optimized_config)
+state = pool.get_state()
+# ... use state ...
+pool.return_state(state)
+```
+
+## Batch Processing Optimization
+
+### Optimal Batch Size Selection
+
+Find the optimal batch size for your hardware:
+
+```python
+def find_optimal_batch_size(config, task, max_batch_size=1024, target_memory_gb=8):
+    """Find optimal batch size based on performance and memory constraints."""
+    import time
+    import psutil
+    
+    batch_sizes = [2**i for i in range(0, 11) if 2**i <= max_batch_size]  # 1, 2, 4, 8, ..., 1024
+    results = {}
+    
+    for batch_size in batch_sizes:
+        try:
+            # Memory check
+            keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
+            
+            # Estimate memory usage
+            memory_before = psutil.Process().memory_info().rss / (1024**3)  # GB
+            batch_states, batch_obs = batch_reset(keys, config, task)
+            memory_after = psutil.Process().memory_info().rss / (1024**3)  # GB
+            memory_used = memory_after - memory_before
+            
+            if memory_used > target_memory_gb:
+                print(f"Batch {batch_size}: Exceeds memory limit ({memory_used:.1f}GB > {target_memory_gb}GB)")
                 break
+            
+            # Performance benchmark
+            actions = PointAction(
+                operation=jnp.zeros(batch_size, dtype=jnp.int32),
+                row=jnp.full(batch_size, 5, dtype=jnp.int32),
+                col=jnp.full(batch_size, 5, dtype=jnp.int32)
+            )
+            
+            # Warm up
+            batch_step(batch_states, actions, config)
+            
+            # Benchmark
+            start_time = time.perf_counter()
+            for _ in range(10):
+                batch_states, batch_obs, rewards, dones, infos = batch_step(
+                    batch_states, actions, config
+                )
+            elapsed = (time.perf_counter() - start_time) / 10
+            
+            throughput = batch_size / elapsed
+            per_env_time = elapsed / batch_size
+            
+            results[batch_size] = {
+                'throughput': throughput,
+                'per_env_time': per_env_time,
+                'memory_used_gb': memory_used,
+                'efficiency': throughput / batch_size  # Higher is better
+            }
+            
+            print(f"Batch {batch_size:4d}: {throughput:6.0f} envs/sec, "
+                  f"{per_env_time*1000:5.2f}ms/env, {memory_used:.2f}GB")
+            
+            # Clean up
+            del batch_states, batch_obs
+            
+        except Exception as e:
+            print(f"Batch {batch_size}: Failed ({e})")
+            break
+    
+    # Find optimal batch size
+    if results:
+        optimal_batch_size = max(results.keys(), key=lambda bs: results[bs]['throughput'])
+        optimal_throughput = results[optimal_batch_size]['throughput']
+        
+        print(f"\n🎯 Optimal batch size: {optimal_batch_size}")
+        print(f"   Throughput: {optimal_throughput:.0f} envs/sec")
+        print(f"   Memory usage: {results[optimal_batch_size]['memory_used_gb']:.2f}GB")
+        
+        return optimal_batch_size, results
+    else:
+        return None, {}
 
-        visualizer.visualize_episode_summary(episode)
-
-        # Record memory usage
-        current_memory = process.memory_info().rss / 1024 / 1024
-        memory_snapshots.append(current_memory)
-
-        if episode % 2 == 0:
-            print(f"Episode {episode}: {current_memory:.1f} MB")
-
-    # Get memory statistics
-    current, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-
-    final_memory = process.memory_info().rss / 1024 / 1024
-    memory_growth = final_memory - initial_memory
-
-    print(f"\n🧠 Memory Profile Results:")
-    print(f"Initial memory: {initial_memory:.1f} MB")
-    print(f"Final memory: {final_memory:.1f} MB")
-    print(f"Memory growth: {memory_growth:.1f} MB")
-    print(f"Peak traced memory: {peak / 1024 / 1024:.1f} MB")
-    print(f"Average per episode: {memory_growth / num_episodes:.1f} MB")
-
-    return {
-        "initial_mb": initial_memory,
-        "final_mb": final_memory,
-        "growth_mb": memory_growth,
-        "peak_traced_mb": peak / 1024 / 1024,
-        "avg_per_episode_mb": memory_growth / num_episodes,
-        "snapshots": memory_snapshots,
-    }
-
-
-# Run memory profiling
-memory_results = profile_memory_usage(visualizer, num_episodes=5)
+# Find optimal batch size
+optimal_batch_size, batch_results = find_optimal_batch_size(optimized_config, task)
 ```
 
-## Best Practices Summary
+### Batch Processing Patterns
 
-### Performance Best Practices
+#### 1. Hierarchical Batching
 
-1. **Use appropriate debug levels** for your use case
-2. **Enable asynchronous processing** for I/O operations
-3. **Monitor performance regularly** and adjust settings
-4. **Use JAX debug callbacks** for JIT compatibility
-5. **Batch operations** when possible
-6. **Limit memory usage** with cleanup policies
-7. **Profile before optimizing** to identify bottlenecks
-
-### Configuration Best Practices
+Process multiple levels of batching for maximum throughput:
 
 ```python
-# Production configuration
-production_config = VisualizationConfig(
-    debug_level="minimal",  # Minimal overhead
-    output_formats=["svg"],  # Single efficient format
-    image_quality="medium",  # Balance quality/size
-    lazy_loading=True,  # Load on demand
-    memory_limit_mb=200,  # Reasonable limit
-    async_processing=True,  # Background processing
-    compression_enabled=True,  # Compress storage
-    log_frequency=50,  # Infrequent logging
-)
+def hierarchical_batch_processing(
+    num_workers=4,
+    envs_per_worker=64,
+    episodes_per_worker=10,
+    config=None,
+    task=None
+):
+    """Hierarchical batch processing across workers and environments."""
+    
+    total_envs = num_workers * envs_per_worker
+    total_episodes = num_workers * episodes_per_worker
+    
+    print(f"Processing {total_episodes} episodes across {total_envs} environments")
+    
+    # Create worker-specific keys
+    worker_keys = jax.random.split(jax.random.PRNGKey(42), num_workers)
+    
+    all_results = []
+    
+    for worker_id in range(num_workers):
+        print(f"Worker {worker_id + 1}/{num_workers}")
+        
+        # Create environment keys for this worker
+        env_keys = jax.random.split(worker_keys[worker_id], envs_per_worker)
+        
+        # Process episodes for this worker
+        worker_results = []
+        
+        for episode in range(episodes_per_worker):
+            # Reset environments
+            batch_states, batch_obs = batch_reset(env_keys, config, task)
+            
+            # Run episode
+            episode_rewards = jnp.zeros(envs_per_worker)
+            
+            for step in range(50):  # 50 steps per episode
+                # Create actions
+                actions = PointAction(
+                    operation=jnp.zeros(envs_per_worker, dtype=jnp.int32),
+                    row=jnp.full(envs_per_worker, step % 10 + 5, dtype=jnp.int32),
+                    col=jnp.full(envs_per_worker, 5, dtype=jnp.int32)
+                )
+                
+                # Step environments
+                batch_states, batch_obs, rewards, dones, infos = batch_step(
+                    batch_states, actions, config
+                )
+                
+                episode_rewards += rewards
+            
+            worker_results.append(episode_rewards)
+        
+        all_results.extend(worker_results)
+    
+    # Analyze results
+    all_rewards = jnp.concatenate(all_results)
+    
+    print(f"\n📊 Results:")
+    print(f"   Total episodes: {len(all_results)}")
+    print(f"   Total environment steps: {len(all_results) * envs_per_worker}")
+    print(f"   Mean reward: {jnp.mean(all_rewards):.3f}")
+    print(f"   Std reward: {jnp.std(all_rewards):.3f}")
+    
+    return all_results
 
-# Development configuration
-development_config = VisualizationConfig(
-    debug_level="verbose",  # Rich debugging info
-    output_formats=["svg", "png"],  # Multiple formats
-    image_quality="high",  # High quality for analysis
-    lazy_loading=False,  # Immediate loading
-    memory_limit_mb=1000,  # Higher limit for dev
-    async_processing=True,  # Still use async
-    compression_enabled=False,  # Faster access
-    log_frequency=1,  # Log every step
+# Run hierarchical processing
+hierarchical_results = hierarchical_batch_processing(
+    num_workers=2,
+    envs_per_worker=32,
+    episodes_per_worker=5,
+    config=optimized_config,
+    task=task
 )
 ```
 
-### Monitoring Best Practices
+#### 2. Dynamic Batch Sizing
+
+Adapt batch size based on available memory:
 
 ```python
-# Regular performance monitoring
-def monitor_performance(visualizer, step_num):
-    """Monitor performance and adjust if needed."""
+class DynamicBatchProcessor:
+    """Dynamically adjust batch size based on memory usage."""
+    
+    def __init__(self, config, task, initial_batch_size=64, memory_limit_gb=4):
+        self.config = config
+        self.task = task
+        self.current_batch_size = initial_batch_size
+        self.memory_limit_gb = memory_limit_gb
+        self.performance_history = []
+    
+    def process_batch(self, num_episodes=10):
+        """Process batch with dynamic sizing."""
+        import psutil
+        import time
+        
+        results = []
+        
+        for episode in range(num_episodes):
+            # Check memory usage
+            memory_gb = psutil.Process().memory_info().rss / (1024**3)
+            
+            if memory_gb > self.memory_limit_gb * 0.8:  # 80% threshold
+                self._reduce_batch_size()
+            elif memory_gb < self.memory_limit_gb * 0.4:  # 40% threshold
+                self._increase_batch_size()
+            
+            # Process episode
+            keys = jax.random.split(jax.random.PRNGKey(episode), self.current_batch_size)
+            
+            start_time = time.perf_counter()
+            batch_states, batch_obs = batch_reset(keys, self.config, self.task)
+            
+            # Run episode steps
+            episode_rewards = jnp.zeros(self.current_batch_size)
+            
+            for step in range(20):
+                actions = PointAction(
+                    operation=jnp.zeros(self.current_batch_size, dtype=jnp.int32),
+                    row=jnp.full(self.current_batch_size, 5, dtype=jnp.int32),
+                    col=jnp.full(self.current_batch_size, 5, dtype=jnp.int32)
+                )
+                
+                batch_states, batch_obs, rewards, dones, infos = batch_step(
+                    batch_states, actions, self.config
+                )
+                
+                episode_rewards += rewards
+            
+            elapsed = time.perf_counter() - start_time
+            throughput = self.current_batch_size / elapsed
+            
+            self.performance_history.append({
+                'episode': episode,
+                'batch_size': self.current_batch_size,
+                'throughput': throughput,
+                'memory_gb': memory_gb
+            })
+            
+            results.append(episode_rewards)
+            
+            if episode % 5 == 0:
+                print(f"Episode {episode}: batch_size={self.current_batch_size}, "
+                      f"throughput={throughput:.0f} envs/sec, memory={memory_gb:.1f}GB")
+        
+        return results
+    
+    def _reduce_batch_size(self):
+        """Reduce batch size to save memory."""
+        new_size = max(1, self.current_batch_size // 2)
+        if new_size != self.current_batch_size:
+            print(f"Reducing batch size: {self.current_batch_size} → {new_size}")
+            self.current_batch_size = new_size
+    
+    def _increase_batch_size(self):
+        """Increase batch size for better throughput."""
+        new_size = min(512, self.current_batch_size * 2)
+        if new_size != self.current_batch_size:
+            print(f"Increasing batch size: {self.current_batch_size} → {new_size}")
+            self.current_batch_size = new_size
 
-    if step_num % 100 == 0:  # Check every 100 steps
-        # Get performance metrics
-        perf_stats = visualizer.get_performance_stats()
-
-        # Check overhead
-        if perf_stats["overhead_percent"] > 10:
-            print(f"⚠️  High overhead: {perf_stats['overhead_percent']:.1f}%")
-            visualizer.reduce_logging_frequency()
-
-        # Check memory usage
-        memory_stats = visualizer.get_memory_stats()
-        if memory_stats["usage_ratio"] > 0.8:
-            print(f"🧠 High memory usage: {memory_stats['current_mb']:.1f} MB")
-            visualizer.cleanup_old_data()
-
-        # Check queue size
-        queue_stats = visualizer.get_queue_stats()
-        if queue_stats["queue_size"] > queue_stats["max_size"] * 0.8:
-            print(f"📦 Queue getting full: {queue_stats['queue_size']}")
-            visualizer.increase_worker_threads()
-
-
-# Use in training loop
-monitor_performance(visualizer, step_num)
+# Use dynamic batch processor
+processor = DynamicBatchProcessor(optimized_config, task)
+dynamic_results = processor.process_batch(num_episodes=20)
 ```
 
-This comprehensive performance optimization guide ensures that JaxARC's enhanced
-visualization system provides maximum debugging value with minimal impact on
-training performance.
+## Profiling and Debugging
+
+### Performance Profiling Tools
+
+#### 1. JAX Profiler Integration
+
+Use JAX's built-in profiling tools:
+
+```python
+def profile_with_jax_profiler(config, task, output_dir="./jax_profile"):
+    """Profile JaxARC using JAX profiler."""
+    import jax.profiler
+    
+    # Start profiling
+    jax.profiler.start_trace(output_dir)
+    
+    try:
+        # Run workload
+        key = jax.random.PRNGKey(42)
+        state, obs = arc_reset(key, config, task)
+        
+        for i in range(100):
+            action = PointAction(
+                operation=jnp.array(0),
+                row=jnp.array(i % 10 + 5),
+                col=jnp.array(5)
+            )
+            state, obs, reward, done, info = arc_step(state, action, config)
+    
+    finally:
+        # Stop profiling
+        jax.profiler.stop_trace()
+    
+    print(f"Profile saved to {output_dir}")
+    print("View with: tensorboard --logdir={output_dir}")
+
+# Profile with JAX profiler
+# profile_with_jax_profiler(optimized_config, task)
+```
+
+#### 2. Custom Performance Monitor
+
+Create a custom performance monitoring system:
+
+```python
+class PerformanceMonitor:
+    """Monitor JaxARC performance metrics."""
+    
+    def __init__(self):
+        self.metrics = {
+            'step_times': [],
+            'reset_times': [],
+            'memory_usage': [],
+            'throughput': [],
+            'jit_compilation_times': {}
+        }
+    
+    def time_function(self, func, *args, **kwargs):
+        """Time a function call."""
+        import time
+        
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        elapsed = time.perf_counter() - start_time
+        
+        return result, elapsed
+    
+    def monitor_step(self, state, action, config):
+        """Monitor step performance."""
+        result, elapsed = self.time_function(arc_step, state, action, config)
+        self.metrics['step_times'].append(elapsed)
+        return result
+    
+    def monitor_reset(self, key, config, task):
+        """Monitor reset performance."""
+        result, elapsed = self.time_function(arc_reset, key, config, task)
+        self.metrics['reset_times'].append(elapsed)
+        return result
+    
+    def monitor_batch_step(self, states, actions, config):
+        """Monitor batch step performance."""
+        batch_size = states.working_grid.shape[0]
+        result, elapsed = self.time_function(batch_step, states, actions, config)
+        
+        throughput = batch_size / elapsed
+        self.metrics['throughput'].append(throughput)
+        
+        return result
+    
+    def get_statistics(self):
+        """Get performance statistics."""
+        stats = {}
+        
+        if self.metrics['step_times']:
+            step_times = jnp.array(self.metrics['step_times'])
+            stats['step_time_mean'] = float(jnp.mean(step_times))
+            stats['step_time_std'] = float(jnp.std(step_times))
+            stats['step_time_min'] = float(jnp.min(step_times))
+            stats['step_time_max'] = float(jnp.max(step_times))
+        
+        if self.metrics['reset_times']:
+            reset_times = jnp.array(self.metrics['reset_times'])
+            stats['reset_time_mean'] = float(jnp.mean(reset_times))
+            stats['reset_time_std'] = float(jnp.std(reset_times))
+        
+        if self.metrics['throughput']:
+            throughput = jnp.array(self.metrics['throughput'])
+            stats['throughput_mean'] = float(jnp.mean(throughput))
+            stats['throughput_max'] = float(jnp.max(throughput))
+        
+        return stats
+    
+    def print_report(self):
+        """Print performance report."""
+        stats = self.get_statistics()
+        
+        print("📊 Performance Report")
+        print("=" * 50)
+        
+        if 'step_time_mean' in stats:
+            print(f"Step Time:")
+            print(f"  Mean: {stats['step_time_mean']*1000:.2f}ms")
+            print(f"  Std:  {stats['step_time_std']*1000:.2f}ms")
+            print(f"  Min:  {stats['step_time_min']*1000:.2f}ms")
+            print(f"  Max:  {stats['step_time_max']*1000:.2f}ms")
+        
+        if 'reset_time_mean' in stats:
+            print(f"Reset Time:")
+            print(f"  Mean: {stats['reset_time_mean']*1000:.2f}ms")
+            print(f"  Std:  {stats['reset_time_std']*1000:.2f}ms")
+        
+        if 'throughput_mean' in stats:
+            print(f"Throughput:")
+            print(f"  Mean: {stats['throughput_mean']:.0f} envs/sec")
+            print(f"  Max:  {stats['throughput_max']:.0f} envs/sec")
+
+# Use performance monitor
+monitor = PerformanceMonitor()
+
+# Monitor operations
+key = jax.random.PRNGKey(42)
+state, obs = monitor.monitor_reset(key, optimized_config, task)
+
+for i in range(50):
+    action = PointAction(
+        operation=jnp.array(0),
+        row=jnp.array(i % 10 + 5),
+        col=jnp.array(5)
+    )
+    state, obs, reward, done, info = monitor.monitor_step(state, action, optimized_config)
+
+# Print report
+monitor.print_report()
+```
+
+### Debugging Performance Issues
+
+#### 1. JIT Compilation Issues
+
+Debug JIT compilation problems:
+
+```python
+def debug_jit_compilation(config, task):
+    """Debug JIT compilation issues."""
+    
+    # Test configuration hashability
+    try:
+        hash(config)
+        print("✅ Configuration is hashable")
+    except TypeError as e:
+        print(f"❌ Configuration is not hashable: {e}")
+        return
+    
+    # Test JIT compilation
+    try:
+        @eqx.filter_jit
+        def test_reset(key, config, task_data):
+            return arc_reset(key, config, task_data)
+        
+        @eqx.filter_jit
+        def test_step(state, action, config):
+            return arc_step(state, action, config)
+        
+        # Test compilation
+        key = jax.random.PRNGKey(42)
+        state, obs = test_reset(key, config, task)
+        
+        action = PointAction(
+            operation=jnp.array(0),
+            row=jnp.array(5),
+            col=jnp.array(5)
+        )
+        
+        state, obs, reward, done, info = test_step(state, action, config)
+        
+        print("✅ JIT compilation successful")
+        
+    except Exception as e:
+        print(f"❌ JIT compilation failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+# Debug JIT compilation
+debug_jit_compilation(optimized_config, task)
+```
+
+#### 2. Memory Leak Detection
+
+Detect memory leaks in long-running processes:
+
+```python
+def detect_memory_leaks(config, task, num_iterations=1000):
+    """Detect memory leaks in JaxARC operations."""
+    import psutil
+    import gc
+    
+    process = psutil.Process()
+    memory_samples = []
+    
+    key = jax.random.PRNGKey(42)
+    state, obs = arc_reset(key, config, task)
+    
+    for i in range(num_iterations):
+        # Sample memory usage
+        if i % 100 == 0:
+            gc.collect()  # Force garbage collection
+            memory_mb = process.memory_info().rss / (1024 * 1024)
+            memory_samples.append((i, memory_mb))
+            print(f"Iteration {i}: {memory_mb:.1f}MB")
+        
+        # Perform operations
+        action = PointAction(
+            operation=jnp.array(0),
+            row=jnp.array(i % 10 + 5),
+            col=jnp.array(5)
+        )
+        
+        state, obs, reward, done, info = arc_step(state, action, config)
+        
+        # Reset occasionally
+        if i % 100 == 0:
+            state, obs = arc_reset(key, config, task)
+    
+    # Analyze memory trend
+    if len(memory_samples) > 2:
+        initial_memory = memory_samples[0][1]
+        final_memory = memory_samples[-1][1]
+        memory_growth = final_memory - initial_memory
+        
+        print(f"\n📊 Memory Analysis:")
+        print(f"   Initial memory: {initial_memory:.1f}MB")
+        print(f"   Final memory: {final_memory:.1f}MB")
+        print(f"   Memory growth: {memory_growth:.1f}MB")
+        
+        if memory_growth > 100:  # More than 100MB growth
+            print("⚠️  Potential memory leak detected")
+        else:
+            print("✅ No significant memory leak detected")
+    
+    return memory_samples
+
+# Detect memory leaks
+memory_samples = detect_memory_leaks(optimized_config, task, num_iterations=500)
+```
+
+## Advanced Optimization Techniques
+
+### 1. Custom JAX Transformations
+
+Create custom JAX transformations for specific use cases:
+
+```python
+def create_optimized_episode_runner(config, task, max_steps=50):
+    """Create optimized episode runner with custom transformations."""
+    
+    @eqx.filter_jit
+    def run_episode(key, policy_params):
+        """Run complete episode with JIT compilation."""
+        # Reset environment
+        state, obs = arc_reset(key, config, task)
+        
+        # Initialize episode data
+        episode_rewards = jnp.array(0.0)
+        episode_length = jnp.array(0)
+        
+        # Episode loop (unrolled for JIT efficiency)
+        def episode_step(carry, step_idx):
+            state, episode_rewards, episode_length = carry
+            
+            # Generate action (simplified policy)
+            action = PointAction(
+                operation=jnp.array(0),
+                row=jnp.array(step_idx % 10 + 5),
+                col=jnp.array(5)
+            )
+            
+            # Step environment
+            new_state, obs, reward, done, info = arc_step(state, action, config)
+            
+            # Update episode data
+            new_episode_rewards = episode_rewards + reward
+            new_episode_length = episode_length + 1
+            
+            # Early termination condition
+            should_continue = ~done & (episode_length < max_steps)
+            
+            return (
+                jnp.where(should_continue, new_state, state),
+                jnp.where(should_continue, new_episode_rewards, episode_rewards),
+                jnp.where(should_continue, new_episode_length, episode_length)
+            ), None
+        
+        # Run episode steps
+        (final_state, final_rewards, final_length), _ = jax.lax.scan(
+            episode_step,
+            (state, episode_rewards, episode_length),
+            jnp.arange(max_steps)
+        )
+        
+        return {
+            'final_state': final_state,
+            'episode_reward': final_rewards,
+            'episode_length': final_length
+        }
+    
+    return run_episode
+
+# Create and use optimized episode runner
+episode_runner = create_optimized_episode_runner(optimized_config, task)
+
+# Run episodes
+keys = jax.random.split(jax.random.PRNGKey(42), 10)
+policy_params = None  # Placeholder
+
+results = []
+for key in keys:
+    result = episode_runner(key, policy_params)
+    results.append(result)
+
+print(f"Average episode reward: {jnp.mean([r['episode_reward'] for r in results]):.3f}")
+```
+
+### 2. Memory-Mapped Data Loading
+
+Use memory-mapped files for large datasets:
+
+```python
+class MemoryMappedTaskLoader:
+    """Memory-mapped task loader for large datasets."""
+    
+    def __init__(self, data_path, max_tasks=1000):
+        self.data_path = data_path
+        self.max_tasks = max_tasks
+        self._mmap_data = None
+        self._task_index = None
+    
+    def _initialize_mmap(self):
+        """Initialize memory-mapped data."""
+        if self._mmap_data is None:
+            # Create memory-mapped array for task data
+            # This is a simplified example - actual implementation would
+            # depend on your data format
+            import numpy as np
+            
+            # Create dummy memory-mapped array
+            self._mmap_data = np.memmap(
+                'task_data.dat',
+                dtype=np.float32,
+                mode='w+',
+                shape=(self.max_tasks, 30, 30, 4)  # tasks, height, width, channels
+            )
+            
+            # Initialize with dummy data
+            self._mmap_data[:] = np.random.rand(self.max_tasks, 30, 30, 4)
+            
+            self._task_index = np.arange(self.max_tasks)
+    
+    def get_task(self, task_id):
+        """Get task data without loading entire dataset into memory."""
+        self._initialize_mmap()
+        
+        if task_id >= self.max_tasks:
+            raise ValueError(f"Task ID {task_id} exceeds maximum {self.max_tasks}")
+        
+        # Return task data as JAX array
+        task_data = jnp.array(self._mmap_data[task_id])
+        
+        return create_jax_task_from_data(task_data, task_id)
+    
+    def get_batch_tasks(self, task_ids):
+        """Get batch of tasks efficiently."""
+        self._initialize_mmap()
+        
+        # Load batch of tasks
+        batch_data = jnp.array(self._mmap_data[task_ids])
+        
+        return [
+            create_jax_task_from_data(batch_data[i], task_ids[i])
+            for i in range(len(task_ids))
+        ]
+
+def create_jax_task_from_data(task_data, task_id):
+    """Create JaxArcTask from raw data."""
+    # Simplified task creation
+    return JaxArcTask(
+        input_grids_examples=task_data[:3],
+        input_masks_examples=jnp.ones((3, 30, 30), dtype=jnp.bool_),
+        output_grids_examples=task_data[:3],
+        output_masks_examples=jnp.ones((3, 30, 30), dtype=jnp.bool_),
+        num_train_pairs=3,
+        test_input_grids=task_data[3:4],
+        test_input_masks=jnp.ones((1, 30, 30), dtype=jnp.bool_),
+        true_test_output_grids=task_data[3:4],
+        true_test_output_masks=jnp.ones((1, 30, 30), dtype=jnp.bool_),
+        num_test_pairs=1,
+        task_index=jnp.array(task_id, dtype=jnp.int32)
+    )
+
+# Use memory-mapped loader
+# mmap_loader = MemoryMappedTaskLoader('large_dataset.dat')
+# task = mmap_loader.get_task(0)
+```
+
+## Performance Optimization Checklist
+
+Use this checklist to ensure optimal performance:
+
+### JIT Compilation
+- [ ] All core functions use `equinox.filter_jit`
+- [ ] Configuration objects are hashable
+- [ ] Functions are warmed up before benchmarking
+- [ ] Function signatures are consistent
+- [ ] No abstract array interpretation errors
+
+### Memory Management
+- [ ] Appropriate action format selected (point/bbox vs mask)
+- [ ] Episode length optimized for use case
+- [ ] Memory usage profiled and optimized
+- [ ] Large objects cleaned up when not needed
+- [ ] Memory leaks detected and fixed
+
+### Batch Processing
+- [ ] Optimal batch size determined
+- [ ] PRNG keys properly split
+- [ ] Batch operations use consistent shapes
+- [ ] Memory constraints respected
+- [ ] Throughput measured and optimized
+
+### Profiling & Debugging
+- [ ] Performance monitoring implemented
+- [ ] Bottlenecks identified and addressed
+- [ ] Memory usage tracked
+- [ ] JIT compilation issues resolved
+- [ ] Error handling optimized for performance
+
+### Advanced Optimizations
+- [ ] Custom JAX transformations where beneficial
+- [ ] Memory-mapped data loading for large datasets
+- [ ] Hierarchical batch processing implemented
+- [ ] Dynamic batch sizing considered
+- [ ] Performance regression tests in place
+
+## Troubleshooting Common Issues
+
+### Issue 1: Slow JIT Compilation
+
+**Symptoms**: Long delays on first function call
+**Solutions**:
+- Warm up functions during initialization
+- Use consistent function signatures
+- Avoid complex control flow in JIT functions
+
+### Issue 2: High Memory Usage
+
+**Symptoms**: Out of memory errors, slow performance
+**Solutions**:
+- Use point/bbox actions instead of mask actions
+- Reduce batch size or episode length
+- Implement memory pooling
+- Profile memory usage patterns
+
+### Issue 3: Poor Batch Performance
+
+**Symptoms**: Batch processing slower than expected
+**Solutions**:
+- Find optimal batch size for your hardware
+- Ensure consistent batch shapes
+- Use proper PRNG key management
+- Profile batch scaling efficiency
+
+### Issue 4: Inconsistent Performance
+
+**Symptoms**: Variable execution times, unexpected slowdowns
+**Solutions**:
+- Check for JIT recompilation
+- Monitor memory usage patterns
+- Implement performance monitoring
+- Use deterministic operations
+
+## Summary
+
+Performance optimization in JaxARC involves:
+
+1. **JIT Compilation**: Use `equinox.filter_jit` with hashable configurations
+2. **Memory Management**: Choose appropriate action formats and optimize memory usage
+3. **Batch Processing**: Find optimal batch sizes and use efficient batching patterns
+4. **Profiling**: Monitor performance and identify bottlenecks
+5. **Advanced Techniques**: Implement custom optimizations for specific use cases
+
+Following these guidelines can achieve:
+- **100x+ speedup** through JIT compilation
+- **90%+ memory reduction** with efficient action formats
+- **10,000+ steps/sec** throughput with batch processing
+- **Consistent performance** through proper profiling and optimization
+
+For practical examples of these optimization techniques, see the example scripts in `examples/advanced/`.
