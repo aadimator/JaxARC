@@ -1924,3 +1924,111 @@ class JaxArcConfig(eqx.Module):
             episode=episode,
             history=history,
         )
+
+    # =========================================================================
+    # Efficient Serialization Methods (Single Source of Truth)
+    # =========================================================================
+
+    def save(self, path: str) -> None:
+        """Save configuration efficiently using Equinox serialization.
+        
+        This method saves the configuration to a file using Equinox's efficient
+        serialization system. Since configurations are typically small and
+        contain no large arrays, no special filtering is needed.
+        
+        Args:
+            path: Path to save the serialized configuration
+            
+        Examples:
+            ```python
+            # Save configuration
+            config.save("config.eqx")
+            ```
+        """
+        import equinox as eqx
+        
+        eqx.tree_serialise_leaves(path, self)
+
+    @classmethod
+    def load(cls, path: str) -> 'JaxArcConfig':
+        """Load configuration from a serialized file.
+        
+        This method loads a configuration that was saved with the save() method.
+        
+        Args:
+            path: Path to the serialized configuration file
+            
+        Returns:
+            JaxArcConfig with loaded configuration
+            
+        Examples:
+            ```python
+            # Load configuration
+            config = JaxArcConfig.load("config.eqx")
+            ```
+        """
+        import equinox as eqx
+        
+        # Create dummy config with correct structure for deserialization
+        dummy_config = cls()
+        
+        # Load and return the configuration
+        return eqx.tree_deserialise_leaves(path, dummy_config)
+
+    def save_with_state(self, config_path: str, state_path: str, state) -> None:
+        """Save both configuration and state efficiently in separate files.
+        
+        This method saves the configuration and state in separate files,
+        allowing for efficient loading and better organization.
+        
+        Args:
+            config_path: Path to save the configuration
+            state_path: Path to save the state
+            state: ArcEnvState to save
+            
+        Examples:
+            ```python
+            # Save config and state separately
+            config.save_with_state("config.eqx", "state.eqx", state)
+            ```
+        """
+        # Save configuration
+        self.save(config_path)
+        
+        # Save state using its efficient save method
+        state.save(state_path)
+
+    @classmethod
+    def load_with_state(cls, config_path: str, state_path: str, parser) -> tuple['JaxArcConfig', 'ArcEnvState']:
+        """Load both configuration and state from separate files.
+        
+        This method loads both configuration and state that were saved with
+        save_with_state(), reconstructing the state's task_data using the parser.
+        
+        Args:
+            config_path: Path to the serialized configuration file
+            state_path: Path to the serialized state file
+            parser: ArcDataParserBase instance to reconstruct task_data
+            
+        Returns:
+            Tuple of (JaxArcConfig, ArcEnvState) with loaded data
+            
+        Examples:
+            ```python
+            from jaxarc.parsers import ArcAgiParser
+            from jaxarc.state import ArcEnvState
+            
+            # Load config and state
+            parser = ArcAgiParser(dataset_config)
+            config, state = JaxArcConfig.load_with_state("config.eqx", "state.eqx", parser)
+            ```
+        """
+        from jaxarc.state import ArcEnvState
+        
+        # Load configuration
+        config = cls.load(config_path)
+        
+        # Load state using its efficient load method
+        state = ArcEnvState.load(state_path, parser)
+        
+        return config, state

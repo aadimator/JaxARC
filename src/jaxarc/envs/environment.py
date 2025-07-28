@@ -70,6 +70,9 @@ class ArcEnvironment:
         self._state: Optional[ArcEnvState] = None
         self._episode_count = 0
 
+        # Setup error handling and debugging
+        self._setup_error_handling()
+
         # Get the action handler for this environment's selection format
         self.action_handler = get_action_handler(config.action.selection_format)
 
@@ -86,6 +89,45 @@ class ArcEnvironment:
 
         if self._visualizer is not None:
             logger.info("Visualization system enabled")
+
+    def _setup_error_handling(self) -> None:
+        """Setup error handling and debugging based on configuration."""
+        from ..utils.error_handling import JAXErrorHandler
+        from ..utils.debugging import configure_debugging
+        
+        # Setup error handling environment
+        JAXErrorHandler.setup_error_environment()
+        
+        # Configure debugging based on debug level
+        debug_level = self.config.environment.debug_level
+        
+        if debug_level == "off":
+            error_mode = "raise"
+            enable_nan_checks = False
+        elif debug_level == "minimal":
+            error_mode = "raise"
+            enable_nan_checks = False
+        elif debug_level == "standard":
+            error_mode = "raise"
+            enable_nan_checks = True
+        elif debug_level == "verbose":
+            error_mode = "raise"
+            enable_nan_checks = True
+        elif debug_level == "research":
+            error_mode = "breakpoint"  # Enable interactive debugging for research
+            enable_nan_checks = True
+        else:
+            error_mode = "raise"
+            enable_nan_checks = True
+        
+        # Configure debugging
+        configure_debugging(
+            error_mode=error_mode,
+            breakpoint_frames=3,
+            enable_nan_checks=enable_nan_checks
+        )
+        
+        logger.debug(f"Error handling configured: mode={error_mode}, nan_checks={enable_nan_checks}")
 
     def _setup_enhanced_visualization(self) -> None:
         """Setup enhanced visualization system based on configuration."""

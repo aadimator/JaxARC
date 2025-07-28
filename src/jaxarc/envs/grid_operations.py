@@ -495,7 +495,11 @@ def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
 @eqx.filter_jit
 def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnvState:
     """Execute grid operation based on operation ID."""
-    selection = state.selected
+    # Validate grid operation before execution
+    from ..utils.error_handling import JAXErrorHandler
+    validated_state = JAXErrorHandler.validate_grid_operation(state, operation, state.selected)
+    
+    selection = validated_state.selected
 
     # Define all operations
     def op_0():

@@ -65,6 +65,7 @@ from .utils.jax_types import (
     TestCompletionStatus,
     TrainCompletionStatus,
 )
+from .utils.serialization_utils import extract_task_id_from_index
 from jaxtyping import Array, Bool, Int
 
 
@@ -771,6 +772,208 @@ class ArcEnvState(eqx.Module):
                 pair_actions.append(action)
                 
         return pair_actions
+
+    # =========================================================================
+    # Efficient Serialization Methods (Single Source of Truth)
+    # =========================================================================
+
+    def save(self, path: str) -> None:
+        """Save state efficiently by excluding large static task_data field.
+        
+        This method saves the state with only the task_index from task_data,
+        significantly reducing file size. The full task_data can be reconstructed
+        during loading using the task_index and a parser.
+        
+        Args:
+            path: Path to save the serialized state
+            
+        Examples:
+            ```python
+            # Save state efficiently
+            state.save("checkpoint.eqx")
+            
+            # File will be much smaller without task_data
+            ```
+        """
+        import equinox as eqx
+        import pickle
+        
+        # Create a dictionary with all state data except large task_data arrays
+        state_dict = {
+            # Core state fields
+            'working_grid': self.working_grid,
+            'working_grid_mask': self.working_grid_mask,
+            'target_grid': self.target_grid,
+            'target_grid_mask': self.target_grid_mask,
+            'step_count': self.step_count,
+            'episode_done': self.episode_done,
+            'current_example_idx': self.current_example_idx,
+            'selected': self.selected,
+            'clipboard': self.clipboard,
+            'similarity_score': self.similarity_score,
+            
+            # Enhanced functionality fields
+            'episode_mode': self.episode_mode,
+            'available_demo_pairs': self.available_demo_pairs,
+            'available_test_pairs': self.available_test_pairs,
+            'demo_completion_status': self.demo_completion_status,
+            'test_completion_status': self.test_completion_status,
+            'action_history': self.action_history,
+            'action_history_length': self.action_history_length,
+            'action_history_write_pos': self.action_history_write_pos,
+            'allowed_operations_mask': self.allowed_operations_mask,
+            
+            # Only essential task_data fields
+            'task_index': self.task_data.task_index,
+            'num_train_pairs': self.task_data.num_train_pairs,
+            'num_test_pairs': self.task_data.num_test_pairs,
+        }
+        
+        # Save using pickle for flexibility
+        with open(path, 'wb') as f:
+            pickle.dump(state_dict, f)
+
+    @classmethod
+    def load(cls, path: str, parser) -> 'ArcEnvState':
+        """Load state efficiently by reconstructing task_data from task_index.
+        
+        This method loads a state that was saved with the efficient save() method,
+        reconstructing the task_data field from the stored task_index using the
+        provided parser.
+        
+        Args:
+            path: Path to the serialized state file
+            parser: ArcDataParserBase instance to reconstruct task_data
+            
+        Returns:
+            ArcEnvState with fully reconstructed task_data
+            
+        Raises:
+            ValueError: If task_index cannot be resolved or task not found
+            FileNotFoundError: If the serialized state file doesn't exist
+            
+        Examples:
+            ```python
+            from jaxarc.parsers import ArcAgiParser
+            
+            # Load state with task_data reconstruction
+            parser = ArcAgiParser(config)
+            state = ArcEnvState.load("checkpoint.eqx", parser)
+            ```
+        """
+        import pickle
+        from pathlib import Path
+        
+        # Validate input file exists
+        if not Path(path).exists():
+            raise FileNotFoundError(f"Serialized state file not found: {path}")
+        
+        # Load state dictionary
+        try:
+            with open(path, 'rb') as f:
+                state_dict = pickle.load(f)
+        except Exception as e:
+            raise ValueError(f"Failed to deserialize state from {path}: {e}") from e
+        
+        # Reconstruct task_data from task_index
+        try:
+            task_id = extract_task_id_from_index(state_dict['task_index'])
+            if task_id is None:
+                raise ValueError("Cannot reconstruct task_data: task_index points to unknown task (-1)")
+                
+            # Validate task_index consistency with parser
+            from .utils.serialization_utils import validate_task_index_consistency
+            if not validate_task_index_consistency(state_dict['task_index'], parser):
+                raise ValueError(f"Task index is inconsistent with parser dataset")
+                
+            task_data = parser.get_task_by_id(task_id)
+            
+        except Exception as e:
+            raise ValueError(f"Failed to reconstruct task_data: {e}") from e
+        
+        # Create new state with reconstructed task_data
+        return cls(
+            task_data=task_data,
+            working_grid=state_dict['working_grid'],
+            working_grid_mask=state_dict['working_grid_mask'],
+            target_grid=state_dict['target_grid'],
+            target_grid_mask=state_dict['target_grid_mask'],
+            step_count=state_dict['step_count'],
+            episode_done=state_dict['episode_done'],
+            current_example_idx=state_dict['current_example_idx'],
+            selected=state_dict['selected'],
+            clipboard=state_dict['clipboard'],
+            similarity_score=state_dict['similarity_score'],
+            episode_mode=state_dict['episode_mode'],
+            available_demo_pairs=state_dict['available_demo_pairs'],
+            available_test_pairs=state_dict['available_test_pairs'],
+            demo_completion_status=state_dict['demo_completion_status'],
+            test_completion_status=state_dict['test_completion_status'],
+            action_history=state_dict['action_history'],
+            action_history_length=state_dict['action_history_length'],
+            action_history_write_pos=state_dict['action_history_write_pos'],
+            allowed_operations_mask=state_dict['allowed_operations_mask'],
+        )
+
+    @classmethod
+    def create_dummy_for_loading(cls) -> 'ArcEnvState':
+        """Create dummy state with correct structure for deserialization.
+        
+        This method creates a minimal state structure with None task_data but
+        correct shapes for other fields, enabling proper deserialization.
+        
+        Returns:
+            ArcEnvState with dummy task_data and correct field shapes
+        """
+        import jax.numpy as jnp
+        from .types import JaxArcTask
+        from .utils.jax_types import (
+            DEFAULT_MAX_TEST_PAIRS,
+            DEFAULT_MAX_TRAIN_PAIRS,
+            MAX_HISTORY_LENGTH,
+            ACTION_RECORD_FIELDS,
+            NUM_OPERATIONS,
+        )
+        
+        # Create dummy task_data that can accommodate any saved structure
+        # Use maximum dimensions to ensure compatibility
+        dummy_task_data = JaxArcTask(
+            input_grids_examples=jnp.zeros((DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.int32),
+            input_masks_examples=jnp.zeros((DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.bool_),
+            output_grids_examples=jnp.zeros((DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.int32),
+            output_masks_examples=jnp.zeros((DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.bool_),
+            num_train_pairs=0,  # Will be overwritten during loading
+            test_input_grids=jnp.zeros((DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.int32),
+            test_input_masks=jnp.zeros((DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.bool_),
+            true_test_output_grids=jnp.zeros((DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.int32),
+            true_test_output_masks=jnp.zeros((DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.bool_),
+            num_test_pairs=0,  # Will be overwritten during loading
+            task_index=jnp.array(-1, dtype=jnp.int32),  # Will be overwritten during loading
+        )
+        
+        # Create dummy state with minimal but correct shapes
+        return cls(
+            task_data=dummy_task_data,
+            working_grid=jnp.zeros((30, 30), dtype=jnp.int32),
+            working_grid_mask=jnp.zeros((30, 30), dtype=jnp.bool_),
+            target_grid=jnp.zeros((30, 30), dtype=jnp.int32),
+            target_grid_mask=jnp.zeros((30, 30), dtype=jnp.bool_),
+            step_count=jnp.array(0, dtype=jnp.int32),
+            episode_done=jnp.array(False, dtype=jnp.bool_),
+            current_example_idx=jnp.array(0, dtype=jnp.int32),
+            selected=jnp.zeros((30, 30), dtype=jnp.bool_),
+            clipboard=jnp.zeros((30, 30), dtype=jnp.int32),
+            similarity_score=jnp.array(0.0, dtype=jnp.float32),
+            episode_mode=jnp.array(0, dtype=jnp.int32),
+            available_demo_pairs=jnp.ones(DEFAULT_MAX_TRAIN_PAIRS, dtype=jnp.bool_),
+            available_test_pairs=jnp.ones(DEFAULT_MAX_TEST_PAIRS, dtype=jnp.bool_),
+            demo_completion_status=jnp.zeros(DEFAULT_MAX_TRAIN_PAIRS, dtype=jnp.bool_),
+            test_completion_status=jnp.zeros(DEFAULT_MAX_TEST_PAIRS, dtype=jnp.bool_),
+            action_history=jnp.zeros((MAX_HISTORY_LENGTH, ACTION_RECORD_FIELDS), dtype=jnp.float32),
+            action_history_length=jnp.array(0, dtype=jnp.int32),
+            action_history_write_pos=jnp.array(0, dtype=jnp.int32),
+            allowed_operations_mask=jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_),
+        )
 
     def get_current_pair_info(self) -> Dict[str, Any]:
         """Get information about the current demonstration/test pair.
