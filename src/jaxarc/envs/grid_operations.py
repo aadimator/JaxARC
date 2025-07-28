@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from ..state import ArcEnvState
 
 
-@jax.jit
+@eqx.filter_jit
 def compute_grid_similarity(grid1: GridArray, grid2: GridArray) -> SimilarityScore:
     """Compute pixel-wise similarity between two grids."""
     # Only compare valid regions (non-negative values)
@@ -63,7 +63,7 @@ def compute_grid_similarity(grid1: GridArray, grid2: GridArray) -> SimilaritySco
     )
 
 
-@jax.jit
+@eqx.filter_jit
 def _copy_grid_to_target_shape(
     source_grid: GridArray, target_shape_grid: GridArray
 ) -> GridArray:
@@ -84,7 +84,7 @@ def _copy_grid_to_target_shape(
     return jax.lax.dynamic_update_slice(new_grid, source_grid, (0, 0))
 
 
-@jax.jit
+@eqx.filter_jit
 def apply_within_bounds(
     grid: GridArray, selection: SelectionArray, new_values: ColorValue | GridArray
 ) -> GridArray:
@@ -95,7 +95,7 @@ def apply_within_bounds(
 # --- Color Fill Operations (0-9) ---
 
 
-@jax.jit
+@eqx.filter_jit
 def fill_color(
     state: ArcEnvState, selection: SelectionArray, color: ColorValue
 ) -> ArcEnvState:
@@ -107,7 +107,7 @@ def fill_color(
 # --- Flood Fill Operations (10-19) ---
 
 
-@jax.jit
+@eqx.filter_jit
 def simple_flood_fill(
     grid: GridArray,
     selection: SelectionArray,
@@ -161,7 +161,7 @@ def simple_flood_fill(
     return jax.lax.cond(has_selection, do_flood_fill, no_fill)
 
 
-@jax.jit
+@eqx.filter_jit
 def flood_fill_color(
     state: ArcEnvState, selection: SelectionArray, color: ColorValue
 ) -> ArcEnvState:
@@ -173,7 +173,7 @@ def flood_fill_color(
 # --- Object Movement Operations (20-23) ---
 
 
-@jax.jit
+@eqx.filter_jit
 def move_object(
     state: ArcEnvState, selection: SelectionArray, direction: int
 ) -> ArcEnvState:
@@ -215,7 +215,7 @@ def move_object(
 # --- Object Rotation Operations (24-25) ---
 
 
-@jax.jit
+@eqx.filter_jit
 def rotate_object(
     state: ArcEnvState, selection: SelectionArray, angle: int
 ) -> ArcEnvState:
@@ -270,7 +270,7 @@ def rotate_object(
 # --- Object Flip Operations (26-27) ---
 
 
-@jax.jit
+@eqx.filter_jit
 def flip_object(
     state: ArcEnvState, selection: SelectionArray, axis: int
 ) -> ArcEnvState:
@@ -304,14 +304,14 @@ def flip_object(
 # --- Clipboard Operations (28-30) ---
 
 
-@jax.jit
+@eqx.filter_jit
 def copy_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     """Copy selected region to clipboard."""
     new_clipboard = jnp.where(selection, state.working_grid, 0)
     return eqx.tree_at(lambda s: s.clipboard, state, new_clipboard)
 
 
-@jax.jit
+@eqx.filter_jit
 def paste_from_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     """Paste clipboard content to selected region."""
     # Find the bounding boxes of clipboard content and selection
@@ -380,7 +380,7 @@ def paste_from_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEn
     return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
-@jax.jit
+@eqx.filter_jit
 def cut_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     """Cut selected region to clipboard (copy + clear)."""
     # Copy to clipboard
@@ -398,7 +398,7 @@ def cut_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvSta
 # --- Grid Operations (31-33) ---
 
 
-@jax.jit
+@eqx.filter_jit
 def clear_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     """Clear the entire grid or selected region."""
     has_selection = jnp.sum(selection) > 0
@@ -413,7 +413,7 @@ def clear_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
-@jax.jit
+@eqx.filter_jit
 def copy_input_grid(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvState:
     """Copy input grid to current grid."""
     input_grid = state.task_data.input_grids_examples[state.current_example_idx]
@@ -422,7 +422,7 @@ def copy_input_grid(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
     return eqx.tree_at(lambda s: s.working_grid, state, new_working_grid)
 
 
-@jax.jit
+@eqx.filter_jit
 def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     """Resize grid active area based on selection."""
     has_selection = jnp.sum(selection) > 0
@@ -464,7 +464,7 @@ def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
 # --- Submit Operation (34) ---
 
 
-@jax.jit
+@eqx.filter_jit
 def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvState:
     """Submit current grid as solution."""
     return eqx.tree_at(lambda s: s.episode_done, state, True)
@@ -473,7 +473,7 @@ def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
 # --- Main Operation Execution ---
 
 
-@jax.jit
+@eqx.filter_jit
 def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnvState:
     """Execute grid operation based on operation ID."""
     selection = state.selected
