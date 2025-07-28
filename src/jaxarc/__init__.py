@@ -46,7 +46,6 @@ from .config_pkg import (
 )
 
 # Core environment and state
-# Configuration system - most commonly used factory functions
 # Functional API
 from .envs import (
     ArcEnvironment,

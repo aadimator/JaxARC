@@ -1323,11 +1323,13 @@ class ActionHistoryTracker:
         # Update history length (capped at max_length for circular buffer)
         new_length = jnp.minimum(state.action_history_length + 1, max_length)
         
-        # Return updated state
-        return eqx.tree_at(
-            lambda s: (s.action_history, s.action_history_length),
+        # Return updated state using PyTree utilities
+        from jaxarc.utils.pytree_utils import update_multiple_fields
+        
+        return update_multiple_fields(
             state,
-            (new_history, new_length)
+            action_history=new_history,
+            action_history_length=new_length
         )
     
     def get_action_sequence(
@@ -1407,10 +1409,12 @@ class ActionHistoryTracker:
         # But helps with debugging and ensures clean state
         new_history = jnp.zeros_like(state.action_history)
         
-        return eqx.tree_at(
-            lambda s: (s.action_history, s.action_history_length),
+        from jaxarc.utils.pytree_utils import update_multiple_fields
+        
+        return update_multiple_fields(
             state,
-            (new_history, new_length)
+            action_history=new_history,
+            action_history_length=new_length
         )
     
 

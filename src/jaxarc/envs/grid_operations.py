@@ -100,8 +100,10 @@ def fill_color(
     state: ArcEnvState, selection: SelectionArray, color: ColorValue
 ) -> ArcEnvState:
     """Fill selected region with specified color."""
+    from jaxarc.utils.pytree_utils import update_working_grid
+    
     new_grid = apply_within_bounds(state.working_grid, selection, color)
-    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
+    return update_working_grid(state, new_grid)
 
 
 # --- Flood Fill Operations (10-19) ---
@@ -166,8 +168,10 @@ def flood_fill_color(
     state: ArcEnvState, selection: SelectionArray, color: ColorValue
 ) -> ArcEnvState:
     """Flood fill from selected region with specified color."""
+    from jaxarc.utils.pytree_utils import update_working_grid
+    
     new_grid = simple_flood_fill(state.working_grid, selection, color)
-    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
+    return update_working_grid(state, new_grid)
 
 
 # --- Object Movement Operations (20-23) ---
@@ -208,8 +212,10 @@ def move_object(
         direction, [move_up, move_down, move_left, move_right]
     )
     # Combine with cleared grid
+    from jaxarc.utils.pytree_utils import update_working_grid
+    
     new_grid = jnp.where(moved_object > 0, moved_object, cleared_grid)
-    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
+    return update_working_grid(state, new_grid)
 
 
 # --- Object Rotation Operations (24-25) ---
@@ -263,8 +269,10 @@ def rotate_object(
     )
 
     # Combine with cleared grid
+    from jaxarc.utils.pytree_utils import update_working_grid
+    
     new_grid = jnp.where(final_rotated_region != 0, final_rotated_region, cleared_grid)
-    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
+    return update_working_grid(state, new_grid)
 
 
 # --- Object Flip Operations (26-27) ---
@@ -297,8 +305,10 @@ def flip_object(
 
     flipped_region = jax.lax.switch(axis, [flip_horizontal, flip_vertical])
     # Combine with cleared grid
+    from jaxarc.utils.pytree_utils import update_working_grid
+    
     new_grid = jnp.where(flipped_region != 0, flipped_region, cleared_grid)
-    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
+    return update_working_grid(state, new_grid)
 
 
 # --- Clipboard Operations (28-30) ---
@@ -307,8 +317,10 @@ def flip_object(
 @eqx.filter_jit
 def copy_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     """Copy selected region to clipboard."""
+    from jaxarc.utils.pytree_utils import update_multiple_fields
+    
     new_clipboard = jnp.where(selection, state.working_grid, 0)
-    return eqx.tree_at(lambda s: s.clipboard, state, new_clipboard)
+    return update_multiple_fields(state, clipboard=new_clipboard)
 
 
 @eqx.filter_jit
@@ -375,9 +387,10 @@ def paste_from_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEn
 
     # Only paste if we should paste and where selected
     paste_mask = should_paste & selection
+    from jaxarc.utils.pytree_utils import update_working_grid
+    
     new_grid = jnp.where(paste_mask, clipboard_values, state.working_grid)
-
-    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
+    return update_working_grid(state, new_grid)
 
 
 @eqx.filter_jit
@@ -389,10 +402,10 @@ def cut_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvSta
     # Clear selected region
     new_grid = jnp.where(selection, 0, state.working_grid)
 
-    # Update both working_grid and clipboard using Equinox tree_at
-    return eqx.tree_at(
-        lambda s: (s.working_grid, s.clipboard), state, (new_grid, new_clipboard)
-    )
+    # Update both working_grid and clipboard using PyTree utilities
+    from jaxarc.utils.pytree_utils import update_multiple_fields
+    
+    return update_multiple_fields(state, working_grid=new_grid, clipboard=new_clipboard)
 
 
 # --- Grid Operations (31-33) ---
@@ -409,8 +422,10 @@ def clear_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     def clear_all():
         return jnp.zeros_like(state.working_grid)
 
+    from jaxarc.utils.pytree_utils import update_working_grid
+    
     new_grid = jax.lax.cond(has_selection, clear_selection, clear_all)
-    return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
+    return update_working_grid(state, new_grid)
 
 
 @eqx.filter_jit
@@ -418,8 +433,10 @@ def copy_input_grid(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
     """Copy input grid to current grid."""
     input_grid = state.task_data.input_grids_examples[state.current_example_idx]
     # Copy input grid to working grid shape
+    from jaxarc.utils.pytree_utils import update_working_grid
+    
     new_working_grid = _copy_grid_to_target_shape(input_grid, state.working_grid)
-    return eqx.tree_at(lambda s: s.working_grid, state, new_working_grid)
+    return update_working_grid(state, new_working_grid)
 
 
 @eqx.filter_jit
@@ -451,9 +468,9 @@ def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
             becoming_inactive, -1, new_grid
         )  # New inactive areas = padding
 
-        return eqx.tree_at(
-            lambda s: (s.working_grid, s.working_grid_mask), state, (new_grid, new_mask)
-        )
+        from jaxarc.utils.pytree_utils import update_multiple_fields
+        
+        return update_multiple_fields(state, working_grid=new_grid, working_grid_mask=new_mask)
 
     def no_resize():
         return state
@@ -467,7 +484,9 @@ def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
 @eqx.filter_jit
 def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvState:
     """Submit current grid as solution."""
-    return eqx.tree_at(lambda s: s.episode_done, state, True)
+    from jaxarc.utils.pytree_utils import set_episode_done
+    
+    return set_episode_done(state, True)
 
 
 # --- Main Operation Execution ---
@@ -628,6 +647,7 @@ def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnv
 
     # Update similarity score if grid changed
     # Use target_grid from state (which handles train/test mode properly)
+    from jaxarc.utils.pytree_utils import update_similarity_score
+    
     similarity = compute_grid_similarity(new_state.working_grid, new_state.target_grid)
-
-    return eqx.tree_at(lambda s: s.similarity_score, new_state, similarity)
+    return update_similarity_score(new_state, similarity)

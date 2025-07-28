@@ -1142,31 +1142,20 @@ def _process_action(
                 state.is_training_mode(), get_train_grids, get_test_grids, state
             )
 
-            # Update state with new grids
-            updated_state = eqx.tree_at(
-                lambda s: (
-                    s.working_grid,
-                    s.working_grid_mask,
-                    s.target_grid,
-                    s.selected,
-                    s.clipboard,
-                ),
-                state,
-                (
-                    input_grid,
-                    input_mask,
-                    target_grid,
-                    jnp.zeros_like(state.selected),
-                    jnp.zeros_like(state.clipboard),
-                ),
-            )
-
+            # Update state with new grids using PyTree utilities
+            from jaxarc.utils.pytree_utils import update_multiple_fields
+            
             # Recalculate similarity for new pair
-            new_similarity = compute_grid_similarity(
-                updated_state.working_grid, updated_state.target_grid
-            )
-            updated_state = eqx.tree_at(
-                lambda s: s.similarity_score, updated_state, new_similarity
+            new_similarity = compute_grid_similarity(input_grid, target_grid)
+            
+            updated_state = update_multiple_fields(
+                state,
+                working_grid=input_grid,
+                working_grid_mask=input_mask,
+                target_grid=target_grid,
+                selected=jnp.zeros_like(state.selected),
+                clipboard=jnp.zeros_like(state.clipboard),
+                similarity_score=new_similarity
             )
 
             return updated_state
@@ -1199,10 +1188,10 @@ def _process_action(
             # Constrain to working grid area
             selection_mask = selection_mask & state.working_grid_mask
 
-        # Update selection in state
-        new_state = eqx.tree_at(
-            lambda s: s.selected, state, selection_mask
-        )
+        # Update selection in state using PyTree utilities
+        from jaxarc.utils.pytree_utils import update_selection
+        
+        new_state = update_selection(state, selection_mask)
 
         # Execute grid operation
         new_state = execute_grid_operation(new_state, operation)
@@ -1290,10 +1279,10 @@ def _update_state(
         new_state,
     )
 
-    # Update step count using Equinox tree_at
-    updated_state = eqx.tree_at(
-        lambda s: s.step_count, updated_state, old_state.step_count + 1
-    )
+    # Update step count using PyTree utilities
+    from jaxarc.utils.pytree_utils import increment_step_count
+    
+    updated_state = increment_step_count(updated_state)
 
     return updated_state
 
@@ -1343,8 +1332,10 @@ def _calculate_reward_and_done(
     # Check if episode is done with enhanced termination logic
     done = _is_episode_done_enhanced(new_state, config)
 
-    # Update episode_done flag using Equinox tree_at
-    final_state = eqx.tree_at(lambda s: s.episode_done, new_state, done)
+    # Update episode_done flag using PyTree utilities
+    from jaxarc.utils.pytree_utils import set_episode_done
+    
+    final_state = set_episode_done(new_state, done)
 
     return reward, done, final_state
 
@@ -1426,18 +1417,24 @@ def arc_step(
     """
     # Ensure we have a typed config
     typed_config = _ensure_config(config)
+    
+    # Validate action and state before processing
+    from jaxarc.utils.error_handling import validate_action, validate_state_consistency
+    
+    validated_action = validate_action(action, typed_config)
+    validated_state = validate_state_consistency(state)
 
     # Process action and get updated state
     new_state, standardized_action, is_control_operation = _process_action(
-        state, action, typed_config
+        validated_state, validated_action, typed_config
     )
 
     # Update state with action history and step count
-    updated_state = _update_state(state, new_state, standardized_action, typed_config)
+    updated_state = _update_state(validated_state, new_state, standardized_action, typed_config)
 
     # Calculate reward and done status
     reward, done, final_state = _calculate_reward_and_done(
-        state, updated_state, typed_config, is_control_operation
+        validated_state, updated_state, typed_config, is_control_operation
     )
 
     # Use create_observation function to generate focused agent view

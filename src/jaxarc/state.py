@@ -25,11 +25,13 @@ Examples:
         # ... other fields
     )
 
-    # Update state using Equinox patterns
-    new_state = eqx.tree_at(lambda s: s.step_count, state, state.step_count + 1)
+    # Update state using PyTree utilities
+    from jaxarc.utils.pytree_utils import increment_step_count, update_multiple_fields
+    
+    new_state = increment_step_count(state)
 
-    # Or use replace method for multiple updates
-    new_state = state.replace(step_count=state.step_count + 1, episode_done=True)
+    # Or use utilities for multiple updates
+    new_state = update_multiple_fields(state, step_count=state.step_count + 1, episode_done=True)
     ```
 """
 
@@ -132,14 +134,16 @@ class ArcEnvState(eqx.Module):
             allowed_operations_mask=jnp.ones(NUM_OPERATIONS, dtype=bool),
         )
 
-        # Update state using Equinox tree_at
-        new_state = eqx.tree_at(lambda s: s.step_count, state, state.step_count + 1)
+        # Update state using PyTree utilities
+        from jaxarc.utils.pytree_utils import increment_step_count, update_multiple_fields
+        
+        new_state = increment_step_count(state)
 
-        # Update multiple fields
-        new_state = eqx.tree_at(
-            lambda s: (s.step_count, s.episode_done),
+        # Update multiple fields efficiently
+        new_state = update_multiple_fields(
             state,
-            (state.step_count + 1, jnp.array(True)),
+            step_count=state.step_count + 1,
+            episode_done=jnp.array(True)
         )
         ```
     """
@@ -298,7 +302,8 @@ class ArcEnvState(eqx.Module):
 
         Examples:
             ```python
-            new_state = state.replace(step_count=state.step_count + 1, episode_done=True)
+            from jaxarc.utils.pytree_utils import update_multiple_fields
+            new_state = update_multiple_fields(state, step_count=state.step_count + 1, episode_done=True)
             ```
         """
         # Get current field values
@@ -576,10 +581,13 @@ class ArcEnvState(eqx.Module):
         # Update write position for next write (circular)
         new_write_pos = (self.action_history_write_pos + 1) % max_history_length
 
-        return eqx.tree_at(
-            lambda s: (s.action_history, s.action_history_length, s.action_history_write_pos),
+        from jaxarc.utils.pytree_utils import update_multiple_fields
+        
+        return update_multiple_fields(
             self,
-            (new_action_history, new_length, new_write_pos)
+            action_history=new_action_history,
+            action_history_length=new_length,
+            action_history_write_pos=new_write_pos
         )
 
     def get_action_from_history(self, index: int) -> dict:
@@ -693,10 +701,12 @@ class ArcEnvState(eqx.Module):
             ```
         """
         # Reset history length and write position to 0
-        return eqx.tree_at(
-            lambda s: (s.action_history_length, s.action_history_write_pos),
+        from jaxarc.utils.pytree_utils import update_multiple_fields
+        
+        return update_multiple_fields(
             self,
-            (jnp.array(0, dtype=jnp.int32), jnp.array(0, dtype=jnp.int32))
+            action_history_length=jnp.array(0, dtype=jnp.int32),
+            action_history_write_pos=jnp.array(0, dtype=jnp.int32)
         )
 
     def get_action_history_summary(self) -> dict:
