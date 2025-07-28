@@ -1793,3 +1793,203 @@ def analyze_batch_performance(
             results['optimal_batch_size'] = batch_size
     
     return results
+
+
+# PRNG Key Management Utilities for Batch Processing
+
+def create_batch_keys(key: PRNGKey, batch_size: int) -> jnp.ndarray:
+    """Create array of PRNG keys for batch processing.
+    
+    This utility function splits a single PRNG key into multiple keys
+    for parallel batch processing, ensuring deterministic behavior
+    across batch elements.
+    
+    Args:
+        key: Base PRNG key to split
+        batch_size: Number of keys to generate
+    
+    Returns:
+        Array of PRNG keys with shape (batch_size, 2)
+    
+    Examples:
+        ```python
+        # Create keys for batch processing
+        base_key = jax.random.PRNGKey(42)
+        batch_keys = create_batch_keys(base_key, 8)
+        
+        # Use with batch_reset
+        states, obs = batch_reset(batch_keys, config, task_data)
+        ```
+    """
+    return jax.random.split(key, batch_size)
+
+
+def split_key_for_batch_step(key: PRNGKey, batch_size: int) -> jnp.ndarray:
+    """Split PRNG key for batch step operations.
+    
+    This function provides deterministic key splitting for batch step
+    operations, ensuring reproducible behavior when stepping multiple
+    environments in parallel.
+    
+    Args:
+        key: PRNG key to split for batch operations
+        batch_size: Number of environments in the batch
+    
+    Returns:
+        Array of PRNG keys for batch step operations
+    
+    Examples:
+        ```python
+        # Split key for batch stepping
+        step_key = jax.random.PRNGKey(123)
+        batch_keys = split_key_for_batch_step(step_key, 16)
+        
+        # Keys can be used for any random operations during stepping
+        # (though current step function doesn't use keys directly)
+        ```
+    """
+    return jax.random.split(key, batch_size)
+
+
+def validate_batch_keys(keys: jnp.ndarray, expected_batch_size: int) -> bool:
+    """Validate that PRNG keys array has correct shape for batch processing.
+    
+    This utility function validates that the provided keys array has the
+    correct shape and dtype for batch processing operations.
+    
+    Args:
+        keys: Array of PRNG keys to validate
+        expected_batch_size: Expected batch size
+    
+    Returns:
+        True if keys are valid for batch processing
+    
+    Examples:
+        ```python
+        # Validate keys before batch processing
+        keys = create_batch_keys(jax.random.PRNGKey(42), 8)
+        is_valid = validate_batch_keys(keys, 8)  # Returns True
+        
+        # Invalid keys
+        bad_keys = jnp.array([1, 2, 3])
+        is_valid = validate_batch_keys(bad_keys, 8)  # Returns False
+        ```
+    """
+    if not isinstance(keys, jnp.ndarray):
+        return False
+    
+    # Check shape: should be (batch_size, 2) for JAX PRNG keys
+    if len(keys.shape) != 2 or keys.shape[1] != 2:
+        return False
+    
+    # Check batch size matches
+    if keys.shape[0] != expected_batch_size:
+        return False
+    
+    # Check dtype (JAX PRNG keys are uint32)
+    if keys.dtype != jnp.uint32:
+        return False
+    
+    return True
+
+
+def ensure_deterministic_batch_keys(
+    base_key: PRNGKey, 
+    batch_size: int, 
+    step_count: int = 0
+) -> jnp.ndarray:
+    """Ensure deterministic PRNG key generation for reproducible batch processing.
+    
+    This function creates deterministic PRNG keys for batch processing by
+    incorporating step count and batch size into the key generation process,
+    ensuring reproducible behavior across training runs.
+    
+    Args:
+        base_key: Base PRNG key for deterministic generation
+        batch_size: Number of environments in the batch
+        step_count: Current step count for temporal determinism
+    
+    Returns:
+        Array of deterministic PRNG keys for batch processing
+    
+    Examples:
+        ```python
+        # Create deterministic keys for training
+        base_key = jax.random.PRNGKey(42)
+        keys = ensure_deterministic_batch_keys(base_key, 8, step_count=100)
+        
+        # Same inputs always produce same keys
+        keys2 = ensure_deterministic_batch_keys(base_key, 8, step_count=100)
+        assert jnp.array_equal(keys, keys2)  # True
+        ```
+    """
+    # Create deterministic seed by combining base key with step count
+    step_key = jax.random.fold_in(base_key, step_count)
+    
+    # Split into batch keys
+    return jax.random.split(step_key, batch_size)
+
+
+def test_prng_key_splitting(batch_sizes: list[int] | None = None) -> Dict[str, Any]:
+    """Test PRNG key splitting with different batch sizes.
+    
+    This function tests the PRNG key management utilities with various
+    batch sizes to ensure proper functionality and deterministic behavior.
+    
+    Args:
+        batch_sizes: List of batch sizes to test (default: [1, 2, 4, 8, 16, 32, 64])
+    
+    Returns:
+        Dictionary containing test results and validation metrics
+    
+    Examples:
+        ```python
+        # Test PRNG key splitting
+        results = test_prng_key_splitting()
+        
+        # Check if all tests passed
+        all_passed = all(results['batch_results'][bs]['valid'] 
+                        for bs in results['batch_results'])
+        ```
+    """
+    if batch_sizes is None:
+        batch_sizes = [1, 2, 4, 8, 16, 32, 64]
+    
+    base_key = jax.random.PRNGKey(42)
+    results = {
+        'batch_results': {},
+        'determinism_test': True,
+        'validation_test': True
+    }
+    
+    for batch_size in batch_sizes:
+        # Test key creation
+        keys = create_batch_keys(base_key, batch_size)
+        
+        # Test validation
+        is_valid = validate_batch_keys(keys, batch_size)
+        
+        # Test deterministic generation
+        keys2 = ensure_deterministic_batch_keys(base_key, batch_size, step_count=0)
+        keys3 = ensure_deterministic_batch_keys(base_key, batch_size, step_count=0)
+        is_deterministic = jnp.array_equal(keys2, keys3)
+        
+        # Test uniqueness within batch
+        unique_keys = jnp.unique(keys.reshape(-1, 2), axis=0)
+        is_unique = unique_keys.shape[0] == batch_size
+        
+        results['batch_results'][batch_size] = {
+            'valid': is_valid,
+            'deterministic': is_deterministic,
+            'unique': is_unique,
+            'shape': keys.shape,
+            'dtype': str(keys.dtype)
+        }
+        
+        # Update overall results
+        if not is_valid:
+            results['validation_test'] = False
+        if not is_deterministic:
+            results['determinism_test'] = False
+    
+    return results
