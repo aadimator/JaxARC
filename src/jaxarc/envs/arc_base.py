@@ -146,21 +146,27 @@ class ArcEnvironment:
         grid_shape = state.working_grid.shape
         selection_mask = action.to_selection_mask(grid_shape)
         
-        # Update selection in state using Equinox tree_at for better performance
-        state = eqx.tree_at(lambda s: s.selected, state, selection_mask)
+        # Update selection in state using PyTree utilities
+        from jaxarc.utils.pytree_utils import update_selection
+        
+        state = update_selection(state, selection_mask)
 
         # Execute operation using existing grid_operations
         new_state = execute_grid_operation(state, action.operation)
 
-        # Update step count using Equinox tree_at
-        new_state = eqx.tree_at(lambda s: s.step_count, new_state, state.step_count + 1)
+        # Update step count using PyTree utilities
+        from jaxarc.utils.pytree_utils import increment_step_count
+        
+        new_state = increment_step_count(new_state)
 
         # Calculate reward and check termination
         reward = self._calculate_reward(state, new_state)
         done = self._is_episode_done(new_state)
 
-        # Update episode_done flag using Equinox tree_at
-        new_state = eqx.tree_at(lambda s: s.episode_done, new_state, done)
+        # Update episode_done flag using PyTree utilities
+        from jaxarc.utils.pytree_utils import set_episode_done
+        
+        new_state = set_episode_done(new_state, done)
 
         # Get observation
         observation = self._get_observation(new_state)
