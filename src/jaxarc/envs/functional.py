@@ -813,6 +813,7 @@ def _create_initial_state(
         (max_history_length, action_record_fields), dtype=jnp.float32
     )
     action_history_length = jnp.array(0, dtype=jnp.int32)
+    action_history_write_pos = jnp.array(0, dtype=jnp.int32)
 
     # Initialize allowed operations mask (all operations allowed by default)
     allowed_operations_mask = jnp.ones(num_operations, dtype=jnp.bool_)
@@ -839,12 +840,14 @@ def _create_initial_state(
         test_completion_status=test_completion_status,
         action_history=action_history,
         action_history_length=action_history_length,
+        action_history_write_pos=action_history_write_pos,
         allowed_operations_mask=allowed_operations_mask,
     )
 
     return state
 
 
+@eqx.filter_jit
 def arc_reset(
     key: PRNGKey,
     config: ConfigType,
@@ -1346,6 +1349,7 @@ def _calculate_reward_and_done(
     return reward, done, final_state
 
 
+@eqx.filter_jit
 def arc_step(
     state: ArcEnvState,
     action: StructuredAction,
@@ -1524,3 +1528,268 @@ def arc_step(
     return final_state, observation, reward, done, info
 
 
+
+# =========================================================================
+# Batch Processing Functions (Task 4.3 - Filtered Transformations with vmap)
+# =========================================================================
+
+@eqx.filter_jit
+def batch_reset(
+    keys: jnp.ndarray, 
+    config: ConfigType, 
+    task_data: JaxArcTask | None = None
+) -> Tuple[ArcEnvState, ObservationArray]:
+    """Reset multiple environments in parallel using vmap.
+    
+    This function provides efficient batch processing for environment resets
+    using JAX's vmap transformation over the filtered JIT compiled arc_reset function.
+    
+    Args:
+        keys: Array of PRNG keys with shape (batch_size,) for parallel resets
+        config: Environment configuration (JaxArcConfig or DictConfig)
+        task_data: Optional task data. If None, demo tasks will be created.
+    
+    Returns:
+        Tuple containing:
+        - Batched ArcEnvState with batch dimension as first axis
+        - Batched observations with shape (batch_size, ...)
+    
+    Examples:
+        ```python
+        import jax.random as jrandom
+        
+        # Create batch of PRNG keys
+        batch_size = 8
+        keys = jrandom.split(jrandom.PRNGKey(42), batch_size)
+        
+        # Reset environments in parallel
+        states, observations = batch_reset(keys, config, task_data)
+        
+        # states.working_grid.shape[0] == batch_size
+        # observations.shape[0] == batch_size
+        ```
+    
+    Note:
+        This function uses jax.vmap internally for efficient vectorization.
+        All environments will use the same config and task_data but different
+        PRNG keys for proper randomization.
+    """
+    # Use vmap to vectorize over batch dimension
+    vectorized_reset = jax.vmap(arc_reset, in_axes=(0, None, None))
+    return vectorized_reset(keys, config, task_data)
+
+
+@eqx.filter_jit  
+def batch_step(
+    states: ArcEnvState, 
+    actions: StructuredAction, 
+    config: ConfigType
+) -> Tuple[ArcEnvState, ObservationArray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
+    """Step multiple environments in parallel using vmap.
+    
+    This function provides efficient batch processing for environment steps
+    using JAX's vmap transformation over the filtered JIT compiled arc_step function.
+    
+    Args:
+        states: Batched ArcEnvState with batch dimension as first axis
+        actions: Batched StructuredAction with batch dimension as first axis
+        config: Environment configuration (JaxArcConfig or DictConfig)
+    
+    Returns:
+        Tuple containing:
+        - Batched new ArcEnvState with batch dimension as first axis
+        - Batched observations with shape (batch_size, ...)
+        - Batched rewards with shape (batch_size,)
+        - Batched done flags with shape (batch_size,)
+        - Batched info dictionaries
+    
+    Examples:
+        ```python
+        # Create batched actions
+        batch_size = 8
+        batched_actions = PointAction(
+            operation=jnp.array([0] * batch_size),
+            row=jnp.array([3] * batch_size), 
+            col=jnp.array([3] * batch_size)
+        )
+        
+        # Step environments in parallel
+        new_states, observations, rewards, dones, infos = batch_step(
+            states, batched_actions, config
+        )
+        
+        # All outputs have batch_size as first dimension
+        ```
+    
+    Note:
+        This function uses jax.vmap internally for efficient vectorization.
+        All environments will use the same config but different states and actions.
+    """
+    # Use vmap to vectorize over batch dimension
+    vectorized_step = jax.vmap(arc_step, in_axes=(0, 0, None))
+    return vectorized_step(states, actions, config)
+
+
+def create_batch_episode_runner(
+    config: ConfigType,
+    task_data: JaxArcTask | None = None,
+    max_steps: int | None = None
+) -> callable:
+    """Create a JIT-compiled batch episode runner function.
+    
+    This function returns a JIT-compiled function that can run complete episodes
+    for multiple environments in parallel, demonstrating the full power of
+    filtered transformations with batch processing.
+    
+    Args:
+        config: Environment configuration
+        task_data: Optional task data for all environments
+        max_steps: Maximum steps per episode (uses config default if None)
+    
+    Returns:
+        JIT-compiled function that takes (keys, num_steps) and returns episode results
+    
+    Examples:
+        ```python
+        # Create batch episode runner
+        runner = create_batch_episode_runner(config, task_data)
+        
+        # Run batch episodes
+        keys = jrandom.split(jrandom.PRNGKey(42), batch_size)
+        final_states, episode_rewards, episode_lengths = runner(keys, 50)
+        ```
+    """
+    typed_config = _ensure_config(config)
+    episode_max_steps = max_steps or typed_config.environment.max_episode_steps
+    
+    @eqx.filter_jit
+    def run_batch_episodes(
+        keys: jnp.ndarray, 
+        num_steps: int
+    ) -> Tuple[ArcEnvState, jnp.ndarray, jnp.ndarray]:
+        """Run complete episodes for multiple environments."""
+        
+        # Initialize environments
+        states, _ = batch_reset(keys, config, task_data)
+        batch_size = keys.shape[0]
+        
+        # Track episode statistics
+        episode_rewards = jnp.zeros(batch_size, dtype=jnp.float32)
+        episode_lengths = jnp.zeros(batch_size, dtype=jnp.int32)
+        
+        def step_fn(carry, step_idx):
+            states, episode_rewards, episode_lengths = carry
+            
+            # Create simple actions for demonstration (fill operation at step position)
+            actions = PointAction(
+                operation=jnp.zeros(batch_size, dtype=jnp.int32),  # Fill operation
+                row=jnp.full(batch_size, 2 + (step_idx % 5), dtype=jnp.int32),
+                col=jnp.full(batch_size, 2 + (step_idx % 5), dtype=jnp.int32)
+            )
+            
+            # Step all environments
+            new_states, _, rewards, dones, _ = batch_step(states, actions, config)
+            
+            # Update episode statistics
+            episode_rewards += rewards
+            episode_lengths = jnp.where(
+                ~dones, 
+                episode_lengths + 1, 
+                episode_lengths
+            )
+            
+            return (new_states, episode_rewards, episode_lengths), None
+        
+        # Run episode steps
+        final_carry, _ = jax.lax.scan(
+            step_fn, 
+            (states, episode_rewards, episode_lengths),
+            jnp.arange(num_steps)
+        )
+        
+        final_states, final_rewards, final_lengths = final_carry
+        return final_states, final_rewards, final_lengths
+    
+    return run_batch_episodes
+
+
+# Utility functions for batch processing analysis
+
+def analyze_batch_performance(
+    config: ConfigType,
+    task_data: JaxArcTask | None = None,
+    batch_sizes: list[int] | None = None,
+    num_steps: int = 10
+) -> Dict[str, Any]:
+    """Analyze batch processing performance across different batch sizes.
+    
+    This function provides comprehensive performance analysis for batch processing
+    with filtered transformations, helping optimize batch sizes for different use cases.
+    
+    Args:
+        config: Environment configuration
+        task_data: Optional task data
+        batch_sizes: List of batch sizes to test (default: [1, 2, 4, 8, 16, 32])
+        num_steps: Number of steps to run for each batch size
+    
+    Returns:
+        Dictionary containing performance metrics for each batch size
+    
+    Examples:
+        ```python
+        # Analyze performance
+        results = analyze_batch_performance(config, task_data)
+        
+        # Print results
+        for batch_size, metrics in results['batch_metrics'].items():
+            print(f"Batch {batch_size}: {metrics['steps_per_second']:.1f} steps/sec")
+        ```
+    """
+    if batch_sizes is None:
+        batch_sizes = [1, 2, 4, 8, 16, 32]
+    
+    results = {
+        'batch_metrics': {},
+        'optimal_batch_size': None,
+        'peak_throughput': 0.0
+    }
+    
+    for batch_size in batch_sizes:
+        # Create batch episode runner
+        runner = create_batch_episode_runner(config, task_data, num_steps)
+        
+        # Generate keys
+        keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
+        
+        # Warm up JIT compilation
+        _ = runner(keys, 1)
+        
+        # Time actual execution
+        import time
+        start_time = time.perf_counter()
+        final_states, rewards, lengths = runner(keys, num_steps)
+        end_time = time.perf_counter()
+        
+        # Calculate metrics
+        total_time = end_time - start_time
+        total_steps = batch_size * num_steps
+        steps_per_second = total_steps / total_time
+        time_per_env = total_time / batch_size
+        
+        metrics = {
+            'batch_size': batch_size,
+            'total_time': total_time,
+            'time_per_env': time_per_env,
+            'steps_per_second': steps_per_second,
+            'avg_reward': float(jnp.mean(rewards)),
+            'avg_length': float(jnp.mean(lengths))
+        }
+        
+        results['batch_metrics'][batch_size] = metrics
+        
+        # Track optimal batch size
+        if steps_per_second > results['peak_throughput']:
+            results['peak_throughput'] = steps_per_second
+            results['optimal_batch_size'] = batch_size
+    
+    return results
