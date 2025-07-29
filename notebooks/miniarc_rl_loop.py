@@ -410,14 +410,18 @@ def run_rl_loop(
             logger.debug(
                 f"Action before step: operation={action.operation}, bbox=({action.r1}, {action.c1}, {action.r2}, {action.c2})"
             )
-            
+
             try:
                 state, observation, reward, done, info = arc_step(state, action, config)
             except Exception as e:
                 logger.error(f"arc_step failed at step {step_num}: {e}")
-                logger.error(f"Action: operation={action.operation}, bbox=({action.r1}, {action.c1}, {action.r2}, {action.c2})")
+                logger.error(
+                    f"Action: operation={action.operation}, bbox=({action.r1}, {action.c1}, {action.r2}, {action.c2})"
+                )
                 logger.error(f"State working grid shape: {state.working_grid.shape}")
-                logger.error(f"State working grid mask sum: {jnp.sum(state.working_grid_mask)}")
+                logger.error(
+                    f"State working grid mask sum: {jnp.sum(state.working_grid_mask)}"
+                )
                 # Skip this step and continue
                 continue
 
@@ -437,32 +441,37 @@ def run_rl_loop(
             selection_mask_for_viz = None
             try:
                 from jaxarc.envs.actions import bbox_handler
+
                 # Create the selection mask that will be applied by the action
-                selection_mask_jax = bbox_handler(action, state_before.working_grid_mask)
+                selection_mask_jax = bbox_handler(
+                    action, state_before.working_grid_mask
+                )
                 selection_mask_for_viz = np.array(selection_mask_jax)
                 logger.debug(
                     f"Created selection mask for visualization: {np.sum(selection_mask_for_viz)} cells"
                 )
             except Exception as e:
-                logger.warning(f"Failed to create selection mask for visualization: {e}")
+                logger.warning(
+                    f"Failed to create selection mask for visualization: {e}"
+                )
                 # Fallback: create selection mask from bbox coordinates
                 grid_height, grid_width = state_before.working_grid.shape
                 selection_mask_for_viz = np.zeros((grid_height, grid_width), dtype=bool)
-                
+
                 # Extract bbox coordinates
                 r1, c1, r2, c2 = action.r1, action.c1, action.r2, action.c2
                 r1, c1, r2, c2 = int(r1), int(c1), int(r2), int(c2)
-                
+
                 # Ensure proper bounds
                 r1 = max(0, min(r1, grid_height - 1))
                 c1 = max(0, min(c1, grid_width - 1))
                 r2 = max(0, min(r2, grid_height - 1))
                 c2 = max(0, min(c2, grid_width - 1))
-                
+
                 # Ensure proper ordering
                 min_r, max_r = min(r1, r2), max(r1, r2)
                 min_c, max_c = min(c1, c2), max(c1, c2)
-                
+
                 # Create rectangular selection (inclusive bounds)
                 selection_mask_for_viz[min_r : max_r + 1, min_c : max_c + 1] = True
                 logger.debug(
@@ -477,7 +486,7 @@ def run_rl_loop(
                 "r2": int(action.r2),
                 "c2": int(action.c2),
             }
-            
+
             # Add selection to action_log for visualization compatibility
             if selection_mask_for_viz is not None:
                 action_log["selection"] = selection_mask_for_viz
@@ -502,13 +511,20 @@ def run_rl_loop(
 
             # Create StepVisualizationData object and log to visualizer
             try:
-
                 # Debug the selection mask
                 if selection_mask_for_viz is not None:
-                    logger.debug(f"Selection mask shape: {selection_mask_for_viz.shape}")
-                    logger.debug(f"Selection mask dtype: {selection_mask_for_viz.dtype}")
-                    logger.debug(f"Selection mask sum: {np.sum(selection_mask_for_viz)}")
-                    logger.debug(f"Selection mask any: {np.any(selection_mask_for_viz)}")
+                    logger.debug(
+                        f"Selection mask shape: {selection_mask_for_viz.shape}"
+                    )
+                    logger.debug(
+                        f"Selection mask dtype: {selection_mask_for_viz.dtype}"
+                    )
+                    logger.debug(
+                        f"Selection mask sum: {np.sum(selection_mask_for_viz)}"
+                    )
+                    logger.debug(
+                        f"Selection mask any: {np.any(selection_mask_for_viz)}"
+                    )
                 else:
                     logger.debug("Selection mask is None")
 
@@ -677,7 +693,7 @@ class BatchedRandomAgent:
             r2 = jr.randint(k3, shape=(), minval=0, maxval=self.grid_height)
             c2 = jr.randint(k4, shape=(), minval=0, maxval=self.grid_width)
             return r1, c1, r2, c2
-        
+
         # Vectorize coordinate generation over the batch
         generate_coords_batch = jax.vmap(generate_coords)
         r1, c1, r2, c2 = generate_coords_batch(coord_keys)
@@ -865,10 +881,10 @@ def main():
 
         console.rule("[bold yellow]Batched Environment Demo")
 
-        # Run batched environment demo with smaller batch for testing
+        # Run batched environment demo with larger batch to show performance
         console.print("\n[bold cyan]Running Batched Environment Demo...[/bold cyan]")
         try:
-            run_batched_demo(batch_size=10, num_steps=10)
+            run_batched_demo(batch_size=100, num_steps=10)
         except Exception as e:
             logger.error(f"Batched demo failed: {e}")
             console.print(f"[red]Batched demo failed: {e}[/red]")
