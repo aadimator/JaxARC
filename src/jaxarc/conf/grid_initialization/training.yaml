@@ -1,0 +1,25 @@
+# @package grid_initialization
+# Training Grid Initialization Configuration
+# Optimized for training with high diversity and permutation emphasis
+
+mode: mixed
+
+# Training-optimized weights (emphasize permutations for diversity)
+demo_weight: 0.15        # Reduced demo usage
+permutation_weight: 0.50 # High permutation for diversity
+empty_weight: 0.15       # Some empty grids for exploration
+random_weight: 0.20      # Random patterns for robustness
+
+# Comprehensive permutation configuration
+permutation_types:
+  - rotate        # 90/180/270 degree rotations
+  - reflect       # Horizontal/vertical reflections
+  - color_remap   # Random color remapping
+  - translate     # Spatial translations
+
+# Random initialization configuration
+random_density: 0.25     # Slightly lower density for training
+random_pattern_type: structured  # More structured patterns for learning
+
+# Fallback configuration
+enable_fallback: true

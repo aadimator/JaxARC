@@ -1,0 +1,22 @@
+# @package grid_initialization
+# Demo Grid Initialization Configuration
+# Uses demonstration grids as-is for initialization
+
+mode: demo
+demo_weight: 1.0
+permutation_weight: 0.0
+empty_weight: 0.0
+random_weight: 0.0
+
+# Permutation configuration (unused in demo mode)
+permutation_types:
+  - rotate
+  - reflect
+  - color_remap
+
+# Random configuration (unused in demo mode)
+random_density: 0.3
+random_pattern_type: sparse
+
+# Fallback configuration
+enable_fallback: true

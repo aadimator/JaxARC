@@ -146,8 +146,21 @@ class ArcEpisodeConfig(eqx.Module):
             config = ArcEpisodeConfig.from_hydra(hydra_cfg)
             ```
         """
+        # Convert episode_mode string to integer
+        episode_mode_str = cfg.get("episode_mode", "train")
+        if isinstance(episode_mode_str, str):
+            if episode_mode_str.lower() == "train":
+                episode_mode = EPISODE_MODE_TRAIN
+            elif episode_mode_str.lower() == "test":
+                episode_mode = EPISODE_MODE_TEST
+            else:
+                raise ValueError(f"Invalid episode_mode string: {episode_mode_str}. Must be 'train' or 'test'")
+        else:
+            # Assume it's already an integer
+            episode_mode = int(episode_mode_str)
+        
         return cls(
-            episode_mode=cfg.get("episode_mode", "train"),
+            episode_mode=episode_mode,
             demo_selection_strategy=cfg.get("demo_selection_strategy", "random"),
             allow_demo_switching=cfg.get("allow_demo_switching", True),
             require_all_demos_solved=cfg.get("require_all_demos_solved", False),

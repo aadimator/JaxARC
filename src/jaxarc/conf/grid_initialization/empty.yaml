@@ -1,0 +1,22 @@
+# @package grid_initialization
+# Empty Grid Initialization Configuration
+# Uses empty grids (background color) for initialization
+
+mode: empty
+demo_weight: 0.0
+permutation_weight: 0.0
+empty_weight: 1.0
+random_weight: 0.0
+
+# Permutation configuration (unused in empty mode)
+permutation_types:
+  - rotate
+  - reflect
+  - color_remap
+
+# Random configuration (unused in empty mode)
+random_density: 0.3
+random_pattern_type: sparse
+
+# Fallback configuration
+enable_fallback: true

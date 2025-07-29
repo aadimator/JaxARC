@@ -1,0 +1,22 @@
+# @package grid_initialization
+# Random Grid Initialization Configuration
+# Uses random patterns for initialization
+
+mode: random
+demo_weight: 0.0
+permutation_weight: 0.0
+empty_weight: 0.0
+random_weight: 1.0
+
+# Permutation configuration (unused in random mode)
+permutation_types:
+  - rotate
+  - reflect
+  - color_remap
+
+# Random initialization configuration
+random_density: 0.3      # 30% density for random patterns
+random_pattern_type: sparse  # Sparse random patterns (other options: dense, structured, noise)
+
+# Fallback configuration
+enable_fallback: true
