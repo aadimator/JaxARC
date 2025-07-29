@@ -18,7 +18,7 @@ def validate_dataset_config(config: JaxArcConfig, dataset_name: str) -> None:
     """Validate configuration for specific dataset requirements.
 
     Args:
-        config: ArcEnvConfig to validate
+        config: JaxArcConfig to validate
         dataset_name: Name of the dataset ("ConceptARC", "MiniARC", etc.)
 
     Raises:

@@ -37,6 +37,7 @@ from .config import (
 from .config import (
     ConfigValidationError,
     EnvironmentConfig,
+    GridInitializationConfig,
     JaxArcConfig,
     LoggingConfig,
     StorageConfig,
@@ -64,6 +65,9 @@ from .functional import (
 
 # Grid operations
 from .grid_operations import execute_grid_operation
+
+# Grid initialization
+from .grid_initialization import initialize_working_grids
 
 # Observation system
 from .observations import (
@@ -104,6 +108,7 @@ __all__ = [
     "BboxAction",
     "ConfigValidationError",
     "EnvironmentConfig",
+    "GridInitializationConfig",
     "JaxArcConfig",
     "LoggingConfig",
     "MaskAction",
@@ -139,6 +144,7 @@ __all__ = [
     "get_operation_display_text",
     "get_operation_name",
     "get_operations_by_category",
+    "initialize_working_grids",
     "is_valid_operation_id",
     "mask_handler",
     "point_handler",

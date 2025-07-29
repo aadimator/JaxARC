@@ -53,7 +53,7 @@ fileMatchPattern: ["docs/**/*.md", "**/*.md"]
 ### Function Documentation
 
 ````python
-def arc_reset(config: ArcEnvConfig, key: PRNGKey) -> ArcEnvState:
+def arc_reset(config: JaxArcConfig, key: PRNGKey) -> ArcEnvState:
     """Reset the ARC environment to initial state.
 
     Args:

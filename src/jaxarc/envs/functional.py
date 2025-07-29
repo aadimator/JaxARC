@@ -684,18 +684,23 @@ def _initialize_grids(
     selected_pair_idx: jnp.ndarray,
     episode_mode: int,
     config: JaxArcConfig,
+    key: PRNGKey | None = None,
+    initial_pair_idx: int | None = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Initialize grids based on episode mode - focused helper function.
+    """Initialize grids with diverse initialization strategies - enhanced helper function.
     
-    This helper function sets up the initial, target, and mask grids based on the
-    episode mode and selected pair. It handles the critical difference between
-    training mode (with target access) and test mode (with target masking).
+    This enhanced helper function sets up the initial, target, and mask grids based on the
+    episode mode, selected pair, and diverse initialization configuration. It supports
+    multiple initialization modes including demo, permutation, empty, and random grids.
     
     Args:
         task_data: JaxArcTask containing demonstration and test pair data
         selected_pair_idx: JAX array with the index of the selected pair
         episode_mode: Episode mode (0=train, 1=test) determining grid initialization
-        config: Environment configuration containing dataset settings like background_color
+        config: Environment configuration containing grid initialization settings
+        key: Optional JAX PRNG key for diverse initialization (required for non-demo modes)
+        initial_pair_idx: Optional specific pair index for demo-based initialization.
+                         If None, uses random selection. If specified, uses that pair.
     
     Returns:
         Tuple containing:
@@ -705,42 +710,65 @@ def _initialize_grids(
     
     Examples:
         ```python
-        # Training mode initialization
-        init_grid, target, mask = _initialize_grids(task, idx, 0, config)
+        # Training mode with diverse initialization and specific pair
+        init_grid, target, mask = _initialize_grids(task, idx, 0, config, key, initial_pair_idx=2)
         
-        # Test mode initialization (target masked)
-        init_grid, masked_target, mask = _initialize_grids(task, idx, 1, config)
+        # Test mode initialization (target masked) with random selection
+        init_grid, masked_target, mask = _initialize_grids(task, idx, 1, config, key)
         ```
     
     Note:
-        In test mode, target grids are filled with background color to prevent
-        cheating while maintaining proper evaluation conditions.
+        Uses the new diverse grid initialization engine when grid_initialization
+        config is not in demo mode. Falls back to original behavior for demo mode
+        or when key is not provided. Respects initial_pair_idx for demo-based modes.
     """
     from .episode_manager import EPISODE_MODE_TRAIN
+    from .grid_initialization import initialize_working_grids
 
-    # JAX-compliant mode-specific grid initialization using conditional logic
-    def get_train_grids():
-        # Training mode: use demonstration pair with target access
-        initial_grid = task_data.input_grids_examples[selected_pair_idx]
-        target_grid = task_data.output_grids_examples[selected_pair_idx]
-        initial_mask = task_data.input_masks_examples[selected_pair_idx]
-        return initial_grid, target_grid, initial_mask
+    # Get target grid based on episode mode (unchanged logic)
+    def get_train_target():
+        return task_data.output_grids_examples[selected_pair_idx]
 
-    def get_test_grids():
-        # Test mode: use test pair with target masking for proper evaluation
-        initial_grid = task_data.test_input_grids[selected_pair_idx]
-        initial_mask = task_data.test_input_masks[selected_pair_idx]
+    def get_test_target():
         # In test mode, target grid is masked (set to background color) to prevent cheating
         background_color = config.dataset.background_color
-        target_grid = jnp.full_like(
-            initial_grid, background_color
-        )  # Masked target for evaluation
-        return initial_grid, target_grid, initial_mask
+        initial_grid = task_data.test_input_grids[selected_pair_idx]
+        return jnp.full_like(initial_grid, background_color)
 
-    # Use JAX conditional to select grids based on episode mode
-    initial_grid, target_grid, initial_mask = jax.lax.cond(
-        episode_mode == EPISODE_MODE_TRAIN, get_train_grids, get_test_grids
+    target_grid = jax.lax.cond(
+        episode_mode == EPISODE_MODE_TRAIN, get_train_target, get_test_target
     )
+
+    # Check if diverse initialization is enabled and key is provided
+    use_diverse_init = (
+        hasattr(config, 'grid_initialization') and 
+        config.grid_initialization.mode != "demo" and 
+        key is not None
+    )
+
+    if use_diverse_init:
+        # Use diverse initialization engine with initial_pair_idx support
+        initial_grid, initial_mask = initialize_working_grids(
+            task_data, config.grid_initialization, key, batch_size=1, initial_pair_idx=initial_pair_idx
+        )
+        # Remove batch dimension (squeeze first axis)
+        initial_grid = jnp.squeeze(initial_grid, axis=0)
+        initial_mask = jnp.squeeze(initial_mask, axis=0)
+    else:
+        # Fall back to original demo-based initialization
+        def get_train_grids():
+            initial_grid = task_data.input_grids_examples[selected_pair_idx]
+            initial_mask = task_data.input_masks_examples[selected_pair_idx]
+            return initial_grid, initial_mask
+
+        def get_test_grids():
+            initial_grid = task_data.test_input_grids[selected_pair_idx]
+            initial_mask = task_data.test_input_masks[selected_pair_idx]
+            return initial_grid, initial_mask
+
+        initial_grid, initial_mask = jax.lax.cond(
+            episode_mode == EPISODE_MODE_TRAIN, get_train_grids, get_test_grids
+        )
 
     return initial_grid, target_grid, initial_mask
 
@@ -913,14 +941,17 @@ def arc_reset(
     # Get or create task data
     task_data = _get_or_create_task_data(task_data, typed_config)
 
+    # Split key for different operations
+    pair_key, init_key = jax.random.split(key)
+
     # Select initial pair based on mode and configuration strategy
     selected_pair_idx, selection_successful = _select_initial_pair(
-        key, task_data, episode_mode, initial_pair_idx
+        pair_key, task_data, episode_mode, initial_pair_idx
     )
 
     # Initialize grids based on episode mode using JAX-compatible operations
     initial_grid, target_grid, initial_mask = _initialize_grids(
-        task_data, selected_pair_idx, episode_mode, typed_config
+        task_data, selected_pair_idx, episode_mode, typed_config, init_key, initial_pair_idx
     )
 
     # Create enhanced initial state with all new fields
