@@ -440,42 +440,97 @@ def copy_input_grid(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
 
 
 @eqx.filter_jit
-def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
-    """Resize grid active area based on selection."""
+def _get_bottom_right_from_selection(selection: SelectionArray) -> tuple[int, int]:
+    """Find the bottom-rightmost selected cell coordinates.
+    
+    Args:
+        selection: Boolean selection mask
+        
+    Returns:
+        Tuple of (bottom_right_row, bottom_right_col) or (-1, -1) if no selection
+    """
+    # Check if selection is empty
     has_selection = jnp.sum(selection) > 0
+    
+    def get_coordinates():
+        # Create coordinate grids
+        height, width = selection.shape
+        rows = jnp.arange(height)[:, None]
+        cols = jnp.arange(width)[None, :]
+        
+        # Find all selected positions
+        selected_rows = jnp.where(selection, rows, -1)
+        selected_cols = jnp.where(selection, cols, -1)
+        
+        # Find maximum row among selected cells
+        max_row = jnp.max(selected_rows)
+        
+        # Among cells in the maximum row, find the maximum column
+        # Create mask for cells in the maximum row
+        max_row_mask = selection & (rows == max_row)
+        max_row_cols = jnp.where(max_row_mask, cols, -1)
+        max_col = jnp.max(max_row_cols)
+        
+        return max_row, max_col
+    
+    def no_selection():
+        return -1, -1
+    
+    return jax.lax.cond(has_selection, get_coordinates, no_selection)
 
-    def resize_to_selection():
-        # Use selection as new working grid mask (defines new active area)
-        new_mask = selection
 
-        # Handle grid content changes:
-        # - Areas that were active and remain active: keep existing values
-        # - Areas that were inactive and become active: set to background (0)
-        # - Areas that were active and become inactive: set to padding (-1)
-
-        # Find areas becoming active (were padding, now selected)
-        becoming_active = selection & ~state.working_grid_mask
-
-        # Find areas becoming inactive (were active, now not selected)
-        becoming_inactive = state.working_grid_mask & ~selection
-
-        # Update grid values
-        new_grid = state.working_grid
-        new_grid = jnp.where(
-            becoming_active, 0, new_grid
-        )  # New active areas = background
-        new_grid = jnp.where(
-            becoming_inactive, -1, new_grid
-        )  # New inactive areas = padding
-
+@eqx.filter_jit
+def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
+    """Resize grid active area using bottom-rightmost selected cell to define new dimensions.
+    
+    The resizing always originates from the top-left (0,0) corner:
+    - When expanding: preserves existing content and fills new area with black (0)
+    - When shrinking: preserves top-left content that fits in new dimensions
+    """
+    # Get the bottom-right coordinate that defines new dimensions
+    bottom_right_row, bottom_right_col = _get_bottom_right_from_selection(selection)
+    
+    # Check if we have a valid selection
+    has_valid_selection = (bottom_right_row >= 0) & (bottom_right_col >= 0)
+    
+    def resize_to_bottom_right():
+        # Calculate new dimensions
+        new_height = bottom_right_row + 1
+        new_width = bottom_right_col + 1
+        
+        # Get current grid dimensions from mask
+        from jaxarc.utils.grid_utils import get_actual_grid_shape_from_mask
+        current_height, current_width = get_actual_grid_shape_from_mask(state.working_grid_mask)
+        
+        # Create new mask for the resized area
+        max_height, max_width = state.working_grid.shape
+        rows = jnp.arange(max_height)[:, None]
+        cols = jnp.arange(max_width)[None, :]
+        new_mask = (rows < new_height) & (cols < new_width)
+        
+        # Create new grid starting with padding (-1)
+        new_grid = jnp.full_like(state.working_grid, -1)
+        
+        # Determine how much content to copy from original grid
+        copy_height = jnp.minimum(current_height, new_height)
+        copy_width = jnp.minimum(current_width, new_width)
+        
+        # Copy the overlapping content from original grid
+        copy_mask = (rows < copy_height) & (cols < copy_width)
+        new_grid = jnp.where(copy_mask, state.working_grid, new_grid)
+        
+        # Fill newly active areas (that weren't copied) with black (0)
+        newly_active = new_mask & ~copy_mask
+        new_grid = jnp.where(newly_active, 0, new_grid)
+        
         from jaxarc.utils.pytree_utils import update_multiple_fields
         
         return update_multiple_fields(state, working_grid=new_grid, working_grid_mask=new_mask)
-
+    
     def no_resize():
         return state
-
-    return jax.lax.cond(has_selection, resize_to_selection, no_resize)
+    
+    return jax.lax.cond(has_valid_selection, resize_to_bottom_right, no_resize)
 
 
 # --- Submit Operation (34) ---
