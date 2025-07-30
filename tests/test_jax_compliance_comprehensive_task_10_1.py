@@ -243,10 +243,12 @@ class JAXComplianceTests:
         
         # Test compute_grid_similarity (already uses @eqx.filter_jit)
         grid1 = jnp.ones((10, 10), dtype=jnp.int32)
+        mask1 = jnp.ones((10, 10), dtype=jnp.bool_)
         grid2 = jnp.ones((10, 10), dtype=jnp.int32)
+        mask2 = jnp.ones((10, 10), dtype=jnp.bool_)
         
         # Function already has @eqx.filter_jit decorator
-        similarity = compute_grid_similarity(grid1, grid2)
+        similarity = compute_grid_similarity(grid1, mask1, grid2, mask2)
         assert similarity == 1.0
         
         # Test execute_grid_operation with proper state

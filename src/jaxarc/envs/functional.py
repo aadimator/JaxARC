@@ -433,7 +433,7 @@ def _calculate_similarity_score_for_pair_type(
     from .grid_operations import compute_grid_similarity
 
     # In training mode, use full similarity calculation
-    training_similarity = compute_grid_similarity(working_grid, target_grid)
+    training_similarity = compute_grid_similarity(working_grid, working_mask, target_grid, target_mask)
 
     # In test mode, similarity is limited due to target masking
     # We can only measure structural consistency, not correctness
@@ -816,7 +816,7 @@ def _create_initial_state(
         status tracking, and dynamic operation control for full functionality.
     """
     # Calculate initial similarity (will be 0.0 in test mode due to masked target)
-    initial_similarity = compute_grid_similarity(initial_grid, target_grid)
+    initial_similarity = compute_grid_similarity(initial_grid, initial_mask, target_grid, target_mask)
 
     # Initialize grids based on episode mode using JAX-compatible operations
     # Get available pairs and completion status for enhanced functionality
@@ -1158,10 +1158,10 @@ def _process_action(
         def update_grids_for_pair_switch(state):
             # Update working grid and target based on new pair
             def get_train_grids(state):
-                input_grid, target_grid, input_mask = (
+                input_grid, target_grid, input_mask, target_mask = (
                     state.task_data.get_demo_pair_data(state.current_example_idx)
                 )
-                return input_grid, target_grid, input_mask
+                return input_grid, target_grid, input_mask, target_mask
 
             def get_test_grids(state):
                 input_grid, input_mask = state.task_data.get_test_pair_data(
@@ -1170,10 +1170,11 @@ def _process_action(
                 # In test mode, mask target grid
                 background_color = getattr(config.dataset, "background_color", 0)
                 target_grid = jnp.full_like(input_grid, background_color)
-                return input_grid, target_grid, input_mask
+                target_mask = jnp.zeros_like(input_mask)  # Empty target mask in test mode
+                return input_grid, target_grid, input_mask, target_mask
 
             # Use JAX conditional to get grids based on mode
-            input_grid, target_grid, input_mask = jax.lax.cond(
+            input_grid, target_grid, input_mask, target_mask = jax.lax.cond(
                 state.is_training_mode(), get_train_grids, get_test_grids, state
             )
 
@@ -1181,7 +1182,7 @@ def _process_action(
             from jaxarc.utils.pytree_utils import update_multiple_fields
             
             # Recalculate similarity for new pair
-            new_similarity = compute_grid_similarity(input_grid, target_grid)
+            new_similarity = compute_grid_similarity(input_grid, input_mask, target_grid, target_mask)
             
             updated_state = update_multiple_fields(
                 state,

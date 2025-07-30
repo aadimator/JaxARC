@@ -269,19 +269,20 @@ class JaxArcTask(eqx.Module):
         """
         return jnp.arange(self.test_input_grids.shape[0]) < self.num_test_pairs
 
-    def get_demo_pair_data(self, pair_idx: int) -> tuple[GridArray, GridArray, MaskArray]:
+    def get_demo_pair_data(self, pair_idx: int) -> tuple[GridArray, GridArray, MaskArray, MaskArray]:
         """Get training pair data by index.
         
         Args:
             pair_idx: Index of the training pair to retrieve
             
         Returns:
-            Tuple of (input_grid, output_grid, input_mask)
+            Tuple of (input_grid, output_grid, input_mask, output_mask)
         """
         return (
             self.input_grids_examples[pair_idx],
             self.output_grids_examples[pair_idx],
-            self.input_masks_examples[pair_idx]
+            self.input_masks_examples[pair_idx],
+            self.output_masks_examples[pair_idx]
         )
 
     def get_test_pair_data(self, pair_idx: int) -> tuple[GridArray, MaskArray]:

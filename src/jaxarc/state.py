@@ -1070,11 +1070,11 @@ class ArcEnvState(eqx.Module):
     # Enhanced Utility Methods for Demonstration and Test Pair Access
     # =========================================================================
 
-    def get_current_demo_pair_data(self) -> tuple[GridArray, GridArray, MaskArray]:
+    def get_current_demo_pair_data(self) -> tuple[GridArray, GridArray, MaskArray, MaskArray]:
         """Get current demonstration pair data.
 
         Returns:
-            Tuple of (input_grid, output_grid, input_mask) for current demo pair
+            Tuple of (input_grid, output_grid, input_mask, output_mask) for current demo pair
 
         Raises:
             ValueError: If not in training mode or current pair is invalid
