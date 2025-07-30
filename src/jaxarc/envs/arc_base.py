@@ -125,7 +125,7 @@ class ArcEnvironment:
         initial_mask = task_data.input_masks_examples[0]
 
         # Calculate initial similarity
-        initial_similarity = compute_grid_similarity(initial_grid, target_grid)
+        initial_similarity = compute_grid_similarity(initial_grid, initial_mask, target_grid, target_mask)
 
         state = create_enhanced_state(
             task_data=task_data,

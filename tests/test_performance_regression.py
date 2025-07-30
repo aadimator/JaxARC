@@ -337,18 +337,22 @@ class TestGridOperationsPerformance:
         grid1 = jnp.ones((30, 30), dtype=jnp.int32)
         grid2 = jnp.ones((30, 30), dtype=jnp.int32) * 2
 
+        # Create working mask and target mask
+        mask1 = jnp.ones_like(grid1, dtype=jnp.bool_)
+        mask2 = jnp.ones_like(grid2, dtype=jnp.bool_)
+        
         profiler = PerformanceProfiler(
             compute_grid_similarity, "compute_grid_similarity"
         )
 
         # Test compilation time
-        compilation_time = profiler.profile_compilation(grid1, grid2)
+        compilation_time = profiler.profile_compilation(grid1, mask1, grid2, mask2)
         assert compilation_time < COMPILATION_TIME_THRESHOLD, (
             f"compute_grid_similarity compilation took {compilation_time:.3f}s"
         )
 
         # Test execution time
-        execution_times = profiler.profile_execution(grid1, grid2, num_runs=10)
+        execution_times = profiler.profile_execution(grid1, mask1, grid2, mask2, num_runs=10)
         avg_execution_time = sum(execution_times) / len(execution_times)
         assert avg_execution_time < EXECUTION_TIME_THRESHOLD, (
             f"compute_grid_similarity average execution time {avg_execution_time:.3f}s"
@@ -426,11 +430,13 @@ class TestBatchPerformance:
 
         # Create batch of grids
         batch_grid1 = jnp.ones((batch_size, 30, 30), dtype=jnp.int32)
+        batch_mask1 = jnp.ones((batch_size, 30, 30), dtype=jnp.bool_)
         batch_grid2 = jnp.ones((batch_size, 30, 30), dtype=jnp.int32) * 2
+        batch_mask2 = jnp.ones((batch_size, 30, 30), dtype=jnp.bool_)
 
         # Test batch execution time
         profiler = PerformanceProfiler(compute_grid_similarity, "similarity_batch")
-        batch_time = profiler.profile_batch_execution((batch_grid1, batch_grid2))
+        batch_time = profiler.profile_batch_execution((batch_grid1, batch_mask1, batch_grid2, batch_mask2))
 
         assert batch_time < BATCH_EXECUTION_TIME_THRESHOLD, (
             f"Batched compute_grid_similarity took {batch_time:.3f}s for {batch_size} items"

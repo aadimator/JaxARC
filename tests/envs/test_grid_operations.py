@@ -94,40 +94,89 @@ class TestGridSimilarity:
 
     def test_identical_grids(self):
         """Test similarity of identical grids."""
-        grid1 = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
-        grid2 = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
+        working_grid = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
+        working_mask = jnp.ones((2, 2), dtype=jnp.bool_)
+        target_grid = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
+        target_mask = jnp.ones((2, 2), dtype=jnp.bool_)
 
-        similarity = compute_grid_similarity(grid1, grid2)
+        similarity = compute_grid_similarity(working_grid, working_mask, target_grid, target_mask)
         assert jnp.allclose(similarity, 1.0)
 
     def test_completely_different_grids(self):
         """Test similarity of completely different grids."""
-        grid1 = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
-        grid2 = jnp.array([[5, 6], [7, 8]], dtype=jnp.int32)
+        working_grid = jnp.array([[5, 6], [7, 8]], dtype=jnp.int32)
+        working_mask = jnp.ones((2, 2), dtype=jnp.bool_)
+        target_grid = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
+        target_mask = jnp.ones((2, 2), dtype=jnp.bool_)
 
-        similarity = compute_grid_similarity(grid1, grid2)
+        similarity = compute_grid_similarity(working_grid, working_mask, target_grid, target_mask)
         assert jnp.allclose(similarity, 0.0)
 
     def test_partially_similar_grids(self):
         """Test similarity of partially similar grids."""
-        grid1 = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
-        grid2 = jnp.array([[1, 2], [5, 6]], dtype=jnp.int32)
+        working_grid = jnp.array([[1, 2], [5, 6]], dtype=jnp.int32)
+        working_mask = jnp.ones((2, 2), dtype=jnp.bool_)
+        target_grid = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
+        target_mask = jnp.ones((2, 2), dtype=jnp.bool_)
 
-        similarity = compute_grid_similarity(grid1, grid2)
+        similarity = compute_grid_similarity(working_grid, working_mask, target_grid, target_mask)
         assert jnp.allclose(similarity, 0.5)  # 2 out of 4 pixels match
 
     def test_similarity_jit_compilation(self):
         """Test that similarity function can be JIT compiled."""
 
         @jax.jit
-        def jit_similarity(grid1, grid2):
-            return compute_grid_similarity(grid1, grid2)
+        def jit_similarity(working_grid, working_mask, target_grid, target_mask):
+            return compute_grid_similarity(working_grid, working_mask, target_grid, target_mask)
 
-        grid1 = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
-        grid2 = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
+        working_grid = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
+        working_mask = jnp.ones((2, 2), dtype=jnp.bool_)
+        target_grid = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
+        target_mask = jnp.ones((2, 2), dtype=jnp.bool_)
 
-        similarity = jit_similarity(grid1, grid2)
+        similarity = jit_similarity(working_grid, working_mask, target_grid, target_mask)
         assert jnp.allclose(similarity, 1.0)
+
+    def test_size_mismatch_penalty(self):
+        """Test that size mismatches are properly penalized."""
+        # 3x3 target grid
+        target_grid = jnp.array([
+            [1, 2, 0],
+            [3, 4, 0], 
+            [0, 0, 0]
+        ], dtype=jnp.int32)
+        target_mask = jnp.ones((3, 3), dtype=jnp.bool_)
+        
+        # Working grid resized to just the 2x2 matching area (the problematic case)
+        working_grid = jnp.full((3, 3), -1, dtype=jnp.int32)  # Padded
+        working_grid = working_grid.at[:2, :2].set(jnp.array([[1, 2], [3, 4]]))
+        working_mask = jnp.zeros((3, 3), dtype=jnp.bool_)
+        working_mask = working_mask.at[:2, :2].set(True)  # Only 2x2 area active
+        
+        similarity = compute_grid_similarity(working_grid, working_mask, target_grid, target_mask)
+        
+        # Should be 4 matches out of 9 total positions = 4/9 ≈ 0.444
+        expected_similarity = 4.0 / 9.0
+        assert jnp.allclose(similarity, expected_similarity, atol=1e-3), \
+            f"Expected {expected_similarity:.3f}, got {similarity:.3f}"
+
+    def test_empty_grids(self):
+        """Test similarity with empty grids."""
+        # Both empty
+        empty_working = jnp.full((2, 2), -1, dtype=jnp.int32)
+        empty_working_mask = jnp.zeros((2, 2), dtype=jnp.bool_)
+        empty_target = jnp.full((2, 2), -1, dtype=jnp.int32)
+        empty_target_mask = jnp.zeros((2, 2), dtype=jnp.bool_)
+        
+        similarity = compute_grid_similarity(empty_working, empty_working_mask, empty_target, empty_target_mask)
+        assert jnp.allclose(similarity, 1.0)
+        
+        # Empty target, non-empty working
+        non_empty_working = jnp.zeros((2, 2), dtype=jnp.int32)
+        non_empty_mask = jnp.ones((2, 2), dtype=jnp.bool_)
+        
+        similarity = compute_grid_similarity(non_empty_working, non_empty_mask, empty_target, empty_target_mask)
+        assert jnp.allclose(similarity, 0.0)
 
 
 class TestFillOperations:

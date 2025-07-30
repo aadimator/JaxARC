@@ -149,7 +149,7 @@ def apply_grid_operation(
     updates = {"working_grid": new_grid}
     
     if update_similarity:
-        similarity = compute_grid_similarity(new_grid, state.target_grid)
+        similarity = compute_grid_similarity(new_grid, state.working_grid_mask, state.target_grid, state.target_grid_mask)
         updates["similarity_score"] = similarity
         
     if update_step_count:
