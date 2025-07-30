@@ -20,7 +20,7 @@ from ..logging.structured_logger import (
     StepLogEntry,
     StructuredLogger,
 )
-from .core import draw_rl_step_svg
+from .rl_visualization import draw_rl_step_svg
 from .visualizer import VisualizationConfig
 
 

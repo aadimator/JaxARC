@@ -233,7 +233,7 @@ class TestVisualizerTaskMethods:
             episode_mode="train",
         )
         
-        with patch('jaxarc.utils.visualization.core.draw_parsed_task_data_svg') as mock_draw:
+        with patch('jaxarc.utils.visualization.task_visualization.draw_parsed_task_data_svg') as mock_draw:
             mock_draw.return_value = "svg_content"
             
             result = test_visualizer._create_task_visualization(task_viz_data)
@@ -266,7 +266,7 @@ class TestVisualizerTaskMethods:
             episode_mode="train",
         )
         
-        with patch('jaxarc.utils.visualization.core.draw_parsed_task_data_svg') as mock_draw:
+        with patch('jaxarc.utils.visualization.task_visualization.draw_parsed_task_data_svg') as mock_draw:
             mock_draw.side_effect = Exception("Drawing error")
             
             result = test_visualizer._create_task_visualization(task_viz_data)

@@ -269,7 +269,7 @@ def log_grid_callback(
         show_coordinates: Whether to show coordinates
         show_numbers: Whether to show numbers instead of blocks
     """
-    from jaxarc.utils.visualization.core import log_grid_to_console
+    from jaxarc.utils.visualization.rich_display import log_grid_to_console
 
     grid = create_grid_from_arrays(grid_data, mask)
     log_grid_to_console(
@@ -295,7 +295,7 @@ def save_step_visualization_callback(
     """
     from pathlib import Path
 
-    from jaxarc.utils.visualization.core import draw_rl_step_svg
+    from jaxarc.utils.visualization.rl_visualization import draw_rl_step_svg
 
     try:
         # Ensure output directory exists

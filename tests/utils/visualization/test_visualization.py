@@ -33,7 +33,7 @@ from jaxarc.utils.visualization import (
     visualize_parsed_task_data_rich,
     visualize_task_pair_rich,
 )
-from jaxarc.utils.visualization.core import _extract_valid_region
+from jaxarc.utils.visualization.utils import _extract_valid_region
 
 
 class TestCoreVisualizationFunctions:
@@ -217,7 +217,7 @@ class TestTerminalRendering:
         test_grid = jnp.array([[0, 1], [2, 3]], dtype=jnp.int32)
 
         # Mock the console to capture output
-        with patch("jaxarc.utils.visualization.core.Console") as mock_console_class:
+        with patch("jaxarc.utils.visualization.rich_display.Console") as mock_console_class:
             mock_console = MagicMock()
             mock_console_class.return_value = mock_console
 
@@ -667,7 +667,7 @@ class TestVisualizationUtilities:
     def test_setup_matplotlib_style_not_available(self):
         """Test matplotlib style setup when matplotlib not available."""
         # Test that the function raises ImportError when matplotlib is not available
-        with patch("jaxarc.utils.visualization.core.MATPLOTLIB_AVAILABLE", False):
+        with patch("jaxarc.utils.visualization.matplotlib_utils.MATPLOTLIB_AVAILABLE", False):
             with pytest.raises(
                 ImportError, match="Matplotlib and seaborn are required"
             ):
@@ -775,7 +775,7 @@ class TestParsedTaskVisualization:
         mock_task.true_test_output_masks = [None]
 
         # Mock console to capture output
-        with patch("jaxarc.utils.visualization.core.Console") as mock_console_class:
+        with patch("jaxarc.utils.visualization.rich_display.Console") as mock_console_class:
             mock_console = MagicMock()
             mock_console.size.width = 120
             mock_console_class.return_value = mock_console
