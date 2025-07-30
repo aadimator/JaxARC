@@ -686,7 +686,7 @@ def _initialize_grids(
     config: JaxArcConfig,
     key: PRNGKey | None = None,
     initial_pair_idx: int | None = None,
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize grids with diverse initialization strategies - enhanced helper function.
     
     This enhanced helper function sets up the initial, target, and mask grids based on the
@@ -725,17 +725,21 @@ def _initialize_grids(
     from .episode_manager import EPISODE_MODE_TRAIN
     from .grid_initialization import initialize_working_grids
 
-    # Get target grid based on episode mode (unchanged logic)
+    # Get target grid and mask based on episode mode
     def get_train_target():
-        return task_data.output_grids_examples[selected_pair_idx]
+        target_grid = task_data.output_grids_examples[selected_pair_idx]
+        target_mask = task_data.output_masks_examples[selected_pair_idx]
+        return target_grid, target_mask
 
     def get_test_target():
         # In test mode, target grid is masked (set to background color) to prevent cheating
         background_color = config.dataset.background_color
         initial_grid = task_data.test_input_grids[selected_pair_idx]
-        return jnp.full_like(initial_grid, background_color)
+        target_grid = jnp.full_like(initial_grid, background_color)
+        target_mask = jnp.zeros_like(task_data.test_input_masks[selected_pair_idx])
+        return target_grid, target_mask
 
-    target_grid = jax.lax.cond(
+    target_grid, target_mask = jax.lax.cond(
         episode_mode == EPISODE_MODE_TRAIN, get_train_target, get_test_target
     )
 
@@ -770,7 +774,7 @@ def _initialize_grids(
             episode_mode == EPISODE_MODE_TRAIN, get_train_grids, get_test_grids
         )
 
-    return initial_grid, target_grid, initial_mask
+    return initial_grid, target_grid, initial_mask, target_mask
 
 
 def _create_initial_state(
@@ -778,6 +782,7 @@ def _create_initial_state(
     initial_grid: jnp.ndarray,
     target_grid: jnp.ndarray,
     initial_mask: jnp.ndarray,
+    target_mask: jnp.ndarray,
     selected_pair_idx: jnp.ndarray,
     episode_mode: int,
     config: JaxArcConfig,
@@ -805,10 +810,10 @@ def _create_initial_state(
     Examples:
         ```python
         # Create initial state for training
-        state = _create_initial_state(task, grid, target, mask, idx, 0, config)
+        state = _create_initial_state(task, grid, target, mask, target_mask, idx, 0, config)
         
         # Create initial state for testing
-        state = _create_initial_state(task, grid, masked_target, mask, idx, 1, config)
+        state = _create_initial_state(task, grid, masked_target, mask, empty_mask, idx, 1, config)
         ```
     
     Note:
@@ -950,7 +955,7 @@ def arc_reset(
     )
 
     # Initialize grids based on episode mode using JAX-compatible operations
-    initial_grid, target_grid, initial_mask = _initialize_grids(
+    initial_grid, target_grid, initial_mask, target_mask = _initialize_grids(
         task_data, selected_pair_idx, episode_mode, typed_config, init_key, initial_pair_idx
     )
 
@@ -960,6 +965,7 @@ def arc_reset(
         initial_grid,
         target_grid,
         initial_mask,
+        target_mask,
         selected_pair_idx,
         episode_mode,
         typed_config,

@@ -56,6 +56,7 @@ from jaxarc.envs import (
     create_bbox_action,
 )
 from jaxarc.envs.functional import batch_reset, batch_step
+from jaxarc.envs.structured_actions import StructuredAction
 from jaxarc.parsers import MiniArcParser
 from jaxarc.state import ArcEnvState
 from jaxarc.types import Grid
@@ -253,7 +254,7 @@ class RandomAgent:
         agent_state: AgentState,
         env_state: ArcEnvState,
         config,
-    ) -> Tuple[any, AgentState]:
+    ) -> Tuple[StructuredAction, AgentState]:
         """
         Selects a random action using structured actions.
 
@@ -437,48 +438,6 @@ def run_rl_loop(
             reward_progression.append(float(total_reward))
             similarity_progression.append(float(info.get("similarity", 0.0)))
 
-            # --- Create selection mask BEFORE step for proper visualization ---
-            # This is crucial for showing the highlighted cells in the "before" state
-            selection_mask_for_viz = None
-            try:
-                from jaxarc.envs.actions import bbox_handler
-
-                # Create the selection mask that will be applied by the action
-                selection_mask_jax = bbox_handler(
-                    action, state_before.working_grid_mask
-                )
-                selection_mask_for_viz = np.array(selection_mask_jax)
-                logger.debug(
-                    f"Created selection mask for visualization: {np.sum(selection_mask_for_viz)} cells"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to create selection mask for visualization: {e}"
-                )
-                # Fallback: create selection mask from bbox coordinates
-                grid_height, grid_width = state_before.working_grid.shape
-                selection_mask_for_viz = np.zeros((grid_height, grid_width), dtype=bool)
-
-                # Extract bbox coordinates
-                r1, c1, r2, c2 = action.r1, action.c1, action.r2, action.c2
-                r1, c1, r2, c2 = int(r1), int(c1), int(r2), int(c2)
-
-                # Ensure proper bounds
-                r1 = max(0, min(r1, grid_height - 1))
-                c1 = max(0, min(c1, grid_width - 1))
-                r2 = max(0, min(r2, grid_height - 1))
-                c2 = max(0, min(c2, grid_width - 1))
-
-                # Ensure proper ordering
-                min_r, max_r = min(r1, r2), max(r1, r2)
-                min_c, max_c = min(c1, c2), max(c1, c2)
-
-                # Create rectangular selection (inclusive bounds)
-                selection_mask_for_viz[min_r : max_r + 1, min_c : max_c + 1] = True
-                logger.debug(
-                    f"Fallback bbox selection: {np.sum(selection_mask_for_viz)} cells selected"
-                )
-
             # --- Convert structured action to dict for logging ---
             action_log = {
                 "operation": int(action.operation),
@@ -486,11 +445,9 @@ def run_rl_loop(
                 "c1": int(action.c1),
                 "r2": int(action.r2),
                 "c2": int(action.c2),
+                "selection": action.to_selection_mask(state_before.working_grid.shape)
             }
 
-            # Add selection to action_log for visualization compatibility
-            if selection_mask_for_viz is not None:
-                action_log["selection"] = selection_mask_for_viz
             info_log = {
                 k: np.asarray(v) if hasattr(v, "shape") else v for k, v in info.items()
             }
@@ -512,23 +469,6 @@ def run_rl_loop(
 
             # Create StepVisualizationData object and log to visualizer
             try:
-                # Debug the selection mask
-                if selection_mask_for_viz is not None:
-                    logger.debug(
-                        f"Selection mask shape: {selection_mask_for_viz.shape}"
-                    )
-                    logger.debug(
-                        f"Selection mask dtype: {selection_mask_for_viz.dtype}"
-                    )
-                    logger.debug(
-                        f"Selection mask sum: {np.sum(selection_mask_for_viz)}"
-                    )
-                    logger.debug(
-                        f"Selection mask any: {np.any(selection_mask_for_viz)}"
-                    )
-                else:
-                    logger.debug("Selection mask is None")
-
                 before_grid = Grid(
                     data=state_before.working_grid, mask=state_before.working_grid_mask
                 )
@@ -545,7 +485,6 @@ def run_rl_loop(
                     task_id=task_id,
                     task_pair_index=0,  # Assuming we're working with the first pair
                     total_task_pairs=task.num_train_pairs,
-                    selection_mask=selection_mask_for_viz,  # Use the pre-computed selection mask
                 )
                 visualizer.visualize_step(step_data)
             except Exception as e:
