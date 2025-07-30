@@ -58,6 +58,7 @@ from jaxarc.envs import (
 from jaxarc.envs.functional import batch_reset, batch_step
 from jaxarc.parsers import MiniArcParser
 from jaxarc.state import ArcEnvState
+from jaxarc.types import Grid
 from jaxarc.utils.config import get_config
 from jaxarc.utils.visualization import (
     EpisodeConfig,
@@ -528,10 +529,16 @@ def run_rl_loop(
                 else:
                     logger.debug("Selection mask is None")
 
+                before_grid = Grid(
+                    data=state_before.working_grid, mask=state_before.working_grid_mask
+                )
+
+                after_grid = Grid(data=state.working_grid, mask=state.working_grid_mask)
+
                 step_data = StepVisualizationData(
                     step_num=step_num,
-                    before_grid=np.array(state_before.working_grid),
-                    after_grid=np.array(state.working_grid),
+                    before_grid=before_grid,
+                    after_grid=after_grid,
                     action=action_log,
                     reward=float(reward),
                     info=info_log,

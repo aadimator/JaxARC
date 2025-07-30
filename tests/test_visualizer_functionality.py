@@ -158,7 +158,7 @@ class TestVisualizerClass:
             info={},
         )
         
-        with patch('jaxarc.utils.visualization.core.draw_step_svg') as mock_draw:
+        with patch('jaxarc.utils.visualization.rl_visualization.draw_rl_step_svg') as mock_draw:
             mock_draw.return_value = "svg_content"
             
             result = test_visualizer._create_step_visualization(step_data)

@@ -42,29 +42,52 @@ from .async_logger import (
     LogEntry,
 )
 
-# Import core visualization functions from the core module
-from .core import (
-    # Constants
+# Import constants
+from .constants import (
     ARC_COLOR_PALETTE,
-    # Internal functions that are used by other modules
+)
+
+# Import utility functions
+from .utils import (
     _clear_output_directory,
     _extract_grid_data,
-    draw_grid_svg,
-    draw_parsed_task_data_svg,
-    # RL-specific visualization
-    draw_rl_step_svg,
-    draw_task_pair_svg,
-    # Core grid visualization
+)
+
+# Import Rich display functions
+from .rich_display import (
     log_grid_to_console,
-    save_rl_step_visualization,
-    # Utility functions
-    save_svg_drawing,
-    setup_matplotlib_style,
     visualize_grid_rich,
-    # Complete task visualization
     visualize_parsed_task_data_rich,
-    # Task pair visualization
     visualize_task_pair_rich,
+)
+
+# Import SVG core functions
+from .svg_core import (
+    draw_grid_svg,
+    save_svg_drawing,
+)
+
+# Import task visualization functions
+from .task_visualization import (
+    draw_parsed_task_data_svg,
+    draw_task_pair_svg,
+)
+
+# Import RL visualization functions
+from .rl_visualization import (
+    draw_rl_step_svg,
+    save_rl_step_visualization,
+)
+
+# Import episode visualization functions
+from .episode_visualization import (
+    draw_episode_summary_svg,
+    create_episode_comparison_visualization,
+)
+
+# Import matplotlib utilities
+from .matplotlib_utils import (
+    setup_matplotlib_style,
 )
 
 # Import episode management functionality

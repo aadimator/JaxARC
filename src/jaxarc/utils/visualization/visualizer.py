@@ -113,7 +113,7 @@ class VisualizationConfig:
 
     def get_color_palette(self) -> Dict[int, str]:
         """Get color palette based on color scheme setting."""
-        from .core import ARC_COLOR_PALETTE
+        from .constants import ARC_COLOR_PALETTE
 
         if self.color_scheme == "default":
             return ARC_COLOR_PALETTE
@@ -479,12 +479,8 @@ class Visualizer:
             return None
 
         try:
-            from .core import (
-                detect_changed_cells,
-                draw_rl_step_svg_enhanced,
-                get_operation_display_name,
-                infer_fill_color_from_grids,
-            )
+            from .utils import detect_changed_cells, infer_fill_color_from_grids
+            from .rl_visualization import draw_rl_step_svg_enhanced, get_operation_display_name
 
             # Get step file path
             step_path = self.episode_manager.get_step_path(
@@ -676,7 +672,7 @@ class Visualizer:
             return None
             
         try:
-            from .core import draw_parsed_task_data_svg
+            from .task_visualization import draw_parsed_task_data_svg
             
             # Get task file path
             task_path = self.episode_manager.get_step_path(0, file_type="svg")
@@ -759,7 +755,7 @@ class Visualizer:
             summary_path = self.episode_manager.get_episode_summary_path("svg")
 
             # Create enhanced summary visualization
-            from .core import draw_enhanced_episode_summary_svg
+            from .episode_visualization import draw_enhanced_episode_summary_svg
 
             svg_content = draw_enhanced_episode_summary_svg(
                 summary_data=summary_data,
@@ -817,7 +813,7 @@ class Visualizer:
             Path to saved comparison file, or None if not created
         """
         try:
-            from .core import create_episode_comparison_visualization
+            from .episode_visualization import create_episode_comparison_visualization
 
             # Generate comparison visualization
             svg_content = create_episode_comparison_visualization(
@@ -885,7 +881,7 @@ class Visualizer:
             return np.asarray(action["selection"])
         elif "bbox" in action:
             # Convert bbox to selection mask
-            from .core import _extract_grid_data, _extract_valid_region
+            from .utils import _extract_grid_data, _extract_valid_region
             
             bbox = np.asarray(action["bbox"])
             if len(bbox) >= 4:
