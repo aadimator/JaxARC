@@ -445,7 +445,7 @@ def run_rl_loop(
                 "c1": int(action.c1),
                 "r2": int(action.r2),
                 "c2": int(action.c2),
-                "selection": action.to_selection_mask(state_before.working_grid.shape)
+                "selection": action.to_selection_mask(state_before.working_grid.shape),
             }
 
             info_log = {

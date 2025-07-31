@@ -17,5 +17,5 @@ max_colors: 10
 background_color: -1
 
 # Task Configuration - ConceptARC characteristics
-max_train_pairs: 4
+max_train_pairs: 5
 max_test_pairs: 3
