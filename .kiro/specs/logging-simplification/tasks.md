@@ -32,7 +32,7 @@
   - Write unit tests for SVG generation and file saving
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 5. Create RichHandler for console output
+- [x] 5. Create RichHandler for console output
   - Create src/jaxarc/utils/logging/rich_handler.py as regular Python class (can use Rich library, console I/O freely)
   - Move console output logic from visualization/rich_display.py into handler methods
   - Reuse existing Rich console setup and display functions from rich_display.py
@@ -40,7 +40,7 @@
   - Write unit tests for console output formatting
   - _Requirements: 3.3, 6.4_
 
-- [ ] 6. Create simplified WandbHandler
+- [-] 6. Create simplified WandbHandler
   - Create src/jaxarc/utils/logging/wandb_handler.py as regular Python class (can use wandb library, network requests freely)
   - Remove custom retry logic, offline caching, and network connectivity checks from existing wandb.py
   - Implement simple wandb.init() and wandb.log() wrapper using official wandb features
