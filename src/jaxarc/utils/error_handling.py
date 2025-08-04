@@ -85,123 +85,16 @@ class JAXErrorHandler:
             f"Invalid operation ID: must be in [0, {max_operations-1}], got operation"
         )
         
-        # Type-specific validation using JAX conditionals
-        if isinstance(action, PointAction):
-            action = JAXErrorHandler._validate_point_action(action, config)
-        elif isinstance(action, BboxAction):
-            action = JAXErrorHandler._validate_bbox_action(action, config)
-        elif isinstance(action, MaskAction):
-            action = JAXErrorHandler._validate_mask_action(action, config)
-        else:
-            # This should not happen with proper typing, but add safety check
-            action = eqx.error_if(
-                action,
-                True,  # Always error for unknown action types
-                f"Unknown action type: {type(action)}"
-            )
-        
-        return action
-    
-    @staticmethod
-    @eqx.filter_jit
-    def _validate_point_action(action: PointAction, config: JaxArcConfig) -> PointAction:
-        """Validate point action coordinates.
-        
-        Args:
-            action: Point action to validate
-            config: Environment configuration
-            
-        Returns:
-            Validated point action
-        """
-        max_height = config.dataset.max_grid_height
-        max_width = config.dataset.max_grid_width
-        
-        # Check row bounds
-        action = eqx.error_if(
-            action,
-            (action.row < 0) | (action.row >= max_height),
-            f"Point row out of bounds: must be in [0, {max_height-1}]"
-        )
-        
-        # Check column bounds
-        action = eqx.error_if(
-            action,
-            (action.col < 0) | (action.col >= max_width),
-            f"Point col out of bounds: must be in [0, {max_width-1}]"
+        # Use the built-in validation method from structured actions
+        # This approach is JAX-compatible and handles type-specific validation
+        action = action.validate(
+            grid_shape=(config.dataset.max_grid_height, config.dataset.max_grid_width),
+            max_operations=42
         )
         
         return action
     
-    @staticmethod
-    @eqx.filter_jit
-    def _validate_bbox_action(action: BboxAction, config: JaxArcConfig) -> BboxAction:
-        """Validate bounding box action coordinates.
-        
-        Args:
-            action: Bbox action to validate
-            config: Environment configuration
-            
-        Returns:
-            Validated bbox action
-        """
-        max_height = config.dataset.max_grid_height
-        max_width = config.dataset.max_grid_width
-        
-        # Check all coordinate bounds
-        action = eqx.error_if(
-            action,
-            (action.r1 < 0) | (action.r1 >= max_height),
-            f"Bbox r1 out of bounds: must be in [0, {max_height-1}]"
-        )
-        
-        action = eqx.error_if(
-            action,
-            (action.c1 < 0) | (action.c1 >= max_width),
-            f"Bbox c1 out of bounds: must be in [0, {max_width-1}]"
-        )
-        
-        action = eqx.error_if(
-            action,
-            (action.r2 < 0) | (action.r2 >= max_height),
-            f"Bbox r2 out of bounds: must be in [0, {max_height-1}]"
-        )
-        
-        action = eqx.error_if(
-            action,
-            (action.c2 < 0) | (action.c2 >= max_width),
-            f"Bbox c2 out of bounds: must be in [0, {max_width-1}]"
-        )
-        
-        return action
-    
-    @staticmethod
-    @eqx.filter_jit
-    def _validate_mask_action(action: MaskAction, config: JaxArcConfig) -> MaskAction:
-        """Validate mask action selection.
-        
-        Args:
-            action: Mask action to validate
-            config: Environment configuration
-            
-        Returns:
-            Validated mask action
-        """
-        max_height = config.dataset.max_grid_height
-        max_width = config.dataset.max_grid_width
-        expected_shape = (max_height, max_width)
-        
-        # Check mask shape
-        actual_shape = action.selection.shape
-        shape_matches = (actual_shape[0] == expected_shape[0]) & (actual_shape[1] == expected_shape[1])
-        
-        action = eqx.error_if(
-            action,
-            ~shape_matches,
-            f"Mask selection shape mismatch: expected {expected_shape}, got shape"
-        )
-        
-        return action
+
     
     @staticmethod
     @eqx.filter_jit
