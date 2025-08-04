@@ -1,13 +1,13 @@
 # Implementation Plan
 
-- [ ] 1. Audit existing utilities and prepare for reuse
+- [x] 1. Audit existing utilities and prepare for reuse
   - Search for existing serialization functionality in utils/serialization_utils.py, utils/pytree_utils.py
   - Identify reusable JAX array handling in utils/equinox_utils.py and utils/jax_types.py
   - Locate existing file path utilities in utils/ that can be leveraged
   - Document available utilities to avoid reimplementation
   - _Requirements: 1.1, 2.2, 7.2_
 
-- [ ] 2. Create ExperimentLogger central coordinator
+- [x] 2. Create ExperimentLogger central coordinator
   - Create src/jaxarc/utils/logging/experiment_logger.py with ExperimentLogger class
   - Implement handler initialization based on configuration using equinox.Module
   - Add log_step(), log_episode_summary(), and close() methods with error isolation
