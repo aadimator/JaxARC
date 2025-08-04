@@ -205,7 +205,8 @@ class ArcEnvironment:
         # Log step through JAX callback mechanism
         if self._logger is not None:
             # Serialize action for safe callback usage
-            serialized_action = self._serialize_action_for_callback(action)
+            from jaxarc.utils.serialization_utils import serialize_action
+            serialized_action = serialize_action(action)
             
             # Create step data for logging
             step_data = {
@@ -238,52 +239,7 @@ class ArcEnvironment:
 
         return self._state, obs, reward, info
 
-    def _serialize_action_for_callback(self, action: Any) -> Dict[str, Any]:
-        """Serialize structured action for safe callback usage.
-        
-        Args:
-            action: Structured action (PointAction, BboxAction, or MaskAction)
-            
-        Returns:
-            Dictionary with serialized action data
-        """
-        try:
-            # Handle structured actions by extracting their fields
-            if hasattr(action, 'operation'):
-                serialized = {'operation': int(action.operation)}
-                
-                if hasattr(action, 'row') and hasattr(action, 'col'):
-                    # PointAction
-                    serialized.update({
-                        'row': int(action.row),
-                        'col': int(action.col),
-                        'action_type': 'point'
-                    })
-                elif hasattr(action, 'r1') and hasattr(action, 'c1'):
-                    # BboxAction
-                    serialized.update({
-                        'r1': int(action.r1),
-                        'c1': int(action.c1),
-                        'r2': int(action.r2),
-                        'c2': int(action.c2),
-                        'action_type': 'bbox'
-                    })
-                elif hasattr(action, 'selection'):
-                    # MaskAction
-                    import numpy as np
-                    serialized.update({
-                        'selection': np.asarray(action.selection),
-                        'action_type': 'mask'
-                    })
-                
-                return serialized
-            else:
-                # Fallback for dictionary actions
-                return dict(action) if hasattr(action, 'items') else {'raw_action': str(action)}
-                
-        except Exception as e:
-            logger.warning(f"Failed to serialize action: {e}")
-            return {'raw_action': str(action)}
+
 
     def _log_step_callback(self, step_data: Dict[str, Any]) -> None:
         """JAX callback for logging step data.

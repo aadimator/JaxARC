@@ -105,20 +105,13 @@ from .integrations.wandb import (
     create_wandb_config,
 )
 
-# Import JAX integration and performance optimization
+# Import JAX integration (simplified)
 from .jax_callbacks import (
-    CallbackPerformanceMonitor,
-    JAXCallbackError,
-    get_callback_performance_stats,
+    create_grid_from_arrays,
     jax_debug_callback,
-    jax_log_episode_summary,
     jax_log_grid,
-    jax_save_step_visualization,
-    print_callback_performance_report,
-    reset_callback_performance_stats,
-    serialize_action,
-    serialize_arc_state,
-    serialize_jax_array,
+    log_grid_callback,
+    safe_callback_wrapper,
 )
 from .memory_manager import (
     CompressedStorage,
@@ -164,7 +157,7 @@ __all__ = [
     "AsyncLogger",
     "AsyncLoggerConfig",
     "AsyncLoggerContext",
-    "CallbackPerformanceMonitor",
+
     "CompressedStorage",
     # Configuration management
     "EpisodeAnalysisTools",
@@ -175,7 +168,7 @@ __all__ = [
     "EpisodeSummaryData",
     "FailureModeAnalysis",
     "GarbageCollectionOptimizer",
-    "JAXCallbackError",
+
     "LazyLoader",
     "LogEntry",
     "MemoryManager",
@@ -208,13 +201,11 @@ __all__ = [
     # RL visualization functions
     "draw_rl_step_svg",
     "draw_task_pair_svg",
-    "get_callback_performance_stats",
+
     "get_memory_manager",
     # JAX integration and performance optimization
     "jax_debug_callback",
-    "jax_log_episode_summary",
     "jax_log_grid",
-    "jax_save_step_visualization",
     # Core visualization functions
     "log_grid_to_console",
     "optimize_array_memory",

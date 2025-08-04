@@ -17,7 +17,6 @@ from omegaconf import DictConfig
 
 from jaxarc.utils.visualization import (
     _clear_output_directory,
-    jax_save_step_visualization,
 )
 
 from ..state import ArcEnvState
@@ -1550,16 +1549,12 @@ def arc_step(
         # Use lax.cond for JAX-compatible conditional on traced values
         jax.lax.cond(state.step_count == 0, clear_if_needed, lambda: None)
 
-        # Use enhanced JAX callback (simplified for JAX compatibility)
-        jax.debug.callback(
-            jax_save_step_visualization,
-            state,
-            standardized_action,
-            final_state,
-            reward,
-            info,
-            typed_config.storage.base_output_dir,
-        )
+        # Simple logging callback (removed complex visualization for simplicity)
+        def simple_step_log(step_num, reward_val):
+            from loguru import logger
+            logger.debug(f"Step {step_num}: reward={reward_val:.3f}")
+        
+        jax.debug.callback(simple_step_log, final_state.step_count, reward)
 
     # Use JAX-compatible conditional for visualization
     jax.lax.cond(typed_config.visualization.enabled, handle_visualization, lambda: None)
