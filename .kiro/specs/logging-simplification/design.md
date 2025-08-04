@@ -10,8 +10,43 @@ This design simplifies the JaxARC logging and visualization system by replacing 
 
 1. **Simplicity First**: Research project priorities - clear, maintainable code over premature optimization
 2. **Single Responsibility**: Each handler has one clear purpose
-3. **JAX Compatibility**: Maintain pure functions and JAX transformation support
+3. **JAX Boundary Separation**: Logging components live outside JAX transformations as regular Python classes
 4. **Graceful Degradation**: System continues working if individual handlers fail
+
+### JAX Boundary Architecture
+
+**Critical Design Decision**: The logging system operates **outside** the JAX transformation boundary.
+
+```
+┌─────────────────────────────────────┐
+│           JAX World                 │
+│  (JIT-compiled, GPU/TPU, PyTrees)   │
+│                                     │
+│  arc_step() → ArcEnvState           │
+│       │                             │
+│       ▼                             │
+│  jax.debug.callback()               │ ← JAX/Python Boundary
+└─────────────────────────────────────┘
+       │ (serialized data)
+       ▼
+┌─────────────────────────────────────┐
+│         Python World                │
+│   (CPU, Regular Classes, I/O)       │
+│                                     │
+│  ExperimentLogger                   │
+│  ├── FileHandler                    │
+│  ├── SVGHandler                     │
+│  ├── RichHandler                    │
+│  └── WandbHandler                   │
+└─────────────────────────────────────┘
+```
+
+**Key Implications:**
+
+1. **No equinox.Module Required**: Logging handlers are regular Python classes, not JAX-compatible PyTrees
+2. **Standard Library Freedom**: Handlers can use `json`, `pathlib`, `wandb`, file I/O without JAX constraints
+3. **Data Serialization**: JAX data (ArcEnvState) is serialized to basic Python types before crossing the boundary
+4. **Performance Isolation**: Logging complexity doesn't affect JAX transformation performance
 
 ### New Architecture Overview
 
@@ -21,13 +56,15 @@ src/jaxarc/utils/
 │   ├── __init__.py              # Public API exports
 │   ├── experiment_logger.py     # Central ExperimentLogger class (NEW)
 │   ├── file_handler.py          # Synchronous file logging (REFACTORED from structured_logger.py)
+│   ├── svg_handler.py           # SVG generation handler (MOVED from visualization/)
+│   ├── rich_handler.py          # Console output handler (MOVED from visualization/rich_display.py)
 │   ├── wandb_handler.py         # Simplified wandb integration (MOVED from integrations/)
 │   └── structured_logger.py     # SIMPLIFIED - becomes FileHandler
 ├── visualization/
 │   ├── __init__.py              # Existing exports
-│   ├── svg_handler.py           # SVG generation handler (NEW)
-│   ├── rich_display.py          # Console output (EXISTING - unchanged)
-│   └── episode_manager.py       # File path management (EXISTING - unchanged)
+│   ├── episode_manager.py       # File path management (EXISTING - unchanged)
+│   ├── rl_visualization.py      # Core SVG functions (EXISTING - used by svg_handler)
+│   └── episode_visualization.py # Episode SVG functions (EXISTING - used by svg_handler)
 ```
 
 ### Components Removed
@@ -52,14 +89,19 @@ src/jaxarc/utils/visualization/
 
 ```python
 from typing import Dict, List, Optional, Any
-import equinox as eqx
 from jaxarc.envs.config import JaxArcConfig
 
-class ExperimentLogger(eqx.Module):
-    """Central logging coordinator with handler-based architecture."""
+class ExperimentLogger:
+    """Central logging coordinator with handler-based architecture.
     
-    config: JaxArcConfig
-    handlers: Dict[str, Any]  # Handler instances
+    Note: This is a regular Python class, NOT an equinox.Module.
+    It operates outside the JAX transformation boundary via jax.debug.callback.
+    """
+    
+    def __init__(self, config: JaxArcConfig):
+        """Initialize logger with handlers based on configuration."""
+        self.config = config
+        self.handlers = self._initialize_handlers()
     
     def __init__(self, config: JaxArcConfig):
         """Initialize logger with handlers based on configuration."""
@@ -77,12 +119,12 @@ class ExperimentLogger(eqx.Module):
         
         # SVG visualization handler
         if self.config.debug.level in ["standard", "verbose", "full"]:
-            from ..visualization.svg_handler import SVGHandler
+            from .svg_handler import SVGHandler
             handlers['svg'] = SVGHandler(self.config)
         
         # Console output handler
         if self.config.debug.level != "off":
-            from ..visualization.rich_display import RichHandler
+            from .rich_handler import RichHandler
             handlers['rich'] = RichHandler(self.config)
         
         # Wandb integration handler
@@ -129,15 +171,14 @@ import json
 import pickle
 from pathlib import Path
 from typing import Dict, Any
-import equinox as eqx
 from jaxarc.envs.config import JaxArcConfig
 
-class FileHandler(eqx.Module):
-    """Synchronous file logging handler."""
+class FileHandler:
+    """Synchronous file logging handler.
     
-    config: JaxArcConfig
-    output_dir: Path
-    current_episode_data: Dict[str, Any]
+    Note: Regular Python class operating outside JAX boundary.
+    Can freely use file I/O, JSON, pickle, etc.
+    """
     
     def __init__(self, config: JaxArcConfig):
         self.config = config
@@ -199,20 +240,20 @@ class FileHandler(eqx.Module):
 
 **Purpose:** Consolidate SVG generation logic from rl_visualization.py and episode_visualization.py.
 
-**Location:** `src/jaxarc/utils/visualization/svg_handler.py`
+**Location:** `src/jaxarc/utils/logging/svg_handler.py`
 
 ```python
 from typing import Dict, Any, Optional
 from pathlib import Path
-import equinox as eqx
 from jaxarc.envs.config import JaxArcConfig
-from .episode_manager import EpisodeManager
+from ..visualization.episode_manager import EpisodeManager
 
-class SVGHandler(eqx.Module):
-    """SVG visualization generation handler."""
+class SVGHandler:
+    """SVG visualization generation handler.
     
-    config: JaxArcConfig
-    episode_manager: EpisodeManager
+    Note: Regular Python class that can freely use file I/O,
+    string manipulation, and SVG generation libraries.
+    """
     
     def __init__(self, config: JaxArcConfig):
         self.config = config
@@ -249,7 +290,7 @@ class SVGHandler(eqx.Module):
         with all the grid rendering, action highlighting, and operation display.
         """
         # Import and use existing SVG generation functions
-        from .rl_visualization import draw_rl_step_svg_enhanced
+        from ..visualization.rl_visualization import draw_rl_step_svg_enhanced
         
         # Extract required data from step_data
         before_state = step_data.get('before_state')
@@ -270,7 +311,7 @@ class SVGHandler(eqx.Module):
         """
         Core episode summary SVG generation moved from episode_visualization.py.
         """
-        from .episode_visualization import draw_enhanced_episode_summary_svg
+        from ..visualization.episode_visualization import draw_enhanced_episode_summary_svg
         
         return draw_enhanced_episode_summary_svg(summary_data)
     
@@ -279,7 +320,53 @@ class SVGHandler(eqx.Module):
         pass
 ```
 
-### 4. WandbHandler (Simplified Integration)
+### 4. RichHandler (Console Output)
+
+**Purpose:** Handle console output using existing rich_display.py logic.
+
+**Location:** `src/jaxarc/utils/logging/rich_handler.py` (moved from visualization/rich_display.py)
+
+```python
+from typing import Dict, Any
+from jaxarc.envs.config import JaxArcConfig
+
+class RichHandler:
+    """Console output handler using Rich library.
+    
+    Note: Regular Python class that can freely use Rich library,
+    console I/O, and terminal formatting.
+    """
+    
+    def __init__(self, config: JaxArcConfig):
+        self.config = config
+        # Initialize Rich console and any display settings
+        self._setup_rich_console()
+    
+    def _setup_rich_console(self) -> None:
+        """Initialize Rich console with configuration."""
+        # Import and use existing rich display setup
+        from ..visualization.rich_display import setup_rich_console
+        self.console = setup_rich_console(self.config)
+    
+    def log_step(self, step_data: Dict[str, Any]) -> None:
+        """Display step information to console."""
+        if self.config.debug.level in ["verbose", "full"]:
+            # Use existing rich display functions
+            from ..visualization.rich_display import display_step_info
+            display_step_info(self.console, step_data)
+    
+    def log_episode_summary(self, summary_data: Dict[str, Any]) -> None:
+        """Display episode summary to console."""
+        # Use existing rich display functions
+        from ..visualization.rich_display import display_episode_summary
+        display_episode_summary(self.console, summary_data)
+    
+    def close(self) -> None:
+        """Clean shutdown."""
+        pass
+```
+
+### 5. WandbHandler (Simplified Integration)
 
 **Purpose:** Thin wrapper around official wandb library, removing custom sync and retry logic.
 
@@ -287,13 +374,13 @@ class SVGHandler(eqx.Module):
 
 ```python
 from typing import Dict, Any, Optional
-import equinox as eqx
 
-class WandbHandler(eqx.Module):
-    """Simplified Weights & Biases integration handler."""
+class WandbHandler:
+    """Simplified Weights & Biases integration handler.
     
-    config: Any  # WandbConfig
-    run: Optional[Any]  # wandb.Run
+    Note: Regular Python class that can freely use wandb library,
+    network requests, and standard error handling.
+    """
     
     def __init__(self, wandb_config):
         self.config = wandb_config

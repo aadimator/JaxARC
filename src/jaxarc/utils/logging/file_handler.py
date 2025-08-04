@@ -1,57 +1,342 @@
-"""File logging handler for JaxARC experiments.
+"""Synchronous file logging handler for episode data.
 
-This module provides the FileHandler class for synchronous file logging
-of episode data. This is a placeholder implementation that will be fully
-implemented in task 3.
+This module provides a simplified file logging handler that replaces the complex
+async logging system with straightforward synchronous file operations. It reuses
+existing serialization utilities for JAX arrays and provides both JSON and pickle
+output formats.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict
+import json
+import pickle
+import time
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-import equinox as eqx
 from loguru import logger
 
-from ...envs.config import JaxArcConfig
+from ..serialization_utils import extract_task_id_from_index
+from ..pytree_utils import filter_arrays_from_state
 
 
-class FileHandler(eqx.Module):
-    """Synchronous file logging handler.
+class FileHandler:
+    """Synchronous file logging handler for episode data.
     
-    This is a placeholder implementation that will be fully implemented
-    in task 3 of the logging simplification spec.
+    This handler provides simple, synchronous file writing for episode data
+    with support for JSON and pickle formats. It reuses existing serialization
+    utilities for JAX arrays and maintains compatibility with the existing
+    configuration system.
+    
+    Note: This is not an equinox.Module because it needs mutable state for
+    accumulating episode data across multiple log_step calls.
     """
     
-    config: JaxArcConfig
-    
-    def __init__(self, config: JaxArcConfig):
-        """Initialize file handler with configuration.
+    def __init__(self, config):
+        """Initialize the file handler.
         
         Args:
-            config: JaxARC configuration object
+            config: Configuration object with storage settings
         """
+        # Extract output directory from config
+        if hasattr(config, 'storage') and hasattr(config.storage, 'base_output_dir'):
+            base_dir = config.storage.base_output_dir
+            logs_subdir = getattr(config.storage, 'logs_dir', 'logs')
+            self.output_dir = Path(base_dir) / logs_subdir
+        elif hasattr(config, 'debug') and hasattr(config.debug, 'output_dir'):
+            # Fallback for legacy config structure
+            self.output_dir = Path(config.debug.output_dir)
+        else:
+            # Default fallback
+            self.output_dir = Path("outputs/logs")
+            
         self.config = config
-        logger.debug("FileHandler placeholder initialized")
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.current_episode_data = {}
+        
+        logger.info(f"FileHandler initialized with output directory: {self.output_dir}")
     
     def log_step(self, step_data: Dict[str, Any]) -> None:
-        """Log step data to file (placeholder).
+        """Log step data to current episode.
         
         Args:
-            step_data: Step data dictionary
+            step_data: Dictionary containing step information including:
+                - step_num: Step number
+                - before_state: State before action
+                - after_state: State after action  
+                - action: Action taken
+                - reward: Reward received
+                - info: Additional information dictionary
         """
-        # Placeholder - will be implemented in task 3
-        pass
+        if 'steps' not in self.current_episode_data:
+            self.current_episode_data['steps'] = []
+        
+        # Serialize step data using existing utilities
+        serialized_step = self._serialize_step_data(step_data)
+        self.current_episode_data['steps'].append(serialized_step)
+        
+        logger.debug(f"Logged step {step_data.get('step_num', 'unknown')}")
     
     def log_episode_summary(self, summary_data: Dict[str, Any]) -> None:
-        """Log episode summary to file (placeholder).
+        """Save complete episode data to file.
         
         Args:
-            summary_data: Episode summary data dictionary
+            summary_data: Dictionary containing episode summary including:
+                - episode_num: Episode number
+                - total_steps: Total number of steps
+                - total_reward: Total reward accumulated
+                - final_similarity: Final similarity score
+                - task_id: Task identifier
+                - success: Whether episode was successful
         """
-        # Placeholder - will be implemented in task 3
-        pass
+        episode_num = summary_data.get('episode_num', 0)
+        
+        # Combine step data with summary
+        complete_episode = {
+            **summary_data,
+            **self.current_episode_data,
+            'timestamp': time.time(),
+            'config_hash': self._get_config_hash()
+        }
+        
+        # Save in both formats for different use cases
+        self._save_json(complete_episode, episode_num)
+        self._save_pickle(complete_episode, episode_num)
+        
+        logger.info(
+            f"Saved episode {episode_num}: "
+            f"{len(self.current_episode_data.get('steps', []))} steps, "
+            f"reward: {summary_data.get('total_reward', 0):.3f}"
+        )
+        
+        # Reset for next episode
+        self.current_episode_data = {}
     
     def close(self) -> None:
-        """Clean shutdown (placeholder)."""
-        # Placeholder - will be implemented in task 3
-        pass
+        """Clean shutdown - save any pending data."""
+        if self.current_episode_data:
+            # Save incomplete episode data
+            incomplete_path = self.output_dir / "incomplete_episode.json"
+            try:
+                with open(incomplete_path, 'w') as f:
+                    json.dump(self.current_episode_data, f, indent=2, default=str)
+                logger.info(f"Saved incomplete episode data to {incomplete_path}")
+            except Exception as e:
+                logger.error(f"Failed to save incomplete episode data: {e}")
+        
+        logger.info("FileHandler shutdown complete")
+    
+    def _serialize_step_data(self, step_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert step data to serializable format using existing utilities.
+        
+        Args:
+            step_data: Raw step data with potential JAX arrays
+            
+        Returns:
+            Serialized step data suitable for JSON/pickle storage
+        """
+        serialized = {}
+        
+        for key, value in step_data.items():
+            if key in ['before_state', 'after_state']:
+                # Handle state objects using existing utilities
+                serialized[key] = self._serialize_state(value)
+            elif key == 'action':
+                # Actions are typically already serializable dicts
+                serialized[key] = self._serialize_object(value)
+            elif key == 'info':
+                # Info dictionary may contain complex data
+                serialized[key] = self._serialize_info_dict(value)
+            else:
+                # Handle other fields (step_num, reward, etc.)
+                serialized[key] = self._serialize_object(value)
+        
+        return serialized
+    
+    def _serialize_state(self, state: Any) -> Dict[str, Any]:
+        """Serialize state objects using existing utilities.
+        
+        Args:
+            state: ArcEnvState or similar state object
+            
+        Returns:
+            Serialized state representation
+        """
+        if state is None:
+            return {"type": "None"}
+        
+        try:
+            # Try to use existing pytree utilities for real ArcEnvState objects
+            if hasattr(state, '__class__') and 'ArcEnvState' in state.__class__.__name__:
+                arrays, non_arrays = filter_arrays_from_state(state)
+                
+                # Convert arrays to lists for JSON serialization
+                serialized_arrays = {}
+                for field_name in ['working_grid', 'target_grid', 'selected', 'clipboard']:
+                    if hasattr(arrays, field_name):
+                        array_value = getattr(arrays, field_name)
+                        if hasattr(array_value, 'tolist'):
+                            serialized_arrays[field_name] = array_value.tolist()
+                        else:
+                            serialized_arrays[field_name] = str(array_value)
+            else:
+                # For mock states or other objects, serialize arrays directly
+                serialized_arrays = {}
+                for field_name in ['working_grid', 'target_grid', 'selected', 'clipboard']:
+                    if hasattr(state, field_name):
+                        array_value = getattr(state, field_name)
+                        if hasattr(array_value, 'tolist'):
+                            serialized_arrays[field_name] = array_value.tolist()
+                        elif hasattr(array_value, '__array__'):
+                            try:
+                                import numpy as np
+                                serialized_arrays[field_name] = np.asarray(array_value).tolist()
+                            except Exception:
+                                serialized_arrays[field_name] = str(array_value)
+                        else:
+                            serialized_arrays[field_name] = str(array_value)
+            
+            # Extract task information using existing utilities
+            task_info = {}
+            if hasattr(state, 'task_data') and hasattr(state.task_data, 'task_index'):
+                try:
+                    task_id = extract_task_id_from_index(state.task_data.task_index)
+                    task_info['task_id'] = task_id
+                    task_info['task_index'] = int(state.task_data.task_index.item())
+                except Exception as e:
+                    logger.debug(f"Could not extract task info: {e}")
+                    task_info['task_index'] = -1
+            
+            # Combine serialized data
+            return {
+                'type': type(state).__name__,
+                'arrays': serialized_arrays,
+                'task_info': task_info,
+                'step_count': getattr(state, 'step_count', 0),
+                'episode_done': getattr(state, 'episode_done', False),
+                'similarity_score': getattr(state, 'similarity_score', 0.0),
+                'current_example_idx': getattr(state, 'current_example_idx', 0)
+            }
+            
+        except Exception as e:
+            logger.warning(f"Failed to serialize state using utilities: {e}")
+            # Fallback to basic serialization
+            return {
+                'type': type(state).__name__,
+                'serialization_error': str(e),
+                'step_count': getattr(state, 'step_count', 0) if hasattr(state, 'step_count') else 0
+            }
+    
+    def _serialize_info_dict(self, info: Dict[str, Any]) -> Dict[str, Any]:
+        """Serialize info dictionary, preserving metrics structure.
+        
+        Args:
+            info: Info dictionary from step data
+            
+        Returns:
+            Serialized info dictionary
+        """
+        if not isinstance(info, dict):
+            return {'serialized_value': str(info)}
+        
+        serialized = {}
+        
+        # Preserve metrics structure for wandb integration
+        if 'metrics' in info:
+            serialized['metrics'] = self._serialize_object(info['metrics'])
+        
+        # Serialize other info fields
+        for key, value in info.items():
+            if key != 'metrics':  # Already handled above
+                serialized[key] = self._serialize_object(value)
+        
+        return serialized
+    
+    def _serialize_object(self, obj: Any) -> Any:
+        """Recursively serialize objects for JSON compatibility.
+        
+        This method handles JAX arrays, numpy arrays, and other complex objects
+        by converting them to JSON-serializable formats.
+        
+        Args:
+            obj: Object to serialize
+            
+        Returns:
+            JSON-serializable representation
+        """
+        if obj is None or isinstance(obj, (bool, int, float, str)):
+            return obj
+        
+        if isinstance(obj, (list, tuple)):
+            return [self._serialize_object(item) for item in obj]
+        
+        if isinstance(obj, dict):
+            return {str(k): self._serialize_object(v) for k, v in obj.items()}
+        
+        # Handle JAX/NumPy arrays
+        if hasattr(obj, 'tolist'):
+            return obj.tolist()
+        
+        # Handle JAX arrays that might not have tolist
+        if hasattr(obj, '__array__'):
+            try:
+                import numpy as np
+                return np.asarray(obj).tolist()
+            except Exception:
+                pass
+        
+        # Handle objects with __dict__
+        if hasattr(obj, '__dict__'):
+            return self._serialize_object(obj.__dict__)
+        
+        # Fallback to string representation
+        return str(obj)
+    
+    def _save_json(self, episode_data: Dict[str, Any], episode_num: int) -> None:
+        """Save episode data as JSON file.
+        
+        Args:
+            episode_data: Complete episode data
+            episode_num: Episode number for filename
+        """
+        timestamp_str = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"episode_{episode_num:04d}_{timestamp_str}.json"
+        filepath = self.output_dir / filename
+        
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(episode_data, f, indent=2, default=str)
+            logger.debug(f"Saved JSON episode data to {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save JSON episode data: {e}")
+    
+    def _save_pickle(self, episode_data: Dict[str, Any], episode_num: int) -> None:
+        """Save episode data as pickle file.
+        
+        Args:
+            episode_data: Complete episode data
+            episode_num: Episode number for filename
+        """
+        timestamp_str = time.strftime("%Y%m%d_%H%M%S")
+        filename = f"episode_{episode_num:04d}_{timestamp_str}.pkl"
+        filepath = self.output_dir / filename
+        
+        try:
+            with open(filepath, 'wb') as f:
+                pickle.dump(episode_data, f)
+            logger.debug(f"Saved pickle episode data to {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save pickle episode data: {e}")
+    
+    def _get_config_hash(self) -> str:
+        """Generate a hash of the current configuration.
+        
+        Returns:
+            String hash of configuration for reproducibility tracking
+        """
+        try:
+            import hashlib
+            config_str = str(self.config)
+            return hashlib.md5(config_str.encode()).hexdigest()[:8]
+        except Exception:
+            return "unknown"

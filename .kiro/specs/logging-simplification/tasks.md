@@ -8,23 +8,23 @@
   - _Requirements: 1.1, 2.2, 7.2_
 
 - [x] 2. Create ExperimentLogger central coordinator
-  - Create src/jaxarc/utils/logging/experiment_logger.py with ExperimentLogger class
-  - Implement handler initialization based on configuration using equinox.Module
+  - Create src/jaxarc/utils/logging/experiment_logger.py with ExperimentLogger as regular Python class (NOT equinox.Module)
+  - Implement handler initialization - all handlers operate outside JAX boundary as regular Python classes
   - Add log_step(), log_episode_summary(), and close() methods with error isolation
   - Use existing configuration utilities from utils/config.py for handler setup
   - Write unit tests for handler coordination and error isolation
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 3. Refactor StructuredLogger into FileHandler
-  - Rename and simplify src/jaxarc/utils/logging/structured_logger.py to file_handler.py
-  - Remove async logging dependencies and convert to synchronous file writing
+- [x] 3. Refactor StructuredLogger into FileHandler
+  - Rename and simplify src/jaxarc/utils/logging/structured_logger.py to file_handler.py as regular Python class
+  - Remove async logging dependencies and convert to synchronous file writing (can use standard file I/O)
   - Reuse existing serialization utilities from utils/serialization_utils.py for JAX arrays
   - Implement JSON and pickle saving using existing pytree utilities where applicable
   - Write unit tests for synchronous file operations and JAX array serialization
   - _Requirements: 1.1, 3.1, 7.2_
 
-- [ ] 4. Create SVGHandler for visualization generation
-  - Create src/jaxarc/utils/visualization/svg_handler.py with SVGHandler class
+- [-] 4. Create SVGHandler for visualization generation
+  - Create src/jaxarc/utils/logging/svg_handler.py with SVGHandler as regular Python class (can use string manipulation, file I/O freely)
   - Move core SVG functions from rl_visualization.py and episode_visualization.py into handler methods
   - Integrate with existing EpisodeManager for file path management
   - Preserve get_operation_display_name and overlay functions from existing code
@@ -32,15 +32,23 @@
   - Write unit tests for SVG generation and file saving
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 5. Create simplified WandbHandler
-  - Create src/jaxarc/utils/logging/wandb_handler.py (moved from integrations/)
+- [ ] 5. Create RichHandler for console output
+  - Create src/jaxarc/utils/logging/rich_handler.py as regular Python class (can use Rich library, console I/O freely)
+  - Move console output logic from visualization/rich_display.py into handler methods
+  - Reuse existing Rich console setup and display functions from rich_display.py
+  - Implement log_step() and log_episode_summary() methods using existing display functions
+  - Write unit tests for console output formatting
+  - _Requirements: 3.3, 6.4_
+
+- [ ] 6. Create simplified WandbHandler
+  - Create src/jaxarc/utils/logging/wandb_handler.py as regular Python class (can use wandb library, network requests freely)
   - Remove custom retry logic, offline caching, and network connectivity checks from existing wandb.py
   - Implement simple wandb.init() and wandb.log() wrapper using official wandb features
   - Add info['metrics'] extraction logic for automatic metric logging
   - Write unit tests with mocked wandb API calls
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 6. Update ArcEnvironment integration
+- [ ] 7. Update ArcEnvironment integration
   - Modify src/jaxarc/envs/environment.py to initialize ExperimentLogger instead of Visualizer
   - Update step() method to call logger.log_step() through existing JAX callback mechanism
   - Add logger.log_episode_summary() calls for episode completion
@@ -48,7 +56,7 @@
   - Ensure JAX callback integration remains unchanged for compatibility
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ] 7. Update JAX callback integration
+- [ ] 8. Update JAX callback integration
   - Modify src/jaxarc/utils/visualization/jax_callbacks.py to work with new ExperimentLogger
   - Ensure jax_save_step_visualization callback uses new logger interface
   - Verify JAX transformations (jit, vmap, pmap) continue working correctly
@@ -56,7 +64,7 @@
   - Write integration tests for JAX compatibility
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 8. Establish info dictionary conventions
+- [ ] 9. Establish info dictionary conventions
   - Update functional.py to structure info dictionary with info['metrics'] for scalar data
   - Modify handlers to extract metrics from info['metrics'] automatically
   - Ensure FileHandler serializes entire info dictionary using existing serialization utils
