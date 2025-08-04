@@ -9,18 +9,18 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-import equinox as eqx
 from loguru import logger
 
 
-class WandbHandler(eqx.Module):
+class WandbHandler:
     """Simplified Weights & Biases integration handler.
     
     This is a placeholder implementation that will be fully implemented
     in task 5 of the logging simplification spec.
-    """
     
-    config: Any  # WandbConfig
+    Note: This is a regular Python class (not equinox.Module) for consistency
+    with the simplified logging architecture.
+    """
     
     def __init__(self, wandb_config):
         """Initialize wandb handler with configuration.

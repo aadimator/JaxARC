@@ -18,7 +18,6 @@ from ...state import ArcEnvState
 from ..logging.structured_logger import (
     EpisodeLogEntry,
     StepLogEntry,
-    StructuredLogger,
 )
 from .rl_visualization import draw_rl_step_svg
 from .visualizer import VisualizationConfig
@@ -64,18 +63,18 @@ class EpisodeReplaySystem:
 
     def __init__(
         self,
-        structured_logger: StructuredLogger,
+        episode_loader: Any,  # Can be FileHandler or any object that can load episodes
         config: ReplayConfig,
         visualization_config: Optional[VisualizationConfig] = None,
     ):
         """Initialize the replay system.
 
         Args:
-            structured_logger: Logger instance for loading episode data
+            episode_loader: Object that can load episode data (FileHandler or similar)
             config: Configuration for replay behavior
             visualization_config: Configuration for visualization regeneration
         """
-        self.structured_logger = structured_logger
+        self.episode_loader = episode_loader
         self.config = config
         self.visualization_config = visualization_config or VisualizationConfig()
 
@@ -105,7 +104,7 @@ class EpisodeReplaySystem:
         if use_cache and episode_num in self._episode_cache:
             return self._episode_cache[episode_num]
 
-        episode = self.structured_logger.load_episode(episode_num)
+        episode = self.episode_loader.load_episode(episode_num)
         if episode is not None and use_cache:
             self._episode_cache[episode_num] = episode
 
@@ -197,7 +196,7 @@ class EpisodeReplaySystem:
                 return None
 
             # For minimal state logging, we can't fully reconstruct
-            if not self.structured_logger.config.include_full_states:
+            if hasattr(self.episode_loader, 'config') and not self.episode_loader.config.include_full_states:
                 logger.warning("Cannot reconstruct state from minimal logging")
                 return None
 
@@ -435,7 +434,7 @@ class EpisodeReplaySystem:
         Returns:
             List of episode numbers available for replay
         """
-        return self.structured_logger.list_episodes()
+        return self.episode_loader.list_episodes()
 
     def get_episode_summaries(
         self, episode_nums: Optional[List[int]] = None
@@ -453,7 +452,7 @@ class EpisodeReplaySystem:
 
         summaries = []
         for episode_num in episode_nums[: self.config.max_episodes_to_load]:
-            summary = self.structured_logger.get_episode_summary(episode_num)
+            summary = self.episode_loader.get_episode_summary(episode_num)
             if summary:
                 summaries.append(summary)
 
