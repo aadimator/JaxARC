@@ -17,14 +17,8 @@ from jaxarc.envs.config import JaxArcConfig
 from jaxarc.envs.functional import arc_reset, arc_step
 from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
+from jaxarc.utils.logging.experiment_logger import ExperimentLogger
 from jaxarc.utils.visualization import (
-    AsyncLogger,
-    AsyncLoggerConfig,
-    EpisodeConfig,
-    EpisodeManager,
-    VisualizationConfig,
-    Visualizer,
-    WandbIntegration,
     _clear_output_directory,
 )
 
@@ -55,10 +49,7 @@ class ArcEnvironment:
     _state: Optional[ArcEnvState]
     _episode_count: int
     action_handler: Any  # Action handler type depends on selection format
-    _visualizer: Optional[Visualizer]
-    _episode_manager: Optional[EpisodeManager]
-    _async_logger: Optional[AsyncLogger]
-    _wandb_integration: Optional[WandbIntegration]
+    _logger: Optional[ExperimentLogger]
 
     def __init__(self, config: JaxArcConfig):
         """Initialize environment with unified configuration.
@@ -76,19 +67,15 @@ class ArcEnvironment:
         # Get the action handler for this environment's selection format
         self.action_handler = get_action_handler(config.action.selection_format)
 
-        # Initialize visualization system if enabled
-        self._visualizer: Optional[Visualizer] = None
-        self._episode_manager: Optional[EpisodeManager] = None
-        self._async_logger: Optional[AsyncLogger] = None
-        self._wandb_integration: Optional[WandbIntegration] = None
-
-        self._setup_enhanced_visualization()
+        # Initialize logging system
+        self._logger: Optional[ExperimentLogger] = None
+        self._setup_experiment_logger()
 
         logger.info("ArcEnvironment initialized with unified JaxArcConfig")
         logger.info(f"Using {config.action.selection_format} selection format")
 
-        if self._visualizer is not None:
-            logger.info("Visualization system enabled")
+        if self._logger is not None:
+            logger.info("Experiment logging system enabled")
 
     def _setup_error_handling(self) -> None:
         """Setup error handling and debugging based on configuration."""
@@ -129,90 +116,26 @@ class ArcEnvironment:
         
         logger.debug(f"Error handling configured: mode={error_mode}, nan_checks={enable_nan_checks}")
 
-    def _setup_enhanced_visualization(self) -> None:
-        """Setup enhanced visualization system based on configuration."""
-        # Check if enhanced visualization is enabled based on unified config
-        enhanced_enabled = self.config.visualization.enabled
+    def _setup_experiment_logger(self) -> None:
+        """Setup experiment logging system based on configuration."""
+        # Check if logging is enabled - always enabled unless debug level is "off"
+        logging_enabled = (hasattr(self.config, 'environment') and 
+                          self.config.environment.debug_level != "off")
 
-        # Also enable if debug level indicates visualization should be active
-        if not enhanced_enabled and self.config.environment.debug_level in [
-            "standard",
-            "verbose",
-            "research",
-        ]:
-            enhanced_enabled = True
-
-        if not enhanced_enabled:
+        if not logging_enabled:
             return
 
         try:
-            # Create visualization configuration
-            vis_config = self._create_visualization_config()
-
-            # Create episode manager
-            episode_config = self._create_episode_config()
-            self._episode_manager = EpisodeManager(episode_config)
-
-            # Create async logger
-            async_config = self._create_async_logger_config()
-            self._async_logger = AsyncLogger(async_config)
-
-            # Create wandb integration if configured
-            self._wandb_integration = self._create_wandb_integration()
-
-            # Create visualizer
-            self._visualizer = Visualizer(
-                vis_config=vis_config,
-                episode_manager=self._episode_manager,
-                async_logger=self._async_logger,
-                wandb_integration=self._wandb_integration,
-            )
+            # Create ExperimentLogger with current configuration
+            self._logger = ExperimentLogger(self.config)
+            logger.debug("ExperimentLogger initialized successfully")
 
         except Exception as e:
-            logger.warning(f"Failed to setup visualization: {e}")
-            logger.warning("Falling back to legacy visualization")
-            self._visualizer = None
+            logger.warning(f"Failed to setup experiment logger: {e}")
+            logger.warning("Continuing without logging")
+            self._logger = None
 
-    def _create_visualization_config(self) -> VisualizationConfig:
-        """Create visualization configuration from unified config."""
-        vis_cfg = self.config.visualization
-        return VisualizationConfig(
-            debug_level=self.config.environment.computed_visualization_level,
-            output_formats=vis_cfg.output_formats or ["svg"],
-            image_quality=vis_cfg.image_quality,
-            show_coordinates=vis_cfg.show_coordinates,
-            show_operation_names=vis_cfg.show_operation_names,
-            highlight_changes=vis_cfg.highlight_changes,
-            include_metrics=vis_cfg.include_metrics,
-            color_scheme=vis_cfg.color_scheme,
-        )
 
-    def _create_episode_config(self) -> EpisodeConfig:
-        """Create episode configuration from unified config."""
-        storage_cfg = self.config.storage
-        base_dir = f"{storage_cfg.base_output_dir}/{storage_cfg.episodes_dir}"
-
-        return EpisodeConfig(
-            base_output_dir=base_dir,
-            cleanup_policy=storage_cfg.cleanup_policy,
-            max_storage_gb=storage_cfg.max_storage_gb,
-        )
-
-    def _create_async_logger_config(self) -> AsyncLoggerConfig:
-        """Create async logger configuration from unified config."""
-        log_cfg = self.config.logging
-        return AsyncLoggerConfig(
-            queue_size=log_cfg.queue_size,
-            worker_threads=log_cfg.worker_threads,
-            enable_compression=log_cfg.enable_compression,
-        )
-
-    def _create_wandb_integration(self) -> Optional[WandbIntegration]:
-        """Create wandb integration if configured."""
-        wandb_cfg = self.config.wandb
-        if wandb_cfg.enabled:
-            return WandbIntegration(wandb_cfg)
-        return None
 
     def reset(
         self, key: chex.PRNGKey, task_data: Optional[JaxArcTask] = None
@@ -226,12 +149,12 @@ class ArcEnvironment:
         Returns:
             Tuple of (initial_state, initial_observation)
         """
-        # Start new episode in visualization system
-        if self._visualizer is not None:
-            self._episode_count += 1
-            self._visualizer.start_episode(self._episode_count)
-        # Legacy visualization directory clearing
-        elif (
+        # Start new episode
+        self._episode_count += 1
+        
+        # Legacy visualization directory clearing if needed
+        if (
+            self._logger is None and
             self.config.environment.debug_level != "off"
             and self.config.storage.clear_output_on_start
         ):
@@ -239,13 +162,16 @@ class ArcEnvironment:
 
         self._state, obs = arc_reset(key, self.config, task_data)
 
-        # Log episode start with visualization
-        if self._visualizer is not None:
-            self._visualizer.log_episode_start(
-                episode_num=self._episode_count,
-                task_data=self._state.task_data,
-                initial_state=self._state,
-            )
+        # Log episode start
+        if self._logger is not None:
+            episode_start_data = {
+                'episode_num': self._episode_count,
+                'task_id': getattr(self._state.task_data, 'task_id', 'unknown'),
+                'initial_state': self._state,
+                'task_data': self._state.task_data,
+            }
+            # Note: We don't have a log_episode_start method, but we can use this for initialization
+            # The actual episode logging will happen in log_episode_summary
 
         return self._state, obs
 
@@ -268,7 +194,7 @@ class ArcEnvironment:
         if self._state is None:
             raise RuntimeError("Environment must be reset before stepping")
 
-        # Store previous state for visualization
+        # Store previous state for logging
         prev_state = self._state
 
         # Delegate action processing to arc_step which handles all formats
@@ -276,27 +202,118 @@ class ArcEnvironment:
             self._state, action, self.config
         )
 
-        # Visualization step logging
-        if self._visualizer is not None:
-            self._visualizer.log_step(
-                step_num=int(self._state.step_count),
-                before_state=prev_state,
-                action=action,
-                after_state=self._state,
-                reward=float(reward),
-                info=info,
-            )
+        # Log step through JAX callback mechanism
+        if self._logger is not None:
+            # Serialize action for safe callback usage
+            serialized_action = self._serialize_action_for_callback(action)
+            
+            # Create step data for logging
+            step_data = {
+                'step_num': int(self._state.step_count),
+                'before_state': prev_state,
+                'after_state': self._state,
+                'action': serialized_action,
+                'reward': float(reward),
+                'info': info,
+            }
+            
+            # Use JAX callback to log step data
+            from jax import debug
+            debug.callback(self._log_step_callback, step_data)
 
-            # Log episode end if done
+            # Log episode summary if done
             if done:
-                self._visualizer.log_episode_end(
-                    episode_num=self._episode_count,
-                    final_state=self._state,
-                    total_reward=info.get("total_reward", float(reward)),
-                    success=info.get("success", False),
-                )
+                summary_data = {
+                    'episode_num': self._episode_count,
+                    'total_steps': int(self._state.step_count),
+                    'total_reward': info.get("total_reward", float(reward)),
+                    'final_similarity': float(self._state.similarity_score),
+                    'success': info.get("success", False),
+                    'task_id': getattr(self._state.task_data, 'task_id', 'unknown'),
+                    'final_state': self._state,
+                }
+                
+                # Use JAX callback to log episode summary
+                debug.callback(self._log_episode_summary_callback, summary_data)
 
         return self._state, obs, reward, info
+
+    def _serialize_action_for_callback(self, action: Any) -> Dict[str, Any]:
+        """Serialize structured action for safe callback usage.
+        
+        Args:
+            action: Structured action (PointAction, BboxAction, or MaskAction)
+            
+        Returns:
+            Dictionary with serialized action data
+        """
+        try:
+            # Handle structured actions by extracting their fields
+            if hasattr(action, 'operation'):
+                serialized = {'operation': int(action.operation)}
+                
+                if hasattr(action, 'row') and hasattr(action, 'col'):
+                    # PointAction
+                    serialized.update({
+                        'row': int(action.row),
+                        'col': int(action.col),
+                        'action_type': 'point'
+                    })
+                elif hasattr(action, 'r1') and hasattr(action, 'c1'):
+                    # BboxAction
+                    serialized.update({
+                        'r1': int(action.r1),
+                        'c1': int(action.c1),
+                        'r2': int(action.r2),
+                        'c2': int(action.c2),
+                        'action_type': 'bbox'
+                    })
+                elif hasattr(action, 'selection'):
+                    # MaskAction
+                    import numpy as np
+                    serialized.update({
+                        'selection': np.asarray(action.selection),
+                        'action_type': 'mask'
+                    })
+                
+                return serialized
+            else:
+                # Fallback for dictionary actions
+                return dict(action) if hasattr(action, 'items') else {'raw_action': str(action)}
+                
+        except Exception as e:
+            logger.warning(f"Failed to serialize action: {e}")
+            return {'raw_action': str(action)}
+
+    def _log_step_callback(self, step_data: Dict[str, Any]) -> None:
+        """JAX callback for logging step data.
+        
+        This method is called from within JAX transformations via jax.debug.callback.
+        It safely passes the step data to the experiment logger.
+        
+        Args:
+            step_data: Dictionary containing step information
+        """
+        if self._logger is not None:
+            try:
+                self._logger.log_step(step_data)
+            except Exception as e:
+                logger.warning(f"Failed to log step data: {e}")
+    
+    def _log_episode_summary_callback(self, summary_data: Dict[str, Any]) -> None:
+        """JAX callback for logging episode summary.
+        
+        This method is called from within JAX transformations via jax.debug.callback.
+        It safely passes the episode summary to the experiment logger.
+        
+        Args:
+            summary_data: Dictionary containing episode summary information
+        """
+        if self._logger is not None:
+            try:
+                self._logger.log_episode_summary(summary_data)
+            except Exception as e:
+                logger.warning(f"Failed to log episode summary: {e}")
 
     def _clear_visualization_directory(self) -> None:
         """Clear the visualization output directory.
@@ -313,17 +330,11 @@ class ArcEnvironment:
 
     def close(self) -> None:
         """Clean up resources when environment is no longer needed."""
-        if self._async_logger is not None:
+        if self._logger is not None:
             try:
-                self._async_logger.close()
+                self._logger.close()
             except Exception as e:
-                logger.warning(f"Error closing async logger: {e}")
-
-        if self._wandb_integration is not None:
-            try:
-                self._wandb_integration.finish_run()
-            except Exception as e:
-                logger.warning(f"Error finishing wandb run: {e}")
+                logger.warning(f"Error closing experiment logger: {e}")
 
     def __enter__(self):
         """Context manager entry."""

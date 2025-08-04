@@ -116,8 +116,10 @@ class FileHandler:
         """Clean shutdown - save any pending data."""
         if self.current_episode_data:
             # Save incomplete episode data
-            incomplete_path = self.output_dir / "incomplete_episode.json"
             try:
+                # Ensure output directory exists
+                self.output_dir.mkdir(parents=True, exist_ok=True)
+                incomplete_path = self.output_dir / "incomplete_episode.json"
                 with open(incomplete_path, 'w') as f:
                     json.dump(self.current_episode_data, f, indent=2, default=str)
                 logger.info(f"Saved incomplete episode data to {incomplete_path}")

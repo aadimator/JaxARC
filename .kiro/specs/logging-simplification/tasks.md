@@ -48,7 +48,7 @@
   - Write unit tests with mocked wandb API calls
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [-] 7. Update ArcEnvironment integration
+- [x] 7. Update ArcEnvironment integration
   - Modify src/jaxarc/envs/environment.py to initialize ExperimentLogger instead of Visualizer
   - Update step() method to call logger.log_step() through existing JAX callback mechanism
   - Add logger.log_episode_summary() calls for episode completion
