@@ -34,9 +34,11 @@ class BaseAction(eqx.Module):
     
     Attributes:
         operation: ARCLE operation ID (0-41)
+        action_type: Type identifier for JAX compatibility (0=point, 1=bbox, 2=mask)
     """
     
     operation: OperationId
+    action_type: jnp.int32
     
     @abc.abstractmethod
     def to_selection_mask(self, grid_shape: tuple[int, int]) -> SelectionArray:
@@ -72,11 +74,13 @@ class PointAction(BaseAction):
     
     Attributes:
         operation: ARCLE operation ID (0-41)
+        action_type: Type identifier (always 0 for PointAction)
         row: Row coordinate (0-based)
         col: Column coordinate (0-based)
     """
     
     operation: jnp.int32
+    action_type: jnp.int32  # Always 0 for PointAction
     row: jnp.int32
     col: jnp.int32
     
@@ -122,6 +126,7 @@ class PointAction(BaseAction):
         
         return PointAction(
             operation=valid_operation,
+            action_type=jnp.array(0, dtype=jnp.int32),
             row=valid_row,
             col=valid_col
         )
@@ -135,6 +140,7 @@ class BboxAction(BaseAction):
     
     Attributes:
         operation: ARCLE operation ID (0-41)
+        action_type: Type identifier (always 1 for BboxAction)
         r1: Top-left row coordinate
         c1: Top-left column coordinate
         r2: Bottom-right row coordinate
@@ -142,6 +148,7 @@ class BboxAction(BaseAction):
     """
     
     operation: jnp.int32
+    action_type: jnp.int32  # Always 1 for BboxAction
     r1: jnp.int32
     c1: jnp.int32
     r2: jnp.int32
@@ -208,6 +215,7 @@ class BboxAction(BaseAction):
         
         return BboxAction(
             operation=valid_operation,
+            action_type=jnp.array(1, dtype=jnp.int32),
             r1=valid_r1,
             c1=valid_c1,
             r2=valid_r2,
@@ -223,10 +231,12 @@ class MaskAction(BaseAction):
     
     Attributes:
         operation: ARCLE operation ID (0-41)
+        action_type: Type identifier (always 2 for MaskAction)
         selection: Boolean mask indicating selected cells
     """
     
     operation: jnp.int32
+    action_type: jnp.int32  # Always 2 for MaskAction
     selection: SelectionArray
     
     def to_selection_mask(self, grid_shape: tuple[int, int]) -> SelectionArray:
@@ -258,6 +268,7 @@ class MaskAction(BaseAction):
         # Return with validated operation (assume selection is already correct shape)
         return MaskAction(
             operation=valid_operation,
+            action_type=jnp.array(2, dtype=jnp.int32),
             selection=self.selection
         )
 
@@ -279,6 +290,7 @@ def create_point_action(operation: int, row: int, col: int) -> PointAction:
     """
     return PointAction(
         operation=jnp.array(operation, dtype=jnp.int32),
+        action_type=jnp.array(0, dtype=jnp.int32),
         row=jnp.array(row, dtype=jnp.int32),
         col=jnp.array(col, dtype=jnp.int32)
     )
@@ -299,6 +311,7 @@ def create_bbox_action(operation: int, r1: int, c1: int, r2: int, c2: int) -> Bb
     """
     return BboxAction(
         operation=jnp.array(operation, dtype=jnp.int32),
+        action_type=jnp.array(1, dtype=jnp.int32),
         r1=jnp.array(r1, dtype=jnp.int32),
         c1=jnp.array(c1, dtype=jnp.int32),
         r2=jnp.array(r2, dtype=jnp.int32),
@@ -318,6 +331,7 @@ def create_mask_action(operation: int, selection: SelectionArray) -> MaskAction:
     """
     return MaskAction(
         operation=jnp.array(operation, dtype=jnp.int32),
+        action_type=jnp.array(2, dtype=jnp.int32),
         selection=selection
     )
 
