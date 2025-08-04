@@ -167,9 +167,9 @@ class ExperimentLogger:
         Raises:
             ImportError: If RichHandler cannot be imported
         """
-        # For now, create a simple wrapper around existing rich_display functionality
-        # This will be replaced with a proper RichHandler in a future task
-        return RichHandlerWrapper(self.config)
+        # Import here to avoid circular imports and allow graceful fallback
+        from .rich_handler import RichHandler
+        return RichHandler(self.config)
     
     def _create_wandb_handler(self) -> Any:
         """Create WandbHandler instance.
