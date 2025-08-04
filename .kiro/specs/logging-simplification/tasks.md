@@ -40,7 +40,7 @@
   - Write unit tests for console output formatting
   - _Requirements: 3.3, 6.4_
 
-- [-] 6. Create simplified WandbHandler
+- [x] 6. Create simplified WandbHandler
   - Create src/jaxarc/utils/logging/wandb_handler.py as regular Python class (can use wandb library, network requests freely)
   - Remove custom retry logic, offline caching, and network connectivity checks from existing wandb.py
   - Implement simple wandb.init() and wandb.log() wrapper using official wandb features
@@ -48,7 +48,7 @@
   - Write unit tests with mocked wandb API calls
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 7. Update ArcEnvironment integration
+- [-] 7. Update ArcEnvironment integration
   - Modify src/jaxarc/envs/environment.py to initialize ExperimentLogger instead of Visualizer
   - Update step() method to call logger.log_step() through existing JAX callback mechanism
   - Add logger.log_episode_summary() calls for episode completion
