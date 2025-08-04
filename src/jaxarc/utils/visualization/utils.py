@@ -32,11 +32,13 @@ def _extract_grid_data(
     Raises:
         ValueError: If input type is not supported
     """
+    from ..serialization_utils import serialize_jax_array
+    
     # Check for Grid type by duck typing (more robust than isinstance)
     if hasattr(grid_input, 'data') and hasattr(grid_input, 'mask'):
-        return np.asarray(grid_input.data), np.asarray(grid_input.mask)
+        return serialize_jax_array(grid_input.data), serialize_jax_array(grid_input.mask)
     if isinstance(grid_input, (jnp.ndarray, np.ndarray)):
-        return np.asarray(grid_input), None
+        return serialize_jax_array(grid_input), None
 
     msg = f"Unsupported grid input type: {type(grid_input)}"
     raise ValueError(msg)
@@ -119,8 +121,8 @@ def detect_changed_cells(
     Returns:
         Boolean mask indicating which cells changed
     """
-    before_data = np.asarray(before_grid.data)
-    after_data = np.asarray(after_grid.data)
+    before_data = serialize_jax_array(before_grid.data)
+    after_data = serialize_jax_array(after_grid.data)
 
     # Handle different shapes by padding to match
     max_height = max(before_data.shape[0], after_data.shape[0])
@@ -153,8 +155,8 @@ def infer_fill_color_from_grids(
         Color ID that was used for filling, or -1 if can't determine
     """
     try:
-        before_data = np.asarray(before_grid.data)
-        after_data = np.asarray(after_grid.data)
+        before_data = serialize_jax_array(before_grid.data)
+        after_data = serialize_jax_array(after_grid.data)
 
         # Find cells that were selected and changed
         for i in range(min(before_data.shape[0], after_data.shape[0])):

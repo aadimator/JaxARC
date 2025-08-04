@@ -73,8 +73,10 @@ def visualize_grid_rich(
     if mask is None:
         mask = grid_mask
 
+    from ..serialization_utils import serialize_jax_array
+    
     if mask is not None:
-        mask = np.asarray(mask)
+        mask = serialize_jax_array(mask)
 
     if grid.size == 0:
         table = Table(show_header=False, show_edge=False, show_lines=False, box=None)

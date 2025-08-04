@@ -1,216 +1,200 @@
-"""
-Serialization utilities for efficient state and configuration management.
+"""Shared serialization utilities for JAX arrays and environment data.
 
-This module provides utilities for efficient serialization and deserialization
-of JaxARC states and configurations, with special handling for large static
-data like task_data.
+This module provides reusable serialization functions that can be used across
+the codebase for converting JAX arrays, environment states, and actions to
+JSON-serializable formats.
 """
 
 from __future__ import annotations
 
-from typing import Optional
+import time
+from typing import Any, Dict
 
 import jax.numpy as jnp
+import numpy as np
 from loguru import logger
 
-from .task_manager import get_task_id_globally
 
+def serialize_jax_array(arr: jnp.ndarray | np.ndarray) -> np.ndarray:
+    """Safely serialize JAX array to numpy array.
 
-def extract_task_id_from_index(task_index: jnp.ndarray) -> Optional[str]:
-    """Extract the original task ID from a JAX task index.
-    
-    This function maps a task_index back to its original string task_id
-    using the global task manager. This is essential for reconstructing
-    task_data during deserialization.
-    
     Args:
-        task_index: JAX array containing the task index
-        
+        arr: JAX or numpy array to serialize
+
     Returns:
-        String task ID if found, None for unknown tasks (-1 index)
+        NumPy array copy of the input
+    """
+    try:
+        if isinstance(arr, jnp.ndarray):
+            return np.asarray(arr)
+        if isinstance(arr, np.ndarray):
+            return arr.copy()
+        return np.asarray(arr)
+    except Exception as e:
+        logger.warning(f"Failed to serialize array: {e}")
+        return np.array([])
+
+
+def serialize_action(action: dict[str, Any] | Any) -> dict[str, Any]:
+    """Serialize action (dictionary or structured action) for safe callback usage.
+
+    Args:
+        action: Action dictionary or structured action to serialize
+
+    Returns:
+        Dictionary with serialized action data
+    """
+    try:
+        # Handle structured actions (Equinox modules)
+        if hasattr(action, '__dict__') and not isinstance(action, dict):
+            # This is a structured action - extract fields
+            serialized = {}
+            
+            # Get all fields from the structured action
+            if hasattr(action, 'operation'):
+                serialized['operation'] = serialize_jax_array(action.operation)
+            
+            # Handle different action types
+            if hasattr(action, 'row') and hasattr(action, 'col'):
+                # PointAction
+                serialized['action_type'] = 'point'
+                serialized['row'] = serialize_jax_array(action.row)
+                serialized['col'] = serialize_jax_array(action.col)
+            elif hasattr(action, 'r1') and hasattr(action, 'c1') and hasattr(action, 'r2') and hasattr(action, 'c2'):
+                # BboxAction
+                serialized['action_type'] = 'bbox'
+                serialized['r1'] = serialize_jax_array(action.r1)
+                serialized['c1'] = serialize_jax_array(action.c1)
+                serialized['r2'] = serialize_jax_array(action.r2)
+                serialized['c2'] = serialize_jax_array(action.c2)
+            elif hasattr(action, 'selection'):
+                # MaskAction
+                serialized['action_type'] = 'mask'
+                serialized['selection'] = serialize_jax_array(action.selection)
+            else:
+                # Unknown structured action type
+                serialized['action_type'] = 'unknown'
+                serialized['raw'] = str(action)
+            
+            return serialized
         
-    Raises:
-        ValueError: If task_index is invalid or cannot be processed
+        # Handle dictionary actions (legacy)
+        elif isinstance(action, dict):
+            serialized = {}
+            for key, value in action.items():
+                if isinstance(value, (jnp.ndarray, np.ndarray)):
+                    serialized[key] = serialize_jax_array(value)
+                elif isinstance(value, (int, float, bool, str)):
+                    serialized[key] = value
+                else:
+                    serialized[key] = str(value)
+            return serialized
         
-    Examples:
-        ```python
-        # Extract task ID from state
-        task_id = extract_task_id_from_index(state.task_data.task_index)
-        if task_id:
-            print(f"Task ID: {task_id}")
+        # Handle other types
         else:
-            print("Unknown task")
-        ```
+            return {'raw': str(action), 'type': type(action).__name__}
+            
+    except Exception as e:
+        logger.warning(f"Failed to serialize action: {e}")
+        return {'error': str(e), 'type': type(action).__name__}
+
+
+def serialize_arc_state(state: "ArcEnvState") -> dict[str, Any]:
+    """Serialize ArcEnvState for safe callback usage.
+
+    Args:
+        state: Environment state to serialize
+
+    Returns:
+        Dictionary with serialized state data
     """
     try:
-        # Validate input
-        if not hasattr(task_index, 'item'):
-            raise ValueError(f"task_index must be a JAX array, got {type(task_index)}")
-            
-        index = int(task_index.item())
-        
-        # Handle special case for unknown/dummy tasks
-        if index == -1:
-            logger.debug("Task index is -1 (unknown/dummy task)")
-            return None
-            
-        # Validate index is non-negative
-        if index < 0:
-            raise ValueError(f"Invalid task index: {index} (must be >= -1)")
-            
-        # Look up task ID in global manager
-        task_id = get_task_id_globally(index)
-        if task_id is None:
-            logger.warning(f"Task index {index} not found in global task manager")
-            
-        return task_id
-        
-    except Exception as e:
-        logger.error(f"Error extracting task ID from index: {e}")
-        raise ValueError(f"Cannot extract task ID from index: {e}") from e
-
-
-def validate_task_index_consistency(task_index: jnp.ndarray, parser) -> bool:
-    """Validate that a task_index is consistent with the parser's available tasks.
-    
-    This function checks that a task_index can be resolved to a task_id that
-    exists in the provided parser's dataset.
-    
-    Args:
-        task_index: JAX array containing the task index
-        parser: ArcDataParserBase instance to validate against
-        
-    Returns:
-        True if task_index is consistent, False otherwise
-        
-    Examples:
-        ```python
-        # Validate task index before reconstruction
-        is_valid = validate_task_index_consistency(state.task_data.task_index, parser)
-        if not is_valid:
-            raise ValueError("Task index is inconsistent with parser dataset")
-        ```
-    """
-    try:
-        # Extract task ID from index
-        task_id = extract_task_id_from_index(task_index)
-        if task_id is None:
-            # Unknown task (-1 index) is considered valid
-            return True
-            
-        # Check if parser has this task
-        available_ids = parser.get_available_task_ids()
-        is_available = task_id in available_ids
-        
-        if not is_available:
-            logger.warning(f"Task ID '{task_id}' not available in parser dataset")
-            
-        return is_available
-        
-    except Exception as e:
-        logger.error(f"Error validating task index consistency: {e}")
-        return False
-
-
-def validate_task_data_reconstruction(original_task_data, reconstructed_task_data) -> bool:
-    """Validate that reconstructed task_data matches the original.
-    
-    This function performs comprehensive validation to ensure that
-    task_data reconstructed from task_index is functionally identical
-    to the original task_data.
-    
-    Args:
-        original_task_data: Original JaxArcTask before serialization
-        reconstructed_task_data: JaxArcTask reconstructed from task_index
-        
-    Returns:
-        True if reconstruction is valid, False otherwise
-        
-    Examples:
-        ```python
-        # Validate reconstruction
-        is_valid = validate_task_data_reconstruction(original_task, reconstructed_task)
-        if not is_valid:
-            raise ValueError("Task data reconstruction failed validation")
-        ```
-    """
-    try:
-        import equinox as eqx
-        
-        # Check if both are the same type
-        if type(original_task_data) != type(reconstructed_task_data):
-            logger.error("Task data types don't match")
-            return False
-            
-        # Compare all fields using equinox tree equality
-        if not eqx.tree_equal(original_task_data, reconstructed_task_data):
-            logger.error("Task data content doesn't match")
-            return False
-            
-        logger.debug("Task data reconstruction validation passed")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error validating task data reconstruction: {e}")
-        return False
-
-
-def calculate_serialization_savings(original_size: int, compressed_size: int) -> dict:
-    """Calculate serialization file size savings.
-    
-    This function calculates the space savings achieved by excluding
-    task_data during serialization.
-    
-    Args:
-        original_size: Size of full serialization (bytes)
-        compressed_size: Size of efficient serialization (bytes)
-        
-    Returns:
-        Dictionary with savings statistics
-        
-    Examples:
-        ```python
-        # Calculate savings
-        savings = calculate_serialization_savings(1000000, 50000)
-        print(f"Saved {savings['percentage']:.1f}% space")
-        ```
-    """
-    if original_size == 0:
         return {
-            'original_size_bytes': 0,
-            'compressed_size_bytes': 0,
-            'savings_bytes': 0,
-            'percentage': 0.0,
-            'compression_ratio': 1.0
+            # Core grid data
+            "working_grid": serialize_jax_array(state.working_grid),
+            "working_grid_mask": serialize_jax_array(state.working_grid_mask),
+            "target_grid": serialize_jax_array(state.target_grid),
+            "target_grid_mask": serialize_jax_array(state.target_grid_mask),
+            
+            # Episode management
+            "step_count": int(state.step_count),
+            "episode_done": bool(state.episode_done),
+            "current_example_idx": int(state.current_example_idx),
+            
+            # Grid operations
+            "selected": serialize_jax_array(state.selected),
+            "clipboard": serialize_jax_array(state.clipboard),
+            "similarity_score": float(state.similarity_score),
+            
+            # Enhanced functionality fields
+            "episode_mode": int(state.episode_mode),
+            "available_demo_pairs": serialize_jax_array(state.available_demo_pairs),
+            "available_test_pairs": serialize_jax_array(state.available_test_pairs),
+            "demo_completion_status": serialize_jax_array(state.demo_completion_status),
+            "test_completion_status": serialize_jax_array(state.test_completion_status),
+            "action_history": serialize_jax_array(state.action_history),
+            "action_history_length": int(state.action_history_length),
+            "allowed_operations_mask": serialize_jax_array(state.allowed_operations_mask),
         }
-        
-    savings_bytes = original_size - compressed_size
-    percentage = (savings_bytes / original_size) * 100
-    compression_ratio = original_size / compressed_size if compressed_size > 0 else float('inf')
+    except Exception as e:
+        logger.warning(f"Failed to serialize ArcEnvState: {e}")
+        return {}
+
+
+def serialize_object(obj: Any) -> Any:
+    """Recursively serialize objects for JSON compatibility.
     
-    return {
-        'original_size_bytes': original_size,
-        'compressed_size_bytes': compressed_size,
-        'savings_bytes': savings_bytes,
-        'percentage': percentage,
-        'compression_ratio': compression_ratio
-    }
-
-
-def format_file_size(size_bytes: int) -> str:
-    """Format file size in human-readable format.
+    This method handles JAX arrays, numpy arrays, and other complex objects
+    by converting them to JSON-serializable formats.
     
     Args:
-        size_bytes: Size in bytes
+        obj: Object to serialize
         
     Returns:
-        Formatted size string (e.g., "1.5 MB")
+        JSON-serializable representation
     """
-    if size_bytes < 1024:
-        return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
-    elif size_bytes < 1024 * 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    
+    if isinstance(obj, (list, tuple)):
+        return [serialize_object(item) for item in obj]
+    
+    if isinstance(obj, dict):
+        return {str(k): serialize_object(v) for k, v in obj.items()}
+    
+    # Handle JAX/NumPy arrays
+    if hasattr(obj, 'tolist'):
+        return obj.tolist()
+    
+    # Handle JAX arrays that might not have tolist
+    if hasattr(obj, '__array__'):
+        try:
+            return np.asarray(obj).tolist()
+        except Exception:
+            pass
+    
+    # Handle objects with __dict__
+    if hasattr(obj, '__dict__'):
+        return serialize_object(obj.__dict__)
+    
+    # Fallback to string representation
+    return str(obj)
+
+
+# Task ID extraction utility (moved from existing code)
+def extract_task_id_from_index(task_index: int) -> str:
+    """Extract task ID from task index using global task manager.
+    
+    Args:
+        task_index: Task index to look up
+        
+    Returns:
+        Task ID string or fallback identifier
+    """
+    try:
+        from .task_manager import get_global_task_manager
+        task_manager = get_global_task_manager()
+        return task_manager.get_task_id(task_index)
+    except Exception as e:
+        logger.warning(f"Task index {task_index} not found in global task manager")
+        return f"task_{task_index}"

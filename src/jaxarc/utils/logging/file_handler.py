@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 
 from loguru import logger
 
-from ..serialization_utils import extract_task_id_from_index
+from ..serialization_utils import extract_task_id_from_index, serialize_object, serialize_action, serialize_jax_array
 from ..pytree_utils import filter_arrays_from_state
 
 
@@ -144,14 +144,14 @@ class FileHandler:
                 # Handle state objects using existing utilities
                 serialized[key] = self._serialize_state(value)
             elif key == 'action':
-                # Actions are typically already serializable dicts
-                serialized[key] = self._serialize_object(value)
+                # Use shared action serialization utility
+                serialized[key] = serialize_action(value)
             elif key == 'info':
                 # Info dictionary may contain complex data
                 serialized[key] = self._serialize_info_dict(value)
             else:
                 # Handle other fields (step_num, reward, etc.)
-                serialized[key] = self._serialize_object(value)
+                serialized[key] = serialize_object(value)
         
         return serialized
     
@@ -177,26 +177,14 @@ class FileHandler:
                 for field_name in ['working_grid', 'target_grid', 'selected', 'clipboard']:
                     if hasattr(arrays, field_name):
                         array_value = getattr(arrays, field_name)
-                        if hasattr(array_value, 'tolist'):
-                            serialized_arrays[field_name] = array_value.tolist()
-                        else:
-                            serialized_arrays[field_name] = str(array_value)
+                        serialized_arrays[field_name] = serialize_jax_array(array_value)
             else:
                 # For mock states or other objects, serialize arrays directly
                 serialized_arrays = {}
                 for field_name in ['working_grid', 'target_grid', 'selected', 'clipboard']:
                     if hasattr(state, field_name):
                         array_value = getattr(state, field_name)
-                        if hasattr(array_value, 'tolist'):
-                            serialized_arrays[field_name] = array_value.tolist()
-                        elif hasattr(array_value, '__array__'):
-                            try:
-                                import numpy as np
-                                serialized_arrays[field_name] = np.asarray(array_value).tolist()
-                            except Exception:
-                                serialized_arrays[field_name] = str(array_value)
-                        else:
-                            serialized_arrays[field_name] = str(array_value)
+                        serialized_arrays[field_name] = serialize_jax_array(array_value)
             
             # Extract task information using existing utilities
             task_info = {}
@@ -245,54 +233,16 @@ class FileHandler:
         
         # Preserve metrics structure for wandb integration
         if 'metrics' in info:
-            serialized['metrics'] = self._serialize_object(info['metrics'])
+            serialized['metrics'] = serialize_object(info['metrics'])
         
         # Serialize other info fields
         for key, value in info.items():
             if key != 'metrics':  # Already handled above
-                serialized[key] = self._serialize_object(value)
+                serialized[key] = serialize_object(value)
         
         return serialized
     
-    def _serialize_object(self, obj: Any) -> Any:
-        """Recursively serialize objects for JSON compatibility.
-        
-        This method handles JAX arrays, numpy arrays, and other complex objects
-        by converting them to JSON-serializable formats.
-        
-        Args:
-            obj: Object to serialize
-            
-        Returns:
-            JSON-serializable representation
-        """
-        if obj is None or isinstance(obj, (bool, int, float, str)):
-            return obj
-        
-        if isinstance(obj, (list, tuple)):
-            return [self._serialize_object(item) for item in obj]
-        
-        if isinstance(obj, dict):
-            return {str(k): self._serialize_object(v) for k, v in obj.items()}
-        
-        # Handle JAX/NumPy arrays
-        if hasattr(obj, 'tolist'):
-            return obj.tolist()
-        
-        # Handle JAX arrays that might not have tolist
-        if hasattr(obj, '__array__'):
-            try:
-                import numpy as np
-                return np.asarray(obj).tolist()
-            except Exception:
-                pass
-        
-        # Handle objects with __dict__
-        if hasattr(obj, '__dict__'):
-            return self._serialize_object(obj.__dict__)
-        
-        # Fallback to string representation
-        return str(obj)
+
     
     def _save_json(self, episode_data: Dict[str, Any], episode_num: int) -> None:
         """Save episode data as JSON file.
