@@ -20,7 +20,7 @@ from ..logging.structured_logger import (
     StepLogEntry,
 )
 from .rl_visualization import draw_rl_step_svg
-from .visualizer import VisualizationConfig
+# VisualizationConfig removed - use simple configuration instead
 
 
 @chex.dataclass
@@ -65,7 +65,7 @@ class EpisodeReplaySystem:
         self,
         episode_loader: Any,  # Can be FileHandler or any object that can load episodes
         config: ReplayConfig,
-        visualization_config: Optional[VisualizationConfig] = None,
+        visualization_config: Optional[Dict[str, Any]] = None,
     ):
         """Initialize the replay system.
 
@@ -76,7 +76,7 @@ class EpisodeReplaySystem:
         """
         self.episode_loader = episode_loader
         self.config = config
-        self.visualization_config = visualization_config or VisualizationConfig()
+        self.visualization_config = visualization_config or {}
 
         # Create output directory
         self.output_dir = Path(config.output_dir)

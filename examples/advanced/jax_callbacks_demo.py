@@ -190,24 +190,21 @@ def demo_error_handling():
 
 
 def demo_memory_optimization():
-    """Demonstrate memory optimization features."""
-    logger.info("=== Memory Optimization Demo ===")
-
-    from jaxarc.utils.visualization import get_memory_manager
-
-    # Get the global memory manager
-    memory_manager = get_memory_manager()
-
-    # Create some large arrays to demonstrate memory management
+    """Memory optimization features removed - use standard Python memory management."""
+    logger.info("=== Memory Optimization Demo (REMOVED) ===")
+    logger.info("Memory management functionality has been removed from the logging system.")
+    logger.info("Use standard Python memory profiling tools like memory_profiler or tracemalloc instead.")
+    
+    # Create some large arrays to demonstrate basic logging
     large_arrays = []
     for i in range(5):
         arr = jnp.ones((100, 100)) * i
         large_arrays.append(arr)
 
-        # Log the array (this will use memory)
+        # Log the array (this will use basic logging)
         jax_log_grid(arr, title=f"Large Array {i}")
 
-    # Check memory usage
+    # Memory usage monitoring removed
     memory_manager.check_memory_usage()
 
     # Get memory report

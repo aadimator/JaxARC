@@ -1,5 +1,9 @@
 # Visualization System Migration Guide
 
+> **⚠️ COMPLETELY OUTDATED DOCUMENTATION**: This guide describes migration to the old enhanced visualization system which has been removed. 
+> The entire visualization system has been replaced by the simplified ExperimentLogger architecture. 
+> This documentation is no longer relevant and should be rewritten.
+
 This guide helps you migrate from JaxARC's basic visualization system to the
 enhanced visualization and logging system.
 

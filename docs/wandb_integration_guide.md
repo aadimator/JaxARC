@@ -1,5 +1,9 @@
 # Weights & Biases Integration Guide
 
+> **⚠️ OUTDATED DOCUMENTATION**: This guide references the old Visualizer system which has been removed. 
+> The functionality has been replaced by the simplified ExperimentLogger with WandbHandler. 
+> This documentation needs to be updated to reflect the new architecture.
+
 This guide covers setting up and using Weights & Biases (wandb) with JaxARC's
 enhanced visualization system for experiment tracking and collaboration.
 
@@ -730,7 +734,8 @@ import hydra
 from omegaconf import DictConfig
 
 from jaxarc.envs import arc_reset, arc_step, create_standard_config
-from jaxarc.utils.visualization import Visualizer, create_visualizer_from_config
+# Visualizer removed - use ExperimentLogger instead
+# from jaxarc.utils.logging import ExperimentLogger
 
 
 @hydra.main(config_path="conf", config_name="config", version_base=None)

@@ -34,13 +34,7 @@ from .analysis_tools import (
     PerformanceMetrics,
 )
 
-# Import async logging functionality
-from .async_logger import (
-    AsyncLogger,
-    AsyncLoggerConfig,
-    AsyncLoggerContext,
-    LogEntry,
-)
+# Async logging functionality removed - use synchronous logging instead
 
 # Import constants
 from .constants import (
@@ -113,17 +107,7 @@ from .jax_callbacks import (
     log_grid_callback,
     safe_callback_wrapper,
 )
-from .memory_manager import (
-    CompressedStorage,
-    GarbageCollectionOptimizer,
-    LazyLoader,
-    MemoryManager,
-    MemoryUsageMonitor,
-    VisualizationCache,
-    create_lazy_visualization_loader,
-    get_memory_manager,
-    optimize_array_memory,
-)
+# Memory management functionality removed - use standard Python memory management
 
 # Import replay and analysis functionality
 from .replay_system import (
@@ -132,93 +116,49 @@ from .replay_system import (
     ReplayValidationResult,
 )
 
-# Import visualization system
-from .visualizer import (
-    EpisodeSummaryData,
-    StepVisualizationData,
-    VisualizationConfig,
-    Visualizer,
-)
+# Complex visualizer removed - use ExperimentLogger with focused handlers instead
 
-# Import wandb sync utilities
-from .wandb_sync import (
-    WandbSyncManager,
-    check_wandb_status,
-    create_sync_manager,
-    sync_offline_wandb_data,
-)
+# Custom wandb sync removed - use official wandb sync command instead
 
 # Re-export all public functions for backward compatibility
 __all__ = [
     # Constants
     "ARC_COLOR_PALETTE",
     "AnalysisConfig",
-    # Async logging
-    "AsyncLogger",
-    "AsyncLoggerConfig",
-    "AsyncLoggerContext",
-
-    "CompressedStorage",
     # Configuration management
     "EpisodeAnalysisTools",
     # Episode management
     "EpisodeConfig",
     "EpisodeManager",
     "EpisodeReplaySystem",
-    "EpisodeSummaryData",
     "FailureModeAnalysis",
-    "GarbageCollectionOptimizer",
-
-    "LazyLoader",
-    "LogEntry",
-    "MemoryManager",
-    "MemoryUsageMonitor",
     "PerformanceMetrics",
     # Replay and analysis functionality
     "ReplayConfig",
     "ReplayValidationResult",
-    "StepVisualizationData",
-    "VisualizationCache",
-    # Visualization system
-    "VisualizationConfig",
-    "Visualizer",
     # Wandb integration
     "WandbConfig",
     "WandbIntegration",
-    # Wandb sync utilities
-    "WandbSyncManager",
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
     "_extract_grid_data",
-    "check_wandb_status",
     "create_development_wandb_config",
-    "create_lazy_visualization_loader",
     "create_research_wandb_config",
-    "create_sync_manager",
     "create_wandb_config",
     "draw_grid_svg",
     "draw_parsed_task_data_svg",
     # RL visualization functions
     "draw_rl_step_svg",
     "draw_task_pair_svg",
-
-    "get_memory_manager",
-    # JAX integration and performance optimization
+    # JAX integration
     "jax_debug_callback",
     "jax_log_grid",
     # Core visualization functions
     "log_grid_to_console",
-    "optimize_array_memory",
-    "print_callback_performance_report",
-    "reset_callback_performance_stats",
     "save_rl_step_visualization",
     # Utility functions
     "save_svg_drawing",
-    "serialize_action",
-    "serialize_arc_state",
-    "serialize_jax_array",
     "setup_matplotlib_style",
-    "sync_offline_wandb_data",
     "visualize_grid_rich",
     "visualize_parsed_task_data_rich",
     # Task visualization functions

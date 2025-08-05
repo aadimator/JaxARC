@@ -7,13 +7,7 @@ performance monitoring, and storage management.
 from __future__ import annotations
 
 from .file_handler import FileHandler
-from .performance_monitor import (
-    PerformanceConfig,
-    PerformanceMonitor,
-    PerformanceSample,
-    monitor_performance,
-    monitor_visualization_impact,
-)
+# Performance monitoring removed - use standard profiling tools instead
 from .structured_logger import (
     EpisodeLogEntry,
     LoggingConfig,
@@ -24,10 +18,5 @@ __all__ = [
     "EpisodeLogEntry",
     "FileHandler",
     "LoggingConfig",
-    "PerformanceConfig",
-    "PerformanceMonitor",
-    "PerformanceSample",
     "StepLogEntry",
-    "monitor_performance",
-    "monitor_visualization_impact",
 ]
