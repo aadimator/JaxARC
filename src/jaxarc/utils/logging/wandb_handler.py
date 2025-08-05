@@ -97,6 +97,44 @@ class WandbHandler:
             logger.warning(f"wandb initialization failed: {e}")
             self.run = None
     
+    def log_task_start(self, task_data: Dict[str, Any]) -> None:
+        """Log task information to wandb.
+        
+        Args:
+            task_data: Dictionary containing task information including:
+                - show_test: Whether to show test examples (not used by WandbHandler)
+        """
+        if self.run is None:
+            return
+        
+        try:
+            # Log task metadata
+            task_metrics = {}
+            
+            # Basic task information
+            if 'task_id' in task_data:
+                task_metrics['task_id'] = task_data['task_id']
+            if 'num_train_pairs' in task_data:
+                task_metrics['task_num_train_pairs'] = task_data['num_train_pairs']
+            if 'num_test_pairs' in task_data:
+                task_metrics['task_num_test_pairs'] = task_data['num_test_pairs']
+            
+            # Task statistics if available
+            task_stats = task_data.get('task_stats', {})
+            for key, value in task_stats.items():
+                if isinstance(value, (int, float, bool)):
+                    task_metrics[f'task_stat_{key}'] = value
+            
+            # Log task metrics
+            if task_metrics:
+                self.run.log(task_metrics)
+            
+            logger.debug(f"Logged task start to wandb: {task_data.get('task_id', 'unknown')}")
+            
+        except Exception as e:
+            # Simple error handling - just print and continue
+            logger.warning(f"wandb task logging failed: {e}")
+
     def log_step(self, step_data: Dict[str, Any]) -> None:
         """Log step metrics to wandb.
         

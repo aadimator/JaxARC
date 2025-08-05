@@ -6,7 +6,7 @@ using the Rich library for enhanced formatting and styling.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import jax.numpy as jnp
 import numpy as np
@@ -19,12 +19,14 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from jaxarc.utils.serialization_utils import serialize_jax_array
+from jaxarc.utils.task_manager import extract_task_id_from_index
+
 from .constants import ARC_COLOR_PALETTE
 from .utils import _extract_grid_data, _extract_valid_region
 
 if TYPE_CHECKING:
     from jaxarc.types import Grid, JaxArcTask
-    from jaxarc.utils.task_manager import extract_task_id_from_index
 
 
 def _get_panel_border_style(border_style: str) -> str:
@@ -311,8 +313,6 @@ def visualize_parsed_task_data_rich(
         show_numbers: If True, show colored numbers; if False, show colored blocks
         double_width: If True and show_numbers=False, use double-width blocks for square appearance
     """
-    from jaxarc.utils.task_manager import extract_task_id_from_index
-
     console = Console()
     terminal_width = console.size.width
 

@@ -37,6 +37,30 @@ class RichHandler:
         """Initialize Rich console with configuration."""
         return Console()
     
+    def log_task_start(self, task_data: Dict[str, Any]) -> None:
+        """Display task information to console.
+        
+        Args:
+            task_data: Dictionary containing task information including:
+                - task_id: Task identifier
+                - task_object: The JaxArcTask object
+                - episode_num: Episode number
+                - num_train_pairs: Number of training pairs
+                - num_test_pairs: Number of test pairs
+                - show_test: Whether to show test examples (default: True)
+        """
+        # Get debug level
+        if hasattr(self.config, 'environment') and hasattr(self.config.environment, 'debug_level'):
+            debug_level = self.config.environment.debug_level
+        elif hasattr(self.config, 'debug_level'):
+            debug_level = self.config.debug_level
+        else:
+            debug_level = "standard"
+        
+        # Display task info for standard and above debug levels
+        if debug_level in ["standard", "verbose", "research"]:
+            self._display_task_info(task_data)
+
     def log_step(self, step_data: Dict[str, Any]) -> None:
         """Display step information to console.
         
@@ -141,6 +165,57 @@ class RichHandler:
         if action is not None:
             self.console.print(f"[bold]Action:[/bold] {action}")
     
+    def _display_task_info(self, task_data: Dict[str, Any]) -> None:
+        """Display task information using Rich formatting.
+        
+        Args:
+            task_data: Task data dictionary
+        """
+        from rich.panel import Panel
+        from rich.text import Text
+        
+        task_id = task_data.get('task_id', 'Unknown')
+        episode_num = task_data.get('episode_num', 0)
+        num_train_pairs = task_data.get('num_train_pairs', 0)
+        num_test_pairs = task_data.get('num_test_pairs', 0)
+        
+        # Create task info text
+        task_info = Text(justify="center")
+        task_info.append("Training Examples: ", style="bold")
+        task_info.append(str(num_train_pairs), style="green")
+        task_info.append("  ")
+        task_info.append("Test Examples: ", style="bold")
+        task_info.append(str(num_test_pairs), style="blue")
+        
+        # Create panel with task information
+        panel = Panel(
+            task_info,
+            title=f"Episode {episode_num} - Task: {task_id}",
+            title_align="left",
+            border_style="bright_blue",
+            padding=(0, 1),
+        )
+        
+        self.console.print(panel)
+        
+        # Try to display task visualization if task object is available
+        task_object = task_data.get('task_object')
+        show_test = task_data.get('show_test', True)
+        
+        if task_object is not None:
+            try:
+                # Import here to avoid circular imports
+                from ..visualization.rich_display import visualize_parsed_task_data_rich
+                
+                # Display task with configurable test examples
+                self.console.print("\n[bold cyan]Task Examples:[/bold cyan]")
+                visualize_parsed_task_data_rich(task_object, show_test=show_test)
+                
+            except Exception as e:
+                # Gracefully handle visualization errors
+                logger.debug(f"Could not display task visualization: {e}")
+                self.console.print(f"[dim]Task visualization unavailable[/dim]")
+
     def _display_episode_summary(self, summary_data: Dict[str, Any]) -> None:
         """Display episode summary using Rich formatting.
         

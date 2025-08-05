@@ -355,6 +355,24 @@ def run_rl_loop(
         if 'svg' in experiment_logger.handlers:
             experiment_logger.handlers['svg'].start_episode(episode_idx)
 
+        # Log task information at episode start
+        task_stats = {
+            'max_grid_height': config.dataset.max_grid_height,
+            'max_grid_width': config.dataset.max_grid_width,
+            'task_complexity': task.num_train_pairs + task.num_test_pairs,
+        }
+        
+        task_data_for_logging = {
+            'task_id': task_id,
+            'task_object': task,
+            'episode_num': episode_idx,
+            'num_train_pairs': task.num_train_pairs,
+            'num_test_pairs': task.num_test_pairs,
+            'task_stats': task_stats,
+        }
+        
+        experiment_logger.log_task_start(task_data_for_logging, show_test=True)
+
         # Debug: Show allowed operations for this episode
         allowed_mask = action_controller.get_allowed_operations(state, config.action)
         allowed_ops = [i for i in range(len(allowed_mask)) if allowed_mask[i]]

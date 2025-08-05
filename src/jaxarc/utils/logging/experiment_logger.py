@@ -218,6 +218,34 @@ class ExperimentLogger:
                 # Log error but continue with other handlers
                 logger.warning(f"Handler {handler_name} failed in log_step: {e}")
     
+    def log_task_start(self, task_data: Dict[str, Any], show_test: bool = True) -> None:
+        """Log task information when an episode starts.
+        
+        This method calls the log_task_start method on all active handlers,
+        with error isolation to ensure that failures in one handler
+        don't affect others.
+        
+        Args:
+            task_data: Dictionary containing task information with keys:
+                - task_id: Task identifier
+                - task_object: The JaxArcTask object
+                - episode_num: Episode number
+                - num_train_pairs: Number of training pairs
+                - num_test_pairs: Number of test pairs
+                - task_stats: Additional task statistics
+            show_test: Whether to show test examples in visualizations (default: True)
+        """
+        # Add show_test parameter to task_data for handlers
+        enhanced_task_data = {**task_data, 'show_test': show_test}
+        
+        for handler_name, handler in self.handlers.items():
+            try:
+                if hasattr(handler, 'log_task_start'):
+                    handler.log_task_start(enhanced_task_data)
+            except Exception as e:
+                # Log error but continue with other handlers
+                logger.warning(f"Handler {handler_name} failed in log_task_start: {e}")
+
     def log_episode_summary(self, summary_data: Dict[str, Any]) -> None:
         """Log episode summary through all active handlers.
         
