@@ -41,10 +41,10 @@ from typing import Any, Dict
 
 import equinox as eqx
 import jax.numpy as jnp
+from jaxtyping import Array, Bool, Int
 
 from .types import JaxArcTask
 from .utils.jax_types import (
-    ACTION_RECORD_FIELDS,
     DEFAULT_MAX_TEST_PAIRS,
     DEFAULT_MAX_TRAIN_PAIRS,
     MAX_HISTORY_LENGTH,
@@ -66,7 +66,6 @@ from .utils.jax_types import (
     TrainCompletionStatus,
 )
 from .utils.serialization_utils import extract_task_id_from_index
-from jaxtyping import Array, Bool, Int
 
 
 class ArcEnvState(eqx.Module):

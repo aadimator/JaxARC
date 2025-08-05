@@ -6,12 +6,14 @@ including data extraction, grid processing, and common utilities.
 
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import jax.numpy as jnp
 import numpy as np
 
-from .constants import ARC_COLOR_PALETTE
+from jaxarc.utils.serialization_utils import serialize_jax_array
 
 if TYPE_CHECKING:
     from jaxarc.types import Grid
@@ -32,7 +34,7 @@ def _extract_grid_data(
     Raises:
         ValueError: If input type is not supported
     """
-    from ..serialization_utils import serialize_jax_array
+
     
     # Check for Grid type by duck typing (more robust than isinstance)
     if hasattr(grid_input, 'data') and hasattr(grid_input, 'mask'):
@@ -177,9 +179,6 @@ def infer_fill_color_from_grids(
 
 def _clear_output_directory(output_dir: str) -> None:
     """Clear output directory for new episode."""
-    import shutil
-    from pathlib import Path
-
     output_path = Path(output_dir)
     if output_path.exists():
         shutil.rmtree(output_path)

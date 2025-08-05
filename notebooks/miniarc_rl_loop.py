@@ -61,16 +61,7 @@ from jaxarc.parsers import MiniArcParser
 from jaxarc.state import ArcEnvState
 from jaxarc.types import Grid
 from jaxarc.utils.config import get_config
-from jaxarc.utils.visualization import (
-    EpisodeConfig,
-    EpisodeManager,
-    EpisodeSummaryData,
-    StepVisualizationData,
-    VisualizationConfig,
-    Visualizer,
-    WandbConfig,
-    WandbIntegration,
-)
+from jaxarc.utils.logging import ExperimentLogger
 
 console = Console()
 
@@ -160,59 +151,43 @@ def setup_batched_configuration() -> DictConfig:
 
 
 # %% [markdown]
-# ## 2. Visualization and Logging Setup
+# ## 2. Experiment Logger Setup
 #
-# We'll initialize the `Visualizer` for saving step-by-step visual logs of the agent's behavior and the `WandbIntegration` for comprehensive experiment tracking. For this demo, wandb will run in offline mode.
+# We'll initialize the new `ExperimentLogger` which manages all logging concerns through focused handlers. This replaces the old complex `Visualizer` and `WandbIntegration` system with a simpler, more maintainable approach.
 
 
 # %%
-def setup_visualization_and_logging() -> tuple[Visualizer, WandbIntegration]:
+def setup_experiment_logger(config: JaxArcConfig) -> ExperimentLogger:
     """
-    Initializes the visualization, logging, and wandb integration components.
+    Initializes the experiment logger with all handlers.
+
+    Args:
+        config: JaxARC configuration object
 
     Returns:
-        Tuple[Visualizer, WandbIntegration]: The initialized visualizer and wandb integration objects.
+        ExperimentLogger: The initialized experiment logger
     """
-    logger.info("Setting up visualization and logging...")
+    logger.info("Setting up experiment logger...")
 
-    # --- Enhanced Visualizer Setup ---
-    vis_config = VisualizationConfig(
-        debug_level="full",  # Log every step
-        output_formats=["svg"],
-        image_quality="high",
-    )
+    # Create the experiment logger - it will automatically initialize
+    # the appropriate handlers based on the configuration
+    experiment_logger = ExperimentLogger(config)
 
-    # Correctly create an EpisodeConfig object
-    episode_config = EpisodeConfig(
-        base_output_dir="outputs/rl_loop_random_agent_bbox",
-        run_name=f"run_{int(time.time())}",
-    )
-    # Correctly pass the config object to the EpisodeManager
-    episode_manager = EpisodeManager(config=episode_config)
-
-    # Correctly pass vis_config as the 'config' argument to Visualizer
-    visualizer = Visualizer(config=vis_config, episode_manager=episode_manager)
-
-    # --- Wandb Integration Setup ---
-    wandb_config = WandbConfig(
-        enabled=False,
-        project_name="jaxarc-benchmarks",
-        offline_mode=False,  # Use offline mode for this demo
-        tags=["random-agent", "miniarc", "bbox-actions"],
-    )
-
-    wandb_integration = WandbIntegration(wandb_config)
-
+    # Get handler info for display
+    handler_names = list(experiment_logger.handlers.keys())
+    
     console.print(
         Panel(
-            f"Project: {wandb_config.project_name}\n"
-            f"Offline Mode: {wandb_config.offline_mode}",
-            title="Wandb Integration",
+            f"[bold green]Experiment Logger Initialized[/bold green]\n\n"
+            f"Active Handlers: {', '.join(handler_names) if handler_names else 'None'}\n"
+            f"Debug Level: {getattr(config.environment, 'debug_level', 'standard')}\n"
+            f"Wandb Enabled: {config.wandb.enabled}",
+            title="Experiment Logger",
             border_style="magenta",
         )
     )
 
-    return visualizer, wandb_integration
+    return experiment_logger
 
 
 # %% [markdown]
@@ -316,8 +291,7 @@ class RandomAgent:
 # %%
 def run_rl_loop(
     hydra_config: DictConfig,
-    visualizer: Visualizer,
-    wandb_integration: WandbIntegration,
+    experiment_logger: ExperimentLogger,
     num_episodes: int = 5,
     max_steps_per_episode: int = 20,
 ):
@@ -326,8 +300,7 @@ def run_rl_loop(
 
     Args:
         hydra_config (DictConfig): The environment configuration from Hydra.
-        visualizer (Visualizer): The visualization utility.
-        wandb_integration (WandbIntegration): The wandb utility.
+        experiment_logger (ExperimentLogger): The experiment logger for all logging.
         num_episodes (int): The number of episodes to run.
         max_steps_per_episode (int): The maximum number of steps per episode.
     """
@@ -348,15 +321,9 @@ def run_rl_loop(
         action_controller=action_controller,
     )
 
-    # --- Wandb Initialization ---
-    experiment_config = {
-        "agent": "RandomAgent",
-        "dataset": config.dataset.dataset_name,
-        "action_format": config.action.selection_format,
-        "num_episodes": num_episodes,
-        "max_steps": max_steps_per_episode,
-    }
-    wandb_integration.initialize_run(experiment_config=experiment_config)
+    # --- Start Logging Run ---
+    # The experiment logger handles run initialization automatically
+    # through its handlers based on configuration
 
     # --- Main Loop ---
     key = jr.PRNGKey(42)
@@ -366,9 +333,11 @@ def run_rl_loop(
     task_id_index = jr.randint(task_key, shape=(), minval=0, maxval=len(training_tasks))
     task_id = training_tasks[int(task_id_index)]
     task = parser.get_task_by_id(task_id)
+    logger.info(f"Selected Task ID: {task.get_task_id()} with {task.num_train_pairs} training pairs")
 
     # Start a new run for the entire experiment
-    visualizer.episode_manager.start_new_run()
+    if 'svg' in experiment_logger.handlers:
+        experiment_logger.handlers['svg'].start_run(f"random_agent_run_{int(time.time())}")
 
     for episode_idx in range(num_episodes):
         console.rule(f"[bold cyan]Episode {episode_idx + 1}/{num_episodes}")
@@ -382,14 +351,9 @@ def run_rl_loop(
         # Initialize the agent
         agent_state = agent.init_agent(agent_key)
 
-        # Start visualization for the episode with task visualization
-        visualizer.start_episode_with_task(
-            episode_num=episode_idx,
-            task_data=task,
-            task_id=task_id,
-            current_pair_index=0,  # Assuming we start with the first pair
-            episode_mode="train",
-        )
+        # Start episode logging
+        if 'svg' in experiment_logger.handlers:
+            experiment_logger.handlers['svg'].start_episode(episode_idx)
 
         # Debug: Show allowed operations for this episode
         allowed_mask = action_controller.get_allowed_operations(state, config.action)
@@ -452,46 +416,36 @@ def run_rl_loop(
                 k: np.asarray(v) if hasattr(v, "shape") else v for k, v in info.items()
             }
 
-            # --- Logging and Visualization ---
-            step_metrics = {
+            # --- Prepare step data for new logging system ---
+            step_data = {
+                "step_num": step_num,
+                "episode_num": episode_idx,
+                "before_state": state_before,
+                "after_state": state,
+                "action": action_log,
                 "reward": float(reward),
-                "total_reward": float(total_reward),
-                "similarity": float(info_log.get("similarity", 0.0)),
-                "episode": episode_idx,
-                "operation": int(action.operation),
+                "info": {
+                    **info_log,
+                    "metrics": {  # Metrics for wandb handler
+                        "reward": float(reward),
+                        "total_reward": float(total_reward),
+                        "similarity": float(info_log.get("similarity", 0.0)),
+                        "episode": episode_idx,
+                        "operation": int(action.operation),
+                    }
+                },
+                "task_id": task_id,
+                "task_pair_index": 0,
+                "total_task_pairs": task.num_train_pairs,
             }
 
-            # Log to wandb
-            wandb_integration.log_step(
-                step_num=episode_idx * max_steps_per_episode + step_num,
-                metrics=step_metrics,
-            )
-
-            # Create StepVisualizationData object and log to visualizer
+            # Log step through experiment logger
             try:
-                before_grid = Grid(
-                    data=state_before.working_grid, mask=state_before.working_grid_mask
-                )
-
-                after_grid = Grid(data=state.working_grid, mask=state.working_grid_mask)
-
-                step_data = StepVisualizationData(
-                    step_num=step_num,
-                    before_grid=before_grid,
-                    after_grid=after_grid,
-                    action=action_log,
-                    reward=float(reward),
-                    info=info_log,
-                    task_id=task_id,
-                    task_pair_index=0,  # Assuming we're working with the first pair
-                    total_task_pairs=task.num_train_pairs,
-                )
-                visualizer.visualize_step(step_data)
+                experiment_logger.log_step(step_data)
             except Exception as e:
-                logger.warning(f"Visualization step failed: {e}")
+                logger.warning(f"Step logging failed: {e}")
                 import traceback
-
-                logger.debug(f"Visualization error details: {traceback.format_exc()}")
+                logger.debug(f"Step logging error details: {traceback.format_exc()}")
 
             logger.info(
                 f"  Step {step_num}: Op={action_log['operation']}, Reward={reward:.3f}, Similarity={info_log.get('similarity', 0.0):.3f}"
@@ -502,30 +456,26 @@ def run_rl_loop(
                 break
 
         # --- Episode Summary ---
-        summary_data = EpisodeSummaryData(
-            episode_num=episode_idx,
-            total_steps=int(state.step_count),
-            total_reward=float(total_reward),
-            reward_progression=reward_progression,
-            similarity_progression=similarity_progression,
-            final_similarity=float(state.similarity_score),
-            task_id=task_id,
-            success=float(state.similarity_score) >= 0.99,
-        )
+        summary_data = {
+            "episode_num": episode_idx,
+            "total_steps": int(state.step_count),
+            "total_reward": float(total_reward),
+            "reward_progression": reward_progression,
+            "similarity_progression": similarity_progression,
+            "final_similarity": float(state.similarity_score),
+            "task_id": task_id,
+            "success": float(state.similarity_score) >= 0.99,
+            "key_moments": [],
+        }
 
-        visualizer.visualize_episode_summary(summary_data)
-        wandb_integration.log_episode_summary(
-            episode_idx,
-            {
-                "episode_reward": summary_data.total_reward,
-                "episode_steps": summary_data.total_steps,
-                "final_similarity": summary_data.final_similarity,
-                "success": summary_data.success,
-            },
-        )
+        # Log episode summary through experiment logger
+        try:
+            experiment_logger.log_episode_summary(summary_data)
+        except Exception as e:
+            logger.warning(f"Episode summary logging failed: {e}")
 
     # --- Cleanup ---
-    wandb_integration.finish_run()
+    experiment_logger.close()
     logger.info("RL Loop finished.")
 
 
@@ -812,12 +762,12 @@ def main():
         # Run single-agent RL loop
         console.print("\n[bold cyan]Running Single-Agent RL Loop...[/bold cyan]")
         try:
-            config = setup_configuration()
-            visualizer, wandb_integration = setup_visualization_and_logging()
+            hydra_config = setup_configuration()
+            typed_config = JaxArcConfig.from_hydra(hydra_config)
+            experiment_logger = setup_experiment_logger(typed_config)
             run_rl_loop(
-                config,
-                visualizer,
-                wandb_integration,
+                hydra_config,
+                experiment_logger,
                 num_episodes=5,
                 max_steps_per_episode=30,
             )
@@ -851,14 +801,22 @@ if __name__ == "__main__":
 # %% [markdown]
 # ## Summary
 #
-# This notebook demonstrates the complete JaxARC ecosystem with both single-agent and batched environment capabilities:
+# This notebook demonstrates the complete JaxARC ecosystem with both single-agent and batched environment capabilities, now using the new simplified logging architecture:
 #
 # ### Key Features Demonstrated:
-# 1. **Modern API Usage**: Updated to use the latest structured actions and configuration system
-# 2. **Single-Agent RL**: Complete RL loop with visualization and logging
-# 3. **Batched Environments**: Massive parallelization with 1000+ environments
-# 4. **Mixed Initialization**: Diverse grid initialization strategies for enhanced training
-# 5. **Performance Optimization**: JAX vectorization for efficient batch processing
+# 1. **New Logging System**: Uses the simplified `ExperimentLogger` with focused handlers
+# 2. **Structured Actions**: Using the new structured action system with BboxAction
+# 3. **Single-Agent RL**: Complete RL loop with SVG visualization and wandb integration
+# 4. **Batched Environments**: Massive parallelization with 1000+ environments
+# 5. **Mixed Initialization**: Diverse grid initialization strategies for enhanced training
+# 6. **Performance Optimization**: JAX vectorization for efficient batch processing
+#
+# ### New Logging Architecture Benefits:
+# - **Simplified Design**: Single `ExperimentLogger` replaces complex `Visualizer` orchestration
+# - **Handler-Based**: Focused handlers for file, SVG, console, and wandb logging
+# - **Error Isolation**: Handler failures don't affect other logging components
+# - **Configuration-Driven**: Handlers automatically enabled based on config settings
+# - **Graceful Degradation**: System continues working even if some handlers fail
 #
 # ### Performance Benefits:
 # - **Vectorized Operations**: JAX's `vmap` enables efficient batch processing
@@ -871,7 +829,8 @@ if __name__ == "__main__":
 # - Implement PPO or other RL algorithms using PureJaxRL
 # - Experiment with different initialization strategies and reward functions
 # - Scale up to even larger batch sizes for distributed training
+# - Add custom metrics to the `info['metrics']` dictionary for automatic wandb logging
 #
-# This notebook serves as a solid foundation for developing sophisticated RL agents on ARC tasks!
+# This notebook serves as a complete demo of the new logging system and a solid foundation for developing sophisticated RL agents on ARC tasks!
 
 # %%

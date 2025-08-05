@@ -7,12 +7,13 @@ JSON-serializable formats.
 
 from __future__ import annotations
 
-import time
-from typing import Any, Dict
+from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
 from loguru import logger
+
+from .task_manager import get_global_task_manager
 
 
 def serialize_jax_array(arr: jnp.ndarray | np.ndarray) -> np.ndarray:
@@ -192,9 +193,8 @@ def extract_task_id_from_index(task_index: int) -> str:
         Task ID string or fallback identifier
     """
     try:
-        from .task_manager import get_global_task_manager
         task_manager = get_global_task_manager()
         return task_manager.get_task_id(task_index)
-    except Exception as e:
+    except Exception:
         logger.warning(f"Task index {task_index} not found in global task manager")
         return f"task_{task_index}"

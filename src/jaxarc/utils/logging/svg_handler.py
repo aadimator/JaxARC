@@ -7,21 +7,21 @@ the simplified logging architecture.
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 from loguru import logger
 
-from ..visualization.episode_manager import EpisodeManager
+from ...types import Grid
+from ..serialization_utils import serialize_jax_array
+from ..visualization.episode_manager import EpisodeConfig, EpisodeManager
+from ..visualization.episode_visualization import draw_enhanced_episode_summary_svg
 from ..visualization.rl_visualization import (
     draw_rl_step_svg_enhanced,
     get_operation_display_name,
 )
-from ..visualization.episode_visualization import draw_enhanced_episode_summary_svg
 from ..visualization.utils import detect_changed_cells
-from ...types import Grid
 
 
 class SVGHandler:
@@ -44,7 +44,6 @@ class SVGHandler:
         
         # Initialize episode manager for file path management
         # Create episode config from storage config
-        from ..visualization.episode_manager import EpisodeConfig
         episode_config = EpisodeConfig(
             base_output_dir=getattr(config.storage, 'base_output_dir', 'outputs'),
             run_name=getattr(config.storage, 'run_name', None),
@@ -56,12 +55,12 @@ class SVGHandler:
         self.episode_manager = EpisodeManager(episode_config)
         
         # Track current episode for file management
-        self.current_episode_num: Optional[int] = None
+        self.current_episode_num: int | None = None
         self.current_run_started = False
         
         logger.debug("SVGHandler initialized")
     
-    def start_run(self, run_name: Optional[str] = None) -> None:
+    def start_run(self, run_name: str | None = None) -> None:
         """Start a new run for SVG generation.
         
         Args:
@@ -90,7 +89,7 @@ class SVGHandler:
         except Exception as e:
             logger.error(f"Failed to start SVG episode {episode_num}: {e}")
     
-    def log_step(self, step_data: Dict[str, Any]) -> None:
+    def log_step(self, step_data: dict[str, Any]) -> None:
         """Generate and save step visualization.
         
         Args:
@@ -172,7 +171,7 @@ class SVGHandler:
             svg_path = self.episode_manager.get_step_path(step_num, "svg")
             svg_path.parent.mkdir(parents=True, exist_ok=True)
             
-            with open(svg_path, 'w', encoding='utf-8') as f:
+            with Path.open(svg_path, 'w', encoding='utf-8') as f:
                 f.write(svg_content)
             
             logger.debug(f"Saved step {step_num} SVG to {svg_path}")
@@ -180,7 +179,7 @@ class SVGHandler:
         except Exception as e:
             logger.error(f"Failed to generate step {step_data.get('step_num', 'unknown')} SVG: {e}")
     
-    def log_episode_summary(self, summary_data: Dict[str, Any]) -> None:
+    def log_episode_summary(self, summary_data: dict[str, Any]) -> None:
         """Generate and save episode summary visualization.
         
         Args:
@@ -226,7 +225,7 @@ class SVGHandler:
             summary_path = self.episode_manager.get_episode_summary_path("svg")
             summary_path.parent.mkdir(parents=True, exist_ok=True)
             
-            with open(summary_path, 'w', encoding='utf-8') as f:
+            with Path.open(summary_path, 'w', encoding='utf-8') as f:
                 f.write(svg_content)
             
             logger.debug(f"Saved episode {episode_num} summary SVG to {summary_path}")
@@ -295,7 +294,7 @@ class SVGHandler:
         except Exception:
             return True
     
-    def _extract_grid_from_state(self, state: Any) -> Optional[Grid]:
+    def _extract_grid_from_state(self, state: Any) -> Grid | None:
         """Extract Grid object from environment state.
         
         Args:
@@ -352,7 +351,7 @@ class SVGHandler:
             logger.error(f"Failed to extract operation ID: {e}")
             return 0
     
-    def _filter_info_for_visualization(self, info: Dict[str, Any]) -> Dict[str, Any]:
+    def _filter_info_for_visualization(self, info: dict[str, Any]) -> dict[str, Any]:
         """Filter info dictionary to only include keys relevant for visualization.
         
         This method makes SVGHandler ignore unknown keys gracefully by only
@@ -380,7 +379,7 @@ class SVGHandler:
         
         return filtered_info
     
-    def get_current_run_info(self) -> Dict[str, Any]:
+    def get_current_run_info(self) -> dict[str, Any]:
         """Get information about the current run.
         
         Returns:
