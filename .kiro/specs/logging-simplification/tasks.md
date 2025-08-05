@@ -64,7 +64,7 @@
   - Write integration tests for JAX compatibility
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [-] 9. Establish info dictionary conventions
+- [x] 9. Establish info dictionary conventions
   - Update functional.py to structure info dictionary with info['metrics'] for scalar data
   - Modify handlers to extract metrics from info['metrics'] automatically
   - Ensure FileHandler serializes entire info dictionary using existing serialization utils

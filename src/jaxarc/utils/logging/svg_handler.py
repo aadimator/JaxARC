@@ -148,13 +148,17 @@ class SVGHandler:
             task_pair_index = step_data.get('task_pair_index', 0)
             total_task_pairs = step_data.get('total_task_pairs', 1)
             
+            # Filter info dictionary to only include known visualization keys
+            # This makes SVGHandler ignore unknown keys gracefully
+            filtered_info = self._filter_info_for_visualization(info)
+            
             # Generate SVG content
             svg_content = draw_rl_step_svg_enhanced(
                 before_grid=before_grid,
                 after_grid=after_grid,
                 action=action,
                 reward=reward,
-                info=info,
+                info=filtered_info,
                 step_num=step_num,
                 operation_name=operation_name,
                 changed_cells=changed_cells,
@@ -347,6 +351,34 @@ class SVGHandler:
         except Exception as e:
             logger.error(f"Failed to extract operation ID: {e}")
             return 0
+    
+    def _filter_info_for_visualization(self, info: Dict[str, Any]) -> Dict[str, Any]:
+        """Filter info dictionary to only include keys relevant for visualization.
+        
+        This method makes SVGHandler ignore unknown keys gracefully by only
+        passing through keys that are known to be used by the visualization functions.
+        
+        Args:
+            info: Original info dictionary
+            
+        Returns:
+            Filtered info dictionary with only visualization-relevant keys
+        """
+        # Known keys used by visualization functions
+        known_viz_keys = {
+            'success', 'similarity', 'similarity_improvement', 'step_count',
+            'is_control_operation', 'operation_type', 'episode_mode',
+            'current_pair_index', 'metrics'  # Include metrics for potential future use
+        }
+        
+        # Filter to only include known keys, gracefully ignoring unknown ones
+        filtered_info = {}
+        for key, value in info.items():
+            if key in known_viz_keys:
+                filtered_info[key] = value
+            # Unknown keys are silently ignored (graceful handling)
+        
+        return filtered_info
     
     def get_current_run_info(self) -> Dict[str, Any]:
         """Get information about the current run.

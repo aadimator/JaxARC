@@ -116,14 +116,25 @@ class RichHandler:
                 )
                 self.console.print(grid_table)
         
-        # Display metrics if available
-        if 'metrics' in info:
+        # Display metrics if available (automatic extraction from info['metrics'])
+        if 'metrics' in info and isinstance(info['metrics'], dict):
             self.console.print("[bold]Metrics:[/bold]")
             for key, value in info['metrics'].items():
                 if isinstance(value, (int, float)):
                     self.console.print(f"  {key}: {value:.3f}")
                 else:
                     self.console.print(f"  {key}: {value}")
+        
+        # Display other known info keys, gracefully ignoring unknown ones
+        known_display_keys = {'success', 'similarity_improvement', 'is_control_operation'}
+        for key in known_display_keys:
+            if key in info:
+                value = info[key]
+                if isinstance(value, (int, float)):
+                    self.console.print(f"[bold]{key}:[/bold] {value:.3f}")
+                else:
+                    self.console.print(f"[bold]{key}:[/bold] {value}")
+        # Unknown keys in info are silently ignored (graceful handling)
         
         # Display action information if available
         action = step_data.get('action')

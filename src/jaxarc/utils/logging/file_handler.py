@@ -218,24 +218,29 @@ class FileHandler:
             }
     
     def _serialize_info_dict(self, info: Dict[str, Any]) -> Dict[str, Any]:
-        """Serialize info dictionary, preserving metrics structure.
+        """Serialize info dictionary, preserving metrics structure for automatic extraction.
+        
+        This method ensures that the entire info dictionary is serialized while
+        maintaining the special structure of info['metrics'] for automatic metric
+        extraction by other handlers.
         
         Args:
-            info: Info dictionary from step data
+            info: Info dictionary from step data containing metrics and other data
             
         Returns:
-            Serialized info dictionary
+            Serialized info dictionary with preserved metrics structure
         """
         if not isinstance(info, dict):
             return {'serialized_value': str(info)}
         
         serialized = {}
         
-        # Preserve metrics structure for wandb integration
+        # Preserve metrics structure for automatic extraction by other handlers
         if 'metrics' in info:
+            # Serialize metrics dictionary while preserving structure
             serialized['metrics'] = serialize_object(info['metrics'])
         
-        # Serialize other info fields
+        # Serialize all other info fields (entire dictionary approach)
         for key, value in info.items():
             if key != 'metrics':  # Already handled above
                 serialized[key] = serialize_object(value)
