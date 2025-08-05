@@ -95,9 +95,19 @@ class ExperimentLogger:
         """
         handlers = {}
         
+        # Get debug level from environment config
+        debug_level = "off"
+        if hasattr(self.config, 'environment') and hasattr(self.config.environment, 'debug_level'):
+            debug_level = self.config.environment.debug_level
+        
+        # Early return if logging is completely disabled
+        if debug_level == "off":
+            logger.debug("Logging disabled (debug_level='off')")
+            return handlers
+        
         try:
             # File logging handler - enabled unless debug level is "off"
-            if hasattr(self.config, 'environment') and self.config.environment.debug_level != "off":
+            if debug_level != "off":
                 handlers['file'] = self._create_file_handler()
                 logger.debug("FileHandler initialized")
         except Exception as e:
@@ -105,8 +115,7 @@ class ExperimentLogger:
         
         try:
             # SVG visualization handler - enabled for standard and above debug levels
-            if (hasattr(self.config, 'environment') and 
-                self.config.environment.debug_level in ["standard", "verbose", "research"]):
+            if debug_level in ["standard", "verbose", "research"]:
                 handlers['svg'] = self._create_svg_handler()
                 logger.debug("SVGHandler initialized")
         except Exception as e:
@@ -114,7 +123,7 @@ class ExperimentLogger:
         
         try:
             # Console output handler - enabled unless debug level is "off"
-            if hasattr(self.config, 'environment') and self.config.environment.debug_level != "off":
+            if debug_level != "off":
                 handlers['rich'] = self._create_rich_handler()
                 logger.debug("RichHandler initialized")
         except Exception as e:
@@ -122,9 +131,10 @@ class ExperimentLogger:
         
         try:
             # Wandb integration handler - enabled if wandb config exists and is enabled
+            # Only initialize if explicitly enabled in config
             if (hasattr(self.config, 'wandb') and 
                 hasattr(self.config.wandb, 'enabled') and 
-                self.config.wandb.enabled):
+                self.config.wandb.enabled is True):
                 handlers['wandb'] = self._create_wandb_handler()
                 logger.debug("WandbHandler initialized")
         except Exception as e:
