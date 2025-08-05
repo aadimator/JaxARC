@@ -2,7 +2,7 @@
 /data
 outputs/
 # /.kiro/specs
-/wandb
+**/wandb/**
 /presentations
 /arcle
 
