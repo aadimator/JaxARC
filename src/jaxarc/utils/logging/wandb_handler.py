@@ -52,13 +52,37 @@ class WandbHandler:
                 os.environ["WANDB_MODE"] = "offline"
             
             # Simple wandb.init() call - let wandb handle offline mode and errors
+            # Convert config attributes to basic types to handle Mock objects in tests
+            project_name = str(getattr(self.config, 'project_name', 'jaxarc-test'))
+            entity = getattr(self.config, 'entity', None)
+            if entity is not None:
+                entity = str(entity)
+            
+            tags = getattr(self.config, 'tags', [])
+            if hasattr(tags, '__iter__') and not isinstance(tags, str):
+                tags = [str(tag) for tag in tags]
+            else:
+                tags = [str(tags)] if tags else []
+            
+            notes = getattr(self.config, 'notes', None)
+            if notes is not None:
+                notes = str(notes)
+                
+            group = getattr(self.config, 'group', None)
+            if group is not None:
+                group = str(group)
+                
+            job_type = getattr(self.config, 'job_type', None)
+            if job_type is not None:
+                job_type = str(job_type)
+            
             self.run = wandb.init(
-                project=self.config.project_name,
-                entity=getattr(self.config, 'entity', None),
-                tags=getattr(self.config, 'tags', []),
-                notes=getattr(self.config, 'notes', None),
-                group=getattr(self.config, 'group', None),
-                job_type=getattr(self.config, 'job_type', None),
+                project=project_name,
+                entity=entity,
+                tags=tags,
+                notes=notes,
+                group=group,
+                job_type=job_type,
                 save_code=getattr(self.config, 'save_code', True),
                 # Let wandb handle config saving automatically
             )
