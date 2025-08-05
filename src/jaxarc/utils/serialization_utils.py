@@ -182,19 +182,5 @@ def serialize_object(obj: Any) -> Any:
     return str(obj)
 
 
-# Task ID extraction utility (moved from existing code)
-def extract_task_id_from_index(task_index: int) -> str:
-    """Extract task ID from task index using global task manager.
-    
-    Args:
-        task_index: Task index to look up
-        
-    Returns:
-        Task ID string or fallback identifier
-    """
-    try:
-        task_manager = get_global_task_manager()
-        return task_manager.get_task_id(task_index)
-    except Exception:
-        logger.warning(f"Task index {task_index} not found in global task manager")
-        return f"task_{task_index}"
+# Note: extract_task_id_from_index has been moved to task_manager.py
+# Import it from there: from jaxarc.utils.task_manager import extract_task_id_from_index

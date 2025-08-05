@@ -277,61 +277,112 @@ class MaskAction(BaseAction):
 StructuredAction = Union[PointAction, BboxAction, MaskAction]
 
 
-def create_point_action(operation: int, row: int, col: int) -> PointAction:
+def create_point_action(operation, row, col) -> PointAction:
     """Create a point action with the given parameters.
     
+    This function supports both single and batched inputs. When batched inputs
+    are provided, all fields will have the same batch dimension.
+    
     Args:
-        operation: ARCLE operation ID (0-41)
-        row: Row coordinate
-        col: Column coordinate
+        operation: ARCLE operation ID (0-41). Can be int or JAX array.
+        row: Row coordinate. Can be int or JAX array.
+        col: Column coordinate. Can be int or JAX array.
         
     Returns:
-        PointAction instance
+        PointAction instance with consistent batch dimensions
     """
+    # Convert inputs to JAX arrays
+    operation_array = jnp.array(operation, dtype=jnp.int32)
+    row_array = jnp.array(row, dtype=jnp.int32)
+    col_array = jnp.array(col, dtype=jnp.int32)
+    
+    # Create action_type with the same shape as operation
+    # For point actions, action_type is always 0
+    if operation_array.shape == ():
+        # Scalar case
+        action_type_array = jnp.array(0, dtype=jnp.int32)
+    else:
+        # Batched case - create array of 0s with same shape as operation
+        action_type_array = jnp.zeros_like(operation_array, dtype=jnp.int32)
+    
     return PointAction(
-        operation=jnp.array(operation, dtype=jnp.int32),
-        action_type=jnp.array(0, dtype=jnp.int32),
-        row=jnp.array(row, dtype=jnp.int32),
-        col=jnp.array(col, dtype=jnp.int32)
+        operation=operation_array,
+        action_type=action_type_array,
+        row=row_array,
+        col=col_array
     )
 
 
-def create_bbox_action(operation: int, r1: int, c1: int, r2: int, c2: int) -> BboxAction:
+def create_bbox_action(operation, r1, c1, r2, c2) -> BboxAction:
     """Create a bounding box action with the given parameters.
     
+    This function supports both single and batched inputs. When batched inputs
+    are provided, all fields will have the same batch dimension.
+    
     Args:
-        operation: ARCLE operation ID (0-41)
-        r1: Top-left row coordinate
-        c1: Top-left column coordinate
-        r2: Bottom-right row coordinate
-        c2: Bottom-right column coordinate
+        operation: ARCLE operation ID (0-41). Can be int or JAX array.
+        r1: Top-left row coordinate. Can be int or JAX array.
+        c1: Top-left column coordinate. Can be int or JAX array.
+        r2: Bottom-right row coordinate. Can be int or JAX array.
+        c2: Bottom-right column coordinate. Can be int or JAX array.
         
     Returns:
-        BboxAction instance
+        BboxAction instance with consistent batch dimensions
     """
+    # Convert inputs to JAX arrays
+    operation_array = jnp.array(operation, dtype=jnp.int32)
+    r1_array = jnp.array(r1, dtype=jnp.int32)
+    c1_array = jnp.array(c1, dtype=jnp.int32)
+    r2_array = jnp.array(r2, dtype=jnp.int32)
+    c2_array = jnp.array(c2, dtype=jnp.int32)
+    
+    # Create action_type with the same shape as operation
+    # For bbox actions, action_type is always 1
+    if operation_array.shape == ():
+        # Scalar case
+        action_type_array = jnp.array(1, dtype=jnp.int32)
+    else:
+        # Batched case - create array of 1s with same shape as operation
+        action_type_array = jnp.ones_like(operation_array, dtype=jnp.int32)
+    
     return BboxAction(
-        operation=jnp.array(operation, dtype=jnp.int32),
-        action_type=jnp.array(1, dtype=jnp.int32),
-        r1=jnp.array(r1, dtype=jnp.int32),
-        c1=jnp.array(c1, dtype=jnp.int32),
-        r2=jnp.array(r2, dtype=jnp.int32),
-        c2=jnp.array(c2, dtype=jnp.int32)
+        operation=operation_array,
+        action_type=action_type_array,
+        r1=r1_array,
+        c1=c1_array,
+        r2=r2_array,
+        c2=c2_array
     )
 
 
-def create_mask_action(operation: int, selection: SelectionArray) -> MaskAction:
+def create_mask_action(operation, selection: SelectionArray) -> MaskAction:
     """Create a mask action with the given parameters.
     
+    This function supports both single and batched inputs. When batched inputs
+    are provided, all fields will have the same batch dimension.
+    
     Args:
-        operation: ARCLE operation ID (0-41)
+        operation: ARCLE operation ID (0-41). Can be int or JAX array.
         selection: Boolean mask indicating selected cells
         
     Returns:
-        MaskAction instance
+        MaskAction instance with consistent batch dimensions
     """
+    # Convert operation to JAX array
+    operation_array = jnp.array(operation, dtype=jnp.int32)
+    
+    # Create action_type with the same shape as operation
+    # For mask actions, action_type is always 2
+    if operation_array.shape == ():
+        # Scalar case
+        action_type_array = jnp.array(2, dtype=jnp.int32)
+    else:
+        # Batched case - create array of 2s with same shape as operation
+        action_type_array = jnp.full_like(operation_array, 2, dtype=jnp.int32)
+    
     return MaskAction(
-        operation=jnp.array(operation, dtype=jnp.int32),
-        action_type=jnp.array(2, dtype=jnp.int32),
+        operation=operation_array,
+        action_type=action_type_array,
         selection=selection
     )
 

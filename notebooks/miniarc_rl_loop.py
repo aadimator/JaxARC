@@ -435,7 +435,7 @@ def run_rl_loop(
                     }
                 },
                 "task_id": task_id,
-                "task_pair_index": 0,
+                "task_pair_index": state.current_example_idx,
                 "total_task_pairs": task.num_train_pairs,
             }
 
@@ -518,15 +518,10 @@ class BatchedRandomAgent:
         """Select actions for a batch of environments with proper operation selection.
 
         This method demonstrates the correct way to handle batched environments where
-        each environment may have different allowed operations. It uses JAX's vmap
-        to efficiently:
-        1. Get allowed operations for each environment in the batch
-        2. Select random valid operations for each environment individually
-        3. Generate random coordinates for bounding box actions
-        4. Create structured actions for the entire batch
+        each environment may have different allowed operations based on its current state.
 
         Args:
-            keys: PRNG keys for each environment [batch_size, 2]
+            keys: PRNG keys for each environment [batch_size, 2] (each key is shape (2,))
             states: Batch of environment states
             config: Environment configuration
 
@@ -536,26 +531,21 @@ class BatchedRandomAgent:
         batch_size = keys.shape[0]
 
         # Split keys for operations and coordinates
-        # keys has shape [batch_size, 2], we need to split each key
-        op_keys = keys[:, 0]  # [batch_size]
-        coord_keys = keys[:, 1]  # [batch_size]
-
+        op_keys = keys  # Use the same keys for both operations and coordinates
+        
         # Get allowed operations for each environment in the batch
-        # We need to vmap the get_allowed_operations function over the batch
         def get_allowed_ops_single(state):
             return self.action_controller.get_allowed_operations(state, config.action)
 
         # Vectorize over the batch dimension
         get_allowed_ops_batch = jax.vmap(get_allowed_ops_single)
-        allowed_masks = get_allowed_ops_batch(
-            states
-        )  # Shape: (batch_size, num_operations)
+        allowed_masks = get_allowed_ops_batch(states)  # Shape: (batch_size, num_operations)
 
-        # Select random operations for each environment from their allowed operations
-        def select_random_operation(op_key, allowed_mask):
-            # Extract the key properly - op_key should be a 2-element array
-            key = op_key
-
+        # Select random operations and coordinates for each environment
+        def select_action_single(key, allowed_mask):
+            # Split the key for operation selection and coordinate generation
+            op_key, coord_key = jr.split(key, 2)
+            
             # Get indices of allowed operations
             allowed_indices = jnp.where(
                 allowed_mask, size=allowed_mask.shape[0], fill_value=-1
@@ -563,46 +553,40 @@ class BatchedRandomAgent:
             # Count valid allowed operations (non-negative indices)
             num_allowed = jnp.sum(allowed_indices >= 0)
 
-            # If no operations are allowed, fallback to operation 0
-            # Otherwise, select randomly from allowed operations
+            # Select operation
             def select_from_allowed():
-                random_idx = jr.randint(key, shape=(), minval=0, maxval=num_allowed)
+                random_idx = jr.randint(op_key, shape=(), minval=0, maxval=num_allowed)
                 return allowed_indices[random_idx]
 
             def fallback_operation():
                 return jnp.array(0, dtype=jnp.int32)
 
-            return jax.lax.cond(
+            operation = jax.lax.cond(
                 num_allowed > 0, select_from_allowed, fallback_operation
             )
-
-        # Vectorize operation selection over the batch
-        select_ops_batch = jax.vmap(select_random_operation)
-        operations = select_ops_batch(op_keys, allowed_masks)
-
-        # Generate random bounding boxes for each environment with proper bounds
-        # Use vmap to generate coordinates for each environment
-        def generate_coords(key):
-            k1, k2, k3, k4 = jr.split(key, 4)
+            
+            # Generate coordinates
+            k1, k2, k3, k4 = jr.split(coord_key, 4)
             r1 = jr.randint(k1, shape=(), minval=0, maxval=self.grid_height)
             c1 = jr.randint(k2, shape=(), minval=0, maxval=self.grid_width)
             r2 = jr.randint(k3, shape=(), minval=0, maxval=self.grid_height)
             c2 = jr.randint(k4, shape=(), minval=0, maxval=self.grid_width)
-            return r1, c1, r2, c2
+            
+            # Ensure proper ordering
+            min_r = jnp.minimum(r1, r2)
+            min_c = jnp.minimum(c1, c2)
+            max_r = jnp.maximum(r1, r2)
+            max_c = jnp.maximum(c1, c2)
+            
+            return operation, min_r, min_c, max_r, max_c
 
-        # Vectorize coordinate generation over the batch
-        generate_coords_batch = jax.vmap(generate_coords)
-        r1, c1, r2, c2 = generate_coords_batch(coord_keys)
-
-        # Ensure proper ordering
-        min_r = jnp.minimum(r1, r2)
-        min_c = jnp.minimum(c1, c2)
-        max_r = jnp.maximum(r1, r2)
-        max_c = jnp.maximum(c1, c2)
+        # Vectorize action selection over the batch
+        select_actions_batch = jax.vmap(select_action_single)
+        operations, r1, c1, r2, c2 = select_actions_batch(op_keys, allowed_masks)
 
         # Create batched bbox actions
         return create_bbox_action(
-            operation=operations, r1=min_r, c1=min_c, r2=max_r, c2=max_c
+            operation=operations, r1=r1, c1=c1, r2=r2, c2=c2
         )
 
 
@@ -671,6 +655,10 @@ def run_batched_demo(batch_size: int = 1000, num_steps: int = 10):
     # Run batched steps
     logger.info("Running batched steps...")
     step_times = []
+    
+    # Initialize variables in case all steps fail
+    rewards = jnp.zeros(batch_size)
+    dones = jnp.zeros(batch_size, dtype=bool)
 
     for step in range(num_steps):
         step_start = time.time()
@@ -678,10 +666,11 @@ def run_batched_demo(batch_size: int = 1000, num_steps: int = 10):
         try:
             # Generate new keys for this step
             step_key = jr.PRNGKey(42 + step)
-            step_keys = jr.split(step_key, batch_size)
-            # Create pairs of keys for each environment [batch_size, 2]
-            coord_keys = jr.split(jr.PRNGKey(100 + step), batch_size)
-            step_keys = jnp.stack([step_keys, coord_keys], axis=1)
+            step_keys = jr.split(step_key, batch_size)  # Shape: [batch_size, 2]
+            
+            # Debug: Check key shapes
+            logger.debug(f"Step {step + 1}: step_keys shape = {step_keys.shape}")
+            logger.debug(f"Step {step + 1}: states.working_grid shape = {states.working_grid.shape}")
 
             # Select actions for all environments
             actions = agent.select_batch_actions(step_keys, states, typed_config)
@@ -775,17 +764,17 @@ def main():
             logger.error(f"Single-agent RL loop failed: {e}")
             console.print(f"[red]Single-agent RL loop failed: {e}[/red]")
 
-        console.rule("[bold yellow]Batched Environment Demo")
+        # console.rule("[bold yellow]Batched Environment Demo")
 
-        # Run batched environment demo with larger batch to show performance
-        console.print("\n[bold cyan]Running Batched Environment Demo...[/bold cyan]")
-        try:
-            run_batched_demo(batch_size=100, num_steps=10)
-        except Exception as e:
-            logger.error(f"Batched demo failed: {e}")
-            console.print(f"[red]Batched demo failed: {e}[/red]")
+        # # Run batched environment demo with larger batch to show performance
+        # console.print("\n[bold cyan]Running Batched Environment Demo...[/bold cyan]")
+        # try:
+        #     run_batched_demo(batch_size=100, num_steps=10)
+        # except Exception as e:
+        #     logger.error(f"Batched demo failed: {e}")
+        #     console.print(f"[red]Batched demo failed: {e}[/red]")
 
-        console.rule("[bold green]All Demos Completed Successfully!")
+        # console.rule("[bold green]All Demos Completed Successfully!")
 
     except RuntimeError as e:
         logger.error(f"Runtime error occurred: {e}")
