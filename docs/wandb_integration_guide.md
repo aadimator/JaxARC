@@ -1,8 +1,7 @@
 # Weights & Biases Integration Guide
 
-> **⚠️ OUTDATED DOCUMENTATION**: This guide references the old Visualizer system which has been removed. 
-> The functionality has been replaced by the simplified ExperimentLogger with WandbHandler. 
-> This documentation needs to be updated to reflect the new architecture.
+> **✅ UPDATED DOCUMENTATION**: This guide has been updated to use the new ExperimentLogger system with WandbHandler. 
+> The old Visualizer system has been replaced with a simplified, handler-based architecture.
 
 This guide covers setting up and using Weights & Biases (wandb) with JaxARC's
 enhanced visualization system for experiment tracking and collaboration.
@@ -82,48 +81,37 @@ wandb_config = WandbConfig(
 wandb_integration = WandbIntegration(wandb_config)
 ```
 
-## Integration with Enhanced Visualizer
+## Integration with ExperimentLogger
 
 ### Complete Setup
 
 ```python
 import jax
 from jaxarc.envs import arc_reset, arc_step, create_standard_config
-from jaxarc.utils.visualization import (
-    Visualizer,
-    VisualizationConfig,
-    EpisodeManager,
-    AsyncLogger,
-    WandbIntegration,
-    WandbConfig,
+from jaxarc.utils.logging import ExperimentLogger
+from jaxarc.envs.config import JaxArcConfig
+
+# Configure JaxARC with wandb integration
+config = JaxArcConfig(
+    wandb=WandbConfig(
+        enabled=True,
+        project_name="jaxarc-arc-solving",
+        entity="research-team",
+        tags=["dqn", "baseline", "arc-agi-1"],
+        log_frequency=5,
+        image_format="png",
+        max_image_size=(1024, 768),
+        log_gradients=True,
+        log_model_topology=True,
+    ),
+    debug=DebugConfig(
+        level="standard",
+        output_dir="outputs/debug"
+    )
 )
 
-# Configure wandb
-wandb_config = WandbConfig(
-    enabled=True,
-    project_name="jaxarc-arc-solving",
-    entity="research-team",
-    tags=["dqn", "baseline", "arc-agi-1"],
-    log_frequency=5,
-    image_format="png",
-    max_image_size=(1024, 768),
-    log_gradients=True,
-    log_model_topology=True,
-)
-
-# Initialize components
-episode_manager = EpisodeManager(base_output_dir="outputs/episodes")
-async_logger = AsyncLogger(queue_size=1000)
-wandb_integration = WandbIntegration(wandb_config)
-
-# Create enhanced visualizer
-vis_config = VisualizationConfig(debug_level="standard")
-visualizer = Visualizer(
-    vis_config=vis_config,
-    episode_manager=episode_manager,
-    async_logger=async_logger,
-    wandb_integration=wandb_integration,
-)
+# Create experiment logger (automatically initializes all handlers including wandb)
+logger = ExperimentLogger(config)
 
 # Initialize wandb run
 experiment_config = {
@@ -155,9 +143,6 @@ for episode in range(1000):
     episode_reward = 0.0
     episode_steps = 0
 
-    # Start episode in visualizer
-    visualizer.start_episode(episode)
-
     for step in range(100):
         # Your agent's action selection
         action = agent.select_action(obs)
@@ -169,45 +154,44 @@ for episode in range(1000):
         episode_reward += reward
         episode_steps += 1
 
-        # Visualize step (includes wandb logging)
-        visualizer.visualize_step(
-            before_state=state,
-            action=action,
-            after_state=new_state,
-            reward=reward,
-            info=info,
-            step_num=step,
-        )
+        # Prepare step data with metrics for automatic wandb logging
+        step_data = {
+            "step_num": step,
+            "before_state": state,
+            "after_state": new_state,
+            "action": action,
+            "reward": reward,
+            "info": {
+                "metrics": {
+                    "step_reward": reward,
+                    "cumulative_reward": episode_reward,
+                    "epsilon": agent.epsilon,
+                    "loss": agent.last_loss if hasattr(agent, "last_loss") else 0.0,
+                },
+                # Other non-metric data
+                "success": info.get("success", False),
+                "similarity": info.get("similarity", 0.0),
+            }
+        }
 
-        # Log additional metrics to wandb
-        wandb_integration.log_step(
-            step_num=episode * 100 + step,
-            metrics={
-                "step_reward": reward,
-                "cumulative_reward": episode_reward,
-                "epsilon": agent.epsilon,
-                "loss": agent.last_loss if hasattr(agent, "last_loss") else 0.0,
-            },
-        )
+        # Log step (automatically handles all handlers including wandb)
+        logger.log_step(step_data)
 
         state = new_state
         if done:
             break
 
     # Log episode summary
-    episode_summary = {
-        "episode_reward": episode_reward,
-        "episode_steps": episode_steps,
+    summary_data = {
+        "episode_num": episode,
+        "total_reward": episode_reward,
+        "total_steps": episode_steps,
         "success": info.get("success", False),
         "final_similarity": info.get("similarity", 0.0),
     }
 
-    wandb_integration.log_episode_summary(
-        episode_num=episode, summary_data=episode_summary
-    )
-
-    # Generate episode summary visualization
-    visualizer.visualize_episode_summary(episode_num=episode)
+    # Log episode summary (automatically handles all handlers including wandb)
+    logger.log_episode_summary(summary_data)
 
     print(f"Episode {episode}: Reward={episode_reward:.2f}, Steps={episode_steps}")
 

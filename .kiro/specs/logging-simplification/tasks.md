@@ -97,7 +97,7 @@
   - Create test for migration from old to new system
   - _Requirements: 2.5, 7.5, 8.5_
 
-- [ ] 12. Update imports and clean up codebase
+- [x] 12. Update imports and clean up codebase
   - Update __init__.py files to export new ExperimentLogger and handlers
   - Remove imports of deleted components throughout the codebase
   - Update any remaining references to old Visualizer class

@@ -165,7 +165,7 @@ class ExperimentLogger:
             ImportError: If SVGHandler cannot be imported
         """
         # Import here to avoid circular imports and allow graceful fallback
-        from ..visualization.svg_handler import SVGHandler
+        from .svg_handler import SVGHandler
         return SVGHandler(self.config)
     
     def _create_rich_handler(self) -> Any:
