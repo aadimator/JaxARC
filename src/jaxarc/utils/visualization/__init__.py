@@ -35,16 +35,43 @@ from .analysis_tools import (
 )
 
 # Async logging functionality removed - use synchronous logging instead
-
 # Import constants
 from .constants import (
     ARC_COLOR_PALETTE,
 )
 
-# Import utility functions
-from .utils import (
-    _clear_output_directory,
-    _extract_grid_data,
+# Import episode management functionality
+from .episode_manager import (
+    EpisodeConfig,
+    EpisodeManager,
+)
+
+# Import episode visualization functions
+from .episode_visualization import (
+    create_episode_comparison_visualization,
+    draw_episode_summary_svg,
+)
+
+# Import JAX integration (simplified)
+from .jax_callbacks import (
+    create_grid_from_arrays,
+    jax_debug_callback,
+    jax_log_grid,
+    log_grid_callback,
+    safe_callback_wrapper,
+)
+
+# Import matplotlib utilities
+from .matplotlib_utils import (
+    setup_matplotlib_style,
+)
+
+# Memory management functionality removed - use standard Python memory management
+# Import replay and analysis functionality
+from .replay_system import (
+    EpisodeReplaySystem,
+    ReplayConfig,
+    ReplayValidationResult,
 )
 
 # Import Rich display functions
@@ -53,6 +80,12 @@ from .rich_display import (
     visualize_grid_rich,
     visualize_parsed_task_data_rich,
     visualize_task_pair_rich,
+)
+
+# Import RL visualization functions
+from .rl_visualization import (
+    draw_rl_step_svg,
+    save_rl_step_visualization,
 )
 
 # Import SVG core functions
@@ -67,53 +100,10 @@ from .task_visualization import (
     draw_task_pair_svg,
 )
 
-# Import RL visualization functions
-from .rl_visualization import (
-    draw_rl_step_svg,
-    save_rl_step_visualization,
-)
-
-# Import episode visualization functions
-from .episode_visualization import (
-    draw_episode_summary_svg,
-    create_episode_comparison_visualization,
-)
-
-# Import matplotlib utilities
-from .matplotlib_utils import (
-    setup_matplotlib_style,
-)
-
-# Import episode management functionality
-from .episode_manager import (
-    EpisodeConfig,
-    EpisodeManager,
-)
-
-# Import wandb integration functionality from integrations
-from .integrations.wandb import (
-    WandbConfig,
-    WandbIntegration,
-    create_development_wandb_config,
-    create_research_wandb_config,
-    create_wandb_config,
-)
-
-# Import JAX integration (simplified)
-from .jax_callbacks import (
-    create_grid_from_arrays,
-    jax_debug_callback,
-    jax_log_grid,
-    log_grid_callback,
-    safe_callback_wrapper,
-)
-# Memory management functionality removed - use standard Python memory management
-
-# Import replay and analysis functionality
-from .replay_system import (
-    EpisodeReplaySystem,
-    ReplayConfig,
-    ReplayValidationResult,
+# Import utility functions
+from .utils import (
+    _clear_output_directory,
+    _extract_grid_data,
 )
 
 # Complex visualizer removed - use ExperimentLogger with focused handlers instead
@@ -136,15 +126,9 @@ __all__ = [
     # Replay and analysis functionality
     "ReplayConfig",
     "ReplayValidationResult",
-    # Wandb integration
-    "WandbConfig",
-    "WandbIntegration",
     # Internal functions (for backward compatibility)
     "_clear_output_directory",
     "_extract_grid_data",
-    "create_development_wandb_config",
-    "create_research_wandb_config",
-    "create_wandb_config",
     "draw_grid_svg",
     "draw_parsed_task_data_svg",
     # RL visualization functions
