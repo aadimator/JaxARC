@@ -1481,21 +1481,25 @@ def arc_step(
     # Use create_observation function to generate focused agent view
     observation = create_observation(final_state, typed_config)
 
-    # Create enhanced info dict with additional context (JAX-compatible)
+    # Create enhanced info dict with structured metrics for automatic logging (JAX-compatible)
     info = {
+        # Scalar metrics for time-series logging (wandb, etc.)
+        "metrics": {
+            "similarity": final_state.similarity_score,
+            "similarity_improvement": final_state.similarity_score - state.similarity_score,
+            "step_count": final_state.step_count,
+            "episode_mode": final_state.episode_mode,  # 0=train, 1=test
+            "current_pair_index": final_state.current_example_idx,
+            "available_demo_pairs": final_state.get_available_demo_count(),
+            "available_test_pairs": final_state.get_available_test_count(),
+            "action_history_length": final_state.get_action_history_length(),
+            "operation_type": jax.lax.cond(
+                is_control_operation, lambda: 1, lambda: 0
+            ),  # 1=control, 0=grid
+        },
+        # Non-metric data for visualization and analysis
         "success": final_state.similarity_score >= 1.0,
-        "similarity": final_state.similarity_score,
-        "step_count": final_state.step_count,
-        "similarity_improvement": final_state.similarity_score - state.similarity_score,
-        "is_control_operation": is_control_operation,  # Keep as JAX array
-        "operation_type": jax.lax.cond(
-            is_control_operation, lambda: 1, lambda: 0
-        ),  # 1=control, 0=grid
-        "episode_mode": final_state.episode_mode,  # Already integer (0=train, 1=test)
-        "current_pair_index": final_state.current_example_idx,
-        "available_demo_pairs": final_state.get_available_demo_count(),
-        "available_test_pairs": final_state.get_available_test_count(),
-        "action_history_length": final_state.get_action_history_length(),
+        "is_control_operation": is_control_operation,  # Keep as JAX array for compatibility
     }
 
     # Optional logging with enhanced information (JAX-compatible)
