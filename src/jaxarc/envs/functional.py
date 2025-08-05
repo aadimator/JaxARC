@@ -1526,7 +1526,7 @@ def arc_step(
                 f"Reward: {float(rew):.3f} (improvement: {float(imp):.3f})"
             ),
             reward,
-            info["similarity_improvement"],
+            info["metrics"]["similarity_improvement"],
         )
 
     # Use JAX-compatible conditionals for logging

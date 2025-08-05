@@ -24,11 +24,11 @@ from hypothesis import strategies as st
 
 from jaxarc.envs.actions import (
     bbox_handler,
-    create_test_action_data,
+    create_test_structured_action,
     get_action_handler,
     mask_handler,
     point_handler,
-    validate_action_data,
+    validate_structured_action,
 )
 from jaxarc.envs.grid_operations import execute_grid_operation
 from jaxarc.state import ArcEnvState
@@ -345,7 +345,7 @@ class TestActionValidation:
     def test_validate_point_action_data_valid(self):
         """Test point action validation with valid data."""
         action_data = jnp.array([5, 10, 15])  # More than 2 elements is fine
-        validate_action_data(action_data, "point")  # Should not raise
+        validate_structured_action(action_data, "point")  # Should not raise
 
     def test_validate_point_action_data_invalid(self):
         """Test point action validation with invalid data."""
@@ -395,34 +395,34 @@ class TestCreateTestActionData:
 
     def test_create_point_data_default(self):
         """Test creating default point data."""
-        data = create_test_action_data("point")
+        data = create_test_structured_action("point")
         chex.assert_shape(data, (2,))
         assert data[0] == 5  # Default row
         assert data[1] == 10  # Default col
 
     def test_create_point_data_custom(self):
         """Test creating custom point data."""
-        data = create_test_action_data("point", row=3, col=7)
+        data = create_test_structured_action("point", row=3, col=7)
         assert data[0] == 3
         assert data[1] == 7
 
     def test_create_bbox_data_default(self):
         """Test creating default bbox data."""
-        data = create_test_action_data("bbox")
+        data = create_test_structured_action("bbox")
         chex.assert_shape(data, (4,))
         expected = jnp.array([2, 3, 4, 5])
         assert jnp.array_equal(data, expected)
 
     def test_create_bbox_data_custom(self):
         """Test creating custom bbox data."""
-        data = create_test_action_data("bbox", r1=1, c1=2, r2=8, c2=9)
+        data = create_test_structured_action("bbox", r1=1, c1=2, r2=8, c2=9)
         expected = jnp.array([1, 2, 8, 9])
         assert jnp.array_equal(data, expected)
 
     def test_create_mask_data_default(self):
         """Test creating default mask data."""
         grid_shape = (10, 10)
-        data = create_test_action_data("mask", grid_shape=grid_shape)
+        data = create_test_structured_action("mask", grid_shape=grid_shape)
         chex.assert_shape(data, (100,))  # Flattened
 
         # Reshape to check pattern
@@ -432,7 +432,7 @@ class TestCreateTestActionData:
     def test_create_mask_data_custom(self):
         """Test creating custom mask data."""
         grid_shape = (8, 8)
-        data = create_test_action_data(
+        data = create_test_structured_action(
             "mask", grid_shape=grid_shape, start_row=2, start_col=3, size=2
         )
 
@@ -444,7 +444,7 @@ class TestCreateTestActionData:
     def test_create_data_unknown_format_error(self):
         """Test error for unknown format."""
         with pytest.raises(ValueError, match="Unknown selection format"):
-            create_test_action_data("invalid_format")
+            create_test_structured_action("invalid_format")
 
 
 class TestARCLEOperations:
@@ -962,7 +962,7 @@ class TestActionIntegration:
             get_action_handler("unknown")
 
         with pytest.raises(ValueError):
-            create_test_action_data("invalid")
+            create_test_structured_action("invalid")
 
     def test_performance_and_compilation(self):
         """Test that the entire action pipeline compiles and performs well."""
@@ -1137,7 +1137,7 @@ def test_action_system_completeness():
 
     # Verify test data creation works for all formats
     for format_name in handlers:
-        test_data = create_test_action_data(format_name)
+        test_data = create_test_structured_action(format_name)
         assert test_data is not None
 
     # Verify validation works for all formats
@@ -1155,7 +1155,7 @@ def test_module_exports():
     """Test that all necessary components are properly exported."""
     from jaxarc.envs.actions import (
         bbox_handler,
-        create_test_action_data,
+        create_test_structured_action,
         get_action_handler,
         mask_handler,
         point_handler,
@@ -1168,7 +1168,7 @@ def test_module_exports():
     assert callable(mask_handler)
     assert callable(get_action_handler)
     assert callable(validate_action_data)
-    assert callable(create_test_action_data)
+    assert callable(create_test_structured_action)
 
     # Verify ARCLEAction type is available
     from jaxarc.types import ARCLEAction
