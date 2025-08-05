@@ -16,7 +16,8 @@ from typing import Any, Dict, Optional
 
 from loguru import logger
 
-from ..serialization_utils import extract_task_id_from_index, serialize_object, serialize_action, serialize_jax_array
+from ..serialization_utils import serialize_object, serialize_action, serialize_jax_array
+from ..task_manager import extract_task_id_from_index
 from ..pytree_utils import filter_arrays_from_state
 
 
@@ -190,8 +191,9 @@ class FileHandler:
             task_info = {}
             if hasattr(state, 'task_data') and hasattr(state.task_data, 'task_index'):
                 try:
+                    # Use the canonical extract_task_id_from_index that takes JAX arrays
                     task_id = extract_task_id_from_index(state.task_data.task_index)
-                    task_info['task_id'] = task_id
+                    task_info['task_id'] = task_id or f"task_{int(state.task_data.task_index.item())}"
                     task_info['task_index'] = int(state.task_data.task_index.item())
                 except Exception as e:
                     logger.debug(f"Could not extract task info: {e}")

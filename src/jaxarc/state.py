@@ -65,7 +65,7 @@ from .utils.jax_types import (
     TestCompletionStatus,
     TrainCompletionStatus,
 )
-from .utils.serialization_utils import extract_task_id_from_index
+from .utils.task_manager import extract_task_id_from_index
 
 
 class ArcEnvState(eqx.Module):
@@ -876,13 +876,15 @@ class ArcEnvState(eqx.Module):
         
         # Reconstruct task_data from task_index
         try:
-            task_id = extract_task_id_from_index(state_dict['task_index'])
+            import jax.numpy as jnp
+            # Convert to JAX array for the canonical extract_task_id_from_index function
+            task_index_array = jnp.array(state_dict['task_index'], dtype=jnp.int32)
+            task_id = extract_task_id_from_index(task_index_array)
             if task_id is None:
                 raise ValueError("Cannot reconstruct task_data: task_index points to unknown task (-1)")
                 
             # Validate task_index consistency with parser
-            from .utils.serialization_utils import validate_task_index_consistency
-            if not validate_task_index_consistency(state_dict['task_index'], parser):
+            if not parser.validate_task_index_mapping(state_dict['task_index']):
                 raise ValueError(f"Task index is inconsistent with parser dataset")
                 
             task_data = parser.get_task_by_id(task_id)
