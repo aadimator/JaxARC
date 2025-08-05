@@ -21,6 +21,7 @@ from ..visualization.rl_visualization import (
     draw_rl_step_svg_enhanced,
     get_operation_display_name,
 )
+from ..visualization.task_visualization import draw_parsed_task_data_svg
 from ..visualization.utils import detect_changed_cells
 
 
@@ -88,6 +89,53 @@ class SVGHandler:
             logger.debug(f"SVGHandler started episode {episode_num}")
         except Exception as e:
             logger.error(f"Failed to start SVG episode {episode_num}: {e}")
+
+    def log_task_start(self, task_data: Dict[str, Any]) -> None:
+        """Generate and save task visualization at episode start.
+        
+        Args:
+            task_data: Dictionary containing task information including:
+                - task_id: Task identifier
+                - task_object: The JaxArcTask object
+                - episode_num: Episode number
+                - show_test: Whether to show test examples (default: True)
+        """
+        # Check if task visualization is enabled
+        if not self._should_generate_task_svg():
+            return
+        
+        try:
+            episode_num = task_data.get('episode_num', 0)
+            task_object = task_data.get('task_object')
+            show_test = task_data.get('show_test', True)
+            
+            # Ensure episode is started
+            if self.current_episode_num != episode_num:
+                self.start_episode(episode_num)
+            
+            if task_object is None:
+                logger.warning("No task object provided for task visualization")
+                return
+            
+            # Generate task SVG using existing function with configurable test display
+            svg_drawing = draw_parsed_task_data_svg(
+                task_object,
+                width=30.0,
+                height=20.0,
+                include_test=show_test,  # Configurable test example display
+            )
+            
+            # Save task SVG
+            task_path = self.episode_manager.current_episode_dir / "task_overview.svg"
+            task_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with Path.open(task_path, 'w', encoding='utf-8') as f:
+                f.write(svg_drawing.as_svg())
+            
+            logger.debug(f"Saved task overview SVG to {task_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate task SVG: {e}")
     
     def log_step(self, step_data: dict[str, Any]) -> None:
         """Generate and save step visualization.
@@ -270,6 +318,31 @@ class SVGHandler:
         except Exception:
             return False
     
+    def _should_generate_task_svg(self) -> bool:
+        """Check if task SVG generation is enabled based on configuration."""
+        try:
+            # Check visualization config
+            if hasattr(self.config, 'visualization'):
+                viz_config = self.config.visualization
+                if not getattr(viz_config, 'enabled', True):
+                    return False
+                
+                level = getattr(viz_config, 'level', 'standard')
+                if level == 'off':
+                    return False
+                
+                # Generate task SVGs for standard and above levels
+                return level in ['standard', 'verbose', 'full']
+            
+            # Check environment debug level as fallback
+            if hasattr(self.config, 'environment'):
+                debug_level = getattr(self.config.environment, 'debug_level', 'standard')
+                return debug_level in ['standard', 'verbose', 'research']
+            
+            return True
+        except Exception:
+            return True
+
     def _should_generate_episode_summary(self) -> bool:
         """Check if episode summary generation is enabled based on configuration."""
         try:

@@ -57,6 +57,58 @@ class FileHandler:
         
         logger.info(f"FileHandler initialized with output directory: {self.output_dir}")
     
+    def log_task_start(self, task_data: Dict[str, Any]) -> None:
+        """Log task information at the start of an episode.
+        
+        Args:
+            task_data: Dictionary containing task information including:
+                - task_id: Task identifier
+                - task_object: The JaxArcTask object
+                - episode_num: Episode number
+                - num_train_pairs: Number of training pairs
+                - num_test_pairs: Number of test pairs
+                - task_stats: Additional task statistics
+                - show_test: Whether to show test examples (not used by FileHandler)
+        """
+        # Store task information in current episode data
+        self.current_episode_data['task_info'] = {
+            'task_id': task_data.get('task_id'),
+            'episode_num': task_data.get('episode_num'),
+            'num_train_pairs': task_data.get('num_train_pairs', 0),
+            'num_test_pairs': task_data.get('num_test_pairs', 0),
+            'task_stats': task_data.get('task_stats', {}),
+        }
+        
+        # Serialize task object if provided
+        task_object = task_data.get('task_object')
+        if task_object is not None:
+            try:
+                # Store basic task structure information
+                self.current_episode_data['task_info']['task_structure'] = {
+                    'input_grid_shapes': [],
+                    'output_grid_shapes': [],
+                    'max_colors_used': 0,
+                }
+                
+                # Extract grid shapes and color information
+                for i in range(getattr(task_object, 'num_train_pairs', 0)):
+                    if hasattr(task_object, 'input_grids_examples'):
+                        input_grid = task_object.input_grids_examples[i]
+                        self.current_episode_data['task_info']['task_structure']['input_grid_shapes'].append(
+                            list(input_grid.shape) if hasattr(input_grid, 'shape') else [0, 0]
+                        )
+                    
+                    if hasattr(task_object, 'output_grids_examples'):
+                        output_grid = task_object.output_grids_examples[i]
+                        self.current_episode_data['task_info']['task_structure']['output_grid_shapes'].append(
+                            list(output_grid.shape) if hasattr(output_grid, 'shape') else [0, 0]
+                        )
+                
+            except Exception as e:
+                logger.warning(f"Failed to serialize task structure: {e}")
+        
+        logger.debug(f"Logged task start for task {task_data.get('task_id', 'unknown')}")
+
     def log_step(self, step_data: Dict[str, Any]) -> None:
         """Log step data to current episode.
         
