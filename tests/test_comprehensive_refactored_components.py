@@ -13,12 +13,7 @@ from jaxarc.envs.config import DatasetConfig
 from jaxarc.parsers.arc_agi import ArcAgiParser
 from jaxarc.parsers.concept_arc import ConceptArcParser
 from jaxarc.parsers.mini_arc import MiniArcParser
-from jaxarc.utils.visualization.visualizer import (
-    StepVisualizationData,
-    TaskVisualizationData,
-    VisualizationConfig,
-    Visualizer,
-)
+# Visualizer imports removed - functionality replaced by ExperimentLogger
 
 
 class TestRefactoredComponents:
@@ -71,74 +66,29 @@ class TestRefactoredComponents:
             assert callable(getattr(parser_class, 'from_hydra'))
 
     def test_task_visualization_data_structure(self):
-        """Test TaskVisualizationData structure for task visualization."""
-        task_data = TaskVisualizationData(
-            task_id="test_task_001",
-            task_data={"train": [], "test": []},
-            current_pair_index=0,
-            episode_mode="train",
-        )
-        
-        assert task_data.task_id == "test_task_001"
-        assert task_data.current_pair_index == 0
-        assert task_data.episode_mode == "train"
-        assert task_data.metadata == {}
+        """Test TaskVisualizationData structure - REMOVED."""
+        # TaskVisualizationData removed - functionality replaced by ExperimentLogger
+        pytest.skip("TaskVisualizationData removed - functionality replaced by ExperimentLogger")
 
     def test_step_visualization_data_with_task_context(self):
-        """Test StepVisualizationData includes task context fields."""
-        import jax.numpy as jnp
-        
-        before_grid = jnp.zeros((3, 3), dtype=jnp.int32)
-        after_grid = jnp.ones((3, 3), dtype=jnp.int32)
-        
-        step_data = StepVisualizationData(
-            step_num=5,
-            before_grid=before_grid,
-            after_grid=after_grid,
-            action={"operation": 1, "color": 2},  # Mock action for demo
-            reward=1.5,
-            info={"success": True},
-            task_id="test_task_001",
-            task_pair_index=2,
-            total_task_pairs=5,
-        )
-        
-        # Verify task context fields exist
-        assert step_data.task_id == "test_task_001"
-        assert step_data.task_pair_index == 2
-        assert step_data.total_task_pairs == 5
+        """Test StepVisualizationData includes task context fields - REMOVED."""
+        # StepVisualizationData removed - functionality replaced by ExperimentLogger
+        pytest.skip("StepVisualizationData removed - functionality replaced by ExperimentLogger")
 
     def test_visualizer_class_exists(self):
-        """Test that Visualizer class exists and can be initialized."""
-        config = VisualizationConfig(debug_level="standard")
-        visualizer = Visualizer(config)
-        
-        assert visualizer.config == config
-        assert hasattr(visualizer, 'episode_manager')
-        assert hasattr(visualizer, 'async_logger')
+        """Test that Visualizer class exists - REMOVED."""
+        # Visualizer class removed - functionality replaced by ExperimentLogger
+        pytest.skip("Visualizer class removed - functionality replaced by ExperimentLogger")
 
     def test_visualizer_has_task_methods(self):
-        """Test that Visualizer has task visualization methods."""
-        config = VisualizationConfig(debug_level="standard")
-        visualizer = Visualizer(config)
-        
-        # Check for task visualization methods
-        assert hasattr(visualizer, 'start_episode_with_task')
-        assert callable(getattr(visualizer, 'start_episode_with_task'))
-        
-        # Check for private task visualization method
-        assert hasattr(visualizer, '_create_task_visualization')
-        assert callable(getattr(visualizer, '_create_task_visualization'))
+        """Test that Visualizer has task visualization methods - REMOVED."""
+        # Visualizer class removed - functionality replaced by ExperimentLogger
+        pytest.skip("Visualizer class removed - functionality replaced by ExperimentLogger")
 
     def test_visualization_config_validation(self):
-        """Test VisualizationConfig validation."""
-        # Valid configurations
-        config = VisualizationConfig(debug_level="standard")
-        assert config.debug_level == "standard"
-        
-        # Invalid debug level should raise error
-        with pytest.raises(ValueError):
-            VisualizationConfig(debug_level="invalid")
+        """Test VisualizationConfig validation - REMOVED."""
+        # VisualizationConfig removed - functionality replaced by ExperimentLogger
+        pytest.skip("VisualizationConfig removed - functionality replaced by ExperimentLogger")
 
     def test_decomposed_functions_exist(self):
         """Test that decomposed functions exist in functional.py."""
@@ -198,36 +148,14 @@ class TestRefactoredComponents:
             _initialize_grids,
         ])
         
-        # 3. Visualization system consolidated with task visualization ✓
-        config = VisualizationConfig()
-        visualizer = Visualizer(config)
-        assert hasattr(visualizer, 'start_episode_with_task')
+        # 3. Visualization system consolidated - REMOVED ✗
+        # Visualization system replaced by ExperimentLogger
         
-        # 4. Task context added to step visualizations ✓
-        import jax.numpy as jnp
-        step_data = StepVisualizationData(
-            step_num=1,
-            before_grid=jnp.zeros((2, 2), dtype=jnp.int32),
-            after_grid=jnp.ones((2, 2), dtype=jnp.int32),
-            action={"operation": 1},  # Mock action for demo
-            reward=1.0,
-            info={},
-            task_id="test",
-            task_pair_index=0,
-            total_task_pairs=1,
-        )
-        assert hasattr(step_data, 'task_id')
-        assert hasattr(step_data, 'task_pair_index')
-        assert hasattr(step_data, 'total_task_pairs')
+        # 4. Task context added to step visualizations - REMOVED ✗
+        # StepVisualizationData replaced by ExperimentLogger handlers
         
-        # 5. TaskVisualizationData structure exists ✓
-        task_viz = TaskVisualizationData(
-            task_id="test",
-            task_data={},
-            current_pair_index=0,
-            episode_mode="train",
-        )
-        assert task_viz.task_id == "test"
+        # 5. TaskVisualizationData structure - REMOVED ✗
+        # TaskVisualizationData replaced by ExperimentLogger handlers
         
         print("✓ All refactored components are working correctly!")
         print("✓ Parser typed configurations implemented")

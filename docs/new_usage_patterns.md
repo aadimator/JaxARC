@@ -1,5 +1,8 @@
 # New Usage Patterns
 
+> **⚠️ PARTIALLY OUTDATED DOCUMENTATION**: This guide contains references to the old Visualizer system which has been removed. 
+> The visualization sections need to be updated to reflect the new ExperimentLogger architecture.
+
 This document describes the updated usage patterns in JaxARC following the codebase consistency cleanup.
 
 ## Parser Configuration Updates

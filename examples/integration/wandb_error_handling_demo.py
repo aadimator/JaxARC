@@ -28,11 +28,7 @@ from jaxarc.utils.visualization.wandb_integration import (
     WandbIntegration,
     create_development_wandb_config,
 )
-from jaxarc.utils.visualization.wandb_sync import (
-    WandbSyncManager,
-    check_wandb_status,
-    sync_offline_wandb_data,
-)
+# Custom wandb sync removed - use official wandb sync command instead
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

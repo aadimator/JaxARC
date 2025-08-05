@@ -1,5 +1,9 @@
 # Enhanced Visualization and Logging System
 
+> **⚠️ COMPLETELY OUTDATED DOCUMENTATION**: This guide describes the old enhanced visualization system which has been removed. 
+> The entire system has been replaced by the simplified ExperimentLogger architecture with focused handlers. 
+> This documentation is no longer relevant and should be rewritten.
+
 JaxARC's enhanced visualization and logging system provides comprehensive
 episode management, performance optimization, and integration with experiment
 tracking tools like Weights & Biases (wandb). This system maintains JAX
