@@ -202,7 +202,7 @@ class ArcEnvironment:
             self._state, action, self.config
         )
 
-        # Log step through JAX callback mechanism
+        # Log step through JAX callback mechanism using new callback system
         if self._logger is not None:
             # Serialize action for safe callback usage
             from jaxarc.utils.serialization_utils import serialize_action
@@ -218,9 +218,18 @@ class ArcEnvironment:
                 'info': info,
             }
             
-            # Use JAX callback to log step data
+            # Use new JAX callback system with ExperimentLogger integration
             from jax import debug
-            debug.callback(self._log_step_callback, step_data)
+            from ..utils.visualization.jax_callbacks import jax_save_step_visualization, validate_jax_callback_data
+            
+            # Validate and serialize data for JAX callback
+            validated_step_data = validate_jax_callback_data(step_data)
+            
+            # Use JAX callback to log step data through ExperimentLogger
+            debug.callback(
+                lambda data: jax_save_step_visualization(data, self._logger),
+                validated_step_data
+            )
 
             # Log episode summary if done
             if done:
@@ -234,42 +243,21 @@ class ArcEnvironment:
                     'final_state': self._state,
                 }
                 
-                # Use JAX callback to log episode summary
-                debug.callback(self._log_episode_summary_callback, summary_data)
+                # Validate and serialize summary data for JAX callback
+                from ..utils.visualization.jax_callbacks import jax_save_episode_summary
+                validated_summary_data = validate_jax_callback_data(summary_data)
+                
+                # Use JAX callback to log episode summary through ExperimentLogger
+                debug.callback(
+                    lambda data: jax_save_episode_summary(data, self._logger),
+                    validated_summary_data
+                )
 
         return self._state, obs, reward, info
 
 
 
-    def _log_step_callback(self, step_data: Dict[str, Any]) -> None:
-        """JAX callback for logging step data.
-        
-        This method is called from within JAX transformations via jax.debug.callback.
-        It safely passes the step data to the experiment logger.
-        
-        Args:
-            step_data: Dictionary containing step information
-        """
-        if self._logger is not None:
-            try:
-                self._logger.log_step(step_data)
-            except Exception as e:
-                logger.warning(f"Failed to log step data: {e}")
-    
-    def _log_episode_summary_callback(self, summary_data: Dict[str, Any]) -> None:
-        """JAX callback for logging episode summary.
-        
-        This method is called from within JAX transformations via jax.debug.callback.
-        It safely passes the episode summary to the experiment logger.
-        
-        Args:
-            summary_data: Dictionary containing episode summary information
-        """
-        if self._logger is not None:
-            try:
-                self._logger.log_episode_summary(summary_data)
-            except Exception as e:
-                logger.warning(f"Failed to log episode summary: {e}")
+
 
     def _clear_visualization_directory(self) -> None:
         """Clear the visualization output directory.

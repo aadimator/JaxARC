@@ -56,7 +56,7 @@
   - Ensure JAX callback integration remains unchanged for compatibility
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ] 8. Update JAX callback integration
+- [x] 8. Update JAX callback integration
   - Modify src/jaxarc/utils/visualization/jax_callbacks.py to work with new ExperimentLogger
   - Ensure jax_save_step_visualization callback uses new logger interface
   - Verify JAX transformations (jit, vmap, pmap) continue working correctly
@@ -64,7 +64,7 @@
   - Write integration tests for JAX compatibility
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 9. Establish info dictionary conventions
+- [-] 9. Establish info dictionary conventions
   - Update functional.py to structure info dictionary with info['metrics'] for scalar data
   - Modify handlers to extract metrics from info['metrics'] automatically
   - Ensure FileHandler serializes entire info dictionary using existing serialization utils
