@@ -16,7 +16,7 @@ from loguru import logger
 
 from .constants import ARC_COLOR_PALETTE
 from .svg_core import add_change_highlighting, add_selection_visualization_overlay
-from .utils import _extract_grid_data, _extract_valid_region, detect_changed_cells
+from .utils import _extract_grid_data, _extract_valid_region, detect_changed_cells, get_info_metric
 
 if TYPE_CHECKING:
     from jaxarc.types import Grid
@@ -489,18 +489,19 @@ def draw_rl_step_svg_enhanced(
     # Add metadata information
     info_items = []
 
-    # Add step metadata
-    if "similarity" in info:
-        similarity_val = float(info['similarity']) if hasattr(info['similarity'], 'item') else info['similarity']
+    # Add step metadata with support for both old and new info structure
+    similarity_val = get_info_metric(info, "similarity")
+    if similarity_val is not None:
         info_items.append(f"Similarity: {similarity_val:.3f}")
 
-    if "episode_reward" in info:
-        reward_val = float(info['episode_reward']) if hasattr(info['episode_reward'], 'item') else info['episode_reward']
-        info_items.append(f"Episode Reward: {reward_val:.3f}")
+    # Check for episode_reward or total_reward
+    episode_reward_val = get_info_metric(info, "episode_reward") or get_info_metric(info, "total_reward")
+    if episode_reward_val is not None:
+        info_items.append(f"Episode Reward: {episode_reward_val:.3f}")
 
-    if "step_count" in info:
-        step_val = int(info['step_count']) if hasattr(info['step_count'], 'item') else info['step_count']
-        info_items.append(f"Total Steps: {step_val}")
+    step_count_val = get_info_metric(info, "step_count")
+    if step_count_val is not None:
+        info_items.append(f"Total Steps: {int(step_count_val)}")
 
     # Add action details
     # Handle both structured actions and legacy dictionary format for visualization
@@ -719,9 +720,10 @@ def create_action_summary_panel(
         )
     )
 
-    # Additional info
-    if "similarity" in info:
-        similarity_val = float(info['similarity']) if hasattr(info['similarity'], 'item') else info['similarity']
+    # Additional info - check both direct and nested metrics
+    similarity_val = get_info_metric(info, "similarity")
+    
+    if similarity_val is not None:
         drawing.append(
             draw.Text(
                 f"Similarity: {similarity_val:.3f}",

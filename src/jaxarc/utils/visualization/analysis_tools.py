@@ -18,6 +18,7 @@ from loguru import logger
 
 from ..logging.structured_logger import EpisodeLogEntry
 from .replay_system import EpisodeReplaySystem
+from .utils import get_info_metric
 
 
 @chex.dataclass
@@ -295,7 +296,7 @@ class EpisodeAnalysisTools:
 
         # Pattern: No progress (similarity doesn't improve)
         if len(episode.steps) > 1:
-            initial_similarity = episode.steps[0].info.get("similarity", 0.0)
+            initial_similarity = get_info_metric(episode.steps[0].info, "similarity", 0.0)
             if episode.final_similarity <= initial_similarity + 0.01:
                 patterns.append("no_progress")
 
@@ -447,7 +448,7 @@ class EpisodeAnalysisTools:
         prev_reward = 0.0
 
         for i, step in enumerate(episode.steps):
-            step_similarity = step.info.get("similarity", 0.0)
+            step_similarity = get_info_metric(step.info, "similarity", 0.0)
             similarity_change = step_similarity - prev_similarity
             reward_change = step.reward - prev_reward if i > 0 else step.reward
 
