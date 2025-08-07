@@ -635,6 +635,20 @@ class LoggingConfig(eqx.Module):
     # Logging frequency and timing
     log_frequency: int = 10  # Log every N steps
 
+    # Batched logging settings
+    batched_logging_enabled: bool = False
+    sampling_enabled: bool = True
+    num_samples: int = 3
+    sample_frequency: int = 50
+    
+    # Aggregated metrics selection
+    log_aggregated_rewards: bool = True
+    log_aggregated_similarity: bool = True
+    log_loss_metrics: bool = True
+    log_gradient_norms: bool = True
+    log_episode_lengths: bool = True
+    log_success_rates: bool = True
+
     def validate(self) -> tuple[str, ...]:
         """Validate logging configuration and return tuple of errors."""
         errors = []
@@ -652,6 +666,20 @@ class LoggingConfig(eqx.Module):
 
             if self.log_frequency > 1000:
                 logger.warning(f"log_frequency is very high: {self.log_frequency}")
+
+            # Validate batched logging parameters
+            if self.batched_logging_enabled:
+                validate_positive_int(self.num_samples, "num_samples")
+                validate_positive_int(self.sample_frequency, "sample_frequency")
+                
+                if self.num_samples > 1000:
+                    logger.warning(f"num_samples is very large: {self.num_samples}")
+                
+                if self.sample_frequency <= 0:
+                    errors.append("sample_frequency must be positive")
+                
+                if self.num_samples <= 0:
+                    errors.append("num_samples must be positive")
 
         except ConfigValidationError as e:
             errors.append(str(e))
@@ -683,6 +711,18 @@ class LoggingConfig(eqx.Module):
             log_episode_end=cfg.get("log_episode_end", True),
             log_key_moments=cfg.get("log_key_moments", True),
             log_frequency=cfg.get("log_frequency", 10),
+            # Batched logging settings
+            batched_logging_enabled=cfg.get("batched_logging_enabled", False),
+            sampling_enabled=cfg.get("sampling_enabled", True),
+            num_samples=cfg.get("num_samples", 3),
+            sample_frequency=cfg.get("sample_frequency", 50),
+            # Aggregated metrics selection
+            log_aggregated_rewards=cfg.get("log_aggregated_rewards", True),
+            log_aggregated_similarity=cfg.get("log_aggregated_similarity", True),
+            log_loss_metrics=cfg.get("log_loss_metrics", True),
+            log_gradient_norms=cfg.get("log_gradient_norms", True),
+            log_episode_lengths=cfg.get("log_episode_lengths", True),
+            log_success_rates=cfg.get("log_success_rates", True),
         )
 
 

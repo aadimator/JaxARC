@@ -1,0 +1,36 @@
+# @package logging
+# Batched logging configuration for high-performance training
+
+# Core logging settings (inherited from base)
+structured_logging: true
+log_format: "json"
+log_level: "INFO"
+compression: true
+include_full_states: false
+
+# What to log (specific content flags)
+log_operations: false
+log_grid_changes: false
+log_rewards: false
+log_episode_start: true
+log_episode_end: true
+log_key_moments: true
+
+# Logging frequency and timing
+log_frequency: 10
+
+# Batched Training Specifics
+batched_logging_enabled: true
+
+# Representative Sampling (for detailed logs)
+sampling_enabled: true
+num_samples: 3  # Number of environments to sample
+sample_frequency: 50  # Log samples every N updates
+
+# Aggregated Metrics Selection
+log_aggregated_rewards: true
+log_aggregated_similarity: true
+log_loss_metrics: true
+log_gradient_norms: true
+log_episode_lengths: true
+log_success_rates: true

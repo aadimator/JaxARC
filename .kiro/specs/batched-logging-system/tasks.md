@@ -7,33 +7,33 @@
   - Remove any unused async logging code references
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 2. Create batched logging configuration system
-  - [ ] 2.1 Create batched.yaml configuration file
+- [x] 2. Create batched logging configuration system
+  - [x] 2.1 Create batched.yaml configuration file
     - Write conf/logging/batched.yaml with batched logging settings
     - Include aggregation frequency, sampling parameters, and metric selection options
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 2.2 Extend LoggingConfig dataclass for batched logging
+  - [x] 2.2 Extend LoggingConfig dataclass for batched logging
     - Add batched_logging_enabled, sampling_enabled, num_samples, sample_frequency fields
     - Add aggregated metrics selection fields (log_aggregated_rewards, log_aggregated_similarity, etc.)
     - Implement validation for new batched logging parameters
     - _Requirements: 3.3, 3.4_
 
-- [ ] 3. Implement core batched logging functionality in ExperimentLogger
-  - [ ] 3.1 Add log_batch_step method
+- [x] 3. Implement core batched logging functionality in ExperimentLogger
+  - [x] 3.1 Add log_batch_step method
     - Implement log_batch_step method that handles batched training data
     - Add frequency-based control for aggregation and sampling
     - Include error isolation for handler failures
     - _Requirements: 1.1, 1.2, 1.4_
 
-  - [ ] 3.2 Implement batch metrics aggregation
+  - [x] 3.2 Implement batch metrics aggregation
     - Create _aggregate_batch_metrics method using JAX operations
     - Calculate mean, std, min, max for rewards, similarity scores, episode lengths
     - Handle scalar training metrics (policy_loss, value_loss, gradient_norm)
     - Include success rate calculations
     - _Requirements: 1.1, 1.3, 6.2_
 
-  - [ ] 3.3 Implement episode sampling for detailed logging
+  - [x] 3.3 Implement episode sampling for detailed logging
     - Create _sample_episodes_from_batch method for representative sampling
     - Use deterministic sampling based on update step for reproducibility
     - Reconstruct episode summary data for existing log_episode_summary method
