@@ -635,13 +635,6 @@ class LoggingConfig(eqx.Module):
     # Logging frequency and timing
     log_frequency: int = 10  # Log every N steps
 
-    # Async logging settings
-    queue_size: int = 500
-    worker_threads: int = 1
-    batch_size: int = 5
-    flush_interval: float = 10.0
-    enable_compression: bool = True
-
     def validate(self) -> tuple[str, ...]:
         """Validate logging configuration and return tuple of errors."""
         errors = []
@@ -655,28 +648,7 @@ class LoggingConfig(eqx.Module):
             validate_string_choice(self.log_level, "log_level", valid_levels)
 
             # Validate numeric fields
-            validate_positive_int(self.queue_size, "queue_size")
-            validate_positive_int(self.worker_threads, "worker_threads")
-            validate_positive_int(self.batch_size, "batch_size")
             validate_positive_int(self.log_frequency, "log_frequency")
-
-            if not isinstance(self.flush_interval, (int, float)):
-                msg = f"flush_interval must be a number, got {type(self.flush_interval).__name__}"
-                errors.append(msg)
-            elif self.flush_interval <= 0:
-                errors.append("flush_interval must be positive")
-
-            # Validate reasonable bounds
-            if self.queue_size > 10000:
-                logger.warning(f"queue_size is very large: {self.queue_size}")
-
-            if self.worker_threads > 10:
-                logger.warning(f"worker_threads is very high: {self.worker_threads}")
-
-            if self.batch_size > self.queue_size // 10:
-                logger.warning(
-                    f"batch_size ({self.batch_size}) is large relative to queue_size ({self.queue_size})"
-                )
 
             if self.log_frequency > 1000:
                 logger.warning(f"log_frequency is very high: {self.log_frequency}")
@@ -711,11 +683,6 @@ class LoggingConfig(eqx.Module):
             log_episode_end=cfg.get("log_episode_end", True),
             log_key_moments=cfg.get("log_key_moments", True),
             log_frequency=cfg.get("log_frequency", 10),
-            queue_size=cfg.get("queue_size", 500),
-            worker_threads=cfg.get("worker_threads", 1),
-            batch_size=cfg.get("batch_size", 5),
-            flush_interval=cfg.get("flush_interval", 10.0),
-            enable_compression=cfg.get("enable_compression", True),
         )
 
 
@@ -1586,11 +1553,7 @@ class JaxArcConfig(eqx.Module):
                 "Logging every step with long episodes may impact performance"
             )
 
-        # Queue size vs worker threads consistency
-        if self.logging.queue_size < self.logging.worker_threads * 10:
-            warnings.append(
-                "Logging queue size may be too small for the number of worker threads"
-            )
+
 
     def _validate_wandb_consistency(
         self, errors: list[str], warnings: list[str]
@@ -1726,17 +1689,7 @@ class JaxArcConfig(eqx.Module):
                 f"Structured logging enabled but format is '{self.logging.log_format}' - consider using 'json' or 'structured'"
             )
 
-        # Compression vs performance
-        if self.logging.enable_compression and self.logging.log_frequency < 5:
-            warnings.append(
-                "Log compression with frequent logging may impact performance"
-            )
 
-        # Async logging configuration
-        if self.logging.batch_size > self.logging.queue_size / 2:
-            warnings.append(
-                "Logging batch size is large relative to queue size - may cause blocking"
-            )
 
         # Content-specific logging consistency
         detailed_logging = (
