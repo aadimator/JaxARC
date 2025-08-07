@@ -431,11 +431,6 @@ class TestEquinoxConfigModules:
             log_episode_end=True,
             log_key_moments=True,
             log_frequency=10,
-            queue_size=500,
-            worker_threads=1,
-            batch_size=5,
-            flush_interval=10.0,
-            enable_compression=True,
         )
 
         # Test field values
@@ -451,11 +446,6 @@ class TestEquinoxConfigModules:
         assert config.log_episode_end is True
         assert config.log_key_moments is True
         assert config.log_frequency == 10
-        assert config.queue_size == 500
-        assert config.worker_threads == 1
-        assert config.batch_size == 5
-        assert config.flush_interval == 10.0
-        assert config.enable_compression is True
 
         # Test validation
         errors = config.validate()
@@ -475,11 +465,11 @@ class TestEquinoxConfigModules:
         assert len(errors) > 0
         assert any("log_level" in error for error in errors)
 
-        # Invalid queue size
-        config = LoggingConfig(queue_size=-10)
+        # Invalid log frequency
+        config = LoggingConfig(log_frequency=-10)
         errors = config.validate()
         assert len(errors) > 0
-        assert any("queue_size" in error for error in errors)
+        assert any("log_frequency" in error for error in errors)
 
     def test_wandb_config_creation(self):
         """Test WandbConfig creation and validation."""

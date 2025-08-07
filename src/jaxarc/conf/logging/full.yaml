@@ -18,10 +18,3 @@ log_key_moments: true
 
 # Logging frequency and timing
 log_frequency: 5
-
-# Async logging settings
-queue_size: 2000
-worker_threads: 4
-batch_size: 20
-flush_interval: 2.0
-enable_compression: true
