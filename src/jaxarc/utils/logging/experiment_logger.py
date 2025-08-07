@@ -351,6 +351,10 @@ class ExperimentLogger:
         for key, (prefix, enabled) in episode_metrics.items():
             if key in batch_data and enabled:
                 values = batch_data[key]
+                # Skip empty arrays to avoid JAX errors
+                if jnp.asarray(values).size == 0:
+                    logger.debug(f"Skipping empty metric '{key}'")
+                    continue
                 metrics.update({
                     f'{prefix}_mean': float(jnp.mean(values)),
                     f'{prefix}_std': float(jnp.std(values)),
@@ -361,7 +365,11 @@ class ExperimentLogger:
         # Success rate calculation (special case - boolean array)
         if 'success_mask' in batch_data and self.config.logging.log_success_rates:
             success_mask = batch_data['success_mask']
-            metrics['success_rate'] = float(jnp.mean(success_mask))
+            # Skip empty arrays
+            if jnp.asarray(success_mask).size == 0:
+                logger.debug("Skipping empty success_mask")
+            else:
+                metrics['success_rate'] = float(jnp.mean(success_mask))
         
         # Known scalar training metrics with specific configuration flags
         scalar_metrics = {
@@ -456,8 +464,11 @@ class ExperimentLogger:
         sampled_episodes = []
         for i in sample_indices:
             # Reconstruct episode summary data for existing log_episode_summary method
+            # Create unique episode_num by combining update_step and environment_id
+            base_episode_num = batch_data.get("update_step", 0)
+            unique_episode_num = base_episode_num * 10000 + int(i)  # Ensure uniqueness
             episode_summary = {
-                "episode_num": batch_data.get("update_step", 0),  # Use update step as episode identifier
+                "episode_num": unique_episode_num,
                 "total_reward": float(batch_data['episode_returns'][i]),
                 "total_steps": int(batch_data['episode_lengths'][i]) if 'episode_lengths' in batch_data else 0,
                 "final_similarity": float(batch_data['similarity_scores'][i]) if 'similarity_scores' in batch_data else 0.0,
