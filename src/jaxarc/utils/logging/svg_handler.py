@@ -8,7 +8,7 @@ the simplified logging architecture.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 import numpy as np
 from loguru import logger
@@ -230,6 +230,10 @@ class SVGHandler:
     def log_episode_summary(self, summary_data: dict[str, Any]) -> None:
         """Generate and save episode summary visualization.
         
+        This method handles both traditional episode summaries and episode summary data
+        from batched training sampling. It supports initial vs final state visualization
+        when state data is available and gracefully degrades when not provided.
+        
         Args:
             summary_data: Dictionary containing episode summary information including:
                 - episode_num: Episode number
@@ -238,7 +242,10 @@ class SVGHandler:
                 - final_similarity: Final similarity score
                 - success: Whether episode was successful
                 - task_id: Task identifier
-                - step_data: List of step data for visualization
+                - environment_id: Environment ID (for batched sampling)
+                - initial_state: Initial state (optional, for batched sampling)
+                - final_state: Final state (optional, for batched sampling)
+                - step_data: List of step data for visualization (traditional mode)
         """
         # Check if episode summary visualization is enabled
         if not self._should_generate_episode_summary():
@@ -246,23 +253,103 @@ class SVGHandler:
         
         try:
             episode_num = summary_data.get('episode_num', 0)
+            environment_id = summary_data.get('environment_id')
             
             # Ensure episode is started
             if self.current_episode_num != episode_num:
                 self.start_episode(episode_num)
             
-            # Extract step data if available
+            # Handle batched sampling mode vs traditional mode
+            if environment_id is not None:
+                # Batched sampling mode - generate visualization from initial/final states
+                self._generate_batched_episode_summary(summary_data, environment_id)
+            else:
+                # Traditional mode - use step data for full episode visualization
+                self._generate_traditional_episode_summary(summary_data)
+            
+        except Exception as e:
+            logger.error(f"Failed to generate episode summary SVG: {e}")
+    
+    def _generate_batched_episode_summary(self, summary_data: dict[str, Any], environment_id: int) -> None:
+        """Generate episode summary for batched sampling mode.
+        
+        Args:
+            summary_data: Episode summary data from batched sampling
+            environment_id: Environment ID within the batch
+        """
+        try:
+            episode_num = summary_data.get('episode_num', 0)
+            initial_state = summary_data.get('initial_state')
+            final_state = summary_data.get('final_state')
+            
+            # Check if we have state data for visualization
+            if initial_state is None and final_state is None:
+                # Graceful degradation - create text-only summary
+                self._generate_text_only_summary(summary_data, environment_id)
+                return
+            
+            # Extract grids from states when available
+            initial_grid = None
+            final_grid = None
+            
+            if initial_state is not None:
+                initial_grid = self._extract_grid_from_state(initial_state)
+            
+            if final_state is not None:
+                final_grid = self._extract_grid_from_state(final_state)
+            
+            # Generate SVG content for initial vs final state comparison
+            svg_content = self._create_batched_summary_svg(
+                summary_data=summary_data,
+                initial_grid=initial_grid,
+                final_grid=final_grid,
+                environment_id=environment_id
+            )
+            
+            # Save summary SVG with environment ID in filename
+            filename_suffix = f"_env_{environment_id}" if environment_id is not None else ""
+            summary_path = self.episode_manager.current_episode_dir / f"episode_summary{filename_suffix}.svg"
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with Path.open(summary_path, 'w', encoding='utf-8') as f:
+                f.write(svg_content)
+            
+            logger.debug(f"Saved batched episode summary SVG to {summary_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate batched episode summary: {e}")
+    
+    def _generate_traditional_episode_summary(self, summary_data: dict[str, Any]) -> None:
+        """Generate episode summary for traditional mode with step data.
+        
+        Args:
+            summary_data: Traditional episode summary data
+        """
+        try:
+            episode_num = summary_data.get('episode_num', 0)
             step_data = summary_data.get('step_data', [])
             
             # Convert dictionary to object for compatibility with visualization function
             class SummaryDataWrapper:
                 def __init__(self, data_dict):
+                    # Set default values for expected attributes
+                    self.episode_num = 0
+                    self.total_steps = 0
+                    self.total_reward = 0.0
+                    self.final_similarity = 0.0
+                    self.success = False
+                    self.task_id = 'Unknown'
+                    self.reward_progression = []
+                    self.similarity_progression = []
+                    self.key_moments = []
+                    
+                    # Override with actual data
                     for key, value in data_dict.items():
                         setattr(self, key, value)
             
             summary_obj = SummaryDataWrapper(summary_data)
             
-            # Generate episode summary SVG
+            # Generate episode summary SVG using existing function
             svg_content = draw_enhanced_episode_summary_svg(
                 summary_data=summary_obj,
                 step_data=step_data,
@@ -276,10 +363,176 @@ class SVGHandler:
             with Path.open(summary_path, 'w', encoding='utf-8') as f:
                 f.write(svg_content)
             
-            logger.debug(f"Saved episode {episode_num} summary SVG to {summary_path}")
+            logger.debug(f"Saved traditional episode {episode_num} summary SVG to {summary_path}")
             
         except Exception as e:
-            logger.error(f"Failed to generate episode summary SVG: {e}")
+            logger.error(f"Failed to generate traditional episode summary: {e}")
+    
+    def _generate_text_only_summary(self, summary_data: dict[str, Any], environment_id: int) -> None:
+        """Generate text-only summary when state data is not available.
+        
+        Args:
+            summary_data: Episode summary data
+            environment_id: Environment ID within the batch
+        """
+        try:
+            # Create simple text-based summary
+            summary_text = self._create_text_summary(summary_data, environment_id)
+            
+            # Save as text file instead of SVG
+            filename_suffix = f"_env_{environment_id}" if environment_id is not None else ""
+            summary_path = self.episode_manager.current_episode_dir / f"episode_summary{filename_suffix}.txt"
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with Path.open(summary_path, 'w', encoding='utf-8') as f:
+                f.write(summary_text)
+            
+            logger.debug(f"Saved text-only episode summary to {summary_path}")
+            
+        except Exception as e:
+            logger.error(f"Failed to generate text-only summary: {e}")
+    
+    def _create_batched_summary_svg(self, summary_data: dict[str, Any], 
+                                   initial_grid: Grid | None, final_grid: Grid | None,
+                                   environment_id: int) -> str:
+        """Create SVG content for batched episode summary.
+        
+        Args:
+            summary_data: Episode summary data
+            initial_grid: Initial grid state (optional)
+            final_grid: Final grid state (optional)
+            environment_id: Environment ID within the batch
+            
+        Returns:
+            SVG content as string
+        """
+        try:
+            import drawsvg as draw
+            
+            # Create drawing with appropriate size
+            width = 800
+            height = 400
+            d = draw.Drawing(width, height)
+            
+            # Add title
+            episode_num = summary_data.get('episode_num', 0)
+            task_id = summary_data.get('task_id', 'Unknown')
+            title = f"Episode {episode_num} - Environment {environment_id} - Task: {task_id}"
+            d.append(draw.Text(title, 20, x=width//2, y=30, text_anchor='middle', 
+                              font_family='Arial', font_size=16, font_weight='bold'))
+            
+            # Add summary statistics
+            stats_y = 60
+            stats = [
+                f"Total Reward: {summary_data.get('total_reward', 0):.3f}",
+                f"Total Steps: {summary_data.get('total_steps', 0)}",
+                f"Final Similarity: {summary_data.get('final_similarity', 0):.3f}",
+                f"Success: {summary_data.get('success', False)}"
+            ]
+            
+            for i, stat in enumerate(stats):
+                d.append(draw.Text(stat, 14, x=50, y=stats_y + i*20, 
+                                  font_family='Arial', font_size=12))
+            
+            # Draw grids if available
+            grid_y = 150
+            grid_size = 200
+            
+            if initial_grid is not None:
+                # Draw initial grid
+                self._draw_grid_in_svg(d, initial_grid, x=100, y=grid_y, 
+                                     size=grid_size, title="Initial State")
+            
+            if final_grid is not None:
+                # Draw final grid
+                x_offset = 450 if initial_grid is not None else 300
+                self._draw_grid_in_svg(d, final_grid, x=x_offset, y=grid_y, 
+                                     size=grid_size, title="Final State")
+            
+            # Add note about batched mode
+            d.append(draw.Text("Generated from batched training sample", 12, 
+                              x=width//2, y=height-20, text_anchor='middle',
+                              font_family='Arial', font_size=10, fill='gray'))
+            
+            return d.as_svg()
+            
+        except Exception as e:
+            logger.error(f"Failed to create batched summary SVG: {e}")
+            # Return minimal SVG on error
+            return f'<svg width="400" height="200"><text x="200" y="100" text-anchor="middle">Error generating visualization: {e}</text></svg>'
+    
+    def _draw_grid_in_svg(self, drawing, grid: Grid, x: int, y: int, size: int, title: str) -> None:
+        """Draw a grid in the SVG drawing.
+        
+        Args:
+            drawing: DrawSVG drawing object
+            grid: Grid object to draw
+            x: X position
+            y: Y position  
+            size: Size of the grid visualization
+            title: Title for the grid
+        """
+        try:
+            import drawsvg as draw
+            
+            # Add title
+            drawing.append(draw.Text(title, 12, x=x + size//2, y=y-10, 
+                                   text_anchor='middle', font_family='Arial', 
+                                   font_size=12, font_weight='bold'))
+            
+            # Get grid data
+            grid_data = np.asarray(grid.data) if hasattr(grid, 'data') else np.asarray(grid)
+            rows, cols = grid_data.shape
+            
+            # Calculate cell size
+            cell_size = min(size // max(rows, cols), 20)
+            
+            # Color mapping for ARC (0-9 colors)
+            colors = ['#000000', '#0074D9', '#FF4136', '#2ECC40', '#FFDC00', 
+                     '#AAAAAA', '#F012BE', '#FF851B', '#7FDBFF', '#870C25']
+            
+            # Draw grid cells
+            for i in range(rows):
+                for j in range(cols):
+                    cell_x = x + j * cell_size
+                    cell_y = y + i * cell_size
+                    color_idx = int(grid_data[i, j]) % len(colors)
+                    
+                    # Draw cell
+                    drawing.append(draw.Rectangle(
+                        cell_x, cell_y, cell_size, cell_size,
+                        fill=colors[color_idx], stroke='white', stroke_width=1
+                    ))
+            
+        except Exception as e:
+            logger.error(f"Failed to draw grid in SVG: {e}")
+    
+    def _create_text_summary(self, summary_data: dict[str, Any], environment_id: int) -> str:
+        """Create text-based summary when visualization is not possible.
+        
+        Args:
+            summary_data: Episode summary data
+            environment_id: Environment ID within the batch
+            
+        Returns:
+            Text summary as string
+        """
+        lines = [
+            f"Episode Summary - Environment {environment_id}",
+            "=" * 50,
+            f"Episode Number: {summary_data.get('episode_num', 0)}",
+            f"Task ID: {summary_data.get('task_id', 'Unknown')}",
+            f"Total Reward: {summary_data.get('total_reward', 0):.3f}",
+            f"Total Steps: {summary_data.get('total_steps', 0)}",
+            f"Final Similarity: {summary_data.get('final_similarity', 0):.3f}",
+            f"Success: {summary_data.get('success', False)}",
+            "",
+            "Note: This summary was generated from batched training data.",
+            "State visualization is not available as intermediate states",
+            "are not stored during batched training for performance reasons."
+        ]
+        
+        return "\n".join(lines)
     
     def close(self) -> None:
         """Clean shutdown of SVG handler."""

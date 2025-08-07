@@ -165,6 +165,37 @@ class FileHandler:
         # Reset for next episode
         self.current_episode_data = {}
     
+    def log_aggregated_metrics(self, metrics: Dict[str, float], step: int) -> None:
+        """Log aggregated batch metrics to file.
+        
+        Args:
+            metrics: Dictionary of aggregated metrics from batch processing
+            step: Current training step/update number
+        """
+        try:
+            # Create batch metrics file if it doesn't exist
+            batch_metrics_file = self.output_dir / "batch_metrics.jsonl"
+            
+            # Ensure output directory exists
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create log entry with timestamp and step information
+            log_entry = {
+                "timestamp": time.time(),
+                "step": step,
+                "metrics": metrics
+            }
+            
+            # Append to JSONL file (one JSON object per line)
+            with open(batch_metrics_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, default=str) + '\n')
+            
+            logger.debug(f"Logged batch metrics to {batch_metrics_file} at step {step}")
+            
+        except Exception as e:
+            # Handle file writing errors gracefully
+            logger.warning(f"File batch logging failed: {e}")
+
     def close(self) -> None:
         """Clean shutdown - save any pending data."""
         if self.current_episode_data:

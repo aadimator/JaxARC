@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from loguru import logger
 from rich.console import Console
 
 from ..visualization.rich_display import (
@@ -97,6 +98,69 @@ class RichHandler:
         """
         self._display_episode_summary(summary_data)
     
+    def log_aggregated_metrics(self, metrics: Dict[str, float], step: int) -> None:
+        """Display aggregated batch metrics to console.
+        
+        Args:
+            metrics: Dictionary of aggregated metrics from batch processing
+            step: Current training step/update number
+        """
+        try:
+            from rich.table import Table
+            
+            # Create metrics table with title including step information
+            table = Table(title=f"Batch Metrics - Step {step}", title_style="bold cyan")
+            table.add_column("Metric", style="cyan", no_wrap=True)
+            table.add_column("Value", style="green", justify="right")
+            
+            # Group metrics by category for better organization
+            reward_metrics = {k: v for k, v in metrics.items() if k.startswith('reward_')}
+            similarity_metrics = {k: v for k, v in metrics.items() if k.startswith('similarity_')}
+            episode_metrics = {k: v for k, v in metrics.items() if k.startswith('episode_length_')}
+            training_metrics = {k: v for k, v in metrics.items() if k in ['policy_loss', 'value_loss', 'gradient_norm']}
+            other_metrics = {k: v for k, v in metrics.items() 
+                           if not any(k.startswith(prefix) for prefix in ['reward_', 'similarity_', 'episode_length_']) 
+                           and k not in ['policy_loss', 'value_loss', 'gradient_norm']}
+            
+            # Add metrics to table by category
+            categories = [
+                ("Rewards", reward_metrics),
+                ("Similarity", similarity_metrics),
+                ("Episode Length", episode_metrics),
+                ("Training", training_metrics),
+                ("Other", other_metrics)
+            ]
+            
+            for category_name, category_metrics in categories:
+                if category_metrics:
+                    # Add category header
+                    table.add_row(f"[bold]{category_name}[/bold]", "", style="dim")
+                    
+                    # Add metrics in this category
+                    for key, value in category_metrics.items():
+                        # Format metric name for display
+                        display_key = key.replace('_', ' ').title()
+                        
+                        # Format value based on type and magnitude
+                        if isinstance(value, float):
+                            if abs(value) < 0.001:
+                                formatted_value = f"{value:.6f}"
+                            elif abs(value) < 1:
+                                formatted_value = f"{value:.4f}"
+                            else:
+                                formatted_value = f"{value:.3f}"
+                        else:
+                            formatted_value = str(value)
+                        
+                        table.add_row(f"  {display_key}", formatted_value)
+            
+            # Display the table
+            self.console.print(table)
+            
+        except Exception as e:
+            # Handle console display errors gracefully
+            logger.warning(f"Rich batch logging failed: {e}")
+
     def close(self) -> None:
         """Clean shutdown."""
         pass
