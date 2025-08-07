@@ -291,8 +291,8 @@ class TestExperimentLoggerBatchedLogging:
         # Check episode structure
         episode = sampled_episodes[0]
         assert 'episode_num' in episode
-        # Episode num is now unique: update_step * 10000 + environment_id
-        assert episode['episode_num'] >= 1000000  # Should be 100 * 10000 + env_id
+        # Episode num is now sequential starting from 1
+        assert episode['episode_num'] >= 1  # Sequential counter starting from 1
         assert 'total_reward' in episode
         assert 'total_steps' in episode
         assert 'final_similarity' in episode
