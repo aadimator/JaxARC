@@ -69,28 +69,28 @@
     - Ensure no step-by-step visualization attempts in batched mode
     - _Requirements: 2.3, 3.4_
 
-- [ ] 5. Implement comprehensive testing for batched logging
-  - [ ] 5.1 Create unit tests for configuration system
+- [x] 5. Implement comprehensive testing for batched logging
+  - [x] 5.1 Create unit tests for configuration system
     - Test batched logging configuration loading and validation
     - Test async logging field removal from configs
     - Test configuration error handling and validation messages
     - _Requirements: 3.3, 5.4_
 
-  - [ ] 5.2 Create unit tests for ExperimentLogger extensions
+  - [x] 5.2 Create unit tests for ExperimentLogger extensions
     - Test log_batch_step method with mock batch data
     - Test _aggregate_batch_metrics with various data scenarios
     - Test _sample_episodes_from_batch with different batch sizes
     - Test error isolation when handlers fail
     - _Requirements: 1.1, 1.3, 2.1, 2.4, 2.5_
 
-  - [ ] 5.3 Create unit tests for handler extensions
+  - [x] 5.3 Create unit tests for handler extensions
     - Test log_aggregated_metrics for each handler type
     - Test integration with existing handler methods
     - Test error handling and graceful degradation
     - Test handler-specific functionality (wandb prefixes, file formats, console display)
     - _Requirements: 4.1, 4.2, 4.3, 3.4_
 
-  - [ ] 5.4 Create integration tests for end-to-end batched logging
+  - [x] 5.4 Create integration tests for end-to-end batched logging
     - Test complete batched logging pipeline with mock training data
     - Verify file outputs, wandb integration, and console display
     - Test configuration-driven behavior changes
