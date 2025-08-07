@@ -218,6 +218,29 @@ class WandbHandler:
             # Simple error handling - just print and continue
             logger.warning(f"wandb episode logging failed: {e}")
     
+    def log_aggregated_metrics(self, metrics: Dict[str, float], step: int) -> None:
+        """Log aggregated batch metrics to wandb.
+        
+        Args:
+            metrics: Dictionary of aggregated metrics from batch processing
+            step: Current training step/update number for time-series plots
+        """
+        if self.run is None:
+            return
+        
+        try:
+            # Add batch/ prefix to distinguish from individual step metrics
+            batch_metrics = {f"batch/{key}": value for key, value in metrics.items()}
+            
+            # Log with proper step information for time-series plots
+            self.run.log(batch_metrics, step=step)
+            
+            logger.debug(f"Logged {len(batch_metrics)} batch metrics to wandb at step {step}")
+            
+        except Exception as e:
+            # Handle wandb logging failures gracefully
+            logger.warning(f"Wandb batch logging failed: {e}")
+
     def close(self) -> None:
         """Clean shutdown of wandb run."""
         if self.run is not None:

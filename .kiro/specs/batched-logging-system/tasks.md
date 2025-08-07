@@ -40,29 +40,29 @@
     - Handle cases where num_samples exceeds batch_size
     - _Requirements: 2.1, 2.2, 2.4, 2.5_
 
-- [ ] 4. Extend logging handlers to support aggregated metrics
-  - [ ] 4.1 Add log_aggregated_metrics to WandbHandler
+- [x] 4. Extend logging handlers to support aggregated metrics
+  - [x] 4.1 Add log_aggregated_metrics to WandbHandler
     - Implement log_aggregated_metrics method for wandb integration
     - Add batch/ prefix to distinguish from individual step metrics
     - Include proper step information for time-series plots
     - Handle wandb logging failures gracefully
     - _Requirements: 4.1, 4.2, 4.3_
 
-  - [ ] 4.2 Add log_aggregated_metrics to FileHandler
+  - [x] 4.2 Add log_aggregated_metrics to FileHandler
     - Implement log_aggregated_metrics method for file output
     - Create batch_metrics.jsonl file for aggregated metrics
     - Include timestamp and step information in log entries
     - Handle file writing errors gracefully
     - _Requirements: 3.4_
 
-  - [ ] 4.3 Add log_aggregated_metrics to RichHandler
+  - [x] 4.3 Add log_aggregated_metrics to RichHandler
     - Implement log_aggregated_metrics method for console display
     - Create formatted table display for batch metrics
     - Group metrics by category (rewards, similarity, training)
     - Handle console display errors gracefully
     - _Requirements: 3.4_
 
-  - [ ] 4.4 Update SVGHandler for episode-level sampling
+  - [x] 4.4 Update SVGHandler for episode-level sampling
     - Modify SVGHandler to handle episode summary data from sampling
     - Support initial vs final state visualization when state data is available
     - Implement graceful degradation when state data is not provided
