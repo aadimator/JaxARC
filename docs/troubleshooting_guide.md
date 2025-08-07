@@ -616,7 +616,153 @@ visualizer.set_write_timeout(30)  # 30 seconds
 visualizer.cleanup_corrupted_files()
 ```
 
-### 6. Configuration Issues
+### 6. Batched Logging Issues
+
+#### Batched Logging Not Working
+
+**Symptoms:**
+- No aggregated metrics appearing in logs
+- Batch data not being processed
+- Missing wandb metrics in batched training
+
+**Diagnosis:**
+```python
+# Check configuration
+print(f"Batched logging enabled: {config.logging.batched_logging_enabled}")
+print(f"Log frequency: {config.logging.log_frequency}")
+print(f"Sampling enabled: {config.logging.sampling_enabled}")
+
+# Verify batch data format
+batch_data = {
+    "update_step": 0,  # Required
+    "episode_returns": jnp.array([1.0, 2.0, 3.0]),  # Required
+    "episode_lengths": jnp.array([50, 45, 60]),  # Required
+    "similarity_scores": jnp.array([0.8, 0.6, 0.9]),  # Required
+    "success_mask": jnp.array([True, False, True]),  # Required
+    "policy_loss": 1.5,  # Required scalar
+    "value_loss": 0.8,  # Required scalar
+    "gradient_norm": 2.1,  # Required scalar
+}
+
+# Test logging
+logger.log_batch_step(batch_data)
+```
+
+**Solutions:**
+1. **Enable batched logging**:
+   ```python
+   config.logging.batched_logging_enabled = True
+   ```
+
+2. **Check update step alignment**:
+   ```python
+   # Ensure update_step % log_frequency == 0 for logging to occur
+   assert update_step % config.logging.log_frequency == 0
+   ```
+
+3. **Verify data types**:
+   ```python
+   # Ensure arrays are JAX arrays
+   episode_returns = jnp.asarray(episode_returns)
+   ```
+
+#### Performance Issues with Batched Logging
+
+**Symptoms:**
+- Training loop slowdown when batched logging is enabled
+- High memory usage during logging
+- JAX compilation issues with logging callbacks
+
+**Diagnosis:**
+```python
+import time
+
+# Measure logging overhead
+start_time = time.time()
+logger.log_batch_step(batch_data)
+logging_time = time.time() - start_time
+
+print(f"Logging overhead: {logging_time:.3f}s")
+
+# Check memory usage
+import psutil
+process = psutil.Process()
+memory_mb = process.memory_info().rss / 1024 / 1024
+print(f"Memory usage: {memory_mb:.1f} MB")
+```
+
+**Solutions:**
+1. **Reduce logging frequency**:
+   ```python
+   config.logging.log_frequency = 100  # Instead of 10
+   ```
+
+2. **Disable expensive features**:
+   ```python
+   config.logging.include_full_states = False
+   config.logging.log_operations = False
+   config.logging.log_grid_changes = False
+   ```
+
+3. **Reduce sampling**:
+   ```python
+   config.logging.num_samples = 1  # Instead of 5
+   config.logging.sample_frequency = 500  # Instead of 50
+   ```
+
+4. **Enable compression**:
+   ```python
+   config.logging.compression = True
+   ```
+
+#### Missing Metrics in Aggregation
+
+**Symptoms:**
+- Some expected metrics not appearing in aggregated output
+- Inconsistent metric availability
+- Metrics showing as NaN or zero
+
+**Diagnosis:**
+```python
+# Check metric configuration
+print("Enabled metrics:")
+print(f"  Rewards: {config.logging.log_aggregated_rewards}")
+print(f"  Similarity: {config.logging.log_aggregated_similarity}")
+print(f"  Loss metrics: {config.logging.log_loss_metrics}")
+print(f"  Gradient norms: {config.logging.log_gradient_norms}")
+print(f"  Episode lengths: {config.logging.log_episode_lengths}")
+print(f"  Success rates: {config.logging.log_success_rates}")
+
+# Check data validity
+print(f"Episode returns shape: {episode_returns.shape}")
+print(f"Episode returns range: [{episode_returns.min():.3f}, {episode_returns.max():.3f}]")
+print(f"Any NaN values: {jnp.isnan(episode_returns).any()}")
+```
+
+**Solutions:**
+1. **Enable required metrics**:
+   ```python
+   config.logging.log_aggregated_rewards = True
+   config.logging.log_loss_metrics = True
+   ```
+
+2. **Check data validity**:
+   ```python
+   # Remove NaN values
+   episode_returns = jnp.where(jnp.isnan(episode_returns), 0.0, episode_returns)
+   
+   # Ensure non-empty arrays
+   assert episode_returns.size > 0, "Empty episode returns array"
+   ```
+
+3. **Verify data types**:
+   ```python
+   # Ensure correct scalar types
+   policy_loss = float(policy_loss)
+   value_loss = float(value_loss)
+   ```
+
+### 7. Configuration Issues
 
 #### Invalid Configuration
 

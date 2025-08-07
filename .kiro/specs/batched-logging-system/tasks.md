@@ -97,33 +97,33 @@
     - Test performance with various batch sizes
     - _Requirements: 6.1, 6.3, 6.4, 7.1, 7.2_
 
-- [ ] 6. Performance optimization and validation
-  - [ ] 6.1 Optimize JAX operations for aggregation
+- [x] 6. Performance optimization and validation
+  - [x] 6.1 Optimize JAX operations for aggregation
     - Ensure all aggregation operations are JAX-compatible and JIT-compilable
     - Benchmark aggregation performance with large batch sizes
     - Verify memory usage remains reasonable during aggregation
     - _Requirements: 6.2, 6.5_
 
-  - [ ] 6.2 Validate sampling efficiency
+  - [x] 6.2 Validate sampling efficiency
     - Test sampling performance with various batch sizes (100, 1000, 10000)
     - Ensure sampling doesn't create memory bottlenecks
     - Verify deterministic sampling produces consistent results
     - _Requirements: 6.3, 6.5_
 
-- [ ] 7. Integration and documentation
-  - [ ] 7.1 Create example usage patterns
+- [x] 7. Integration and documentation
+  - [x] 7.1 Create example usage patterns
     - Write example code showing how to use batched logging in training loops
     - Create configuration examples for different use cases
     - Document integration with existing PureJaxRL patterns
     - _Requirements: 7.3, 7.4_
 
-  - [ ] 7.2 Update existing documentation
+  - [x] 7.2 Update existing documentation
     - Update logging documentation to include batched logging capabilities
     - Document configuration options and their effects
     - Add troubleshooting guide for common batched logging issues
     - _Requirements: 7.4_
 
-  - [ ] 7.3 Validate backward compatibility
+  - [x] 7.3 Validate backward compatibility
     - Ensure existing single-environment logging continues to work unchanged
     - Test that old configuration files load without batched logging settings
     - Verify no performance regression in single-environment scenarios

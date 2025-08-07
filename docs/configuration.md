@@ -92,6 +92,66 @@ action_config = ActionConfig(
 )
 ```
 
+#### LoggingConfig
+
+Controls logging behavior and output formats:
+
+```python
+from jaxarc.envs import LoggingConfig
+
+# Basic logging configuration
+logging_config = LoggingConfig(
+    structured_logging=True,
+    log_format="json",  # "json", "text", "structured"
+    log_level="INFO",
+    compression=True,
+    log_frequency=10,
+)
+
+# Batched logging for high-performance training
+batched_logging_config = LoggingConfig(
+    # Enable batched logging
+    batched_logging_enabled=True,
+    log_frequency=50,  # Log aggregated metrics every 50 updates
+    
+    # Representative sampling
+    sampling_enabled=True,
+    num_samples=3,  # Sample 3 environments for detailed logging
+    sample_frequency=100,  # Sample every 100 updates
+    
+    # Metric selection
+    log_aggregated_rewards=True,
+    log_aggregated_similarity=True,
+    log_loss_metrics=True,
+    log_gradient_norms=True,
+    log_episode_lengths=True,
+    log_success_rates=True,
+    
+    # Performance optimization
+    include_full_states=False,  # Disable for better performance
+    log_operations=False,       # Disable detailed operation logging
+    log_grid_changes=False,     # Disable grid change tracking
+)
+```
+
+#### WandbConfig
+
+Configures Weights & Biases integration:
+
+```python
+from jaxarc.envs import WandbConfig
+
+wandb_config = WandbConfig(
+    enabled=True,
+    project_name="jaxarc-experiments",
+    tags=("research", "batched"),
+    log_frequency=10,  # Align with logging frequency
+    offline_mode=False,
+    save_code=True,
+    save_config=True,
+)
+```
+
 ## Factory Functions
 
 ### Standard Presets

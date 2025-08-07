@@ -618,59 +618,93 @@ test_wandb_connection()
 
 ## Performance Optimization
 
-### Efficient Logging
+### Batched Training Integration
+
+JaxARC's built-in batched logging system automatically integrates with Weights & Biases for high-performance training scenarios:
 
 ```python
-# Batch logging for better performance
-class BatchedWandbLogger:
-    def __init__(self, wandb_integration, batch_size=10):
-        self.wandb_integration = wandb_integration
-        self.batch_size = batch_size
-        self.batch_metrics = []
-        self.batch_images = []
+from jaxarc.envs import JaxArcConfig, LoggingConfig, WandbConfig
+from jaxarc.utils.logging import ExperimentLogger
 
-    def add_metrics(self, step_num, metrics):
-        """Add metrics to batch."""
-        self.batch_metrics.append((step_num, metrics))
+# Configure batched logging with wandb
+wandb_config = WandbConfig(
+    enabled=True,
+    project_name="jaxarc-batched-training",
+    tags=("batched", "research"),
+    log_frequency=10,  # Align with batched logging frequency
+    offline_mode=False,
+)
 
-        if len(self.batch_metrics) >= self.batch_size:
-            self.flush_metrics()
+logging_config = LoggingConfig(
+    # Enable batched logging
+    batched_logging_enabled=True,
+    log_frequency=10,  # Log aggregated metrics every 10 updates
+    
+    # Sampling for detailed episode logging
+    sampling_enabled=True,
+    num_samples=3,  # Sample 3 environments for detailed logging
+    sample_frequency=50,  # Sample every 50 updates
+    
+    # Metric selection
+    log_aggregated_rewards=True,
+    log_aggregated_similarity=True,
+    log_loss_metrics=True,
+    log_gradient_norms=True,
+    log_success_rates=True,
+)
 
-    def add_image(self, step_num, name, image):
-        """Add image to batch."""
-        self.batch_images.append((step_num, name, image))
+config = JaxArcConfig(
+    logging=logging_config,
+    wandb=wandb_config
+)
 
-        if len(self.batch_images) >= self.batch_size:
-            self.flush_images()
+# Initialize logger (automatically handles wandb integration)
+logger = ExperimentLogger(config)
 
-    def flush_metrics(self):
-        """Flush batched metrics."""
-        for step_num, metrics in self.batch_metrics:
-            self.wandb_integration.log_step(step_num, metrics)
-        self.batch_metrics.clear()
+# Training loop with batched environments
+batch_size = 64
+for update_step in range(1000):
+    # Your batched training step here
+    # ...
+    
+    # Prepare batch data
+    batch_data = {
+        "update_step": update_step,
+        "episode_returns": episode_returns,  # [batch_size]
+        "episode_lengths": episode_lengths,  # [batch_size]
+        "similarity_scores": similarity_scores,  # [batch_size]
+        "success_mask": success_mask,  # [batch_size] boolean
+        "policy_loss": policy_loss,  # scalar
+        "value_loss": value_loss,  # scalar
+        "gradient_norm": gradient_norm,  # scalar
+    }
+    
+    # Log batch data (automatically aggregates and sends to wandb)
+    logger.log_batch_step(batch_data)
 
-    def flush_images(self):
-        """Flush batched images."""
-        for step_num, name, image in self.batch_images:
-            self.wandb_integration.log_step(step_num, {name: image})
-        self.batch_images.clear()
-
-    def flush_all(self):
-        """Flush all batched data."""
-        self.flush_metrics()
-        self.flush_images()
-
-
-# Usage
-batched_logger = BatchedWandbLogger(wandb_integration, batch_size=20)
-
-# In training loop
-batched_logger.add_metrics(step_num, {"reward": reward, "loss": loss})
-batched_logger.add_image(step_num, "visualization", step_image)
-
-# Flush at episode end
-batched_logger.flush_all()
+logger.close()
 ```
+
+#### Aggregated Metrics in Wandb
+
+The batched logging system automatically computes and logs aggregated metrics to wandb:
+
+- **Episode Returns**: `reward_mean`, `reward_std`, `reward_max`, `reward_min`
+- **Similarity Scores**: `similarity_mean`, `similarity_std`, `similarity_max`, `similarity_min`
+- **Episode Lengths**: `episode_length_mean`, `episode_length_std`, etc.
+- **Success Rate**: `success_rate` (percentage of successful episodes)
+- **Training Metrics**: `policy_loss`, `value_loss`, `gradient_norm` (scalars)
+
+#### Representative Episode Sampling
+
+When sampling is enabled, detailed episode summaries are logged to wandb at the specified frequency, providing rich visualizations and analysis capabilities.
+
+#### Performance Benefits
+
+- **Reduced API calls**: Aggregated metrics reduce the number of wandb API calls
+- **Efficient computation**: JAX-based aggregation for minimal overhead
+- **Configurable frequency**: Balance between detail and performance
+- **Automatic batching**: No manual batching logic required
 
 ### Memory-Efficient Image Logging
 
