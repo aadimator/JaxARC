@@ -81,6 +81,7 @@ class ExperimentLogger:
         """
         self.config = config
         self.handlers = self._initialize_handlers()
+        self._episode_counter = 0  # Sequential episode counter for batched logging
         
         logger.info(f"ExperimentLogger initialized with {len(self.handlers)} handlers")
     
@@ -464,9 +465,9 @@ class ExperimentLogger:
         sampled_episodes = []
         for i in sample_indices:
             # Reconstruct episode summary data for existing log_episode_summary method
-            # Create unique episode_num by combining update_step and environment_id
-            base_episode_num = batch_data.get("update_step", 0)
-            unique_episode_num = base_episode_num * 10000 + int(i)  # Ensure uniqueness
+            # Use sequential episode counter to avoid exceeding max_episodes_per_run limits
+            self._episode_counter += 1
+            unique_episode_num = self._episode_counter
             episode_summary = {
                 "episode_num": unique_episode_num,
                 "total_reward": float(batch_data['episode_returns'][i]),
