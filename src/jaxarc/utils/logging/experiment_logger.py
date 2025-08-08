@@ -15,11 +15,10 @@ The ExperimentLogger follows the design principles:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from loguru import logger
 
-from ..config import get_config
 from ...envs.config import JaxArcConfig
 
 
@@ -85,7 +84,7 @@ class ExperimentLogger:
         
         logger.info(f"ExperimentLogger initialized with {len(self.handlers)} handlers")
     
-    def _initialize_handlers(self) -> Dict[str, Any]:
+    def _initialize_handlers(self) -> dict[str, Any]:
         """Initialize handlers based on configuration settings.
         
         This method creates handler instances based on the configuration,
@@ -195,7 +194,7 @@ class ExperimentLogger:
         from .wandb_handler import WandbHandler
         return WandbHandler(self.config.wandb)
     
-    def log_step(self, step_data: Dict[str, Any]) -> None:
+    def log_step(self, step_data: dict[str, Any]) -> None:
         """Log step data through all active handlers.
         
         This method calls the log_step method on all active handlers,
@@ -219,7 +218,7 @@ class ExperimentLogger:
                 # Log error but continue with other handlers
                 logger.warning(f"Handler {handler_name} failed in log_step: {e}")
     
-    def log_task_start(self, task_data: Dict[str, Any], show_test: bool = True) -> None:
+    def log_task_start(self, task_data: dict[str, Any], show_test: bool = True) -> None:
         """Log task information when an episode starts.
         
         This method calls the log_task_start method on all active handlers,
@@ -247,7 +246,7 @@ class ExperimentLogger:
                 # Log error but continue with other handlers
                 logger.warning(f"Handler {handler_name} failed in log_task_start: {e}")
 
-    def log_episode_summary(self, summary_data: Dict[str, Any]) -> None:
+    def log_episode_summary(self, summary_data: dict[str, Any]) -> None:
         """Log episode summary through all active handlers.
         
         This method calls the log_episode_summary method on all active handlers,
@@ -271,7 +270,7 @@ class ExperimentLogger:
                 # Log error but continue with other handlers
                 logger.warning(f"Handler {handler_name} failed in log_episode_summary: {e}")
     
-    def log_batch_step(self, batch_data: Dict[str, Any]) -> None:
+    def log_batch_step(self, batch_data: dict[str, Any]) -> None:
         """Log data from a batched training step.
         
         This method handles batched training data by aggregating metrics and
@@ -301,189 +300,15 @@ class ExperimentLogger:
             update_step % self.config.logging.log_frequency == 0):
             
             try:
-                aggregated_metrics = self._aggregate_batch_metrics(batch_data)
-                
                 for handler_name, handler in self.handlers.items():
                     try:
                         if hasattr(handler, 'log_aggregated_metrics'):
-                            handler.log_aggregated_metrics(aggregated_metrics, update_step)
+                            handler.log_aggregated_metrics(batch_data, update_step)
                     except Exception as e:
                         logger.warning(f"Handler {handler_name} failed in log_aggregated_metrics: {e}")
             except Exception as e:
                 logger.warning(f"Failed to aggregate batch metrics: {e}")
 
-        # Log sampled episode summaries at specified frequency
-        if (self.config.logging.sampling_enabled and 
-            update_step % self.config.logging.sample_frequency == 0):
-            
-            try:
-                sampled_episodes = self._sample_episodes_from_batch(batch_data)
-                
-                for episode_data in sampled_episodes:
-                    self.log_episode_summary(episode_data)  # Reuse existing method
-            except Exception as e:
-                logger.warning(f"Failed to sample episodes from batch: {e}")
-
-    def _aggregate_batch_metrics(self, batch_data: Dict[str, Any]) -> Dict[str, float]:
-        """Calculate aggregate metrics from batch data using JAX operations.
-        
-        This method computes statistical aggregations (mean, std, min, max) for
-        episode-level metrics and includes scalar training metrics. It handles both
-        known metrics with specific configuration flags and unknown metrics generically
-        for extensibility with downstream algorithms.
-        
-        Args:
-            batch_data: Dictionary containing batch training data
-            
-        Returns:
-            Dictionary of aggregated metrics with float values
-        """
-        import jax.numpy as jnp
-        
-        metrics = {}
-        
-        # Known episode-level metrics with specific configuration flags
-        episode_metrics = {
-            'episode_returns': ('reward', self.config.logging.log_aggregated_rewards),
-            'similarity_scores': ('similarity', self.config.logging.log_aggregated_similarity),
-            'episode_lengths': ('episode_length', self.config.logging.log_episode_lengths),
-        }
-        
-        for key, (prefix, enabled) in episode_metrics.items():
-            if key in batch_data and enabled:
-                values = batch_data[key]
-                # Skip empty arrays to avoid JAX errors
-                if jnp.asarray(values).size == 0:
-                    logger.debug(f"Skipping empty metric '{key}'")
-                    continue
-                metrics.update({
-                    f'{prefix}_mean': float(jnp.mean(values)),
-                    f'{prefix}_std': float(jnp.std(values)),
-                    f'{prefix}_max': float(jnp.max(values)),
-                    f'{prefix}_min': float(jnp.min(values))
-                })
-        
-        # Success rate calculation (special case - boolean array)
-        if 'success_mask' in batch_data and self.config.logging.log_success_rates:
-            success_mask = batch_data['success_mask']
-            # Skip empty arrays
-            if jnp.asarray(success_mask).size == 0:
-                logger.debug("Skipping empty success_mask")
-            else:
-                metrics['success_rate'] = float(jnp.mean(success_mask))
-        
-        # Known scalar training metrics with specific configuration flags
-        scalar_metrics = {
-            'policy_loss': self.config.logging.log_loss_metrics,
-            'value_loss': self.config.logging.log_loss_metrics,
-            'gradient_norm': self.config.logging.log_gradient_norms,
-            'entropy': self.config.logging.log_loss_metrics,
-            'explained_variance': self.config.logging.log_loss_metrics,
-            'learning_rate': self.config.logging.log_loss_metrics,
-        }
-        
-        for key, enabled in scalar_metrics.items():
-            if key in batch_data and enabled:
-                metrics[key] = float(batch_data[key])
-        
-        # Generic handling for unknown metrics (extensibility for downstream algorithms)
-        # Skip known keys and metadata keys to avoid double processing
-        known_keys = set(episode_metrics.keys()) | set(scalar_metrics.keys()) | {
-            'success_mask', 'update_step', 'task_ids', 'initial_states', 'final_states'
-        }
-        
-        for key, value in batch_data.items():
-            if key in known_keys:
-                continue
-                
-            try:
-                # Convert to JAX array for shape inspection
-                jax_value = jnp.asarray(value)
-                
-                # Skip empty arrays
-                if jax_value.size == 0:
-                    logger.debug(f"Skipping empty metric '{key}'")
-                    continue
-                
-                # Determine if this is an array metric (needs aggregation) or scalar metric
-                if jax_value.ndim == 0:
-                    # Scalar metric - pass through directly
-                    metrics[key] = float(jax_value)
-                elif jax_value.ndim == 1 and jax_value.shape[0] > 1:
-                    # Array metric - apply aggregation
-                    metrics.update({
-                        f'{key}_mean': float(jnp.mean(jax_value)),
-                        f'{key}_std': float(jnp.std(jax_value)),
-                        f'{key}_max': float(jnp.max(jax_value)),
-                        f'{key}_min': float(jnp.min(jax_value))
-                    })
-                else:
-                    # Single element array or other - treat as scalar
-                    metrics[key] = float(jnp.mean(jax_value))
-                    
-            except Exception as e:
-                # Skip metrics that can't be converted to JAX arrays
-                logger.debug(f"Skipping metric '{key}' due to conversion error: {e}")
-                continue
-        
-        return metrics
-
-    def _sample_episodes_from_batch(self, batch_data: Dict[str, Any]) -> list[Dict[str, Any]]:
-        """Extract sample of episode summaries from batch for detailed logging.
-        
-        This method performs deterministic sampling based on the update step for
-        reproducibility. It reconstructs episode summary data compatible with
-        the existing log_episode_summary method.
-        
-        Note: This focuses on episode-level data rather than step-by-step data,
-        as intermediate states are not typically stored in batched training for
-        performance reasons.
-        
-        Args:
-            batch_data: Dictionary containing batch training data
-            
-        Returns:
-            List of episode summary dictionaries for sampled episodes
-        """
-        import jax
-        import jax.numpy as jnp
-        from typing import List
-        
-        num_samples = self.config.logging.num_samples
-        batch_size = batch_data['episode_returns'].shape[0]
-        
-        # Sample all if requested samples >= batch size
-        if num_samples >= batch_size:
-            sample_indices = jnp.arange(batch_size)
-        else:
-            # Deterministic sampling based on update step for reproducibility
-            key = jax.random.PRNGKey(batch_data.get("update_step", 0))
-            sample_indices = jax.random.choice(
-                key, batch_size, shape=(num_samples,), replace=False
-            )
-        
-        sampled_episodes = []
-        for i in sample_indices:
-            # Reconstruct episode summary data for existing log_episode_summary method
-            # Use sequential episode counter to avoid exceeding max_episodes_per_run limits
-            self._episode_counter += 1
-            unique_episode_num = self._episode_counter
-            episode_summary = {
-                "episode_num": unique_episode_num,
-                "total_reward": float(batch_data['episode_returns'][i]),
-                "total_steps": int(batch_data['episode_lengths'][i]) if 'episode_lengths' in batch_data else 0,
-                "final_similarity": float(batch_data['similarity_scores'][i]) if 'similarity_scores' in batch_data else 0.0,
-                "success": bool(batch_data['success_mask'][i]) if 'success_mask' in batch_data else False,
-                "environment_id": int(i),
-                "task_id": batch_data.get('task_ids', [f"batch_task_{i}"])[i] if 'task_ids' in batch_data else f"batch_task_{i}",
-                
-                # Optional: Include final states if available for SVG visualization
-                "initial_state": batch_data.get('initial_states', [None])[i] if 'initial_states' in batch_data else None,
-                "final_state": batch_data.get('final_states', [None])[i] if 'final_states' in batch_data else None,
-            }
-            sampled_episodes.append(episode_summary)
-        
-        return sampled_episodes
 
     def close(self) -> None:
         """Clean shutdown of all handlers.
