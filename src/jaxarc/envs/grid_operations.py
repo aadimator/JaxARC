@@ -593,153 +593,92 @@ def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnv
     
     selection = validated_state.selected
 
-    # Define all operations
-    def op_0():
-        return fill_color(state, selection, 0)
+    # This refactored structure is much more efficient for the JAX JIT compiler.
+    # It uses conditional branching instead of a large switch over Python functions.
 
-    def op_1():
-        return fill_color(state, selection, 1)
+    def is_in_range(op, start, end):
+        return (op >= start) & (op <= end)
 
-    def op_2():
-        return fill_color(state, selection, 2)
+    # We create a nested conditional tree. JAX can prune branches it knows won't be taken.
+    def body_fn():
+        # --- Category: Fill & Flood Fill ---
+        is_fill = is_in_range(operation, 0, 9)
+        is_flood_fill = is_in_range(operation, 10, 19)
+        
+        # --- Category: Movement & Transformation ---
+        is_move = is_in_range(operation, 20, 23)
+        is_rotate = is_in_range(operation, 24, 25)
+        is_flip = is_in_range(operation, 26, 27)
 
-    def op_3():
-        return fill_color(state, selection, 3)
+        # --- Category: Editing & Special ---
+        is_clipboard = is_in_range(operation, 28, 30)
+        is_grid_op = is_in_range(operation, 31, 33)
+        is_submit = operation == 34
 
-    def op_4():
-        return fill_color(state, selection, 4)
+        # Nested conditionals for efficient compilation
+        s1 = jax.lax.cond(
+            is_fill,
+            lambda: fill_color(state, selection, operation),
+            lambda: jax.lax.cond(
+                is_flood_fill,
+                lambda: flood_fill_color(state, selection, operation - 10),
+                lambda: state
+            )
+        )
+        s2 = jax.lax.cond(
+            is_move,
+            lambda: move_object(state, selection, operation - 20),
+            lambda: jax.lax.cond(
+                is_rotate,
+                lambda: rotate_object(state, selection, operation - 24),
+                lambda: jax.lax.cond(
+                    is_flip,
+                    lambda: flip_object(state, selection, operation - 26),
+                    lambda: state
+                )
+            )
+        )
+        s3 = jax.lax.cond(
+            operation == 28, lambda: copy_to_clipboard(state, selection),
+            lambda: jax.lax.cond(
+                operation == 29, lambda: paste_from_clipboard(state, selection),
+                lambda: jax.lax.cond(
+                    operation == 30, lambda: cut_to_clipboard(state, selection),
+                    lambda: state
+                )
+            )
+        )
+        s4 = jax.lax.cond(
+            operation == 31, lambda: clear_grid(state, selection),
+            lambda: jax.lax.cond(
+                operation == 32, lambda: copy_input_grid(state, selection),
+                lambda: jax.lax.cond(
+                    operation == 33, lambda: resize_grid(state, selection),
+                    lambda: state
+                )
+            )
+        )
+        s5 = jax.lax.cond(
+            is_submit,
+            lambda: submit_solution(state, selection),
+            lambda: state
+        )
 
-    def op_5():
-        return fill_color(state, selection, 5)
+        # Combine results. Only one of these will have changed from the original state.
+        # This looks complex, but JAX understands that only one branch is taken.
+        # We merge the changes from the single taken branch back into the state.
+        # A simple way is to check which operation range was active.
+        
+        new_state = jax.lax.cond(is_fill | is_flood_fill, lambda: s1, lambda: state)
+        new_state = jax.lax.cond(is_move | is_rotate | is_flip, lambda: s2, lambda: new_state)
+        new_state = jax.lax.cond(is_clipboard, lambda: s3, lambda: new_state)
+        new_state = jax.lax.cond(is_grid_op, lambda: s4, lambda: new_state)
+        new_state = jax.lax.cond(is_submit, lambda: s5, lambda: new_state)
+        
+        return new_state
 
-    def op_6():
-        return fill_color(state, selection, 6)
-
-    def op_7():
-        return fill_color(state, selection, 7)
-
-    def op_8():
-        return fill_color(state, selection, 8)
-
-    def op_9():
-        return fill_color(state, selection, 9)
-
-    def op_10():
-        return flood_fill_color(state, selection, 0)
-
-    def op_11():
-        return flood_fill_color(state, selection, 1)
-
-    def op_12():
-        return flood_fill_color(state, selection, 2)
-
-    def op_13():
-        return flood_fill_color(state, selection, 3)
-
-    def op_14():
-        return flood_fill_color(state, selection, 4)
-
-    def op_15():
-        return flood_fill_color(state, selection, 5)
-
-    def op_16():
-        return flood_fill_color(state, selection, 6)
-
-    def op_17():
-        return flood_fill_color(state, selection, 7)
-
-    def op_18():
-        return flood_fill_color(state, selection, 8)
-
-    def op_19():
-        return flood_fill_color(state, selection, 9)
-
-    def op_20():
-        return move_object(state, selection, 0)  # up
-
-    def op_21():
-        return move_object(state, selection, 1)  # down
-
-    def op_22():
-        return move_object(state, selection, 2)  # left
-
-    def op_23():
-        return move_object(state, selection, 3)  # right
-
-    def op_24():
-        return rotate_object(state, selection, 0)  # 90° clockwise
-
-    def op_25():
-        return rotate_object(state, selection, 1)  # 90° counterclockwise
-
-    def op_26():
-        return flip_object(state, selection, 0)  # horizontal
-
-    def op_27():
-        return flip_object(state, selection, 1)  # vertical
-
-    def op_28():
-        return copy_to_clipboard(state, selection)
-
-    def op_29():
-        return paste_from_clipboard(state, selection)
-
-    def op_30():
-        return cut_to_clipboard(state, selection)
-
-    def op_31():
-        return clear_grid(state, selection)
-
-    def op_32():
-        return copy_input_grid(state, selection)
-
-    def op_33():
-        return resize_grid(state, selection)
-
-    def op_34():
-        return submit_solution(state, selection)
-
-    # Operation dispatch using jax.lax.switch
-    operations = [
-        op_0,
-        op_1,
-        op_2,
-        op_3,
-        op_4,
-        op_5,
-        op_6,
-        op_7,
-        op_8,
-        op_9,
-        op_10,
-        op_11,
-        op_12,
-        op_13,
-        op_14,
-        op_15,
-        op_16,
-        op_17,
-        op_18,
-        op_19,
-        op_20,
-        op_21,
-        op_22,
-        op_23,
-        op_24,
-        op_25,
-        op_26,
-        op_27,
-        op_28,
-        op_29,
-        op_30,
-        op_31,
-        op_32,
-        op_33,
-        op_34,
-    ]
-
-    # Execute operation using JAX switch (handles traced arrays)
-    new_state = jax.lax.switch(operation, operations)
+    # The final returned state from the one chosen path.
+    new_state = body_fn()
 
     # Update similarity score if grid changed
     # Use target_grid from state (which handles train/test mode properly)
