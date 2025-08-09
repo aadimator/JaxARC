@@ -8,10 +8,13 @@ connectivity checks in favor of using official wandb features.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
+import importlib
+from contextlib import suppress
+from typing import Any
 
 from loguru import logger
 
+import wandb
 
 class WandbHandler:
     """Simplified Weights & Biases integration handler.
@@ -28,10 +31,10 @@ class WandbHandler:
     
     def __init__(self, wandb_config):
         """Initialize wandb handler with configuration.
-        
+
         Args:
             wandb_config: Wandb configuration object with attributes like
-                         enabled, project_name, entity, tags, etc.
+                enabled, project_name, entity, tags, etc.
         """
         self.config = wandb_config
         self.run = None
@@ -42,9 +45,8 @@ class WandbHandler:
         if not self.config.enabled:
             logger.info("Wandb integration disabled in config")
             return
-            
+
         try:
-            import wandb
             self._wandb = wandb
             
             # Set offline mode if configured - use official wandb environment variable
@@ -76,7 +78,7 @@ class WandbHandler:
             if job_type is not None:
                 job_type = str(job_type)
             
-            self.run = wandb.init(
+            self.run = self._wandb.init(
                 project=project_name,
                 entity=entity,
                 tags=tags,
@@ -93,11 +95,10 @@ class WandbHandler:
             logger.warning("wandb not available - skipping wandb logging")
             self.run = None
         except Exception as e:
-            # Simple error handling - just print and continue
             logger.warning(f"wandb initialization failed: {e}")
             self.run = None
     
-    def log_task_start(self, task_data: Dict[str, Any]) -> None:
+    def log_task_start(self, task_data: dict[str, Any]) -> None:
         """Log task information to wandb.
         
         Args:
@@ -135,7 +136,7 @@ class WandbHandler:
             # Simple error handling - just print and continue
             logger.warning(f"wandb task logging failed: {e}")
 
-    def log_step(self, step_data: Dict[str, Any]) -> None:
+    def log_step(self, step_data: dict[str, Any]) -> None:
         """Log step metrics to wandb.
         
         Automatically extracts metrics from info['metrics'] if available,
@@ -150,7 +151,7 @@ class WandbHandler:
         try:
             # Extract metrics from info['metrics'] if available
             metrics = {}
-            if 'info' in step_data and 'metrics' in step_data['info']:
+            if 'info' in step_data and isinstance(step_data['info'], dict) and 'metrics' in step_data['info'] and isinstance(step_data['info']['metrics'], dict):
                 metrics.update(step_data['info']['metrics'])
             
             # Add standard step metrics
@@ -165,6 +166,7 @@ class WandbHandler:
                     metrics[key] = value
             
             # Simple wandb.log() call - let wandb handle retries and errors
+            # Always attempt log if we collected any metrics
             if metrics:
                 self.run.log(metrics)
                 
@@ -172,7 +174,7 @@ class WandbHandler:
             # Simple error handling - just print and continue
             logger.warning(f"wandb step logging failed: {e}")
     
-    def log_episode_summary(self, summary_data: Dict[str, Any]) -> None:
+    def log_episode_summary(self, summary_data: dict[str, Any]) -> None:
         """Log episode summary to wandb.
         
         Args:
@@ -205,12 +207,9 @@ class WandbHandler:
                 self.run.log(episode_metrics)
             
             # Log summary visualization if available
-            if 'summary_svg_path' in summary_data:
+            if 'summary_svg_path' in summary_data and getattr(self, '_wandb', None) is not None:
                 try:
-                    import wandb
-                    self.run.log({
-                        "episode_summary": wandb.Image(summary_data['summary_svg_path'])
-                    })
+                    self.run.log({"episode_summary": self._wandb.Image(summary_data['summary_svg_path'])})
                 except Exception as e:
                     logger.warning(f"Failed to log summary image: {e}")
                     
@@ -218,7 +217,7 @@ class WandbHandler:
             # Simple error handling - just print and continue
             logger.warning(f"wandb episode logging failed: {e}")
     
-    def log_aggregated_metrics(self, metrics: Dict[str, float], step: int) -> None:
+    def log_aggregated_metrics(self, metrics: dict[str, float], step: int) -> None:
         """Log aggregated batch metrics to wandb.
         
         Args:
@@ -240,6 +239,33 @@ class WandbHandler:
         except Exception as e:
             # Handle wandb logging failures gracefully
             logger.warning(f"Wandb batch logging failed: {e}")
+
+    def log_evaluation_summary(self, eval_data: dict[str, Any]) -> None:
+        """Log final evaluation summary.
+
+        Stores key metrics into the run summary (if available) and also logs a
+        namespaced eval/ metric set for time-series dashboards.
+        """
+        if self.run is None:
+            return
+        try:
+            summary_metrics = {}
+            # Promote common fields
+            for k in ["task_id", "success_rate", "average_episode_length", "num_timeouts"]:
+                if k in eval_data and isinstance(eval_data[k], (int, float)):
+                    summary_metrics[f"eval/{k}"] = eval_data[k]
+            # Count of test results
+            if 'test_results' in eval_data and isinstance(eval_data['test_results'], list):
+                summary_metrics['eval/num_test_results'] = len(eval_data['test_results'])
+            if summary_metrics:
+                # Log once (step left unspecified so wandb assigns)
+                self.run.log(summary_metrics)
+                # Copy to summary for easy access
+                for k, v in summary_metrics.items():
+                    with suppress(Exception):
+                        self.run.summary[k] = v
+        except Exception as e:
+            logger.warning(f"wandb evaluation summary logging failed: {e}")
 
     def close(self) -> None:
         """Clean shutdown of wandb run."""

@@ -543,3 +543,61 @@ For detailed API documentation, see:
 - `ExperimentLogger` class documentation
 - `LoggingConfig` configuration options
 - Individual handler documentation (FileHandler, SVGHandler, etc.)
+
+## Evaluation Summary Logging
+
+### Overview
+
+An additional terminal logging stage captures final evaluation outcomes across test grids/tasks. Call `ExperimentLogger.log_evaluation_summary(eval_data)` once evaluation is complete. Each enabled handler that implements `log_evaluation_summary` will persist or display results in its modality.
+
+### Data Schema
+
+Minimal expected keys inside `eval_data`:
+
+```python
+eval_data = {
+    "task_id": str,                       # Optional identifier
+    "success_rate": float,                # Fraction of successful evaluation episodes
+    "average_episode_length": float,      # Mean steps per evaluation episode
+    "num_timeouts": int,                  # Count of timed-out episodes
+    "test_results": [                     # Optional detailed per-test entries
+        {
+            "success": bool,
+            "episode_length": int,
+            "trajectory": [               # Optional: first trajectory used for SVGs
+                (before_state, action, after_state, info_dict),
+                ...
+            ]
+        },
+        # ... more results
+    ],
+}
+```
+
+All keys are optional; handlers gracefully ignore missing fields.
+
+### Handler Behaviors
+
+- FileHandler: Writes `evaluation_summary.json` (adds timestamp & config hash) to the run directory.
+- RichHandler: Renders a concise table (Evaluation Summary) with core metrics plus count of test results.
+- WandbHandler: Logs metrics under an `eval/` namespace and mirrors them into the run summary for dashboard visibility.
+- SVGHandler: (Gated) Renders at most one representative trajectory (first entry containing a `trajectory` list) as a synthetic episode (episode 0) using existing step SVG generation. Limited to first 100 steps to guard size.
+
+### Gating & Performance
+
+SVG evaluation rendering reuses episode summary gating (`_should_generate_episode_summary`). To disable heavy artifact generation during evaluation, set visualization level to `off` or disable episode summaries in config.
+
+### Usage Example
+
+```python
+eval_data = compute_eval_metrics(agent, eval_envs)
+logger.log_evaluation_summary(eval_data)
+```
+
+### Failure Isolation
+
+Like other logging operations, each handler invocation is wrapped in an error boundary— a failure in one handler (e.g., wandb network issue) will not prevent others (e.g., file or console) from recording the evaluation results.
+
+### Extensibility
+
+You can attach additional scalar fields (e.g., `median_reward`, `std_similarity`) or nested dictionaries; unsupported / non-scalar entries are skipped by strict handlers (Wandb/Rich) but still serialized in full by FileHandler.

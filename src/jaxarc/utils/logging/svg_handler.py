@@ -8,13 +8,20 @@ the simplified logging architecture.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, TYPE_CHECKING
 
 import numpy as np
 from loguru import logger
 
+if TYPE_CHECKING:  # pragma: no cover
+    import drawsvg as draw  # type: ignore[import-not-found]
+try:  # Optional dependency for SVG creation at runtime
+    import drawsvg as draw  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover - optional dependency path
+    draw = None  # type: ignore[assignment]
+    logger.warning("drawsvg not available - SVG generation degraded")
+
 from ...types import Grid
-from ..serialization_utils import serialize_jax_array
 from ..visualization.episode_manager import EpisodeConfig, EpisodeManager
 from ..visualization.episode_visualization import draw_enhanced_episode_summary_svg
 from ..visualization.rl_visualization import (
@@ -90,7 +97,7 @@ class SVGHandler:
         except Exception as e:
             logger.error(f"Failed to start SVG episode {episode_num}: {e}")
 
-    def log_task_start(self, task_data: Dict[str, Any]) -> None:
+    def log_task_start(self, task_data: dict[str, Any]) -> None:
         """Generate and save task visualization at episode start.
         
         Args:
@@ -393,8 +400,8 @@ class SVGHandler:
             logger.error(f"Failed to generate text-only summary: {e}")
     
     def _create_batched_summary_svg(self, summary_data: dict[str, Any], 
-                                   initial_grid: Grid | None, final_grid: Grid | None,
-                                   environment_id: int) -> str:
+                                    initial_grid: Grid | None, final_grid: Grid | None,
+                                    environment_id: int) -> str:
         """Create SVG content for batched episode summary.
         
         Args:
@@ -407,7 +414,9 @@ class SVGHandler:
             SVG content as string
         """
         try:
-            import drawsvg as draw
+            if draw is None:  # type: ignore[truthy-function]
+                logger.error("drawsvg not installed; cannot create batched summary SVG")
+                return '<svg width="400" height="200"><text x="200" y="100" text-anchor="middle">drawsvg not installed</text></svg>'
             
             # Create drawing with appropriate size
             width = 800
@@ -473,7 +482,9 @@ class SVGHandler:
             title: Title for the grid
         """
         try:
-            import drawsvg as draw
+            if draw is None:  # type: ignore[truthy-function]
+                logger.error("drawsvg not installed; cannot draw grid")
+                return
             
             # Add title
             drawing.append(draw.Text(title, 12, x=x + size//2, y=y-10, 
@@ -621,59 +632,34 @@ class SVGHandler:
             return True
     
     def _extract_grid_from_state(self, state: Any) -> Grid | None:
-        """Extract Grid object from environment state.
-        
-        Args:
-            state: Environment state object
-            
-        Returns:
-            Grid object or None if extraction fails
-        """
+        """Extract Grid object from environment state."""
         try:
-            # Handle different state formats
             if hasattr(state, 'working_grid') and hasattr(state, 'working_grid_mask'):
-                # ArcEnvState format
-                return Grid(
-                    data=np.asarray(state.working_grid),
-                    mask=np.asarray(state.working_grid_mask),
-                )
-            elif hasattr(state, 'data') and hasattr(state, 'mask'):
-                # Already a Grid object
-                return state
-            elif isinstance(state, (np.ndarray, list)):
-                # Raw grid data
+                return Grid(data=np.asarray(state.working_grid), mask=np.asarray(state.working_grid_mask))
+            if hasattr(state, 'data') and hasattr(state, 'mask'):
+                return state  # Already Grid-like
+            if isinstance(state, (np.ndarray, list)):
                 return Grid(data=np.asarray(state), mask=None)
-            else:
-                logger.warning(f"Unknown state format: {type(state)}")
-                return None
-        except Exception as e:
+            logger.warning(f"Unknown state format: {type(state)}")
+            return None
+        except Exception as e:  # pragma: no cover
             logger.error(f"Failed to extract grid from state: {e}")
             return None
     
     def _extract_operation_id(self, action: Any) -> int:
-        """Extract operation ID from action.
-        
-        Args:
-            action: Action object or dictionary
-            
-        Returns:
-            Operation ID as integer
-        """
+        """Extract operation ID from action."""
         try:
-            # Handle structured action objects
             if hasattr(action, 'operation'):
                 op_val = action.operation
-                return int(op_val) if hasattr(op_val, 'item') else int(op_val)
-            
-            # Handle dictionary format
             elif isinstance(action, dict) and 'operation' in action:
                 op_val = action['operation']
-                return int(op_val) if hasattr(op_val, 'item') else int(op_val)
-            
             else:
                 logger.warning(f"Could not extract operation from action: {type(action)}")
                 return 0
-        except Exception as e:
+            if hasattr(op_val, 'item'):
+                op_val = op_val.item()
+            return int(op_val)
+        except Exception as e:  # pragma: no cover
             logger.error(f"Failed to extract operation ID: {e}")
             return 0
     
@@ -712,3 +698,66 @@ class SVGHandler:
             Dictionary with current run information
         """
         return self.episode_manager.get_current_run_info()
+
+    # --- Evaluation Summary Support ---
+    def _should_generate_evaluation_svg(self) -> bool:
+        """Check if evaluation SVG generation is enabled.
+
+        Reuses existing visualization gating; we keep this conservative to avoid
+        large output explosions. Defaults to using episode summary setting.
+        """
+        return self._should_generate_episode_summary()
+
+    def log_evaluation_summary(self, eval_data: dict[str, Any]) -> None:
+        """Generate SVGs for evaluation trajectories (if provided).
+
+        Expects eval_data['test_results'] to contain dicts that may include a
+        'trajectory' key which is an iterable of step tuples:
+            (before_state, action, after_state, info)
+        Only the first available trajectory is rendered to limit storage.
+        """
+        if not self._should_generate_evaluation_svg():
+            return
+        try:
+            test_results = eval_data.get('test_results')
+            if not isinstance(test_results, list) or not test_results:
+                return
+            representative = None
+            for res in test_results:
+                if isinstance(res, dict) and 'trajectory' in res:
+                    representative = res
+                    break
+            if representative is None:
+                return
+            trajectory = representative.get('trajectory')
+            if not trajectory:
+                return
+            task_id = eval_data.get('task_id', 'eval_task')
+            # Start a synthetic episode namespace for evaluation visualization
+            self.start_episode(episode_num=0)
+            # Iterate through limited number of steps to avoid huge dumps
+            max_steps = 100
+            for idx, step_tuple in enumerate(trajectory):
+                if idx >= max_steps:
+                    break
+                try:
+                    before_state, action, after_state, info = step_tuple
+                except ValueError:
+                    # Fallback if info missing: (before, action, after)
+                    if len(step_tuple) == 3:
+                        before_state, action, after_state = step_tuple
+                        info = {}
+                    else:
+                        continue
+                step_payload = {
+                    'step_num': idx,
+                    'before_state': before_state,
+                    'after_state': after_state,
+                    'action': action,
+                    'reward': info.get('reward', 0.0) if isinstance(info, dict) else 0.0,
+                    'info': info if isinstance(info, dict) else {},
+                    'task_id': task_id,
+                }
+                self.log_step(step_payload)
+        except Exception as e:
+            logger.warning(f"Evaluation SVG generation failed: {e}")

@@ -1,5 +1,12 @@
-"""
-Tests for enhanced reward calculation with mode awareness.
+from __future__ import annotations
+
+import jax.numpy as jnp
+import pytest
+from omegaconf import OmegaConf
+from jaxarc.envs.config import RewardConfig
+from jaxarc.envs.functional import _calculate_enhanced_reward
+
+"""Tests for enhanced reward calculation with mode awareness.
 
 This module tests the enhanced reward calculation system that provides:
 - Training mode reward calculation with configurable frequency
@@ -8,19 +15,6 @@ This module tests the enhanced reward calculation system that provides:
 - Different reward structures based on configuration
 - JIT-compilable and efficient implementation
 """
-
-import jax.numpy as jnp
-import pytest
-from omegaconf import OmegaConf
-
-from jaxarc.envs.config import RewardConfig
-from jaxarc.envs.functional import (
-    _calculate_training_step_reward,
-    _calculate_training_submit_reward,
-    _calculate_evaluation_step_reward,
-    _calculate_evaluation_submit_reward,
-    _calculate_control_operation_reward,
-)
 
 
 class TestEnhancedRewardConfig:
@@ -85,7 +79,7 @@ class TestEnhancedRewardConfig:
 
 
 class TestEnhancedRewardCalculation:
-    """Test enhanced reward calculation functions."""
+    """Test enhanced reward calculation via unified _calculate_enhanced_reward."""
 
     @pytest.fixture
     def reward_config(self):
@@ -121,141 +115,86 @@ class TestEnhancedRewardCalculation:
 
         return old_state, new_state, solved_state, efficient_solved_state
 
+    class _DummyConfig:
+        def __init__(self, reward: RewardConfig):
+            self.reward = reward
+
+    def _wrap_config(self, reward_cfg: RewardConfig):  # returns minimal object with reward attr
+        return self._DummyConfig(reward_cfg)
+
     def test_training_step_reward(self, reward_config, mock_states):
-        """Test training mode step reward calculation."""
+        """Training mode reward: similarity + progress + step + no success bonuses when not solved."""
         old_state, new_state, _, _ = mock_states
+        # Inject episode_mode=0
+        old_state.episode_mode = jnp.array(0)
+        new_state.episode_mode = jnp.array(0)
+        config = self._wrap_config(reward_config)
+        reward = _calculate_enhanced_reward(old_state, new_state, config, is_control_operation=False)
         similarity_improvement = new_state.similarity_score - old_state.similarity_score
-
-        reward = _calculate_training_step_reward(
-            old_state, new_state, reward_config, similarity_improvement
-        )
-
-        # Should include similarity reward, progress bonus, step penalty
         expected = (
             reward_config.training_similarity_weight * similarity_improvement
-            + reward_config.progress_bonus  # positive improvement
+            + reward_config.progress_bonus
             + reward_config.step_penalty
         )
         assert jnp.isclose(reward, expected, atol=1e-6)
 
     def test_training_step_reward_with_success(self, reward_config, mock_states):
-        """Test training mode step reward with success bonuses."""
+        """Solved training reward includes success, demo completion, efficiency bonuses."""
         old_state, _, _, efficient_solved_state = mock_states
+        old_state.episode_mode = jnp.array(0)
+        efficient_solved_state.episode_mode = jnp.array(0)
+        config = self._wrap_config(reward_config)
+        reward = _calculate_enhanced_reward(old_state, efficient_solved_state, config, False)
         similarity_improvement = efficient_solved_state.similarity_score - old_state.similarity_score
-
-        reward = _calculate_training_step_reward(
-            old_state, efficient_solved_state, reward_config, similarity_improvement
-        )
-
-        # Should include all bonuses for efficient solution
         expected = (
             reward_config.training_similarity_weight * similarity_improvement
             + reward_config.progress_bonus
             + reward_config.step_penalty
             + reward_config.success_bonus
             + reward_config.demo_completion_bonus
-            + reward_config.efficiency_bonus  # solved within threshold
+            + reward_config.efficiency_bonus
         )
         assert jnp.isclose(reward, expected, atol=1e-6)
 
-    def test_training_submit_reward(self, reward_config, mock_states):
-        """Test training mode submit reward calculation."""
-        old_state, new_state, solved_state, _ = mock_states
+    def test_control_operation_penalty(self, reward_config, mock_states):
+        """Control operations subtract control penalty and may add pair switching bonus (not modeled separately now)."""
+        old_state, new_state, _, _ = mock_states
+        old_state.episode_mode = jnp.array(0)
+        new_state.episode_mode = jnp.array(0)
+        config = self._wrap_config(reward_config)
+        reward_normal = _calculate_enhanced_reward(old_state, new_state, config, False)
+        reward_control = _calculate_enhanced_reward(old_state, new_state, config, True)
+        assert jnp.isclose(reward_control, reward_normal + reward_config.control_operation_penalty, atol=1e-6)
 
-        # Test non-submit case
-        similarity_improvement = new_state.similarity_score - old_state.similarity_score
-        reward_non_submit = _calculate_training_submit_reward(
-            old_state, new_state, reward_config, similarity_improvement
-        )
-        assert jnp.isclose(reward_non_submit, reward_config.step_penalty, atol=1e-6)
-
-        # Test submit case (solved)
-        similarity_improvement_solved = solved_state.similarity_score - old_state.similarity_score
-        reward_submit = _calculate_training_submit_reward(
-            old_state, solved_state, reward_config, similarity_improvement_solved
-        )
-        
-        # Should include full reward calculation (including efficiency bonus since step_count=25 <= threshold=50)
-        expected = (
-            reward_config.training_similarity_weight * similarity_improvement_solved
-            + reward_config.progress_bonus
-            + reward_config.step_penalty
-            + reward_config.success_bonus
-            + reward_config.demo_completion_bonus
-            + reward_config.efficiency_bonus  # included because step_count <= threshold
-        )
-        assert jnp.isclose(reward_submit, expected, atol=1e-6)
-
-    def test_evaluation_step_reward(self, reward_config, mock_states):
-        """Test evaluation mode step reward calculation."""
-        old_state, new_state, solved_state, _ = mock_states
-
-        # Test normal step
-        reward = _calculate_evaluation_step_reward(old_state, new_state, reward_config)
-        expected = reward_config.step_penalty
-        assert jnp.isclose(reward, expected, atol=1e-6)
-
-        # Test solved step (includes efficiency bonus since step_count=25 <= threshold=50)
-        reward_solved = _calculate_evaluation_step_reward(old_state, solved_state, reward_config)
+    def test_evaluation_rewards(self, reward_config, mock_states):
+        """Evaluation mode rewards exclude similarity & progress; add test bonuses on solve."""
+        old_state, new_state, solved_state, efficient_solved_state = mock_states
+        for s in [old_state, new_state, solved_state, efficient_solved_state]:
+            s.episode_mode = jnp.array(1)
+        config = self._wrap_config(reward_config)
+        # Non-solved
+        reward_unsolved = _calculate_enhanced_reward(old_state, new_state, config, False)
+        assert jnp.isclose(reward_unsolved, reward_config.step_penalty, atol=1e-6)
+        # Solved inefficient (step 25 still within threshold)
+        reward_solved = _calculate_enhanced_reward(old_state, solved_state, config, False)
         expected_solved = (
             reward_config.step_penalty
             + reward_config.success_bonus
             + reward_config.test_completion_bonus
-            + reward_config.efficiency_bonus  # included because step_count <= threshold
-        )
-        assert jnp.isclose(reward_solved, expected_solved, atol=1e-6)
-
-    def test_evaluation_submit_reward(self, reward_config, mock_states):
-        """Test evaluation mode submit reward calculation."""
-        old_state, new_state, solved_state, efficient_solved_state = mock_states
-
-        # Test non-submit case
-        reward_non_submit = _calculate_evaluation_submit_reward(
-            old_state, new_state, reward_config
-        )
-        assert jnp.isclose(reward_non_submit, reward_config.step_penalty, atol=1e-6)
-
-        # Test submit case (solved, includes efficiency bonus since step_count=25 <= threshold=50)
-        reward_submit = _calculate_evaluation_submit_reward(
-            old_state, solved_state, reward_config
-        )
-        expected = (
-            reward_config.step_penalty
-            + reward_config.success_bonus
-            + reward_config.test_completion_bonus
-            + reward_config.efficiency_bonus  # included because step_count <= threshold
-        )
-        assert jnp.isclose(reward_submit, expected, atol=1e-6)
-
-        # Test efficient solution
-        reward_efficient = _calculate_evaluation_submit_reward(
-            old_state, efficient_solved_state, reward_config
-        )
-        expected_efficient = (
-            reward_config.step_penalty
-            + reward_config.success_bonus
-            + reward_config.test_completion_bonus
             + reward_config.efficiency_bonus
-        )
-        assert jnp.isclose(reward_efficient, expected_efficient, atol=1e-6)
-
-    def test_control_operation_reward(self, reward_config, mock_states):
-        """Test control operation reward calculation."""
-        _, new_state, _, _ = mock_states
-
-        reward = _calculate_control_operation_reward(new_state, reward_config)
-        expected = (
-            reward_config.control_operation_penalty + reward_config.pair_switching_bonus
-        )
-        assert jnp.isclose(reward, expected, atol=1e-6)
+    )
+        assert jnp.isclose(reward_solved, expected_solved, atol=1e-6)
+        # Efficient solved (step 20)
+        reward_efficient = _calculate_enhanced_reward(old_state, efficient_solved_state, config, False)
+        assert jnp.isclose(reward_efficient, expected_solved, atol=1e-6)
 
 
 class TestRewardConfigurationFiles:
     """Test reward configuration files."""
 
-    def test_enhanced_config_file(self):
-        """Test enhanced reward configuration file."""
-        config_dict = OmegaConf.load("conf/reward/enhanced.yaml")
+    def test_standard_config_file(self):
+        """Test standard reward configuration file from src path."""
+        config_dict = OmegaConf.load("src/jaxarc/conf/reward/standard.yaml")
         config = RewardConfig.from_hydra(config_dict)
 
         assert config.training_similarity_weight == 1.0
@@ -267,9 +206,9 @@ class TestRewardConfigurationFiles:
         errors = config.validate()
         assert len(errors) == 0
 
-    def test_training_optimized_config_file(self):
-        """Test training optimized reward configuration file."""
-        config_dict = OmegaConf.load("conf/reward/training_optimized.yaml")
+    def test_training_config_file(self):
+        """Test training reward configuration file from src path."""
+        config_dict = OmegaConf.load("src/jaxarc/conf/reward/training.yaml")
         config = RewardConfig.from_hydra(config_dict)
 
         assert config.step_penalty == -0.005  # Smaller penalty for exploration
@@ -280,9 +219,9 @@ class TestRewardConfigurationFiles:
         errors = config.validate()
         assert len(errors) == 0
 
-    def test_evaluation_focused_config_file(self):
-        """Test evaluation focused reward configuration file."""
-        config_dict = OmegaConf.load("conf/reward/evaluation_focused.yaml")
+    def test_evaluation_config_file(self):
+        """Test evaluation reward configuration file from src path."""
+        config_dict = OmegaConf.load("src/jaxarc/conf/reward/evaluation.yaml")
         config = RewardConfig.from_hydra(config_dict)
 
         assert config.step_penalty == -0.02  # Higher penalty for efficiency
