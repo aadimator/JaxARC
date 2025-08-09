@@ -309,6 +309,31 @@ class ExperimentLogger:
             except Exception as e:
                 logger.warning(f"Failed to aggregate batch metrics: {e}")
 
+    def log_evaluation_summary(self, eval_data: dict[str, Any]) -> None:
+        """Log a final evaluation summary through all active handlers.
+
+        This method is intended to be called once at the end of training / evaluation
+        for a task (or set of tasks). Handlers may optionally implement
+        ``log_evaluation_summary``; handlers lacking the method are skipped
+        gracefully.
+
+                Args:
+                        eval_data: Dictionary containing evaluation summary. Recommended keys:
+                                - task_id: Identifier of the evaluated task (if single task)
+                                - success_rate: Float success rate across evaluation episodes
+                                - average_episode_length: Mean episode length
+                                - num_timeouts: Number of timed-out episodes
+                                - test_results: List of per-episode / per-pair result dicts. Each
+                                    dict may optionally contain a 'trajectory' key with a list of
+                                    step tuples e.g. (before_state, action, after_state, info).
+        """
+        for handler_name, handler in self.handlers.items():
+            try:
+                if hasattr(handler, 'log_evaluation_summary'):
+                    handler.log_evaluation_summary(eval_data)
+            except Exception as e:
+                logger.warning(f"Handler {handler_name} failed in log_evaluation_summary: {e}")
+
 
     def close(self) -> None:
         """Clean shutdown of all handlers.

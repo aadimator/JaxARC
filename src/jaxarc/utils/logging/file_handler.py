@@ -12,7 +12,7 @@ import json
 import pickle
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -57,7 +57,7 @@ class FileHandler:
         
         logger.info(f"FileHandler initialized with output directory: {self.output_dir}")
     
-    def log_task_start(self, task_data: Dict[str, Any]) -> None:
+    def log_task_start(self, task_data: dict[str, Any]) -> None:
         """Log task information at the start of an episode.
         
         Args:
@@ -109,7 +109,7 @@ class FileHandler:
         
         logger.debug(f"Logged task start for task {task_data.get('task_id', 'unknown')}")
 
-    def log_step(self, step_data: Dict[str, Any]) -> None:
+    def log_step(self, step_data: dict[str, Any]) -> None:
         """Log step data to current episode.
         
         Args:
@@ -130,7 +130,7 @@ class FileHandler:
         
         logger.debug(f"Logged step {step_data.get('step_num', 'unknown')}")
     
-    def log_episode_summary(self, summary_data: Dict[str, Any]) -> None:
+    def log_episode_summary(self, summary_data: dict[str, Any]) -> None:
         """Save complete episode data to file.
         
         Args:
@@ -165,7 +165,7 @@ class FileHandler:
         # Reset for next episode
         self.current_episode_data = {}
     
-    def log_aggregated_metrics(self, metrics: Dict[str, float], step: int) -> None:
+    def log_aggregated_metrics(self, metrics: dict[str, float], step: int) -> None:
         """Log aggregated batch metrics to file.
         
         Args:
@@ -187,7 +187,7 @@ class FileHandler:
             }
             
             # Append to JSONL file (one JSON object per line)
-            with open(batch_metrics_file, 'a', encoding='utf-8') as f:
+            with Path(batch_metrics_file).open('a', encoding='utf-8') as f:
                 f.write(json.dumps(log_entry, default=str) + '\n')
             
             logger.debug(f"Logged batch metrics to {batch_metrics_file} at step {step}")
@@ -195,6 +195,26 @@ class FileHandler:
         except Exception as e:
             # Handle file writing errors gracefully
             logger.warning(f"File batch logging failed: {e}")
+
+    def log_evaluation_summary(self, eval_data: dict[str, Any]) -> None:
+        """Persist evaluation summary to a dedicated JSON file.
+
+        Creates/overwrites a file named evaluation_summary.json in the
+        output directory with the provided evaluation data plus timestamp.
+        """
+        try:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            path = self.output_dir / "evaluation_summary.json"
+            payload = {
+                "timestamp": time.time(),
+                "evaluation": eval_data,
+                "config_hash": self._get_config_hash(),
+            }
+            with Path(path).open('w', encoding='utf-8') as f:
+                json.dump(payload, f, indent=2, default=str)
+            logger.info(f"Saved evaluation summary to {path}")
+        except Exception as e:
+            logger.warning(f"Failed to write evaluation summary: {e}")
 
     def close(self) -> None:
         """Clean shutdown - save any pending data."""
@@ -204,7 +224,7 @@ class FileHandler:
                 # Ensure output directory exists
                 self.output_dir.mkdir(parents=True, exist_ok=True)
                 incomplete_path = self.output_dir / "incomplete_episode.json"
-                with open(incomplete_path, 'w') as f:
+                with Path(incomplete_path).open('w', encoding='utf-8') as f:
                     json.dump(self.current_episode_data, f, indent=2, default=str)
                 logger.info(f"Saved incomplete episode data to {incomplete_path}")
             except Exception as e:
@@ -212,7 +232,7 @@ class FileHandler:
         
         logger.info("FileHandler shutdown complete")
     
-    def _serialize_step_data(self, step_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_step_data(self, step_data: dict[str, Any]) -> dict[str, Any]:
         """Convert step data to serializable format using existing utilities.
         
         Args:
@@ -239,7 +259,7 @@ class FileHandler:
         
         return serialized
     
-    def _serialize_state(self, state: Any) -> Dict[str, Any]:
+    def _serialize_state(self, state: Any) -> dict[str, Any]:
         """Serialize state objects using existing utilities.
         
         Args:
@@ -302,7 +322,7 @@ class FileHandler:
                 'step_count': getattr(state, 'step_count', 0) if hasattr(state, 'step_count') else 0
             }
     
-    def _serialize_info_dict(self, info: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_info_dict(self, info: dict[str, Any]) -> dict[str, Any]:
         """Serialize info dictionary, preserving metrics structure for automatic extraction.
         
         This method ensures that the entire info dictionary is serialized while
@@ -334,7 +354,7 @@ class FileHandler:
     
 
     
-    def _save_json(self, episode_data: Dict[str, Any], episode_num: int) -> None:
+    def _save_json(self, episode_data: dict[str, Any], episode_num: int) -> None:
         """Save episode data as JSON file.
         
         Args:
@@ -346,13 +366,13 @@ class FileHandler:
         filepath = self.output_dir / filename
         
         try:
-            with open(filepath, 'w', encoding='utf-8') as f:
+            with Path(filepath).open('w', encoding='utf-8') as f:
                 json.dump(episode_data, f, indent=2, default=str)
             logger.debug(f"Saved JSON episode data to {filepath}")
         except Exception as e:
             logger.error(f"Failed to save JSON episode data: {e}")
     
-    def _save_pickle(self, episode_data: Dict[str, Any], episode_num: int) -> None:
+    def _save_pickle(self, episode_data: dict[str, Any], episode_num: int) -> None:
         """Save episode data as pickle file.
         
         Args:
@@ -364,7 +384,7 @@ class FileHandler:
         filepath = self.output_dir / filename
         
         try:
-            with open(filepath, 'wb') as f:
+            with Path(filepath).open('wb') as f:
                 pickle.dump(episode_data, f)
             logger.debug(f"Saved pickle episode data to {filepath}")
         except Exception as e:
