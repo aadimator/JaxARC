@@ -8,7 +8,6 @@ from __future__ import annotations
 
 # Configuration utilities
 from .config import (
-    get_config,
     get_external_path,
     get_interim_path,
     get_path,
@@ -80,7 +79,6 @@ __all__ = [
     "validate_dataset_config",
     "get_dataset_recommendations",
     # Configuration utilities
-    "get_config",
     "get_path",
     "get_raw_path",
     "get_processed_path",

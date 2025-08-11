@@ -31,6 +31,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from jaxarc.utils.grid_utils import compute_grid_similarity
 from jaxarc.utils.pytree import update_multiple_fields
 from jaxarc.utils.state_utils import (
     set_episode_done,
@@ -241,66 +242,6 @@ def get_operation_category(operation_id: int) -> str:
 
     # This should never happen if is_valid_operation_id works correctly
     raise ValueError(f"Operation ID {operation_id} not found in any category")
-
-
-@eqx.filter_jit
-def compute_grid_similarity(
-    working_grid: GridArray,
-    working_mask: SelectionArray,
-    target_grid: GridArray,
-    target_mask: SelectionArray,
-) -> SimilarityScore:
-    """
-    Compute size-aware similarity between working and target grids.
-
-    This function compares grids on a fixed canvas based on the target grid's
-    actual dimensions. Size mismatches are properly penalized:
-    - If working grid is smaller: missing areas count as mismatches
-    - If working grid is larger: only the target-sized area is compared
-
-    Args:
-        working_grid: The current working grid
-        working_mask: Mask indicating active area of working grid
-        target_grid: The target grid to compare against
-        target_mask: Mask indicating active area of target grid
-
-    Returns:
-        Similarity score from 0.0 to 1.0
-    """
-    from ..utils.grid_utils import get_actual_grid_shape_from_mask
-
-    # Check if target has any content
-    target_has_content = jnp.sum(target_mask) > 0
-
-    def compute_similarity_with_content():
-        # Use utility function to get target dimensions
-        target_height, target_width = get_actual_grid_shape_from_mask(target_mask)
-
-        # Create comparison canvas based on target dimensions
-        rows = jnp.arange(target_grid.shape[0])[:, None]
-        cols = jnp.arange(target_grid.shape[1])[None, :]
-        canvas_mask = (rows < target_height) & (cols < target_width)
-
-        # Compare grids only where target_mask indicates content should exist
-        # Working grid content is considered within canvas and working mask
-        working_content = jnp.where(canvas_mask & working_mask, working_grid, -1)
-        target_content = jnp.where(target_mask, target_grid, -1)
-
-        # Count matches only in target mask positions
-        matches = jnp.sum((working_content == target_content) & target_mask)
-        total_target_positions = jnp.sum(target_mask)
-
-        return matches.astype(jnp.float32) / total_target_positions.astype(jnp.float32)
-
-    def empty_target_similarity():
-        # If target is empty, similarity is 1.0 if working is also empty, 0.0 otherwise
-        working_has_content = jnp.sum(working_mask) > 0
-        return jnp.where(working_has_content, 0.0, 1.0)
-
-    return jax.lax.cond(
-        target_has_content, compute_similarity_with_content, empty_target_similarity
-    )
-
 
 @eqx.filter_jit
 def _copy_grid_to_target_shape(
