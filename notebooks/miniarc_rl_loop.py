@@ -55,8 +55,8 @@ from jaxarc.envs import (
     arc_step,
     create_bbox_action,
 )
+from jaxarc.envs.actions import StructuredAction
 from jaxarc.envs.functional import batch_reset, batch_step
-from jaxarc.envs.structured_actions import StructuredAction
 from jaxarc.parsers import MiniArcParser
 from jaxarc.state import ArcEnvState
 from jaxarc.types import Grid

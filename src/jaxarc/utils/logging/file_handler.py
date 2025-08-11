@@ -16,9 +16,13 @@ from typing import Any
 
 from loguru import logger
 
-from ..serialization_utils import serialize_object, serialize_action, serialize_jax_array
+from ..pytree import filter_arrays_from_state
+from ..serialization_utils import (
+    serialize_action,
+    serialize_jax_array,
+    serialize_object,
+)
 from ..task_manager import extract_task_id_from_index
-from ..pytree_utils import filter_arrays_from_state
 
 
 class FileHandler:
