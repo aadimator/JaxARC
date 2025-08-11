@@ -9,22 +9,18 @@ similarity_weight: 1.0
 
 # Enhanced progress tracking
 progress_bonus: 0.2  # Reward similarity improvements
-invalid_action_penalty: -0.05  # Lighter penalty for exploration
 
 # Control operation settings for multi-demo training
 control_operation_penalty: -0.005  # Very small penalty for pair switching
-pair_switching_bonus: 0.1  # Encourage switching to new pairs
 
 # Training mode settings
 training_similarity_weight: 1.0  # Full similarity feedback
-evaluation_similarity_weight: 0.0  # Masked in test mode
 
 # Pair completion incentives
 demo_completion_bonus: 2.0  # Good bonus for demo completion
 test_completion_bonus: 10.0  # High bonus for test completion
 
 # Efficiency incentives
-consecutive_success_bonus: 1.0  # Reward solving multiple pairs
 efficiency_bonus_threshold: 30  # Encourage efficient solutions
 efficiency_bonus: 3.0  # Good efficiency bonus
 

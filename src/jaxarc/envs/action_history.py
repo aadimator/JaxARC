@@ -49,6 +49,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Int
+from omegaconf import DictConfig
 
 from ..state import ArcEnvState
 from ..utils.jax_types import (
@@ -103,6 +104,22 @@ class HistoryConfig(eqx.Module):
     store_selection_data: bool = True
     store_intermediate_grids: bool = False  # Memory-intensive option
     compress_repeated_actions: bool = True
+
+    @classmethod
+    def from_hydra(cls, hydra_config: DictConfig) -> "HistoryConfig":
+        """Create HistoryConfig from Hydra DictConfig.
+        Args:
+            hydra_config: Hydra configuration dictionary
+        Returns:
+            HistoryConfig instance
+        """
+        return cls(
+            enabled=hydra_config.get("enabled", True),
+            max_history_length=hydra_config.get("max_history_length", 1000),
+            store_selection_data=hydra_config.get("store_selection_data", True),
+            store_intermediate_grids=hydra_config.get("store_intermediate_grids", False),
+            compress_repeated_actions=hydra_config.get("compress_repeated_actions", True),
+        )
     
     def __post_init__(self):
         """Validate configuration parameters."""

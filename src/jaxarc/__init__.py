@@ -36,19 +36,9 @@ from __future__ import annotations
 
 from ._version import version as __version__
 
-# Configuration package utilities for downstream consumption
-from .config_pkg import (
-    create_config_template,
-    extend_jaxarc_config,
-    get_jaxarc_config_dir,
-    list_available_configs,
-    load_jaxarc_config,
-)
-
 # Core environment and state
 # Functional API
 from .envs import (
-    ArcEnvironment,
     arc_reset,
     arc_step,
 )
@@ -65,8 +55,6 @@ __all__ = [
     "ARCLEAction",
     # Configuration
     "ArcEnvState",
-    # Core environment and state
-    "ArcEnvironment",
     "Grid",
     "JaxArcConfig",
     "JaxArcTask",
@@ -76,11 +64,4 @@ __all__ = [
     # Functional API
     "arc_reset",
     "arc_step",
-    # Configuration package utilities
-    "create_config_template",
-    "create_arc_env_state",
-    "extend_jaxarc_config",
-    "get_jaxarc_config_dir",
-    "list_available_configs",
-    "load_jaxarc_config",
 ]

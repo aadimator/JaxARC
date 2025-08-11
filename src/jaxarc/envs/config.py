@@ -110,10 +110,6 @@ class EnvironmentConfig(eqx.Module):
     max_episode_steps: int = 100
     auto_reset: bool = True
 
-    # Environment behavior
-    strict_validation: bool = True
-    allow_invalid_actions: bool = False
-
     # Debug level (moved from separate DebugConfig)
     debug_level: Literal["off", "minimal", "standard", "verbose", "research"] = (
         "standard"
@@ -152,18 +148,6 @@ class EnvironmentConfig(eqx.Module):
         }
         return level_mapping.get(self.debug_level, "standard")
 
-    @property
-    def computed_storage_policy(self) -> str:
-        """Get computed storage policy based on debug level."""
-        level_mapping = {
-            "off": "none",
-            "minimal": "minimal",
-            "standard": "standard",
-            "verbose": "research",
-            "research": "research",
-        }
-        return level_mapping.get(self.debug_level, "standard")
-
     def __check_init__(self):
         """Validate hashability after initialization."""
         try:
@@ -179,8 +163,6 @@ class EnvironmentConfig(eqx.Module):
         return cls(
             max_episode_steps=cfg.get("max_episode_steps", 100),
             auto_reset=cfg.get("auto_reset", True),
-            strict_validation=cfg.get("strict_validation", True),
-            allow_invalid_actions=cfg.get("allow_invalid_actions", False),
             debug_level=cfg.get("debug_level", "standard"),
         )
 
@@ -340,58 +322,16 @@ class VisualizationConfig(eqx.Module):
     enabled: bool = True
     level: Literal["off", "minimal", "standard", "verbose", "full"] = "standard"
 
-    # Output formats and quality - handled in from_hydra
-    output_formats: tuple[str, ...] = ("svg",)  # Changed from List[str] to tuple
-    image_quality: Literal["low", "medium", "high"] = "high"
-
     def __init__(self, **kwargs):
-        """Initialize with automatic list-to-tuple conversion."""
-        output_formats = kwargs.get("output_formats", ("svg",))
-        if isinstance(output_formats, str):
-            output_formats = (output_formats,)
-        elif hasattr(output_formats, '__iter__') and not isinstance(output_formats, (str, tuple)):
-            # Handle ListConfig and other iterable types
-            output_formats = tuple(output_formats) if output_formats else ("svg",)
-        elif not isinstance(output_formats, tuple):
-            output_formats = ("svg",)
-
         # Set all fields
         self.enabled = kwargs.get("enabled", True)
         self.level = kwargs.get("level", "standard")
-        self.output_formats = output_formats
-        self.image_quality = kwargs.get("image_quality", "high")
-        self.show_coordinates = kwargs.get("show_coordinates", False)
-        self.show_operation_names = kwargs.get("show_operation_names", True)
-        self.highlight_changes = kwargs.get("highlight_changes", True)
-        self.include_metrics = kwargs.get("include_metrics", True)
-        self.color_scheme = kwargs.get("color_scheme", "default")
-        self.visualize_episodes = kwargs.get("visualize_episodes", True)
         self.episode_summaries = kwargs.get("episode_summaries", True)
         self.step_visualizations = kwargs.get("step_visualizations", True)
-        self.enable_comparisons = kwargs.get("enable_comparisons", True)
-        self.save_intermediate_states = kwargs.get("save_intermediate_states", False)
-        self.lazy_loading = kwargs.get("lazy_loading", True)
-        self.max_memory_mb = kwargs.get("max_memory_mb", 500)
-
-    # Display settings
-    show_coordinates: bool = False
-    show_operation_names: bool = True
-    highlight_changes: bool = True
-    include_metrics: bool = True
-    color_scheme: Literal["default", "high_contrast", "colorblind"] = "default"
 
     # Episode visualization
-    visualize_episodes: bool = True
     episode_summaries: bool = True
     step_visualizations: bool = True
-
-    # Comparison and analysis
-    enable_comparisons: bool = True
-    save_intermediate_states: bool = False
-
-    # Memory and performance
-    lazy_loading: bool = True
-    max_memory_mb: int = 500  # Standardized naming: max_* pattern
 
     def validate(self) -> tuple[str, ...]:
         """Validate visualization configuration and return tuple of errors."""
@@ -401,27 +341,6 @@ class VisualizationConfig(eqx.Module):
             # Validate level choices
             valid_levels = ("off", "minimal", "standard", "verbose", "full")
             validate_string_choice(self.level, "level", valid_levels)
-
-            valid_quality = ("low", "medium", "high")
-            validate_string_choice(self.image_quality, "image_quality", valid_quality)
-
-            valid_schemes = ("default", "high_contrast", "colorblind")
-            validate_string_choice(self.color_scheme, "color_scheme", valid_schemes)
-
-            # Validate numeric fields
-            validate_positive_int(self.max_memory_mb, "max_memory_mb")
-
-            if self.max_memory_mb > 5000:
-                logger.warning(f"max_memory_mb is very large: {self.max_memory_mb}")
-
-            # Validate output formats
-            valid_formats = ("svg", "png", "html", "console")
-            if hasattr(self.output_formats, "__iter__"):
-                for fmt in self.output_formats:
-                    if fmt not in valid_formats:
-                        errors.append(
-                            f"Invalid output format: {fmt}. Valid formats: {valid_formats}"
-                        )
 
             # Cross-field validation warnings
             if not self.enabled and self.level != "off":
@@ -447,32 +366,11 @@ class VisualizationConfig(eqx.Module):
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> VisualizationConfig:
         """Create visualization config from Hydra DictConfig."""
-        output_formats = cfg.get("output_formats", ["svg"])
-        if isinstance(output_formats, str):
-            output_formats = (output_formats,)
-        elif hasattr(output_formats, '__iter__') and not isinstance(output_formats, (str, tuple)):
-            # Handle ListConfig and other iterable types
-            output_formats = tuple(output_formats) if output_formats else ("svg",)
-        elif not isinstance(output_formats, tuple):
-            output_formats = ("svg",)
-
         return cls(
-            output_formats=output_formats,  # Pass as keyword argument
             enabled=cfg.get("enabled", True),
             level=cfg.get("level", "standard"),
-            image_quality=cfg.get("image_quality", "high"),
-            show_coordinates=cfg.get("show_coordinates", False),
-            show_operation_names=cfg.get("show_operation_names", True),
-            highlight_changes=cfg.get("highlight_changes", True),
-            include_metrics=cfg.get("include_metrics", True),
-            color_scheme=cfg.get("color_scheme", "default"),
-            visualize_episodes=cfg.get("visualize_episodes", True),
             episode_summaries=cfg.get("episode_summaries", True),
             step_visualizations=cfg.get("step_visualizations", True),
-            enable_comparisons=cfg.get("enable_comparisons", True),
-            save_intermediate_states=cfg.get("save_intermediate_states", False),
-            lazy_loading=cfg.get("lazy_loading", True),
-            max_memory_mb=cfg.get("memory_limit_mb", 500),  # Support legacy name
         )
 
 
@@ -484,7 +382,6 @@ class StorageConfig(eqx.Module):
     """
 
     # Base storage configuration
-    policy: Literal["none", "minimal", "standard", "research"] = "standard"
     base_output_dir: str = "outputs"
     run_name: str | None = None
 
@@ -502,37 +399,20 @@ class StorageConfig(eqx.Module):
     cleanup_policy: Literal["none", "size_based", "oldest_first", "manual"] = (
         "size_based"
     )
-    cleanup_frequency: Literal["never", "after_run", "daily", "manual"] = "after_run"
-    keep_recent_episodes: int = 10
 
     # File organization
     create_run_subdirs: bool = True
-    timestamp_format: str = "%Y%m%d_%H%M%S"
-    compress_old_files: bool = True
     clear_output_on_start: bool = True
-
-    # Safety settings
-    auto_cleanup: bool = True
-    warn_on_storage_limit: bool = True
-    fail_on_storage_full: bool = False
 
     def validate(self) -> tuple[str, ...]:
         """Validate storage configuration and return tuple of errors."""
         errors = []
 
         try:
-            # Validate policy choices
-            valid_policies = ("none", "minimal", "standard", "research")
-            validate_string_choice(self.policy, "policy", valid_policies)
 
             valid_cleanup_policies = ("none", "size_based", "oldest_first", "manual")
             validate_string_choice(
                 self.cleanup_policy, "cleanup_policy", valid_cleanup_policies
-            )
-
-            valid_cleanup_freq = ("never", "after_run", "daily", "manual")
-            validate_string_choice(
-                self.cleanup_frequency, "cleanup_frequency", valid_cleanup_freq
             )
 
             # Validate output directory paths
@@ -544,7 +424,6 @@ class StorageConfig(eqx.Module):
 
             # Validate numeric fields
             validate_positive_int(self.max_episodes_per_run, "max_episodes_per_run")
-            validate_positive_int(self.keep_recent_episodes, "keep_recent_episodes")
 
             if not isinstance(self.max_storage_gb, (int, float)):
                 msg = f"max_storage_gb must be a number, got {type(self.max_storage_gb).__name__}"
@@ -561,14 +440,6 @@ class StorageConfig(eqx.Module):
             if self.max_storage_gb > 100:
                 logger.warning(f"max_storage_gb is very large: {self.max_storage_gb}")
 
-            # Cross-field validation
-            if self.keep_recent_episodes > self.max_episodes_per_run:
-                logger.warning(
-                    f"keep_recent_episodes ({self.keep_recent_episodes}) > max_episodes_per_run ({self.max_episodes_per_run})"
-                )
-
-            if self.cleanup_policy == "none" and self.auto_cleanup:
-                logger.warning("auto_cleanup=True but cleanup_policy='none'")
 
         except ConfigValidationError as e:
             errors.append(str(e))
@@ -588,7 +459,6 @@ class StorageConfig(eqx.Module):
     def from_hydra(cls, cfg: DictConfig) -> StorageConfig:
         """Create storage config from Hydra DictConfig."""
         return cls(
-            policy=cfg.get("policy", "standard"),
             base_output_dir=cfg.get("base_output_dir", "outputs"),
             run_name=cfg.get("run_name"),
             episodes_dir=cfg.get("episodes_dir", "episodes"),
@@ -598,15 +468,8 @@ class StorageConfig(eqx.Module):
             max_episodes_per_run=cfg.get("max_episodes_per_run", 100),
             max_storage_gb=cfg.get("max_storage_gb", 5.0),
             cleanup_policy=cfg.get("cleanup_policy", "size_based"),
-            cleanup_frequency=cfg.get("cleanup_frequency", "after_run"),
-            keep_recent_episodes=cfg.get("keep_recent_episodes", 10),
             create_run_subdirs=cfg.get("create_run_subdirs", True),
-            timestamp_format=cfg.get("timestamp_format", "%Y%m%d_%H%M%S"),
-            compress_old_files=cfg.get("compress_old_files", True),
             clear_output_on_start=cfg.get("clear_output_on_start", True),
-            auto_cleanup=cfg.get("auto_cleanup", True),
-            warn_on_storage_limit=cfg.get("warn_on_storage_limit", True),
-            fail_on_storage_full=cfg.get("fail_on_storage_full", False),
         )
 
 
@@ -617,37 +480,15 @@ class LoggingConfig(eqx.Module):
     how to format it, where to write it, and performance settings.
     """
 
-    # Core logging settings
-    structured_logging: bool = True
-    log_format: Literal["json", "text", "structured"] = "json"
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    compression: bool = True
-    include_full_states: bool = False
-
     # What to log (specific content flags)
     log_operations: bool = False
-    log_grid_changes: bool = False
     log_rewards: bool = False
-    log_episode_start: bool = True
-    log_episode_end: bool = True
-    log_key_moments: bool = True
 
     # Logging frequency and timing
     log_frequency: int = 10  # Log every N steps
 
     # Batched logging settings
     batched_logging_enabled: bool = False
-    sampling_enabled: bool = True
-    num_samples: int = 3
-    sample_frequency: int = 50
-    
-    # Aggregated metrics selection
-    log_aggregated_rewards: bool = True
-    log_aggregated_similarity: bool = True
-    log_loss_metrics: bool = True
-    log_gradient_norms: bool = True
-    log_episode_lengths: bool = True
-    log_success_rates: bool = True
 
     def validate(self) -> tuple[str, ...]:
         """Validate logging configuration and return tuple of errors."""
@@ -667,20 +508,6 @@ class LoggingConfig(eqx.Module):
             if self.log_frequency > 1000:
                 logger.warning(f"log_frequency is very high: {self.log_frequency}")
 
-            # Validate batched logging parameters
-            if self.batched_logging_enabled:
-                validate_positive_int(self.num_samples, "num_samples")
-                validate_positive_int(self.sample_frequency, "sample_frequency")
-                
-                if self.num_samples > 1000:
-                    logger.warning(f"num_samples is very large: {self.num_samples}")
-                
-                if self.sample_frequency <= 0:
-                    errors.append("sample_frequency must be positive")
-                
-                if self.num_samples <= 0:
-                    errors.append("num_samples must be positive")
-
         except ConfigValidationError as e:
             errors.append(str(e))
 
@@ -699,30 +526,11 @@ class LoggingConfig(eqx.Module):
     def from_hydra(cls, cfg: DictConfig) -> LoggingConfig:
         """Create logging config from Hydra DictConfig."""
         return cls(
-            structured_logging=cfg.get("structured_logging", True),
-            log_format=cfg.get("log_format", "json"),
-            log_level=cfg.get("log_level", "INFO"),
-            compression=cfg.get("compression", True),
-            include_full_states=cfg.get("include_full_states", False),
             log_operations=cfg.get("log_operations", False),
-            log_grid_changes=cfg.get("log_grid_changes", False),
             log_rewards=cfg.get("log_rewards", False),
-            log_episode_start=cfg.get("log_episode_start", True),
-            log_episode_end=cfg.get("log_episode_end", True),
-            log_key_moments=cfg.get("log_key_moments", True),
             log_frequency=cfg.get("log_frequency", 10),
             # Batched logging settings
             batched_logging_enabled=cfg.get("batched_logging_enabled", False),
-            sampling_enabled=cfg.get("sampling_enabled", True),
-            num_samples=cfg.get("num_samples", 3),
-            sample_frequency=cfg.get("sample_frequency", 50),
-            # Aggregated metrics selection
-            log_aggregated_rewards=cfg.get("log_aggregated_rewards", True),
-            log_aggregated_similarity=cfg.get("log_aggregated_similarity", True),
-            log_loss_metrics=cfg.get("log_loss_metrics", True),
-            log_gradient_norms=cfg.get("log_gradient_norms", True),
-            log_episode_lengths=cfg.get("log_episode_lengths", True),
-            log_success_rates=cfg.get("log_success_rates", True),
         )
 
 
@@ -742,24 +550,11 @@ class WandbConfig(eqx.Module):
     group: str | None = None
     job_type: str = "training"
 
-    # Logging settings
-    log_frequency: int = 10
-    image_format: Literal["png", "svg", "both"] = "png"
-    max_image_size: tuple[int, int] = (800, 600)  # Changed Int to int
-
-    # Advanced options
-    log_gradients: bool = False
-    log_model_topology: bool = False
-    log_system_metrics: bool = True
-
     # Error handling
     offline_mode: bool = False
-    retry_attempts: int = 3
-    retry_delay: float = 1.0
 
     # Storage
     save_code: bool = True
-    save_config: bool = True
 
     def __init__(self, **kwargs):
         """Initialize with automatic list-to-tuple conversion."""
@@ -772,13 +567,6 @@ class WandbConfig(eqx.Module):
         elif not isinstance(tags, tuple):
             tags = ("jaxarc",)
 
-        max_image_size = kwargs.get("max_image_size", (800, 600))
-        if hasattr(max_image_size, '__iter__') and not isinstance(max_image_size, (str, tuple)):
-            # Handle ListConfig and other iterable types
-            max_image_size = tuple(max_image_size)
-        elif not isinstance(max_image_size, tuple):
-            max_image_size = (800, 600)
-
         # Set all fields
         self.enabled = kwargs.get("enabled", False)
         self.project_name = kwargs.get("project_name", "jaxarc-experiments")
@@ -787,55 +575,17 @@ class WandbConfig(eqx.Module):
         self.notes = kwargs.get("notes", "JaxARC experiment")
         self.group = kwargs.get("group", None)
         self.job_type = kwargs.get("job_type", "training")
-        self.log_frequency = kwargs.get("log_frequency", 10)
-        self.image_format = kwargs.get("image_format", "png")
-        self.max_image_size = max_image_size
-        self.log_gradients = kwargs.get("log_gradients", False)
-        self.log_model_topology = kwargs.get("log_model_topology", False)
-        self.log_system_metrics = kwargs.get("log_system_metrics", True)
         self.offline_mode = kwargs.get("offline_mode", False)
-        self.retry_attempts = kwargs.get("retry_attempts", 3)
-        self.retry_delay = kwargs.get("retry_delay", 1.0)
         self.save_code = kwargs.get("save_code", True)
-        self.save_config = kwargs.get("save_config", True)
 
     def validate(self) -> tuple[str, ...]:
         """Validate wandb configuration and return tuple of errors."""
         errors = []
 
         try:
-            # Validate format choices
-            valid_formats = ("png", "svg", "both")
-            validate_string_choice(self.image_format, "image_format", valid_formats)
-
             # Validate project name
             if not self.project_name.strip():
                 errors.append("project_name cannot be empty")
-
-            # Validate numeric fields
-            validate_positive_int(self.log_frequency, "log_frequency")
-            validate_positive_int(self.retry_attempts, "retry_attempts")
-
-            if not isinstance(self.retry_delay, (int, float)):
-                msg = f"retry_delay must be a number, got {type(self.retry_delay).__name__}"
-                errors.append(msg)
-            elif self.retry_delay < 0:
-                errors.append("retry_delay must be non-negative")
-
-            # Validate image size
-            if len(self.max_image_size) != 2:
-                errors.append("max_image_size must be a tuple of (width, height)")
-            else:
-                width, height = self.max_image_size
-                if width <= 0 or height <= 0:
-                    errors.append("max_image_size dimensions must be positive")
-
-            # Validate reasonable bounds
-            if self.log_frequency > 1000:
-                logger.warning(f"log_frequency is very high: {self.log_frequency}")
-
-            if self.retry_attempts > 10:
-                logger.warning(f"retry_attempts is very high: {self.retry_attempts}")
 
         except ConfigValidationError as e:
             errors.append(str(e))
@@ -861,13 +611,6 @@ class WandbConfig(eqx.Module):
         elif not isinstance(tags, tuple):
             tags = ("jaxarc",)
 
-        max_image_size = cfg.get("max_image_size", [800, 600])
-        if hasattr(max_image_size, '__iter__') and not isinstance(max_image_size, (str, tuple)):
-            # Handle ListConfig and other iterable types
-            max_image_size = tuple(max_image_size)
-        elif not isinstance(max_image_size, tuple):
-            max_image_size = (800, 600)
-
         return cls(
             tags=tags,  # Pass as keyword argument
             enabled=cfg.get("enabled", False),
@@ -876,17 +619,8 @@ class WandbConfig(eqx.Module):
             notes=cfg.get("notes", "JaxARC experiment"),
             group=cfg.get("group"),
             job_type=cfg.get("job_type", "training"),
-            log_frequency=cfg.get("log_frequency", 10),
-            image_format=cfg.get("image_format", "png"),
-            max_image_size=max_image_size,
-            log_gradients=cfg.get("log_gradients", False),
-            log_model_topology=cfg.get("log_model_topology", False),
-            log_system_metrics=cfg.get("log_system_metrics", True),
             offline_mode=cfg.get("offline_mode", False),
-            retry_attempts=cfg.get("retry_attempts", 3),
-            retry_delay=cfg.get("retry_delay", 1.0),
             save_code=cfg.get("save_code", True),
-            save_config=cfg.get("save_config", True),
         )
 
 
@@ -905,26 +639,17 @@ class RewardConfig(eqx.Module):
 
     # Additional reward shaping
     progress_bonus: float = 0.0
-    invalid_action_penalty: float = -0.1
 
     # Enhanced mode-specific reward settings
     control_operation_penalty: float = -0.01  # Penalty for control operations
-    pair_switching_bonus: float = 0.0  # Bonus for beneficial pair switching
 
     # Mode-specific reward structures
     training_similarity_weight: float = 1.0  # Similarity weight in training mode
-    evaluation_similarity_weight: float = (
-        0.0  # Similarity weight in evaluation mode (masked)
-    )
 
     # Pair-type specific bonuses
     demo_completion_bonus: float = 1.0  # Bonus for completing demonstration pairs
     test_completion_bonus: float = 5.0  # Bonus for completing test pairs
 
-    # Advanced reward shaping
-    consecutive_success_bonus: float = (
-        0.0  # Bonus for solving multiple pairs in sequence
-    )
     efficiency_bonus_threshold: int = 50  # Step threshold for efficiency bonus
     efficiency_bonus: float = 1.0  # Bonus for solving pairs efficiently
 
@@ -938,34 +663,19 @@ class RewardConfig(eqx.Module):
             validate_float_range(self.success_bonus, "success_bonus", -100.0, 1000.0)
             validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 10.0)
             validate_float_range(self.progress_bonus, "progress_bonus", -10.0, 10.0)
-            validate_float_range(
-                self.invalid_action_penalty, "invalid_action_penalty", -10.0, 1.0
-            )
 
             # Validate enhanced reward fields
             validate_float_range(
                 self.control_operation_penalty, "control_operation_penalty", -10.0, 1.0
             )
             validate_float_range(
-                self.pair_switching_bonus, "pair_switching_bonus", -10.0, 10.0
-            )
-            validate_float_range(
                 self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0
-            )
-            validate_float_range(
-                self.evaluation_similarity_weight,
-                "evaluation_similarity_weight",
-                0.0,
-                10.0,
             )
             validate_float_range(
                 self.demo_completion_bonus, "demo_completion_bonus", -100.0, 100.0
             )
             validate_float_range(
                 self.test_completion_bonus, "test_completion_bonus", -100.0, 100.0
-            )
-            validate_float_range(
-                self.consecutive_success_bonus, "consecutive_success_bonus", -10.0, 10.0
             )
             validate_non_negative_int(
                 self.efficiency_bonus_threshold, "efficiency_bonus_threshold"
@@ -988,21 +698,12 @@ class RewardConfig(eqx.Module):
                     f"success_bonus should typically be positive for proper learning, got {self.success_bonus}"
                 )
 
-            if self.invalid_action_penalty > 0:
-                logger.warning(
-                    f"invalid_action_penalty should typically be negative or zero, got {self.invalid_action_penalty}"
-                )
 
             if self.control_operation_penalty > 0:
                 logger.warning(
                     f"control_operation_penalty should typically be negative or zero, got {self.control_operation_penalty}"
                 )
 
-            # Warn about evaluation similarity weight
-            if self.evaluation_similarity_weight > 0:
-                logger.warning(
-                    "evaluation_similarity_weight > 0 may lead to cheating in test mode due to target masking"
-                )
 
         except ConfigValidationError as e:
             errors.append(str(e))
@@ -1027,14 +728,10 @@ class RewardConfig(eqx.Module):
             success_bonus=cfg.get("success_bonus", 10.0),
             similarity_weight=cfg.get("similarity_weight", 1.0),
             progress_bonus=cfg.get("progress_bonus", 0.0),
-            invalid_action_penalty=cfg.get("invalid_action_penalty", -0.1),
             control_operation_penalty=cfg.get("control_operation_penalty", -0.01),
-            pair_switching_bonus=cfg.get("pair_switching_bonus", 0.0),
             training_similarity_weight=cfg.get("training_similarity_weight", 1.0),
-            evaluation_similarity_weight=cfg.get("evaluation_similarity_weight", 0.0),
             demo_completion_bonus=cfg.get("demo_completion_bonus", 1.0),
             test_completion_bonus=cfg.get("test_completion_bonus", 5.0),
-            consecutive_success_bonus=cfg.get("consecutive_success_bonus", 0.0),
             efficiency_bonus_threshold=cfg.get("efficiency_bonus_threshold", 50),
             efficiency_bonus=cfg.get("efficiency_bonus", 1.0),
         )
@@ -1196,10 +893,6 @@ class ActionConfig(eqx.Module):
     # Selection format
     selection_format: Literal["mask", "point", "bbox"] = "mask"
 
-    # Selection parameters
-    selection_threshold: float = 0.5
-    allow_partial_selection: bool = True
-
     # Operation parameters
     max_operations: int = 42  # Updated to include enhanced control operations (0-41)
     allowed_operations: Optional[tuple[int, ...]] = (
@@ -1231,8 +924,6 @@ class ActionConfig(eqx.Module):
 
         # Set all fields
         self.selection_format = kwargs.get("selection_format", "mask")
-        self.selection_threshold = kwargs.get("selection_threshold", 0.5)
-        self.allow_partial_selection = kwargs.get("allow_partial_selection", True)
         self.max_operations = kwargs.get("max_operations", 42)
         self.allowed_operations = allowed_operations
         self.validate_actions = kwargs.get("validate_actions", True)
@@ -1301,11 +992,6 @@ class ActionConfig(eqx.Module):
             )
 
             # Cross-field validation warnings
-            if self.selection_format != "mask" and self.allow_partial_selection:
-                logger.warning(
-                    f"allow_partial_selection is ignored for selection_format='{self.selection_format}'"
-                )
-
             if not self.validate_actions and not self.allow_invalid_actions:
                 logger.warning(
                     "allow_invalid_actions has no effect when validate_actions=False"
@@ -1344,8 +1030,6 @@ class ActionConfig(eqx.Module):
         return cls(
             allowed_operations=allowed_ops,  # Pass as keyword argument
             selection_format=cfg.get("selection_format", "mask"),
-            selection_threshold=cfg.get("selection_threshold", 0.5),
-            allow_partial_selection=cfg.get("allow_partial_selection", True),
             max_operations=cfg.get(
                 "num_operations", 42
             ),  # Updated to include enhanced operations
@@ -1460,12 +1144,6 @@ class JaxArcConfig(eqx.Module):
             # 1. Debug level consistency validation
             self._validate_debug_level_consistency(errors, warnings)
 
-            # 2. Storage and output consistency validation
-            self._validate_storage_consistency(errors, warnings)
-
-            # 3. Performance and resource consistency validation
-            self._validate_performance_consistency(errors, warnings)
-
             # 4. WandB integration consistency validation
             self._validate_wandb_consistency(errors, warnings)
 
@@ -1504,19 +1182,11 @@ class JaxArcConfig(eqx.Module):
                 )
             if (
                 self.logging.log_operations
-                or self.logging.log_grid_changes
                 or self.logging.log_rewards
             ):
                 warnings.append(
                     "Debug level is 'off' but detailed logging is enabled - consider reducing log level"
                 )
-
-        # Debug level vs storage policy consistency
-        expected_storage_policy = self.environment.computed_storage_policy
-        if self.storage.policy != expected_storage_policy:
-            warnings.append(
-                f"Storage policy '{self.storage.policy}' doesn't match debug level '{debug_level}' (expected '{expected_storage_policy}')"
-            )
 
         # Debug level vs visualization level consistency
         expected_viz_level = self.environment.computed_visualization_level
@@ -1527,72 +1197,6 @@ class JaxArcConfig(eqx.Module):
             warnings.append(
                 f"Visualization level '{self.visualization.level}' doesn't match debug level '{debug_level}' (expected '{expected_viz_level}')"
             )
-
-    def _validate_storage_consistency(
-        self, errors: list[str], warnings: list[str]
-    ) -> None:
-        """Validate storage configuration consistency."""
-        # Storage policy vs features consistency
-        if self.storage.policy == "none":
-            if self.visualization.save_intermediate_states:
-                errors.append(
-                    "Cannot save intermediate states when storage policy is 'none'"
-                )
-            if self.logging.structured_logging:
-                warnings.append(
-                    "Structured logging enabled but storage policy is 'none' - logs may not be persisted"
-                )
-            if self.storage.max_episodes_per_run > 0:
-                warnings.append(
-                    "Storage policy is 'none' but max_episodes_per_run > 0 - episodes won't be saved"
-                )
-
-        # Storage limits vs debug level consistency
-        if self.environment.debug_level in ["verbose", "research"]:
-            if self.storage.max_storage_gb < 5.0:
-                warnings.append(
-                    f"Debug level '{self.environment.debug_level}' may require more storage than {self.storage.max_storage_gb}GB"
-                )
-
-        # Directory configuration consistency
-        if self.visualization.enabled and self.storage.policy != "none":
-            if not self.storage.visualization_dir.strip():
-                errors.append("Visualization enabled but visualization_dir is empty")
-
-        if self.logging.structured_logging and self.storage.policy != "none":
-            if not self.storage.logs_dir.strip():
-                errors.append("Structured logging enabled but logs_dir is empty")
-
-    def _validate_performance_consistency(
-        self, errors: list[str], warnings: list[str]
-    ) -> None:
-        """Validate performance-related configuration consistency."""
-        # Memory limits vs visualization level
-        if self.visualization.max_memory_mb < 100 and self.visualization.level in [
-            "verbose",
-            "full",
-        ]:
-            warnings.append(
-                "Low memory limit with verbose visualization may cause performance issues"
-            )
-
-        # Episode count vs storage limits
-        total_expected_storage = self.storage.max_episodes_per_run * (
-            self.visualization.max_memory_mb / 1000
-            if self.visualization.save_intermediate_states
-            else 0.1
-        )
-        if total_expected_storage > self.storage.max_storage_gb:
-            warnings.append(
-                f"Expected storage usage ({total_expected_storage:.1f}GB) exceeds limit ({self.storage.max_storage_gb}GB)"
-            )
-
-        # Logging frequency vs performance
-        if self.logging.log_frequency == 1 and self.environment.max_episode_steps > 100:
-            warnings.append(
-                "Logging every step with long episodes may impact performance"
-            )
-
 
 
     def _validate_wandb_consistency(
@@ -1610,21 +1214,6 @@ class JaxArcConfig(eqx.Module):
                     "WandB enabled but log level is ERROR - may miss important metrics"
                 )
 
-            # Offline mode consistency
-            if self.wandb.offline_mode and self.wandb.log_frequency < 10:
-                warnings.append(
-                    "WandB offline mode with frequent logging may create large local files"
-                )
-
-            # Image logging consistency
-            if (
-                self.wandb.image_format in ["png", "both"]
-                and not self.visualization.enabled
-            ):
-                warnings.append(
-                    "WandB image logging enabled but visualization is disabled"
-                )
-
     def _validate_action_environment_consistency(
         self, errors: list[str], warnings: list[str]
     ) -> None:
@@ -1633,18 +1222,6 @@ class JaxArcConfig(eqx.Module):
         if self.action.max_operations > 50 and self.environment.max_episode_steps < 20:
             warnings.append(
                 "Many operations available but few episode steps - may not explore action space effectively"
-            )
-
-        # Action validation vs environment strictness
-        if not self.action.validate_actions and self.environment.strict_validation:
-            warnings.append(
-                "Environment strict validation enabled but action validation disabled - may cause inconsistencies"
-            )
-
-        # Invalid actions handling consistency
-        if self.action.allow_invalid_actions and self.environment.strict_validation:
-            warnings.append(
-                "Allowing invalid actions conflicts with strict environment validation"
             )
 
         # Selection format vs episode length
@@ -1681,14 +1258,6 @@ class JaxArcConfig(eqx.Module):
         if self.reward.progress_bonus != 0.0 and self.reward.reward_on_submit_only:
             warnings.append("Progress bonus is ignored when reward_on_submit_only=True")
 
-        # Invalid action penalty vs action validation
-        if (
-            self.reward.invalid_action_penalty != 0.0
-            and not self.action.validate_actions
-        ):
-            warnings.append(
-                "Invalid action penalty set but action validation is disabled"
-            )
 
     def _validate_dataset_consistency(
         self, errors: List[str], warnings: List[str]
@@ -1709,13 +1278,6 @@ class JaxArcConfig(eqx.Module):
                     f"Dataset allows {self.dataset.max_colors} colors but only {len(fill_ops)} fill operations available"
                 )
 
-        # Task pairs vs memory
-        total_pairs = self.dataset.max_train_pairs + self.dataset.max_test_pairs
-        if total_pairs > 20 and self.visualization.max_memory_mb < 500:
-            warnings.append(
-                "Many task pairs with low memory limit may cause visualization issues"
-            )
-
     def _validate_logging_consistency(
         self, errors: List[str], warnings: List[str]
     ) -> None:
@@ -1734,7 +1296,6 @@ class JaxArcConfig(eqx.Module):
         # Content-specific logging consistency
         detailed_logging = (
             self.logging.log_operations
-            or self.logging.log_grid_changes
             or self.logging.log_rewards
         )
         if detailed_logging and self.logging.log_level in ["ERROR", "WARNING"]:
@@ -1930,13 +1491,31 @@ class JaxArcConfig(eqx.Module):
             ConfigValidationError: If conversion or validation fails.
         """
         try:
-            # Convert DictConfig to regular dict for processing
-            config_dict = OmegaConf.to_container(hydra_config, resolve=True)
+            environment_cfg = EnvironmentConfig.from_hydra(hydra_config.get("environment", DictConfig({})))
+            dataset_cfg = DatasetConfig.from_hydra(hydra_config.get("dataset", DictConfig({})))
+            action_cfg = ActionConfig.from_hydra(hydra_config.get("action", DictConfig({})))
+            reward_cfg = RewardConfig.from_hydra(hydra_config.get("reward", DictConfig({})))
+            grid_init_cfg = GridInitializationConfig.from_hydra(hydra_config.get("grid_initialization", DictConfig({})))
+            visualization_cfg = VisualizationConfig.from_hydra(hydra_config.get("visualization", DictConfig({})))
+            storage_cfg = StorageConfig.from_hydra(hydra_config.get("storage", DictConfig({})))
+            logging_cfg = LoggingConfig.from_hydra(hydra_config.get("logging", DictConfig({})))
+            wandb_cfg = WandbConfig.from_hydra(hydra_config.get("wandb", DictConfig({})))
+            episode_cfg = ArcEpisodeConfig.from_hydra(hydra_config.get("episode", DictConfig({})))
+            history_cfg = HistoryConfig.from_hydra(hydra_config.get("history", DictConfig({})))
 
-            if not isinstance(config_dict, dict):
-                raise ConfigValidationError("Hydra config must be a dictionary")
-
-            return cls._from_dict(config_dict)
+            return cls(
+                environment=environment_cfg,
+                dataset=dataset_cfg,
+                action=action_cfg,
+                reward=reward_cfg,
+                grid_initialization=grid_init_cfg,
+                visualization=visualization_cfg,
+                storage=storage_cfg,
+                logging=logging_cfg,
+                wandb=wandb_cfg,
+                episode=episode_cfg,
+                history=history_cfg,
+            )
 
         except Exception as e:
             if isinstance(e, ConfigValidationError):
@@ -1945,144 +1524,6 @@ class JaxArcConfig(eqx.Module):
                 f"Failed to create configuration from Hydra: {e}"
             ) from e
 
-    @classmethod
-    def _from_dict(cls, config_dict: Dict[str, Any]) -> JaxArcConfig:
-        """Create JaxArcConfig from dictionary."""
-        # Create individual config components from dictionary sections
-        environment_cfg = config_dict.get("environment", {})
-        dataset_cfg = config_dict.get("dataset", {})
-        action_cfg = config_dict.get("action", {})
-        reward_cfg = config_dict.get("reward", {})
-        grid_initialization_cfg = config_dict.get("grid_initialization", {})
-        visualization_cfg = config_dict.get("visualization", {})
-        storage_cfg = config_dict.get("storage", {})
-        logging_cfg = config_dict.get("logging", {})
-        wandb_cfg = config_dict.get("wandb", {})
-        episode_cfg = config_dict.get("episode", {})
-        history_cfg = config_dict.get("history", {})
-
-        # Handle legacy config structure - merge top-level keys into appropriate sections
-        for key, value in config_dict.items():
-            if key not in [
-                "environment",
-                "dataset",
-                "action",
-                "reward",
-                "grid_initialization",
-                "visualization",
-                "storage",
-                "logging",
-                "wandb",
-                "episode",
-                "history",
-            ]:
-                # Try to map legacy keys to appropriate config sections
-                if key in [
-                    "max_episode_steps",
-                    "auto_reset",
-                    "strict_validation",
-                    "allow_invalid_actions",
-                    "debug_level",
-                ]:
-                    environment_cfg[key] = value
-                elif key in [
-                    "dataset_name",
-                    "dataset_path",
-                    "max_grid_height",
-                    "max_grid_width",
-                    "task_split",
-                ]:
-                    dataset_cfg[key] = value
-                elif key in ["selection_format", "num_operations", "validate_actions"]:
-                    action_cfg[key] = value
-                elif key in ["reward_on_submit_only", "step_penalty", "success_bonus"]:
-                    reward_cfg[key] = value
-                elif key in [
-                    "grid_init_mode", 
-                    "demo_weight", 
-                    "permutation_weight", 
-                    "empty_weight", 
-                    "random_weight",
-                    "permutation_types",
-                    "random_density",
-                    "random_pattern_type",
-                    "enable_fallback"
-                ]:
-                    grid_initialization_cfg[key] = value
-                elif key in ["log_operations", "log_grid_changes", "log_rewards"]:
-                    logging_cfg[key] = value
-                elif key in [
-                    "episode_mode",
-                    "demo_selection_strategy",
-                    "allow_demo_switching",
-                    "test_selection_strategy",
-                    "allow_test_switching",
-                    "terminate_on_first_success",
-                    "max_pairs_per_episode",
-                    "success_threshold",
-                    "training_reward_frequency",
-                    "evaluation_reward_frequency",
-                ]:
-                    episode_cfg[key] = value
-                elif key in [
-                    "max_history_length",
-                    "store_selection_data",
-                    "store_intermediate_grids",
-                    "compress_repeated_actions",
-                ]:
-                    history_cfg[key] = value
-
-        # Handle Hydra debug configuration mapping
-        # If we have a debug config but no explicit debug_level in environment, infer it
-        if "environment" in config_dict and "debug_level" not in environment_cfg:
-            # Try to infer debug level from other settings or use default
-            if logging_cfg.get("log_operations") or logging_cfg.get("log_grid_changes"):
-                environment_cfg["debug_level"] = "standard"
-            elif visualization_cfg.get("level") == "full":
-                environment_cfg["debug_level"] = "research"
-            elif visualization_cfg.get("level") == "verbose":
-                environment_cfg["debug_level"] = "verbose"
-            elif visualization_cfg.get("enabled", True):
-                environment_cfg["debug_level"] = "standard"
-            else:
-                environment_cfg["debug_level"] = "off"
-
-        # Create config components using from_hydra methods
-        environment = EnvironmentConfig.from_hydra(DictConfig(environment_cfg))
-        dataset = DatasetConfig.from_hydra(DictConfig(dataset_cfg))
-        action = ActionConfig.from_hydra(DictConfig(action_cfg))
-        reward = RewardConfig.from_hydra(DictConfig(reward_cfg))
-        grid_initialization = GridInitializationConfig.from_hydra(DictConfig(grid_initialization_cfg))
-        visualization = VisualizationConfig.from_hydra(DictConfig(visualization_cfg))
-        storage = StorageConfig.from_hydra(DictConfig(storage_cfg))
-        logging = LoggingConfig.from_hydra(DictConfig(logging_cfg))
-        wandb = WandbConfig.from_hydra(DictConfig(wandb_cfg))
-        episode = ArcEpisodeConfig.from_hydra(episode_cfg)
-
-        # Create history config (HistoryConfig uses @chex.dataclass, not from_hydra)
-        history = HistoryConfig(
-            enabled=history_cfg.get("enabled", True),
-            max_history_length=history_cfg.get("max_history_length", 1000),
-            store_selection_data=history_cfg.get("store_selection_data", True),
-            store_intermediate_grids=history_cfg.get("store_intermediate_grids", False),
-            compress_repeated_actions=history_cfg.get(
-                "compress_repeated_actions", True
-            ),
-        )
-
-        return cls(
-            environment=environment,
-            dataset=dataset,
-            action=action,
-            reward=reward,
-            grid_initialization=grid_initialization,
-            visualization=visualization,
-            storage=storage,
-            logging=logging,
-            wandb=wandb,
-            episode=episode,
-            history=history,
-        )
 
     # =========================================================================
     # Efficient Serialization Methods (Single Source of Truth)
