@@ -33,7 +33,7 @@ class BaseAction(eqx.Module):
     the to_selection_mask method for converting actions to grid selections.
     
     Attributes:
-        operation: ARCLE operation ID (0-41)
+        operation: ARC operation ID (0-34)
         action_type: Type identifier for JAX compatibility (0=point, 1=bbox, 2=mask)
     """
     
@@ -53,12 +53,12 @@ class BaseAction(eqx.Module):
         pass
     
     @abc.abstractmethod
-    def validate(self, grid_shape: tuple[int, int], max_operations: int = 42) -> 'BaseAction':
+    def validate(self, grid_shape: tuple[int, int], max_operations: int = 35) -> BaseAction:
         """Validate action parameters and return validated action.
         
         Args:
             grid_shape: Shape of the grid (height, width)
-            max_operations: Maximum number of operations (default 42 for ops 0-41)
+            max_operations: Maximum number of operations (defaults to NUM_OPERATIONS)
             
         Returns:
             Validated action with clipped/corrected parameters
@@ -73,7 +73,7 @@ class PointAction(BaseAction):
     coordinates. It's the most memory-efficient action format.
     
     Attributes:
-        operation: ARCLE operation ID (0-41)
+        operation: ARC operation ID (0-34)
         action_type: Type identifier (always 0 for PointAction)
         row: Row coordinate (0-based)
         col: Column coordinate (0-based)
@@ -105,7 +105,7 @@ class PointAction(BaseAction):
         mask = mask.at[valid_row, valid_col].set(True)
         return mask
     
-    def validate(self, grid_shape: tuple[int, int], max_operations: int = 42) -> 'PointAction':
+    def validate(self, grid_shape: tuple[int, int], max_operations: int = 35) -> PointAction:
         """Validate point action parameters.
         
         Args:
@@ -139,7 +139,7 @@ class BboxAction(BaseAction):
     two corner coordinates (top-left and bottom-right).
     
     Attributes:
-        operation: ARCLE operation ID (0-41)
+        operation: ARC operation ID (0-34)
         action_type: Type identifier (always 1 for BboxAction)
         r1: Top-left row coordinate
         c1: Top-left column coordinate
@@ -192,7 +192,7 @@ class BboxAction(BaseAction):
         
         return mask
     
-    def validate(self, grid_shape: tuple[int, int], max_operations: int = 42) -> 'BboxAction':
+    def validate(self, grid_shape: tuple[int, int], max_operations: int = 35) -> BboxAction:
         """Validate bounding box action parameters.
         
         Args:
@@ -230,7 +230,7 @@ class MaskAction(BaseAction):
     mask that directly specifies which cells are selected.
     
     Attributes:
-        operation: ARCLE operation ID (0-41)
+        operation: ARC operation ID (0-34)
         action_type: Type identifier (always 2 for MaskAction)
         selection: Boolean mask indicating selected cells
     """
@@ -252,7 +252,7 @@ class MaskAction(BaseAction):
         # This is reasonable since masks are typically created with the correct shape
         return self.selection
     
-    def validate(self, grid_shape: tuple[int, int], max_operations: int = 42) -> 'MaskAction':
+    def validate(self, grid_shape: tuple[int, int], max_operations: int = 35) -> MaskAction:
         """Validate mask action parameters.
         
         Args:
@@ -284,7 +284,7 @@ def create_point_action(operation, row, col) -> PointAction:
     are provided, all fields will have the same batch dimension.
     
     Args:
-        operation: ARCLE operation ID (0-41). Can be int or JAX array.
+        operation: ARC operation ID (0-34). Can be int or JAX array.
         row: Row coordinate. Can be int or JAX array.
         col: Column coordinate. Can be int or JAX array.
         
@@ -320,7 +320,7 @@ def create_bbox_action(operation, r1, c1, r2, c2) -> BboxAction:
     are provided, all fields will have the same batch dimension.
     
     Args:
-        operation: ARCLE operation ID (0-41). Can be int or JAX array.
+        operation: ARC operation ID (0-34). Can be int or JAX array.
         r1: Top-left row coordinate. Can be int or JAX array.
         c1: Top-left column coordinate. Can be int or JAX array.
         r2: Bottom-right row coordinate. Can be int or JAX array.
@@ -362,7 +362,7 @@ def create_mask_action(operation, selection: SelectionArray) -> MaskAction:
     are provided, all fields will have the same batch dimension.
     
     Args:
-        operation: ARCLE operation ID (0-41). Can be int or JAX array.
+        operation: ARC operation ID (0-34). Can be int or JAX array.
         selection: Boolean mask indicating selected cells
         
     Returns:

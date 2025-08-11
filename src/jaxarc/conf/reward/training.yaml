@@ -10,8 +10,7 @@ similarity_weight: 1.0
 # Enhanced progress tracking
 progress_bonus: 0.2  # Reward similarity improvements
 
-# Control operation settings for multi-demo training
-control_operation_penalty: -0.005  # Very small penalty for pair switching
+# Control operation penalty removed (legacy field)
 
 # Training mode settings
 training_similarity_weight: 1.0  # Full similarity feedback

@@ -45,14 +45,15 @@ def _ensure_config(config: ConfigType) -> JaxArcConfig:
 
 
 def _validate_operation(operation: Any, config: JaxArcConfig) -> OperationId:
-    """Validate and normalize operation value with enhanced range (0-41)."""
+    """Validate and normalize operation value (0-34)."""
     if isinstance(operation, (int, jnp.integer)):
         operation = jnp.array(operation, dtype=jnp.int32)
     elif not isinstance(operation, jnp.ndarray):
         raise ValueError(f"Operation must be int or jnp.ndarray, got {type(operation)}")
 
-    # Enhanced operation range validation (0-41 for control operations)
-    max_operations = 42  # Updated to include enhanced control operations (0-41)
+    # Operation range validation (0-34)
+    from jaxarc.utils.jax_types import NUM_OPERATIONS as _NUM_OPS
+    max_operations = _NUM_OPS
 
     # Validate operation range (JAX-compatible)
     if config.action.validate_actions and not config.action.allow_invalid_actions:
@@ -162,20 +163,16 @@ def _calculate_enhanced_reward(
     old_state: ArcEnvState,
     new_state: ArcEnvState,
     config: JaxArcConfig,
-    is_control_operation: bool,
 ) -> RewardValue:
     """Calculate reward with a unified, compiler-friendly structure.
-    
-    This optimized reward function eliminates complex branching that overloads
-    the JAX compiler by calculating all potential reward components and using
-    jnp.where for selection. This approach trades complex control flow for
-    straightforward arithmetic, dramatically improving compilation speed.
-    
+
+    Control operations were removed; reward depends only on transition dynamics
+    and episode mode. Previous control_operation penalty handling eliminated.
+
     Args:
         old_state: Previous environment state
         new_state: New environment state after action
         config: Environment configuration
-        is_control_operation: Whether the action was a control operation
 
     Returns:
         JAX scalar array containing the calculated reward
@@ -205,7 +202,6 @@ def _calculate_enhanced_reward(
         reward_cfg.efficiency_bonus,
         0.0,
     )
-    control_op_penalty = jnp.where(is_control_operation, reward_cfg.control_operation_penalty, 0.0)
     
     # --- 2. Build the training and evaluation rewards using components ---
     # For simplicity, assume step-based rewards for training and submit-based for eval
@@ -227,10 +223,7 @@ def _calculate_enhanced_reward(
     )
     
     # --- 3. Select the final reward based on the mode ---
-    mode_reward = jnp.where(is_training, training_reward, evaluation_reward)
-    
-    # --- 4. Apply control operation penalty ---
-    final_reward = mode_reward + control_op_penalty
+    final_reward = jnp.where(is_training, training_reward, evaluation_reward)
     
     return final_reward
 
@@ -656,7 +649,8 @@ def _create_initial_state(
 
     # Initialize action history with dynamic sizing based on configuration
     max_history_length = getattr(config, "max_history_length", 1000)
-    num_operations = 42  # Updated to include enhanced control operations (0-41)
+    from jaxarc.utils.jax_types import NUM_OPERATIONS as _NUM_OPS
+    num_operations = _NUM_OPS
 
     # Calculate optimal action record fields based on selection format and dataset
     action_record_fields = get_action_record_fields(
@@ -824,7 +818,7 @@ def _process_action(
     state: ArcEnvState,
     action: Union[StructuredAction, Dict[str, Any]],
     config: JaxArcConfig,
-) -> Tuple[ArcEnvState, StructuredAction, bool]:
+) -> Tuple[ArcEnvState, StructuredAction]:
     """Process action and return updated state.
     
     This function handles the complete action processing pipeline supporting both
@@ -841,7 +835,6 @@ def _process_action(
         Tuple containing:
         - new_state: Updated environment state after action execution
         - validated_action: Validated structured action
-        - is_control_operation: Boolean indicating if this was a control operation
     
     Examples:
         ```python
@@ -915,7 +908,8 @@ def _process_action(
             raise ValueError(f"Unsupported selection format: shape {selection.shape}")
     else:
         # Handle structured action
-        validated_action = action.validate(grid_shape, max_operations=42)
+        from jaxarc.utils.jax_types import NUM_OPERATIONS as _NUM_OPS
+        validated_action = action.validate(grid_shape, max_operations=_NUM_OPS)
 
     # Extract operation from validated action
     operation = validated_action.operation
@@ -955,123 +949,24 @@ def _process_action(
                 selection=validated_action.selection
             )
 
-    # Check if this is a control operation (35-41) or grid operation (0-34)
-    is_control_operation = operation >= 35
+    # Only grid operations remain (0-34). Execute directly.
+    from .actions import point_handler, bbox_handler, mask_handler
+    from .structured_actions import PointAction, BboxAction, MaskAction
 
-    # Define functions for control and grid operations
-    def handle_control_operation(state, action, operation, config):
-        """Handle control operations (35-41) using episode manager."""
-        # Create episode configuration from main config using integer episode mode
-        episode_mode_int = jax.lax.cond(
-            state.is_training_mode(),
-            lambda: 0,  # EPISODE_MODE_TRAIN = 0 = train mode
-            lambda: 1,  # EPISODE_MODE_TEST = 1 = test mode
-        )
+    if isinstance(validated_action, PointAction):
+        selection_mask = point_handler(validated_action, state.working_grid_mask)
+    elif isinstance(validated_action, BboxAction):
+        selection_mask = bbox_handler(validated_action, state.working_grid_mask)
+    elif isinstance(validated_action, MaskAction):
+        selection_mask = mask_handler(validated_action, state.working_grid_mask)
+    else:
+        selection_mask = validated_action.to_selection_mask(grid_shape)
+        selection_mask = selection_mask & state.working_grid_mask
 
-        episode_config = ArcEpisodeConfig(
-            episode_mode=episode_mode_int,
-            demo_selection_strategy=getattr(
-                config.episode, "demo_selection_strategy", "random"
-            ),
-            allow_demo_switching=getattr(config.episode, "allow_demo_switching", True),
-            allow_test_switching=getattr(config.episode, "allow_test_switching", False),
-        )
-
-        # Execute pair control operation using episode manager
-        new_state = ArcEpisodeManager.execute_pair_control_operation(
-            state, operation, episode_config
-        )
-
-        # For control operations, we need to update grids if pair was switched
-        is_pair_switching_op = jnp.isin(operation, jnp.array([35, 36, 37, 38, 40, 41]))
-
-        def update_grids_for_pair_switch(state):
-            # Update working grid and target based on new pair
-            def get_train_grids(state):
-                input_grid, target_grid, input_mask, target_mask = (
-                    state.task_data.get_demo_pair_data(state.current_example_idx)
-                )
-                return input_grid, target_grid, input_mask, target_mask
-
-            def get_test_grids(state):
-                input_grid, input_mask = state.task_data.get_test_pair_data(
-                    state.current_example_idx
-                )
-                # In test mode, mask target grid
-                background_color = getattr(config.dataset, "background_color", 0)
-                target_grid = jnp.full_like(input_grid, background_color)
-                target_mask = jnp.zeros_like(input_mask)  # Empty target mask in test mode
-                return input_grid, target_grid, input_mask, target_mask
-
-            # Use JAX conditional to get grids based on mode
-            input_grid, target_grid, input_mask, target_mask = jax.lax.cond(
-                state.is_training_mode(), get_train_grids, get_test_grids, state
-            )
-
-            # Update state with new grids using PyTree utilities
-            from jaxarc.utils.pytree_utils import update_multiple_fields
-            
-            # Recalculate similarity for new pair
-            new_similarity = compute_grid_similarity(input_grid, input_mask, target_grid, target_mask)
-            
-            updated_state = update_multiple_fields(
-                state,
-                working_grid=input_grid,
-                working_grid_mask=input_mask,
-                target_grid=target_grid,
-                selected=jnp.zeros_like(state.selected),
-                clipboard=jnp.zeros_like(state.clipboard),
-                similarity_score=new_similarity
-            )
-
-            return updated_state
-
-        # Use JAX conditional to update grids only if needed
-        new_state = jax.lax.cond(
-            is_pair_switching_op,
-            update_grids_for_pair_switch,
-            lambda s: s,  # No-op if not a pair switching operation
-            new_state,
-        )
-
-        return new_state
-
-    def handle_grid_operation(state, action, operation, config):
-        """Handle grid operations (0-34) using structured actions and action handlers."""
-        from .actions import point_handler, bbox_handler, mask_handler
-        from .structured_actions import PointAction, BboxAction, MaskAction
-        
-        # Use appropriate action handler based on action type
-        if isinstance(action, PointAction):
-            selection_mask = point_handler(action, state.working_grid_mask)
-        elif isinstance(action, BboxAction):
-            selection_mask = bbox_handler(action, state.working_grid_mask)
-        elif isinstance(action, MaskAction):
-            selection_mask = mask_handler(action, state.working_grid_mask)
-        else:
-            # Fallback to the action's own method if handler not available
-            selection_mask = action.to_selection_mask(grid_shape)
-            # Constrain to working grid area
-            selection_mask = selection_mask & state.working_grid_mask
-
-        # Update selection in state using PyTree utilities
-        from jaxarc.utils.pytree_utils import update_selection
-        
-        new_state = update_selection(state, selection_mask)
-
-        # Execute grid operation
-        new_state = execute_grid_operation(new_state, operation)
-
-        return new_state
-
-    # Use JAX-compatible conditional to choose between control and grid operations
-    new_state = jax.lax.cond(
-        is_control_operation,
-        lambda: handle_control_operation(state, validated_action, operation, config),
-        lambda: handle_grid_operation(state, validated_action, operation, config),
-    )
-
-    return new_state, validated_action, is_control_operation
+    from jaxarc.utils.pytree_utils import update_selection
+    new_state = update_selection(state, selection_mask)
+    new_state = execute_grid_operation(new_state, operation)
+    return new_state, validated_action
 
 
 def _update_state(
@@ -1157,43 +1052,13 @@ def _calculate_reward_and_done(
     old_state: ArcEnvState,
     new_state: ArcEnvState,
     config: JaxArcConfig,
-    is_control_operation: bool,
 ) -> Tuple[RewardValue, EpisodeDone, ArcEnvState]:
-    """Calculate reward and done status - focused helper function.
-    
-    This helper function computes the reward signal and episode termination
-    status based on state transitions, configuration settings, and operation type.
-    It handles mode-specific reward calculation and enhanced termination logic.
-    
-    Args:
-        old_state: Environment state before action execution
-        new_state: Environment state after action execution
-        config: Environment configuration for reward and termination settings
-        is_control_operation: Whether the executed action was a control operation
-    
-    Returns:
-        Tuple containing:
-        - reward: Calculated reward value (JAX scalar)
-        - done: Boolean indicating if episode should terminate
-        - final_state: State with episode_done flag properly updated
-    
-    Examples:
-        ```python
-        # Calculate reward and termination for grid operation
-        reward, done, state = _calculate_reward_and_done(old, new, config, False)
-        
-        # Calculate reward and termination for control operation
-        reward, done, state = _calculate_reward_and_done(old, new, config, True)
-        ```
-    
-    Note:
-        Uses enhanced reward calculation with mode-specific logic and control
-        operation adjustments. Updates episode_done flag in returned state.
+    """Compute reward and termination status.
+
+    Simplified version after removal of control operations. Delegates reward
+    computation to _calculate_enhanced_reward with control flag fixed False.
     """
-    # Mode-specific reward calculation logic
-    reward = _calculate_enhanced_reward(
-        old_state, new_state, config, is_control_operation
-    )
+    reward = _calculate_enhanced_reward(old_state, new_state, config)
 
     # Check if episode is done with enhanced termination logic
     done = _is_episode_done_enhanced(new_state, config)
@@ -1223,10 +1088,6 @@ def arc_step(
     The step process involves:
     1. Action processing and validation
     2. State updates with history tracking
-    3. Reward calculation with mode-specific logic
-    4. Episode termination checking
-    5. Observation generation for agent
-
     Features:
     - Support for enhanced non-parametric control operations (35-41)
     - Action history tracking for each step with memory optimization
@@ -1238,7 +1099,10 @@ def arc_step(
     Args:
         state: Current environment state with enhanced functionality including
                action history, completion tracking, and operation control
-        action: Structured action to execute (PointAction, BboxAction, or MaskAction).
+        state: ArcEnvState,
+        action: StructuredAction,
+        config: ConfigType,
+    ) -> Tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, Dict[str, Any]]:
                Contains operation ID and selection data in type-safe format.
         config: Environment configuration (typed JaxArcConfig or Hydra DictConfig).
                Automatically converted to typed config if needed.
@@ -1291,7 +1155,7 @@ def arc_step(
     validated_state = JAXErrorHandler.validate_state_consistency(state)
 
     # Process action and get updated state
-    new_state, standardized_action, is_control_operation = _process_action(
+    new_state, standardized_action = _process_action(
         validated_state, validated_action, typed_config
     )
 
@@ -1300,7 +1164,7 @@ def arc_step(
 
     # Calculate reward and done status
     reward, done, final_state = _calculate_reward_and_done(
-        validated_state, updated_state, typed_config, is_control_operation
+        validated_state, updated_state, typed_config
     )
 
     # Use create_observation function to generate focused agent view
@@ -1318,13 +1182,10 @@ def arc_step(
             "available_demo_pairs": final_state.get_available_demo_count(),
             "available_test_pairs": final_state.get_available_test_count(),
             "action_history_length": final_state.get_action_history_length(),
-            "operation_type": jax.lax.cond(
-                is_control_operation, lambda: 1, lambda: 0
-            ),  # 1=control, 0=grid
+            "operation_type": jnp.array(0, dtype=jnp.int32),  # Only grid ops remain
         },
         # Non-metric data for visualization and analysis
         "success": final_state.similarity_score >= 1.0,
-        "is_control_operation": is_control_operation,  # Keep as JAX array for compatibility
     }
 
     # Optional logging with enhanced information (JAX-compatible)
@@ -1332,8 +1193,7 @@ def arc_step(
         """Log operations if enabled."""
         jax.debug.callback(
             lambda step, op, sim, rew, mode, pair: logger.info(
-                f"Step {int(step)}: op={int(op)} ({'control' if int(op) >= 35 else 'grid'}), "
-                f"sim={float(sim):.3f}, reward={float(rew):.3f}, "
+                f"Step {int(step)}: op={int(op)}, sim={float(sim):.3f}, reward={float(rew):.3f}, "
                 f"mode={'train' if int(mode) == 0 else 'test'}, pair={int(pair)}"
             ),
             final_state.step_count,

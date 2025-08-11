@@ -50,14 +50,6 @@ OPERATION_NAMES = {
     32: "Copy Input",
     33: "Resize",
     34: "Submit",
-    # Enhanced control operations (35-41) - Non-parametric pair switching
-    35: "Next Demo Pair",
-    36: "Prev Demo Pair", 
-    37: "Next Test Pair",
-    38: "Prev Test Pair",
-    39: "Reset Current Pair",
-    40: "First Unsolved Demo",
-    41: "First Unsolved Test",
 }
 
 
@@ -126,8 +118,8 @@ def is_valid_operation_id(operation_id: int) -> bool:
 
         assert is_valid_operation_id(0) == True
         assert is_valid_operation_id(34) == True
-        assert is_valid_operation_id(41) == True
-        assert is_valid_operation_id(42) == False
+        assert is_valid_operation_id(41) == False
+        assert is_valid_operation_id(35) == False
         ```
     """
     return operation_id in OPERATION_NAMES
@@ -143,7 +135,7 @@ def get_all_operation_ids() -> list[int]:
         ```python
         from jaxarc.envs.operations import get_all_operation_ids
 
-        ids = get_all_operation_ids()  # [0, 1, 2, ..., 41]
+        ids = get_all_operation_ids()  # [0, 1, 2, ..., 34]
         ```
     """
     return sorted(OPERATION_NAMES.keys())
@@ -162,7 +154,7 @@ def get_operations_by_category() -> dict[str, list[int]]:
         categories = get_operations_by_category()
         fill_ops = categories["fill"]  # [0, 1, 2, ..., 9]
         movement_ops = categories["movement"]  # [20, 21, 22, 23]
-        control_ops = categories["control"]  # [35, 36, 37, 38, 39, 40, 41]
+        # No control ops (removed)
         ```
     """
     return {
@@ -172,7 +164,7 @@ def get_operations_by_category() -> dict[str, list[int]]:
         "transformation": list(range(24, 28)),
         "editing": list(range(28, 32)),
         "special": list(range(32, 35)),
-        "control": list(range(35, 42)),  # Enhanced control operations
+        # Control operations removed
     }
 
 

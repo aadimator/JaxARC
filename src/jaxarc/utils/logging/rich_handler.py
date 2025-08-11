@@ -130,7 +130,7 @@ class RichHandler:
                     self.console.print(f"  {k}: {v:.3f}")
                 else:
                     self.console.print(f"  {k}: {v}")
-        for key in ('success', 'similarity_improvement', 'is_control_operation'):
+        for key in ('success', 'similarity_improvement'):
             if key in info:
                 v = info[key]
                 if isinstance(v, (int, float)):

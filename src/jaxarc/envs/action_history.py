@@ -484,7 +484,7 @@ class ActionRecord:
     
     Attributes:
         selection_data: Optimally sized selection data based on format
-        operation_id: ARCLE operation ID (0-41)
+        operation_id: ARC operation ID (0-34)
         timestamp: Step count when action was taken
         pair_index: Which demo/test pair this action was on
         valid: Whether this record contains valid data (for padding)
@@ -743,39 +743,6 @@ class ActionRecord:
             "valid": bool(self.valid),
             "selection_data_size": self.selection_data.shape[0],
         }
-    
-    def is_control_operation(self) -> Bool[Array, ""]:
-        """Check if this record represents a control operation.
-        
-        Control operations are the enhanced operations (35-41) that handle
-        pair switching and episode management.
-        
-        Returns:
-            JAX boolean scalar indicating if this is a control operation
-        """
-        return self.operation_id >= 35
-    
-    def is_grid_operation(self) -> Bool[Array, ""]:
-        """Check if this record represents a grid operation.
-        
-        Grid operations are the original ARCLE operations (0-34) that
-        modify the working grid directly.
-        
-        Returns:
-            JAX boolean scalar indicating if this is a grid operation
-        """
-        return self.operation_id < 35
-    
-    def get_operation_type(self) -> str:
-        """Get the type of operation this record represents.
-        
-        Note: This method is not JAX-compatible due to string return type.
-        Use is_control_operation() or is_grid_operation() for JAX code.
-        
-        Returns:
-            String indicating operation type ("grid" or "control")
-        """
-        return "control" if bool(self.is_control_operation()) else "grid"
     
     def matches_pair(self, pair_index: int) -> Bool[Array, ""]:
         """Check if this record was taken on the specified pair.

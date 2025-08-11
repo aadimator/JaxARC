@@ -640,8 +640,7 @@ class RewardConfig(eqx.Module):
     # Additional reward shaping
     progress_bonus: float = 0.0
 
-    # Enhanced mode-specific reward settings
-    control_operation_penalty: float = -0.01  # Penalty for control operations
+    # control_operation_penalty removed (control ops deprecated)
 
     # Mode-specific reward structures
     training_similarity_weight: float = 1.0  # Similarity weight in training mode
@@ -664,10 +663,7 @@ class RewardConfig(eqx.Module):
             validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 10.0)
             validate_float_range(self.progress_bonus, "progress_bonus", -10.0, 10.0)
 
-            # Validate enhanced reward fields
-            validate_float_range(
-                self.control_operation_penalty, "control_operation_penalty", -10.0, 1.0
-            )
+            # Validate enhanced reward fields (control penalty removed)
             validate_float_range(
                 self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0
             )
@@ -699,10 +695,7 @@ class RewardConfig(eqx.Module):
                 )
 
 
-            if self.control_operation_penalty > 0:
-                logger.warning(
-                    f"control_operation_penalty should typically be negative or zero, got {self.control_operation_penalty}"
-                )
+            # control_operation_penalty legacy warning removed
 
 
         except ConfigValidationError as e:
@@ -728,7 +721,6 @@ class RewardConfig(eqx.Module):
             success_bonus=cfg.get("success_bonus", 10.0),
             similarity_weight=cfg.get("similarity_weight", 1.0),
             progress_bonus=cfg.get("progress_bonus", 0.0),
-            control_operation_penalty=cfg.get("control_operation_penalty", -0.01),
             training_similarity_weight=cfg.get("training_similarity_weight", 1.0),
             demo_completion_bonus=cfg.get("demo_completion_bonus", 1.0),
             test_completion_bonus=cfg.get("test_completion_bonus", 5.0),
@@ -894,7 +886,7 @@ class ActionConfig(eqx.Module):
     selection_format: Literal["mask", "point", "bbox"] = "mask"
 
     # Operation parameters
-    max_operations: int = 42  # Updated to include enhanced control operations (0-41)
+    max_operations: int = 35  # Operations 0-34 (control operations removed)
     allowed_operations: Optional[tuple[int, ...]] = (
         None  # Changed from List[Int] to tuple
     )
@@ -924,7 +916,7 @@ class ActionConfig(eqx.Module):
 
         # Set all fields
         self.selection_format = kwargs.get("selection_format", "mask")
-        self.max_operations = kwargs.get("max_operations", 42)
+        self.max_operations = kwargs.get("max_operations", 35)
         self.allowed_operations = allowed_operations
         self.validate_actions = kwargs.get("validate_actions", True)
         self.allow_invalid_actions = kwargs.get("allow_invalid_actions", False)
@@ -1031,8 +1023,8 @@ class ActionConfig(eqx.Module):
             allowed_operations=allowed_ops,  # Pass as keyword argument
             selection_format=cfg.get("selection_format", "mask"),
             max_operations=cfg.get(
-                "num_operations", 42
-            ),  # Updated to include enhanced operations
+                "num_operations", 35
+            ),  # Operations 0-34
             validate_actions=cfg.get("validate_actions", True),
             allow_invalid_actions=not cfg.get(
                 "clip_invalid_actions", True
