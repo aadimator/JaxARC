@@ -678,7 +678,7 @@ class SVGHandler:
         # Known keys used by visualization functions
         known_viz_keys = {
             'success', 'similarity', 'similarity_improvement', 'step_count',
-            'is_control_operation', 'operation_type', 'episode_mode',
+            'operation_type', 'episode_mode',
             'current_pair_index', 'metrics'  # Include metrics for potential future use
         }
         

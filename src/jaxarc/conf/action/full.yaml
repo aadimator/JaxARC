@@ -6,8 +6,8 @@
 selection_format: "mask" # Use mask + operation format (others: point, bbox)
 
 # Operation Settings
-max_operations: 42 # Full set of operations (0-41) - updated for enhanced control operations
-allowed_operations: # All available operations using ARCLEOperationType IDs
+max_operations: 35 # Reduced set of operations (0-34) after removing pair control operations
+allowed_operations: # All available operations (grid + submit) using ARCLEOperationType IDs
   - 0 # FILL_0 (black)
   - 1 # FILL_1 (blue)
   - 2 # FILL_2 (red)
@@ -43,20 +43,12 @@ allowed_operations: # All available operations using ARCLEOperationType IDs
   - 32 # COPY_INPUT
   - 33 # RESIZE
   - 34 # SUBMIT
-  # Enhanced control operations (35-41) - Non-parametric pair switching
-  - 35 # SWITCH_TO_NEXT_DEMO_PAIR
-  - 36 # SWITCH_TO_PREV_DEMO_PAIR
-  - 37 # SWITCH_TO_NEXT_TEST_PAIR
-  - 38 # SWITCH_TO_PREV_TEST_PAIR
-  - 39 # RESET_CURRENT_PAIR
-  - 40 # SWITCH_TO_FIRST_UNSOLVED_DEMO
-  - 41 # SWITCH_TO_FIRST_UNSOLVED_TEST
 
 # Validation Settings
 validate_actions: true # Validate actions before execution
 allow_invalid_actions: false # Allow invalid actions (standardized naming)
 
-# Dynamic Action Space Control
-dynamic_action_filtering: true # Enable runtime operation filtering for enhanced control
-context_dependent_operations: true # Allow context-based operation availability
+# Dynamic Action Space Control (simplified)
+dynamic_action_filtering: false # Control operations removed; disable complex filtering by default
+context_dependent_operations: false # No context-dependent operation availability needed now
 invalid_operation_policy: "clip" # How to handle invalid operations: clip, reject, passthrough, penalize

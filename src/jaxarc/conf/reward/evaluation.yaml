@@ -10,8 +10,7 @@ similarity_weight: 0.0  # No similarity rewards (target masked)
 # Minimal progress tracking in evaluation
 progress_bonus: 0.0  # No progress bonus in evaluation mode
 
-# Control operation settings for evaluation
-control_operation_penalty: -0.02  # Discourage excessive switching in evaluation
+# Control operation penalty removed (legacy field)
 
 # Mode-specific weights
 training_similarity_weight: 1.0  # Full similarity in training

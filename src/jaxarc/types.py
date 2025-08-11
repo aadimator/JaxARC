@@ -397,24 +397,21 @@ class PrimitiveType(IntEnum):
     COPY_PASTE_RECT = 3
 
 
-class ControlType(IntEnum):
-    """Enumeration of control actions available in the environment."""
+"""Historical enums (ControlType, ActionCategory) removed after simplifying the action space.
 
-    SUBMIT = 0
-    RESET = 1
-    NO_OP = 2
-
-
-class ActionCategory(IntEnum):
-    """Enumeration of action categories."""
-
-    PRIMITIVE = 0
-    CONTROL = 1
+All operations are now treated uniformly (IDs 0-34). Any legacy references to
+ControlType or ActionCategory should be refactored to directly use
+ARCLEOperationType constants or removed entirely.
+"""
 
 
 # ARCLE-specific types
 class ARCLEOperationType:
-    """ARCLE operation types with enhanced control operations."""
+    """ARCLE operation types (grid + submit only).
+
+    Pair control operations (35-41) have been removed to simplify the action space.
+    Remaining valid operation IDs: 0-34.
+    """
 
     # Fill operations (0-9)
     FILL_0 = 0
@@ -467,15 +464,6 @@ class ARCLEOperationType:
     # Submit operation (34)
     SUBMIT = 34
 
-    # Enhanced control operations (35-41) - Non-parametric pair switching
-    SWITCH_TO_NEXT_DEMO_PAIR = 35      # Switch to next available demo pair
-    SWITCH_TO_PREV_DEMO_PAIR = 36      # Switch to previous demo pair  
-    SWITCH_TO_NEXT_TEST_PAIR = 37      # Switch to next available test pair
-    SWITCH_TO_PREV_TEST_PAIR = 38      # Switch to previous test pair
-    RESET_CURRENT_PAIR = 39            # Reset current pair to initial state
-    SWITCH_TO_FIRST_UNSOLVED_DEMO = 40 # Switch to first unsolved demo pair
-    SWITCH_TO_FIRST_UNSOLVED_TEST = 41 # Switch to first unsolved test pair
-
 
 class ARCLEAction(eqx.Module):
     """
@@ -511,11 +499,11 @@ class ARCLEAction(eqx.Module):
                     msg = f"Selection values must be in [0, 1], got [{min_val}, {max_val}]"
                     raise ValueError(msg)
 
-            # Validate operation ID (updated range for enhanced control operations)
+            # Validate operation ID (0-34 after removal of control operations)
             if hasattr(self.operation, "item"):
                 op_val = int(self.operation.item())
-                if not 0 <= op_val <= 41:
-                    msg = f"Operation ID must be in [0, 41], got {op_val}"
+                if not 0 <= op_val <= 34:
+                    msg = f"Operation ID must be in [0, 34], got {op_val}"
                     raise ValueError(msg)
 
         except (AttributeError, TypeError):

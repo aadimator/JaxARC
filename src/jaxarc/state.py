@@ -457,7 +457,7 @@ class ArcEnvState(eqx.Module):
         """Check if a specific operation is currently allowed.
 
         Args:
-            operation_id: Operation ID to check (0-41)
+            operation_id: Operation ID to check (0-34)
 
         Returns:
             JAX boolean scalar array indicating if the operation is allowed
@@ -502,7 +502,7 @@ class ArcEnvState(eqx.Module):
         appropriately at state creation time.
 
         Args:
-            operation_id: The operation ID (0-41)
+            operation_id: The operation ID (0-34)
             selection_data: Selection data in format-specific shape:
                 - Point: [row, col] (2 elements)
                 - Bbox: [r1, c1, r2, c2] (4 elements)  
