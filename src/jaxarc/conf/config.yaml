@@ -1,16 +1,60 @@
 defaults:
   - _self_
   - dataset: arc_agi_2 # Which dataset to use
-  - environment: training # Which environment to use (training/evaluation)
-  - reward: standard # Which reward configuration to use (standard/training/evaluation)
+  - reward: training # Which reward configuration to use (standard/training/evaluation)
   - action: standard # Which action configuration to use (standard/full/raw)
-  - episode: standard # Which episode management to use (standard/training/evaluation/research)
+  - episode: training # Which episode management to use (standard/training/evaluation/research)
   - history: standard # Which action history to use (standard/minimal/research/disabled)
   - grid_initialization: demo # Which grid initialization to use (demo/mixed/permutation/empty/random/training/exploration)
-  - logging: full # Which logging configuration to use (basic/full)
-  - storage: research # Which storage configuration to use (development/production/research)
-  - visualization: standard # Which visualization configuration to use (off/minimal/standard/full)
-  - wandb: disabled # Which wandb configuration to use (disabled/basic/research)
+
+environment:
+  max_episode_steps: 150
+  debug_level: "verbose" # off/minimal/standard/verbose/research
+
+logging:
+  log_operations: true
+  log_rewards: true
+
+  # Logging frequency and timing
+  log_frequency: 5
+
+  # Batched Training Specifics
+  batched_logging_enabled: true
+
+storage:
+  # Base storage configuration
+  base_output_dir: "outputs/research"
+  run_name: null # Auto-generated with experiment info
+  episodes_dir: "episodes"
+  debug_dir: "debug"
+  visualization_dir: "visualizations"
+  logs_dir: "logs"
+
+  # Research limits (larger for comprehensive studies)
+  max_episodes_per_run: 1000
+  max_storage_gb: 50.0
+  cleanup_policy: "manual" # Manual cleanup for research data
+
+  # File organization
+  create_run_subdirs: true
+  clear_output_on_start: false # Preserve research data
+
+visualization:
+  enabled: true
+  level: "standard" # Visualization detail level (off/minimal/standard/verbose/full)
+  episode_summaries: true
+  step_visualizations: true
+
+wandb:
+  enabled: true
+  project_name: "jaxarc-experiments"
+  entity: null # Use default entity
+  tags: ["jaxarc", "basic"]
+  notes: "Basic JaxARC experiment with wandb logging"
+  group: null
+  job_type: "training"
+  offline_mode: false
+  save_code: true
 
 # Project paths (legacy - kept for backward compatibility)
 paths:

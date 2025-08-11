@@ -16,19 +16,6 @@ from .action_space_controller import ActionSpaceController
 
 # Action handlers
 from .actions import bbox_handler, get_action_handler, mask_handler, point_handler
-
-# Structured actions
-from .structured_actions import (
-    BaseAction,
-    BboxAction,
-    MaskAction,
-    PointAction,
-    StructuredAction,
-    create_bbox_action,
-    create_mask_action,
-    create_point_action,
-
-)
 from .config import (
     ActionConfig as UnifiedActionConfig,
 )
@@ -51,9 +38,6 @@ from .config import (
     RewardConfig as UnifiedRewardConfig,
 )
 
-# Core environment classes
-from .environment import ArcEnvironment
-
 # Episode management system
 from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
 
@@ -63,11 +47,11 @@ from .functional import (
     arc_step,
 )
 
-# Grid operations
-from .grid_operations import execute_grid_operation
-
 # Grid initialization
 from .grid_initialization import initialize_working_grids
+
+# Grid operations
+from .grid_operations import execute_grid_operation
 
 # Observation system
 from .observations import (
@@ -96,11 +80,22 @@ from .operations import (
 # Action and observation spaces
 from .spaces import MultiBinary, Space
 
+# Structured actions
+from .structured_actions import (
+    BaseAction,
+    BboxAction,
+    MaskAction,
+    PointAction,
+    StructuredAction,
+    create_bbox_action,
+    create_mask_action,
+    create_point_action,
+)
+
 __all__ = [
     "OPERATION_NAMES",
     "ActionSpaceController",
     "ArcEnvState",
-    "ArcEnvironment",
     "ArcEpisodeConfig",
     "ArcEpisodeManager",
     "ArcObservation",

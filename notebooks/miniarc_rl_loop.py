@@ -89,11 +89,8 @@ def setup_configuration() -> DictConfig:
     config_overrides = [
         "dataset=mini_arc",
         "action=raw",
-        "action.selection_format=bbox",  # Use bbox selection format
-        "visualization=full",
-        "logging=full",
-        "storage=research",
-        "wandb=research",
+        "action.selection_format=bbox",
+        "wandb.enabled=false",
     ]
 
     # Load the configuration using the get_config utility from JaxARC
@@ -125,12 +122,8 @@ def setup_batched_configuration() -> DictConfig:
         "dataset=mini_arc",
         "action=raw",
         "action.selection_format=bbox",
-        "environment=training",  # Use training environment for batched processing
         "grid_initialization=mixed",  # Use mixed initialization strategy for diversity
-        "visualization=minimal",  # Reduce visualization overhead for batched training
-        "logging=basic",
-        "storage=research",
-        "wandb=research",
+        "wandb.enabled=false",
     ]
 
     hydra_config = get_config(overrides=config_overrides)
