@@ -24,13 +24,13 @@ from typing import Any, Dict, Literal, Optional, Union
 import equinox as eqx
 import yaml
 from loguru import logger
-from omegaconf import DictConfig, OmegaConf
-
-# Import episode configuration
-from .episode_manager import ArcEpisodeConfig
+from omegaconf import DictConfig
 
 # Import action history configuration
 from .action_history import HistoryConfig
+
+# Import episode configuration
+from .episode_manager import ArcEpisodeConfig
 
 
 # Validation utilities
@@ -409,7 +409,6 @@ class StorageConfig(eqx.Module):
         errors = []
 
         try:
-
             valid_cleanup_policies = ("none", "size_based", "oldest_first", "manual")
             validate_string_choice(
                 self.cleanup_policy, "cleanup_policy", valid_cleanup_policies
@@ -439,7 +438,6 @@ class StorageConfig(eqx.Module):
 
             if self.max_storage_gb > 100:
                 logger.warning(f"max_storage_gb is very large: {self.max_storage_gb}")
-
 
         except ConfigValidationError as e:
             errors.append(str(e))
@@ -561,7 +559,7 @@ class WandbConfig(eqx.Module):
         tags = kwargs.get("tags", ("jaxarc",))
         if isinstance(tags, str):
             tags = (tags,)
-        elif hasattr(tags, '__iter__') and not isinstance(tags, (str, tuple)):
+        elif hasattr(tags, "__iter__") and not isinstance(tags, (str, tuple)):
             # Handle ListConfig and other iterable types
             tags = tuple(tags)
         elif not isinstance(tags, tuple):
@@ -570,10 +568,10 @@ class WandbConfig(eqx.Module):
         # Set all fields
         self.enabled = kwargs.get("enabled", False)
         self.project_name = kwargs.get("project_name", "jaxarc-experiments")
-        self.entity = kwargs.get("entity", None)
+        self.entity = kwargs.get("entity")
         self.tags = tags
         self.notes = kwargs.get("notes", "JaxARC experiment")
-        self.group = kwargs.get("group", None)
+        self.group = kwargs.get("group")
         self.job_type = kwargs.get("job_type", "training")
         self.offline_mode = kwargs.get("offline_mode", False)
         self.save_code = kwargs.get("save_code", True)
@@ -605,7 +603,7 @@ class WandbConfig(eqx.Module):
         tags = cfg.get("tags", ["jaxarc"])
         if isinstance(tags, str):
             tags = (tags,)
-        elif hasattr(tags, '__iter__') and not isinstance(tags, (str, tuple)):
+        elif hasattr(tags, "__iter__") and not isinstance(tags, (str, tuple)):
             # Handle ListConfig and other iterable types
             tags = tuple(tags)
         elif not isinstance(tags, tuple):
@@ -694,9 +692,7 @@ class RewardConfig(eqx.Module):
                     f"success_bonus should typically be positive for proper learning, got {self.success_bonus}"
                 )
 
-
             # control_operation_penalty legacy warning removed
-
 
         except ConfigValidationError as e:
             errors.append(str(e))
@@ -731,42 +727,48 @@ class RewardConfig(eqx.Module):
 
 class GridInitializationConfig(eqx.Module):
     """Configuration for diverse grid initialization strategies.
-    
+
     This config controls how working grids are initialized in the environment,
     supporting multiple modes including demo grids, permutations, empty grids,
     and random patterns for enhanced training diversity.
     """
-    
+
     # Initialization mode selection
     mode: Literal["demo", "permutation", "empty", "random", "mixed"] = "demo"
-    
+
     # Probability weights for mixed mode (must sum to 1.0)
     demo_weight: float = 0.25
     permutation_weight: float = 0.25
     empty_weight: float = 0.25
     random_weight: float = 0.25
-    
+
     # Permutation configuration
     permutation_types: tuple[str, ...] = ("rotate", "reflect", "color_remap")
-    
+
     # Random initialization configuration
     random_density: float = 0.3  # Density for random patterns (0.0 to 1.0)
     random_pattern_type: Literal["sparse", "dense", "structured", "noise"] = "sparse"
-    
+
     # Fallback and error handling
     enable_fallback: bool = True  # Fallback to demo mode if other modes fail
-    
+
     def __init__(self, **kwargs):
         """Initialize with automatic list-to-tuple conversion for permutation_types."""
-        permutation_types = kwargs.get("permutation_types", ("rotate", "reflect", "color_remap"))
+        permutation_types = kwargs.get(
+            "permutation_types", ("rotate", "reflect", "color_remap")
+        )
         if isinstance(permutation_types, str):
             permutation_types = (permutation_types,)
-        elif hasattr(permutation_types, '__iter__') and not isinstance(permutation_types, (str, tuple)):
+        elif hasattr(permutation_types, "__iter__") and not isinstance(
+            permutation_types, (str, tuple)
+        ):
             # Handle ListConfig and other iterable types
-            permutation_types = tuple(permutation_types) if permutation_types else ("rotate",)
+            permutation_types = (
+                tuple(permutation_types) if permutation_types else ("rotate",)
+            )
         elif not isinstance(permutation_types, tuple):
             permutation_types = ("rotate", "reflect", "color_remap")
-        
+
         # Set all fields
         self.mode = kwargs.get("mode", "demo")
         self.demo_weight = kwargs.get("demo_weight", 0.25)
@@ -777,33 +779,37 @@ class GridInitializationConfig(eqx.Module):
         self.random_density = kwargs.get("random_density", 0.3)
         self.random_pattern_type = kwargs.get("random_pattern_type", "sparse")
         self.enable_fallback = kwargs.get("enable_fallback", True)
-    
+
     def validate(self) -> tuple[str, ...]:
         """Validate grid initialization configuration and return tuple of errors."""
         errors = []
-        
+
         try:
             # Validate mode choices
             valid_modes = ("demo", "permutation", "empty", "random", "mixed")
             validate_string_choice(self.mode, "mode", valid_modes)
-            
+
             # Validate pattern type choices
             valid_pattern_types = ("sparse", "dense", "structured", "noise")
-            validate_string_choice(self.random_pattern_type, "random_pattern_type", valid_pattern_types)
-            
+            validate_string_choice(
+                self.random_pattern_type, "random_pattern_type", valid_pattern_types
+            )
+
             # Validate weight ranges
             validate_float_range(self.demo_weight, "demo_weight", 0.0, 1.0)
-            validate_float_range(self.permutation_weight, "permutation_weight", 0.0, 1.0)
+            validate_float_range(
+                self.permutation_weight, "permutation_weight", 0.0, 1.0
+            )
             validate_float_range(self.empty_weight, "empty_weight", 0.0, 1.0)
             validate_float_range(self.random_weight, "random_weight", 0.0, 1.0)
             validate_float_range(self.random_density, "random_density", 0.0, 1.0)
-            
+
             # Validate weights sum to 1.0 (with small tolerance for floating point)
             total_weight = (
-                self.demo_weight + 
-                self.permutation_weight + 
-                self.empty_weight + 
-                self.random_weight
+                self.demo_weight
+                + self.permutation_weight
+                + self.empty_weight
+                + self.random_weight
             )
             if abs(total_weight - 1.0) > 1e-6:
                 errors.append(
@@ -811,7 +817,7 @@ class GridInitializationConfig(eqx.Module):
                     f"(demo: {self.demo_weight}, permutation: {self.permutation_weight}, "
                     f"empty: {self.empty_weight}, random: {self.random_weight})"
                 )
-            
+
             # Validate permutation types
             valid_permutation_types = ("rotate", "reflect", "color_remap", "translate")
             if hasattr(self.permutation_types, "__iter__"):
@@ -821,26 +827,36 @@ class GridInitializationConfig(eqx.Module):
                             f"Invalid permutation type: {ptype}. "
                             f"Valid types: {valid_permutation_types}"
                         )
-            
+
             # Cross-field validation warnings
             if self.mode != "mixed":
                 # If not in mixed mode, weights are ignored
-                if any(w != 0.25 for w in [self.demo_weight, self.permutation_weight, 
-                                          self.empty_weight, self.random_weight]):
+                if any(
+                    w != 0.25
+                    for w in [
+                        self.demo_weight,
+                        self.permutation_weight,
+                        self.empty_weight,
+                        self.random_weight,
+                    ]
+                ):
                     from loguru import logger
+
                     logger.warning(
                         f"Mode is '{self.mode}' but weights are specified. "
                         "Weights are only used in 'mixed' mode."
                     )
-            
+
             if self.mode == "permutation" and not self.permutation_types:
-                errors.append("permutation_types cannot be empty when mode is 'permutation'")
-                
+                errors.append(
+                    "permutation_types cannot be empty when mode is 'permutation'"
+                )
+
         except ConfigValidationError as e:
             errors.append(str(e))
-        
+
         return tuple(errors)
-    
+
     def __check_init__(self):
         """Validate hashability after initialization."""
         try:
@@ -849,19 +865,25 @@ class GridInitializationConfig(eqx.Module):
             raise ValueError(
                 f"GridInitializationConfig must be hashable for JAX compatibility: {e}"
             )
-    
+
     @classmethod
-    def from_hydra(cls, cfg: DictConfig) -> 'GridInitializationConfig':
+    def from_hydra(cls, cfg: DictConfig) -> GridInitializationConfig:
         """Create grid initialization config from Hydra DictConfig."""
-        permutation_types = cfg.get("permutation_types", ["rotate", "reflect", "color_remap"])
+        permutation_types = cfg.get(
+            "permutation_types", ["rotate", "reflect", "color_remap"]
+        )
         if isinstance(permutation_types, str):
             permutation_types = (permutation_types,)
-        elif hasattr(permutation_types, '__iter__') and not isinstance(permutation_types, (str, tuple)):
+        elif hasattr(permutation_types, "__iter__") and not isinstance(
+            permutation_types, (str, tuple)
+        ):
             # Handle ListConfig and other iterable types
-            permutation_types = tuple(permutation_types) if permutation_types else ("rotate",)
+            permutation_types = (
+                tuple(permutation_types) if permutation_types else ("rotate",)
+            )
         elif not isinstance(permutation_types, tuple):
             permutation_types = ("rotate", "reflect", "color_remap")
-        
+
         return cls(
             mode=cfg.get("mode", "demo"),
             demo_weight=cfg.get("demo_weight", 0.25),
@@ -906,13 +928,19 @@ class ActionConfig(eqx.Module):
 
     def __init__(self, **kwargs):
         """Initialize with automatic list-to-tuple conversion."""
-        allowed_operations = kwargs.get("allowed_operations", None)
+        allowed_operations = kwargs.get("allowed_operations")
         if allowed_operations is not None:
-            if hasattr(allowed_operations, '__iter__') and not isinstance(allowed_operations, (str, tuple)):
+            if hasattr(allowed_operations, "__iter__") and not isinstance(
+                allowed_operations, (str, tuple)
+            ):
                 # Handle ListConfig and other iterable types
-                allowed_operations = tuple(allowed_operations) if allowed_operations else None
+                allowed_operations = (
+                    tuple(allowed_operations) if allowed_operations else None
+                )
             elif not isinstance(allowed_operations, tuple):
-                allowed_operations = tuple(allowed_operations) if allowed_operations else None
+                allowed_operations = (
+                    tuple(allowed_operations) if allowed_operations else None
+                )
 
         # Set all fields
         self.selection_format = kwargs.get("selection_format", "mask")
@@ -1013,7 +1041,9 @@ class ActionConfig(eqx.Module):
         """Create action config from Hydra DictConfig."""
         allowed_ops = cfg.get("allowed_operations")
         if allowed_ops is not None:
-            if hasattr(allowed_ops, '__iter__') and not isinstance(allowed_ops, (str, tuple)):
+            if hasattr(allowed_ops, "__iter__") and not isinstance(
+                allowed_ops, (str, tuple)
+            ):
                 # Handle ListConfig and other iterable types
                 allowed_ops = tuple(allowed_ops) if allowed_ops else None
             elif not isinstance(allowed_ops, tuple):
@@ -1022,9 +1052,7 @@ class ActionConfig(eqx.Module):
         return cls(
             allowed_operations=allowed_ops,  # Pass as keyword argument
             selection_format=cfg.get("selection_format", "mask"),
-            max_operations=cfg.get(
-                "num_operations", 35
-            ),  # Operations 0-34
+            max_operations=cfg.get("num_operations", 35),  # Operations 0-34
             validate_actions=cfg.get("validate_actions", True),
             allow_invalid_actions=not cfg.get(
                 "clip_invalid_actions", True
@@ -1172,10 +1200,7 @@ class JaxArcConfig(eqx.Module):
                 warnings.append(
                     "Debug level is 'off' but visualization is enabled - consider disabling visualization for better performance"
                 )
-            if (
-                self.logging.log_operations
-                or self.logging.log_rewards
-            ):
+            if self.logging.log_operations or self.logging.log_rewards:
                 warnings.append(
                     "Debug level is 'off' but detailed logging is enabled - consider reducing log level"
                 )
@@ -1189,7 +1214,6 @@ class JaxArcConfig(eqx.Module):
             warnings.append(
                 f"Visualization level '{self.visualization.level}' doesn't match debug level '{debug_level}' (expected '{expected_viz_level}')"
             )
-
 
     def _validate_wandb_consistency(
         self, errors: list[str], warnings: list[str]
@@ -1250,7 +1274,6 @@ class JaxArcConfig(eqx.Module):
         if self.reward.progress_bonus != 0.0 and self.reward.reward_on_submit_only:
             warnings.append("Progress bonus is ignored when reward_on_submit_only=True")
 
-
     def _validate_dataset_consistency(
         self, errors: List[str], warnings: List[str]
     ) -> None:
@@ -1283,13 +1306,8 @@ class JaxArcConfig(eqx.Module):
                 f"Structured logging enabled but format is '{self.logging.log_format}' - consider using 'json' or 'structured'"
             )
 
-
-
         # Content-specific logging consistency
-        detailed_logging = (
-            self.logging.log_operations
-            or self.logging.log_rewards
-        )
+        detailed_logging = self.logging.log_operations or self.logging.log_rewards
         if detailed_logging and self.logging.log_level in ["ERROR", "WARNING"]:
             warnings.append(
                 "Detailed content logging enabled but log level may suppress the logs"
@@ -1397,76 +1415,6 @@ class JaxArcConfig(eqx.Module):
             return str(value)
 
     @classmethod
-    def from_yaml(cls, yaml_path: Union[str, Path]) -> JaxArcConfig:
-        """Load configuration from YAML file with validation.
-
-        Args:
-            yaml_path: Path to YAML configuration file.
-
-        Returns:
-            JaxArcConfig instance loaded from YAML.
-
-        Raises:
-            ConfigValidationError: If YAML loading or validation fails.
-        """
-        try:
-            yaml_path = Path(yaml_path)
-            if not yaml_path.exists():
-                raise ConfigValidationError(f"YAML file does not exist: {yaml_path}")
-
-            with open(yaml_path, encoding="utf-8") as f:
-                yaml_content = f.read()
-
-            return cls.from_yaml_string(yaml_content)
-
-        except Exception as e:
-            if isinstance(e, ConfigValidationError):
-                raise
-            raise ConfigValidationError(
-                f"Failed to load configuration from YAML file: {e}"
-            ) from e
-
-    @classmethod
-    def from_yaml_string(cls, yaml_string: str) -> JaxArcConfig:
-        """Load configuration from YAML string with validation.
-
-        Args:
-            yaml_string: YAML configuration as string.
-
-        Returns:
-            JaxArcConfig instance loaded from YAML string.
-
-        Raises:
-            ConfigValidationError: If YAML parsing or validation fails.
-        """
-        try:
-            config_dict = yaml.safe_load(yaml_string)
-
-            if not isinstance(config_dict, dict):
-                raise ConfigValidationError(
-                    "YAML string must contain a dictionary at root level"
-                )
-
-            # Create config from dictionary
-            config = cls._from_dict(config_dict)
-
-            # Validate the loaded configuration
-            validation_errors = config.validate()
-            if validation_errors:
-                error_msg = f"Configuration validation failed with {len(validation_errors)} errors:\n"
-                error_msg += "\n".join(f"  - {error}" for error in validation_errors)
-                raise ConfigValidationError(error_msg)
-
-            return config
-
-        except Exception as e:
-            if isinstance(e, ConfigValidationError):
-                raise
-            raise ConfigValidationError(
-                f"Failed to load configuration from YAML string: {e}"
-            ) from e
-
-    @classmethod
     def from_hydra(cls, hydra_config: DictConfig) -> JaxArcConfig:
         """Create JaxArcConfig from Hydra configuration.
 
@@ -1483,17 +1431,39 @@ class JaxArcConfig(eqx.Module):
             ConfigValidationError: If conversion or validation fails.
         """
         try:
-            environment_cfg = EnvironmentConfig.from_hydra(hydra_config.get("environment", DictConfig({})))
-            dataset_cfg = DatasetConfig.from_hydra(hydra_config.get("dataset", DictConfig({})))
-            action_cfg = ActionConfig.from_hydra(hydra_config.get("action", DictConfig({})))
-            reward_cfg = RewardConfig.from_hydra(hydra_config.get("reward", DictConfig({})))
-            grid_init_cfg = GridInitializationConfig.from_hydra(hydra_config.get("grid_initialization", DictConfig({})))
-            visualization_cfg = VisualizationConfig.from_hydra(hydra_config.get("visualization", DictConfig({})))
-            storage_cfg = StorageConfig.from_hydra(hydra_config.get("storage", DictConfig({})))
-            logging_cfg = LoggingConfig.from_hydra(hydra_config.get("logging", DictConfig({})))
-            wandb_cfg = WandbConfig.from_hydra(hydra_config.get("wandb", DictConfig({})))
-            episode_cfg = ArcEpisodeConfig.from_hydra(hydra_config.get("episode", DictConfig({})))
-            history_cfg = HistoryConfig.from_hydra(hydra_config.get("history", DictConfig({})))
+            environment_cfg = EnvironmentConfig.from_hydra(
+                hydra_config.get("environment", DictConfig({}))
+            )
+            dataset_cfg = DatasetConfig.from_hydra(
+                hydra_config.get("dataset", DictConfig({}))
+            )
+            action_cfg = ActionConfig.from_hydra(
+                hydra_config.get("action", DictConfig({}))
+            )
+            reward_cfg = RewardConfig.from_hydra(
+                hydra_config.get("reward", DictConfig({}))
+            )
+            grid_init_cfg = GridInitializationConfig.from_hydra(
+                hydra_config.get("grid_initialization", DictConfig({}))
+            )
+            visualization_cfg = VisualizationConfig.from_hydra(
+                hydra_config.get("visualization", DictConfig({}))
+            )
+            storage_cfg = StorageConfig.from_hydra(
+                hydra_config.get("storage", DictConfig({}))
+            )
+            logging_cfg = LoggingConfig.from_hydra(
+                hydra_config.get("logging", DictConfig({}))
+            )
+            wandb_cfg = WandbConfig.from_hydra(
+                hydra_config.get("wandb", DictConfig({}))
+            )
+            episode_cfg = ArcEpisodeConfig.from_hydra(
+                hydra_config.get("episode", DictConfig({}))
+            )
+            history_cfg = HistoryConfig.from_hydra(
+                hydra_config.get("history", DictConfig({}))
+            )
 
             return cls(
                 environment=environment_cfg,
@@ -1515,112 +1485,3 @@ class JaxArcConfig(eqx.Module):
             raise ConfigValidationError(
                 f"Failed to create configuration from Hydra: {e}"
             ) from e
-
-
-    # =========================================================================
-    # Efficient Serialization Methods (Single Source of Truth)
-    # =========================================================================
-
-    def save(self, path: str) -> None:
-        """Save configuration efficiently using Equinox serialization.
-        
-        This method saves the configuration to a file using Equinox's efficient
-        serialization system. Since configurations are typically small and
-        contain no large arrays, no special filtering is needed.
-        
-        Args:
-            path: Path to save the serialized configuration
-            
-        Examples:
-            ```python
-            # Save configuration
-            config.save("config.eqx")
-            ```
-        """
-        import equinox as eqx
-        
-        eqx.tree_serialise_leaves(path, self)
-
-    @classmethod
-    def load(cls, path: str) -> 'JaxArcConfig':
-        """Load configuration from a serialized file.
-        
-        This method loads a configuration that was saved with the save() method.
-        
-        Args:
-            path: Path to the serialized configuration file
-            
-        Returns:
-            JaxArcConfig with loaded configuration
-            
-        Examples:
-            ```python
-            # Load configuration
-            config = JaxArcConfig.load("config.eqx")
-            ```
-        """
-        import equinox as eqx
-        
-        # Create dummy config with correct structure for deserialization
-        dummy_config = cls()
-        
-        # Load and return the configuration
-        return eqx.tree_deserialise_leaves(path, dummy_config)
-
-    def save_with_state(self, config_path: str, state_path: str, state) -> None:
-        """Save both configuration and state efficiently in separate files.
-        
-        This method saves the configuration and state in separate files,
-        allowing for efficient loading and better organization.
-        
-        Args:
-            config_path: Path to save the configuration
-            state_path: Path to save the state
-            state: ArcEnvState to save
-            
-        Examples:
-            ```python
-            # Save config and state separately
-            config.save_with_state("config.eqx", "state.eqx", state)
-            ```
-        """
-        # Save configuration
-        self.save(config_path)
-        
-        # Save state using its efficient save method
-        state.save(state_path)
-
-    @classmethod
-    def load_with_state(cls, config_path: str, state_path: str, parser) -> tuple['JaxArcConfig', 'ArcEnvState']:
-        """Load both configuration and state from separate files.
-        
-        This method loads both configuration and state that were saved with
-        save_with_state(), reconstructing the state's task_data using the parser.
-        
-        Args:
-            config_path: Path to the serialized configuration file
-            state_path: Path to the serialized state file
-            parser: ArcDataParserBase instance to reconstruct task_data
-            
-        Returns:
-            Tuple of (JaxArcConfig, ArcEnvState) with loaded data
-            
-        Examples:
-            ```python
-            from jaxarc.parsers import ArcAgiParser
-            from jaxarc.state import ArcEnvState
-            
-            # Load config and state
-            parser = ArcAgiParser(dataset_config)
-            config, state = JaxArcConfig.load_with_state("config.eqx", "state.eqx", parser)
-            ```
-        """
-        from jaxarc.state import ArcEnvState
-        
-        # Load configuration
-        config = cls.load(config_path)
-        
-        # Load state using its efficient load method
-        state = ArcEnvState.load(state_path, parser)
-        
-        return config, state
