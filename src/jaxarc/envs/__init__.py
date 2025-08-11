@@ -15,7 +15,21 @@ from ..state import ArcEnvState
 from .action_space_controller import ActionSpaceController
 
 # Action handlers
-from .actions import bbox_handler, get_action_handler, mask_handler, point_handler
+# Structured actions
+from .actions import (
+    BaseAction,
+    BboxAction,
+    MaskAction,
+    PointAction,
+    StructuredAction,
+    bbox_handler,
+    create_bbox_action,
+    create_mask_action,
+    create_point_action,
+    get_action_handler,
+    mask_handler,
+    point_handler,
+)
 from .config import (
     ActionConfig as UnifiedActionConfig,
 )
@@ -51,11 +65,9 @@ from .functional import (
 from .grid_initialization import initialize_working_grids
 
 # Grid operations
-from .grid_operations import execute_grid_operation
-
-# Operation definitions and utilities
-from .operations import (
+from .grid_operations import (
     OPERATION_NAMES,
+    execute_grid_operation,
     get_all_operation_ids,
     get_operation_category,
     get_operation_display_text,
@@ -66,18 +78,6 @@ from .operations import (
 
 # Action and observation spaces
 from .spaces import MultiBinary, Space
-
-# Structured actions
-from .structured_actions import (
-    BaseAction,
-    BboxAction,
-    MaskAction,
-    PointAction,
-    StructuredAction,
-    create_bbox_action,
-    create_mask_action,
-    create_point_action,
-)
 
 __all__ = [
     "OPERATION_NAMES",

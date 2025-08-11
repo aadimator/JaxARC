@@ -22,16 +22,41 @@ from jaxarc.utils.visualization import (
 from ..state import ArcEnvState
 from ..types import JaxArcTask
 from ..utils.jax_types import (
+    NUM_OPERATIONS,
     EpisodeDone,
     ObservationArray,
     OperationId,
     PRNGKey,
-    get_action_record_fields,
     RewardValue,
+    get_action_record_fields,
+)
+from ..utils.state_utils import (
+    increment_step_count,
+    set_episode_done,
+    update_selection,
+)
+from ..utils.validation import validate_action, validate_state_consistency
+from .action_history import ActionHistoryTracker, HistoryConfig
+from .action_space_controller import ActionSpaceController
+from .actions import (
+    BboxAction,
+    MaskAction,
+    PointAction,
+    StructuredAction,
+    bbox_handler,
+    create_mask_action,
+    mask_handler,
+    point_handler,
 )
 from .config import JaxArcConfig
+from .episode_manager import (
+    EPISODE_MODE_TEST,
+    EPISODE_MODE_TRAIN,
+    ArcEpisodeConfig,
+    ArcEpisodeManager,
+)
+from .grid_initialization import initialize_working_grids
 from .grid_operations import compute_grid_similarity, execute_grid_operation
-from .structured_actions import StructuredAction, PointAction, BboxAction, MaskAction
 
 # Type aliases for cleaner signatures
 ConfigType = Union[JaxArcConfig, DictConfig]
@@ -52,8 +77,7 @@ def _validate_operation(operation: Any, config: JaxArcConfig) -> OperationId:
         raise ValueError(f"Operation must be int or jnp.ndarray, got {type(operation)}")
 
     # Operation range validation (0-34)
-    from jaxarc.utils.jax_types import NUM_OPERATIONS as _NUM_OPS
-    max_operations = _NUM_OPS
+    max_operations = NUM_OPERATIONS
 
     # Validate operation range (JAX-compatible)
     if config.action.validate_actions and not config.action.allow_invalid_actions:
@@ -178,23 +202,27 @@ def _calculate_enhanced_reward(
         JAX scalar array containing the calculated reward
     """
     reward_cfg = config.reward
-    
+
     # --- 1. Calculate all potential reward/penalty components unconditionally ---
     similarity_improvement = new_state.similarity_score - old_state.similarity_score
     is_solved = new_state.similarity_score >= 1.0
     is_training = new_state.episode_mode == 0
-    
+
     # Generic components
     step_penalty = jnp.array(reward_cfg.step_penalty, dtype=jnp.float32)
-    
+
     # Training-specific components
-    training_similarity_reward = reward_cfg.training_similarity_weight * similarity_improvement
-    progress_bonus = jnp.where(similarity_improvement > 0, reward_cfg.progress_bonus, 0.0)
+    training_similarity_reward = (
+        reward_cfg.training_similarity_weight * similarity_improvement
+    )
+    progress_bonus = jnp.where(
+        similarity_improvement > 0, reward_cfg.progress_bonus, 0.0
+    )
     demo_completion_bonus = jnp.where(is_solved, reward_cfg.demo_completion_bonus, 0.0)
-    
+
     # Evaluation-specific components
     test_completion_bonus = jnp.where(is_solved, reward_cfg.test_completion_bonus, 0.0)
-    
+
     # Shared components
     success_bonus = jnp.where(is_solved, reward_cfg.success_bonus, 0.0)
     efficiency_bonus = jnp.where(
@@ -202,7 +230,7 @@ def _calculate_enhanced_reward(
         reward_cfg.efficiency_bonus,
         0.0,
     )
-    
+
     # --- 2. Build the training and evaluation rewards using components ---
     # For simplicity, assume step-based rewards for training and submit-based for eval
     # This can be made configurable if needed without complex branching
@@ -214,50 +242,15 @@ def _calculate_enhanced_reward(
         + demo_completion_bonus
         + efficiency_bonus
     )
-    
+
     evaluation_reward = (
-        step_penalty
-        + success_bonus
-        + test_completion_bonus
-        + efficiency_bonus
+        step_penalty + success_bonus + test_completion_bonus + efficiency_bonus
     )
-    
+
     # --- 3. Select the final reward based on the mode ---
     final_reward = jnp.where(is_training, training_reward, evaluation_reward)
-    
+
     return final_reward
-
-
-def _calculate_similarity_score_for_pair_type(
-    working_grid: Array, target_grid: Array, pair_type: str, episode_mode: int
-) -> RewardValue:
-    """Calculate proper similarity scoring for different pair types.
-
-    This function provides specialized similarity calculation based on:
-    - Pair type (demonstration vs test)
-    - Episode mode (training vs evaluation)
-    - Target masking in evaluation mode
-
-    Args:
-        working_grid: Current working grid
-        target_grid: Target grid (may be masked in test mode)
-        pair_type: Type of pair ("demo" or "test")
-        episode_mode: Episode mode (0=train, 1=test)
-
-    Returns:
-        Similarity score appropriate for the pair type and mode
-    """
-    from .grid_operations import compute_grid_similarity
-
-    # In training mode, use full similarity calculation
-    training_similarity = compute_grid_similarity(working_grid, working_mask, target_grid, target_mask)
-
-    # In test mode, similarity is limited due to target masking
-    # We can only measure structural consistency, not correctness
-    test_similarity = jnp.array(0.0, dtype=jnp.float32)  # Masked similarity
-
-    # Return appropriate similarity based on episode mode
-    return jnp.where(episode_mode == 0, training_similarity, test_similarity)
 
 
 def _is_episode_done(state: ArcEnvState, config: JaxArcConfig) -> EpisodeDone:
@@ -305,8 +298,6 @@ def _is_episode_done_enhanced(state: ArcEnvState, config: JaxArcConfig) -> Episo
 
 def _create_demo_task(config: JaxArcConfig) -> JaxArcTask:
     """Create a simple demo task for testing when no task sampler is available."""
-    from ..types import JaxArcTask
-
     logger.warning(
         "No task sampler provided - creating demo task. "
         "For real training, provide a task_sampler in config or task_data directly."
@@ -382,29 +373,29 @@ def _get_or_create_task_data(
     task_data: JaxArcTask | None, config: JaxArcConfig
 ) -> JaxArcTask:
     """Get task data or create demo task - focused helper function.
-    
+
     This helper function ensures that valid task data is available for environment
     initialization. If no task data is provided, it creates a simple demo task
     suitable for testing and development purposes.
-    
+
     Args:
         task_data: Optional JaxArcTask data. If None, a demo task will be created.
         config: Environment configuration used for demo task creation parameters
                including grid dimensions, colors, and dataset settings.
-    
+
     Returns:
         JaxArcTask: Valid task data ready for environment initialization.
                    Either the provided task_data or a newly created demo task.
-    
+
     Examples:
         ```python
         # With existing task data
         task = _get_or_create_task_data(existing_task, config)
-        
+
         # Without task data (creates demo)
         demo_task = _get_or_create_task_data(None, config)
         ```
-    
+
     Note:
         Demo tasks are created with simple patterns suitable for testing.
         For production training, always provide real task data from parsers.
@@ -425,44 +416,36 @@ def _select_initial_pair(
     initial_pair_idx: int | None,
 ) -> Tuple[jnp.ndarray, bool]:
     """Select initial pair based on mode and configuration - focused helper function.
-    
+
     This helper function handles the selection of which task pair to use for episode
     initialization. It supports both explicit pair specification and automatic
     selection based on episode mode and configuration strategy.
-    
+
     Args:
         key: JAX PRNG key for random pair selection when needed
         task_data: JaxArcTask containing available demonstration and test pairs
         episode_mode: Episode mode (0=train, 1=test) determining pair type selection
         initial_pair_idx: Optional explicit pair index. If None, uses episode manager
                          selection strategy based on configuration.
-    
+
     Returns:
         Tuple containing:
         - selected_pair_idx: JAX array with selected pair index (int32)
         - selection_successful: Boolean indicating if selection was valid
-    
+
     Examples:
         ```python
         # Explicit pair selection
         pair_idx, success = _select_initial_pair(key, task, 0, 2)
-        
+
         # Automatic selection based on mode
         pair_idx, success = _select_initial_pair(key, task, 1, None)
         ```
-    
+
     Note:
         Uses episode manager for intelligent pair selection strategies.
         Falls back to index 0 if selection fails for any reason.
     """
-    # Import episode manager for pair selection
-    from .episode_manager import (
-        ArcEpisodeConfig,
-        ArcEpisodeManager,
-        EPISODE_MODE_TRAIN,
-        EPISODE_MODE_TEST,
-    )
-
     # JAX-compliant integer-only episode mode validation
     if episode_mode not in [EPISODE_MODE_TRAIN, EPISODE_MODE_TEST]:
         raise ValueError(
@@ -505,11 +488,11 @@ def _initialize_grids(
     initial_pair_idx: int | None = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize grids with diverse initialization strategies - enhanced helper function.
-    
+
     This enhanced helper function sets up the initial, target, and mask grids based on the
     episode mode, selected pair, and diverse initialization configuration. It supports
     multiple initialization modes including demo, permutation, empty, and random grids.
-    
+
     Args:
         task_data: JaxArcTask containing demonstration and test pair data
         selected_pair_idx: JAX array with the index of the selected pair
@@ -518,29 +501,27 @@ def _initialize_grids(
         key: Optional JAX PRNG key for diverse initialization (required for non-demo modes)
         initial_pair_idx: Optional specific pair index for demo-based initialization.
                          If None, uses random selection. If specified, uses that pair.
-    
+
     Returns:
         Tuple containing:
         - initial_grid: Starting grid for the episode (JAX array)
         - target_grid: Target grid (visible in train mode, masked in test mode)
         - initial_mask: Boolean mask indicating valid grid cells
-    
+
     Examples:
         ```python
         # Training mode with diverse initialization and specific pair
         init_grid, target, mask = _initialize_grids(task, idx, 0, config, key, initial_pair_idx=2)
-        
+
         # Test mode initialization (target masked) with random selection
         init_grid, masked_target, mask = _initialize_grids(task, idx, 1, config, key)
         ```
-    
+
     Note:
         Uses the new diverse grid initialization engine when grid_initialization
         config is not in demo mode. Falls back to original behavior for demo mode
         or when key is not provided. Respects initial_pair_idx for demo-based modes.
     """
-    from .episode_manager import EPISODE_MODE_TRAIN
-    from .grid_initialization import initialize_working_grids
 
     # Get target grid and mask based on episode mode
     def get_train_target():
@@ -562,15 +543,19 @@ def _initialize_grids(
 
     # Check if diverse initialization is enabled and key is provided
     use_diverse_init = (
-        hasattr(config, 'grid_initialization') and 
-        config.grid_initialization.mode != "demo" and 
-        key is not None
+        hasattr(config, "grid_initialization")
+        and config.grid_initialization.mode != "demo"
+        and key is not None
     )
 
     if use_diverse_init:
         # Use diverse initialization engine with initial_pair_idx support
         initial_grid, initial_mask = initialize_working_grids(
-            task_data, config.grid_initialization, key, batch_size=1, initial_pair_idx=initial_pair_idx
+            task_data,
+            config.grid_initialization,
+            key,
+            batch_size=1,
+            initial_pair_idx=initial_pair_idx,
         )
         # Remove batch dimension (squeeze first axis)
         initial_grid = jnp.squeeze(initial_grid, axis=0)
@@ -605,11 +590,11 @@ def _create_initial_state(
     config: JaxArcConfig,
 ) -> ArcEnvState:
     """Create initial state - focused helper function.
-    
+
     This helper function constructs the complete initial ArcEnvState with all
     required fields properly initialized. It handles enhanced functionality
     including action history, operation masks, and completion tracking.
-    
+
     Args:
         task_data: JaxArcTask containing complete task information
         initial_grid: Starting grid configuration (JAX array)
@@ -618,27 +603,29 @@ def _create_initial_state(
         selected_pair_idx: Index of the currently selected pair
         episode_mode: Episode mode (0=train, 1=test)
         config: Environment configuration for state initialization parameters
-    
+
     Returns:
         ArcEnvState: Complete initial environment state with all fields properly
                     initialized including action history, completion tracking,
                     and operation masks.
-    
+
     Examples:
         ```python
         # Create initial state for training
         state = _create_initial_state(task, grid, target, mask, target_mask, idx, 0, config)
-        
+
         # Create initial state for testing
         state = _create_initial_state(task, grid, masked_target, mask, empty_mask, idx, 1, config)
         ```
-    
+
     Note:
         Initializes enhanced features like action history storage, completion
         status tracking, and dynamic operation control for full functionality.
     """
     # Calculate initial similarity (will be 0.0 in test mode due to masked target)
-    initial_similarity = compute_grid_similarity(initial_grid, initial_mask, target_grid, target_mask)
+    initial_similarity = compute_grid_similarity(
+        initial_grid, initial_mask, target_grid, target_mask
+    )
 
     # Initialize grids based on episode mode using JAX-compatible operations
     # Get available pairs and completion status for enhanced functionality
@@ -649,8 +636,7 @@ def _create_initial_state(
 
     # Initialize action history with dynamic sizing based on configuration
     max_history_length = getattr(config, "max_history_length", 1000)
-    from jaxarc.utils.jax_types import NUM_OPERATIONS as _NUM_OPS
-    num_operations = _NUM_OPS
+    num_operations = NUM_OPERATIONS
 
     # Calculate optimal action record fields based on selection format and dataset
     action_record_fields = get_action_record_fields(
@@ -746,7 +732,7 @@ def arc_reset(
 
         # Reset with explicit pair selection in training mode
         state, obs = arc_reset(key, config, task_data, episode_mode=0, initial_pair_idx=2)
-        
+
         # Using typed config (preferred)
         from jaxarc.envs.config import JaxArcConfig
         typed_config = JaxArcConfig.from_hydra(hydra_config)
@@ -774,7 +760,12 @@ def arc_reset(
 
     # Initialize grids based on episode mode using JAX-compatible operations
     initial_grid, target_grid, initial_mask, target_mask = _initialize_grids(
-        task_data, selected_pair_idx, episode_mode, typed_config, init_key, initial_pair_idx
+        task_data,
+        selected_pair_idx,
+        episode_mode,
+        typed_config,
+        init_key,
+        initial_pair_idx,
     )
 
     # Create enhanced initial state with all new fields
@@ -790,8 +781,7 @@ def arc_reset(
     )
 
     # Validate initial state consistency
-    from ..utils.error_handling import JAXErrorHandler
-    validated_state = JAXErrorHandler.validate_state_consistency(state)
+    validated_state = validate_state_consistency(state)
 
     # Create initial observation using the enhanced create_observation function
     observation = create_observation(validated_state, typed_config)
@@ -820,44 +810,40 @@ def _process_action(
     config: JaxArcConfig,
 ) -> Tuple[ArcEnvState, StructuredAction]:
     """Process action and return updated state.
-    
+
     This function handles the complete action processing pipeline supporting both
-    structured actions and dictionary actions for backward compatibility. It supports 
-    both grid operations (0-34) and control operations (35-41) with proper validation 
+    structured actions and dictionary actions for backward compatibility. It supports
+    both grid operations (0-34) and control operations (35-41) with proper validation
     and execution.
-    
+
     Args:
         state: Current environment state before action execution
         action: Action to execute (StructuredAction or dict with 'operation' and 'selection')
         config: Environment configuration for action processing settings
-    
+
     Returns:
         Tuple containing:
         - new_state: Updated environment state after action execution
         - validated_action: Validated structured action
-    
+
     Examples:
         ```python
         # Process structured point action
         action = PointAction(operation=15, row=5, col=10)
         new_state, validated_action, is_control = _process_action(state, action, config)
-        
+
         # Process dictionary action (backward compatibility)
         action = {"operation": 15, "selection": jnp.array([5, 10])}
         new_state, validated_action, is_control = _process_action(state, action, config)
         ```
-    
+
     Raises:
         ValueError: If action format is invalid or operation is out of range
-    
+
     Note:
         Supports both structured actions and dictionary actions for backward compatibility.
         Automatically validates action parameters and clips to valid ranges.
     """
-    # Import episode manager for control operations
-    from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
-    from .structured_actions import PointAction, BboxAction, MaskAction, create_mask_action
-
     # Get grid shape for validation
     grid_shape = state.working_grid.shape
 
@@ -866,7 +852,7 @@ def _process_action(
         # Handle dictionary action for backward compatibility
         operation = action["operation"]
         selection = action["selection"]
-        
+
         # Convert to MaskAction (most general format)
         if selection.ndim == 2:
             # Already a 2D mask
@@ -885,14 +871,14 @@ def _process_action(
             c1 = jnp.clip(c1, 0, grid_shape[1] - 1)
             r2 = jnp.clip(r2, 0, grid_shape[0] - 1)
             c2 = jnp.clip(c2, 0, grid_shape[1] - 1)
-            
+
             min_r, max_r = jnp.minimum(r1, r2), jnp.maximum(r1, r2)
             min_c, max_c = jnp.minimum(c1, c2), jnp.maximum(c1, c2)
-            
+
             rows = jnp.arange(grid_shape[0])
             cols = jnp.arange(grid_shape[1])
             row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
-            
+
             mask = (
                 (row_mesh >= min_r)
                 & (row_mesh <= max_r)
@@ -908,8 +894,7 @@ def _process_action(
             raise ValueError(f"Unsupported selection format: shape {selection.shape}")
     else:
         # Handle structured action
-        from jaxarc.utils.jax_types import NUM_OPERATIONS as _NUM_OPS
-        validated_action = action.validate(grid_shape, max_operations=_NUM_OPS)
+        validated_action = action.validate(grid_shape, max_operations=NUM_OPERATIONS)
 
     # Extract operation from validated action
     operation = validated_action.operation
@@ -919,21 +904,17 @@ def _process_action(
         hasattr(config.action, "dynamic_action_filtering")
         and config.action.dynamic_action_filtering
     ):
-        from .action_space_controller import ActionSpaceController
-
         controller = ActionSpaceController()
 
         # Filter invalid operation according to policy
         operation = controller.filter_invalid_operation_jax(
             operation, state, config.action
         )
-        
+
         # Update validated action with filtered operation
         if isinstance(validated_action, PointAction):
             validated_action = PointAction(
-                operation=operation,
-                row=validated_action.row,
-                col=validated_action.col
+                operation=operation, row=validated_action.row, col=validated_action.col
             )
         elif isinstance(validated_action, BboxAction):
             validated_action = BboxAction(
@@ -941,18 +922,14 @@ def _process_action(
                 r1=validated_action.r1,
                 c1=validated_action.c1,
                 r2=validated_action.r2,
-                c2=validated_action.c2
+                c2=validated_action.c2,
             )
         elif isinstance(validated_action, MaskAction):
             validated_action = MaskAction(
-                operation=operation,
-                selection=validated_action.selection
+                operation=operation, selection=validated_action.selection
             )
 
     # Only grid operations remain (0-34). Execute directly.
-    from .actions import point_handler, bbox_handler, mask_handler
-    from .structured_actions import PointAction, BboxAction, MaskAction
-
     if isinstance(validated_action, PointAction):
         selection_mask = point_handler(validated_action, state.working_grid_mask)
     elif isinstance(validated_action, BboxAction):
@@ -963,7 +940,6 @@ def _process_action(
         selection_mask = validated_action.to_selection_mask(grid_shape)
         selection_mask = selection_mask & state.working_grid_mask
 
-    from jaxarc.utils.pytree_utils import update_selection
     new_state = update_selection(state, selection_mask)
     new_state = execute_grid_operation(new_state, operation)
     return new_state, validated_action
@@ -976,27 +952,27 @@ def _update_state(
     config: JaxArcConfig,
 ) -> ArcEnvState:
     """Update state with action history and step count - focused helper function.
-    
+
     This helper function handles post-action state updates including action history
     tracking, step count incrementation, and other bookkeeping operations that
     need to occur after action execution.
-    
+
     Args:
         old_state: Environment state before action execution
         new_state: Environment state after action execution but before updates
         action: Structured action that was executed
         config: Environment configuration for history and update settings
-    
+
     Returns:
         ArcEnvState: Updated state with action history, incremented step count,
                     and other post-action updates applied.
-    
+
     Examples:
         ```python
         # Update state after action processing
         updated_state = _update_state(old_state, new_state, action, config)
         ```
-    
+
     Note:
         Conditionally applies action history tracking based on configuration.
         Always increments step count and handles other required state updates.
@@ -1006,8 +982,6 @@ def _update_state(
     # Use JAX-compatible conditional for history tracking
     def add_to_history(state):
         """Add action to history if enabled."""
-        from .action_history import ActionHistoryTracker, HistoryConfig
-
         # Create history config from main config or use defaults
         history_config = HistoryConfig(
             enabled=getattr(config.history, "enabled", True),
@@ -1041,8 +1015,6 @@ def _update_state(
     )
 
     # Update step count using PyTree utilities
-    from jaxarc.utils.pytree_utils import increment_step_count
-    
     updated_state = increment_step_count(updated_state)
 
     return updated_state
@@ -1064,8 +1036,6 @@ def _calculate_reward_and_done(
     done = _is_episode_done_enhanced(new_state, config)
 
     # Update episode_done flag using PyTree utilities
-    from jaxarc.utils.pytree_utils import set_episode_done
-    
     final_state = set_episode_done(new_state, done)
 
     return reward, done, final_state
@@ -1133,7 +1103,7 @@ def arc_step(
         # Control operation - switch to next demo pair
         action = PointAction(operation=35, row=0, col=0)  # Coordinates ignored for control ops
         new_state, obs, reward, done, info = arc_step(state, action, config)
-        
+
         # Using typed config (preferred)
         from jaxarc.envs.config import JaxArcConfig
         typed_config = JaxArcConfig.from_hydra(hydra_config)
@@ -1147,12 +1117,10 @@ def arc_step(
     """
     # Ensure we have a typed config
     typed_config = _ensure_config(config)
-    
+
     # Validate action and state before processing
-    from ..utils.error_handling import JAXErrorHandler
-    
-    validated_action = JAXErrorHandler.validate_action(action, typed_config)
-    validated_state = JAXErrorHandler.validate_state_consistency(state)
+    validated_action = validate_action(action, typed_config)
+    validated_state = validate_state_consistency(state)
 
     # Process action and get updated state
     new_state, standardized_action = _process_action(
@@ -1160,7 +1128,9 @@ def arc_step(
     )
 
     # Update state with action history and step count
-    updated_state = _update_state(validated_state, new_state, standardized_action, typed_config)
+    updated_state = _update_state(
+        validated_state, new_state, standardized_action, typed_config
+    )
 
     # Calculate reward and done status
     reward, done, final_state = _calculate_reward_and_done(
@@ -1175,7 +1145,8 @@ def arc_step(
         # Scalar metrics for time-series logging (wandb, etc.)
         "metrics": {
             "similarity": final_state.similarity_score,
-            "similarity_improvement": final_state.similarity_score - state.similarity_score,
+            "similarity_improvement": final_state.similarity_score
+            - state.similarity_score,
             "step_count": final_state.step_count,
             "episode_mode": final_state.episode_mode,  # 0=train, 1=test
             "current_pair_index": final_state.current_example_idx,
@@ -1241,8 +1212,9 @@ def arc_step(
         # Simple logging callback (removed complex visualization for simplicity)
         def simple_step_log(step_num, reward_val):
             from loguru import logger
+
             logger.debug(f"Step {step_num}: reward={reward_val:.3f}")
-        
+
         jax.debug.callback(simple_step_log, final_state.step_count, reward)
 
     # Use JAX-compatible conditional for visualization
@@ -1251,47 +1223,45 @@ def arc_step(
     return final_state, observation, reward, done, info
 
 
-
 # =========================================================================
 # Batch Processing Functions (Task 4.3 - Filtered Transformations with vmap)
 # =========================================================================
 
+
 @eqx.filter_jit
 def batch_reset(
-    keys: jnp.ndarray, 
-    config: ConfigType, 
-    task_data: JaxArcTask | None = None
+    keys: jnp.ndarray, config: ConfigType, task_data: JaxArcTask | None = None
 ) -> Tuple[ArcEnvState, ObservationArray]:
     """Reset multiple environments in parallel using vmap.
-    
+
     This function provides efficient batch processing for environment resets
     using JAX's vmap transformation over the filtered JIT compiled arc_reset function.
-    
+
     Args:
         keys: Array of PRNG keys with shape (batch_size,) for parallel resets
         config: Environment configuration (JaxArcConfig or DictConfig)
         task_data: Optional task data. If None, demo tasks will be created.
-    
+
     Returns:
         Tuple containing:
         - Batched ArcEnvState with batch dimension as first axis
         - Batched observations with shape (batch_size, ...)
-    
+
     Examples:
         ```python
         import jax.random as jrandom
-        
+
         # Create batch of PRNG keys
         batch_size = 8
         keys = jrandom.split(jrandom.PRNGKey(42), batch_size)
-        
+
         # Reset environments in parallel
         states, observations = batch_reset(keys, config, task_data)
-        
+
         # states.working_grid.shape[0] == batch_size
         # observations.shape[0] == batch_size
         ```
-    
+
     Note:
         This function uses jax.vmap internally for efficient vectorization.
         All environments will use the same config and task_data but different
@@ -1302,22 +1272,20 @@ def batch_reset(
     return vectorized_reset(keys, config, task_data)
 
 
-@eqx.filter_jit  
+@eqx.filter_jit
 def batch_step(
-    states: ArcEnvState, 
-    actions: StructuredAction, 
-    config: ConfigType
+    states: ArcEnvState, actions: StructuredAction, config: ConfigType
 ) -> Tuple[ArcEnvState, ObservationArray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
     """Step multiple environments in parallel using vmap.
-    
+
     This function provides efficient batch processing for environment steps
     using JAX's vmap transformation over the filtered JIT compiled arc_step function.
-    
+
     Args:
         states: Batched ArcEnvState with batch dimension as first axis
         actions: Batched StructuredAction with batch dimension as first axis
         config: Environment configuration (JaxArcConfig or DictConfig)
-    
+
     Returns:
         Tuple containing:
         - Batched new ArcEnvState with batch dimension as first axis
@@ -1325,25 +1293,25 @@ def batch_step(
         - Batched rewards with shape (batch_size,)
         - Batched done flags with shape (batch_size,)
         - Batched info dictionaries
-    
+
     Examples:
         ```python
         # Create batched actions
         batch_size = 8
         batched_actions = PointAction(
             operation=jnp.array([0] * batch_size),
-            row=jnp.array([3] * batch_size), 
+            row=jnp.array([3] * batch_size),
             col=jnp.array([3] * batch_size)
         )
-        
+
         # Step environments in parallel
         new_states, observations, rewards, dones, infos = batch_step(
             states, batched_actions, config
         )
-        
+
         # All outputs have batch_size as first dimension
         ```
-    
+
     Note:
         This function uses jax.vmap internally for efficient vectorization.
         All environments will use the same config but different states and actions.
@@ -1356,27 +1324,27 @@ def batch_step(
 def create_batch_episode_runner(
     config: ConfigType,
     task_data: JaxArcTask | None = None,
-    max_steps: int | None = None
+    max_steps: int | None = None,
 ) -> callable:
     """Create a JIT-compiled batch episode runner function.
-    
+
     This function returns a JIT-compiled function that can run complete episodes
     for multiple environments in parallel, demonstrating the full power of
     filtered transformations with batch processing.
-    
+
     Args:
         config: Environment configuration
         task_data: Optional task data for all environments
         max_steps: Maximum steps per episode (uses config default if None)
-    
+
     Returns:
         JIT-compiled function that takes (keys, num_steps) and returns episode results
-    
+
     Examples:
         ```python
         # Create batch episode runner
         runner = create_batch_episode_runner(config, task_data)
-        
+
         # Run batch episodes
         keys = jrandom.split(jrandom.PRNGKey(42), batch_size)
         final_states, episode_rewards, episode_lengths = runner(keys, 50)
@@ -1384,85 +1352,79 @@ def create_batch_episode_runner(
     """
     typed_config = _ensure_config(config)
     episode_max_steps = max_steps or typed_config.environment.max_episode_steps
-    
+
     @eqx.filter_jit
     def run_batch_episodes(
-        keys: jnp.ndarray, 
-        num_steps: int
+        keys: jnp.ndarray, num_steps: int
     ) -> Tuple[ArcEnvState, jnp.ndarray, jnp.ndarray]:
         """Run complete episodes for multiple environments."""
-        
+
         # Initialize environments
         states, _ = batch_reset(keys, config, task_data)
         batch_size = keys.shape[0]
-        
+
         # Track episode statistics
         episode_rewards = jnp.zeros(batch_size, dtype=jnp.float32)
         episode_lengths = jnp.zeros(batch_size, dtype=jnp.int32)
-        
+
         def step_fn(carry, step_idx):
             states, episode_rewards, episode_lengths = carry
-            
+
             # Create simple actions for demonstration (fill operation at step position)
             actions = PointAction(
                 operation=jnp.zeros(batch_size, dtype=jnp.int32),  # Fill operation
                 row=jnp.full(batch_size, 2 + (step_idx % 5), dtype=jnp.int32),
-                col=jnp.full(batch_size, 2 + (step_idx % 5), dtype=jnp.int32)
+                col=jnp.full(batch_size, 2 + (step_idx % 5), dtype=jnp.int32),
             )
-            
+
             # Step all environments
             new_states, _, rewards, dones, _ = batch_step(states, actions, config)
-            
+
             # Update episode statistics
             episode_rewards += rewards
-            episode_lengths = jnp.where(
-                ~dones, 
-                episode_lengths + 1, 
-                episode_lengths
-            )
-            
+            episode_lengths = jnp.where(~dones, episode_lengths + 1, episode_lengths)
+
             return (new_states, episode_rewards, episode_lengths), None
-        
+
         # Run episode steps
         final_carry, _ = jax.lax.scan(
-            step_fn, 
-            (states, episode_rewards, episode_lengths),
-            jnp.arange(num_steps)
+            step_fn, (states, episode_rewards, episode_lengths), jnp.arange(num_steps)
         )
-        
+
         final_states, final_rewards, final_lengths = final_carry
         return final_states, final_rewards, final_lengths
-    
+
     return run_batch_episodes
 
 
 # Utility functions for batch processing analysis
 
+
 def analyze_batch_performance(
     config: ConfigType,
     task_data: JaxArcTask | None = None,
     batch_sizes: list[int] | None = None,
-    num_steps: int = 10
+    num_steps: int = 10,
 ) -> Dict[str, Any]:
     """Analyze batch processing performance across different batch sizes.
-    
+
     This function provides comprehensive performance analysis for batch processing
     with filtered transformations, helping optimize batch sizes for different use cases.
-    
+
     Args:
         config: Environment configuration
         task_data: Optional task data
         batch_sizes: List of batch sizes to test (default: [1, 2, 4, 8, 16, 32])
         num_steps: Number of steps to run for each batch size
-    
+
     Returns:
         Dictionary containing performance metrics for each batch size
-    
+
     Examples:
         ```python
         # Analyze performance
         results = analyze_batch_performance(config, task_data)
-        
+
         # Print results
         for batch_size, metrics in results['batch_metrics'].items():
             print(f"Batch {batch_size}: {metrics['steps_per_second']:.1f} steps/sec")
@@ -1470,76 +1432,74 @@ def analyze_batch_performance(
     """
     if batch_sizes is None:
         batch_sizes = [1, 2, 4, 8, 16, 32]
-    
-    results = {
-        'batch_metrics': {},
-        'optimal_batch_size': None,
-        'peak_throughput': 0.0
-    }
-    
+
+    results = {"batch_metrics": {}, "optimal_batch_size": None, "peak_throughput": 0.0}
+
     for batch_size in batch_sizes:
         # Create batch episode runner
         runner = create_batch_episode_runner(config, task_data, num_steps)
-        
+
         # Generate keys
         keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
-        
+
         # Warm up JIT compilation
         _ = runner(keys, 1)
-        
+
         # Time actual execution
         import time
+
         start_time = time.perf_counter()
         final_states, rewards, lengths = runner(keys, num_steps)
         end_time = time.perf_counter()
-        
+
         # Calculate metrics
         total_time = end_time - start_time
         total_steps = batch_size * num_steps
         steps_per_second = total_steps / total_time
         time_per_env = total_time / batch_size
-        
+
         metrics = {
-            'batch_size': batch_size,
-            'total_time': total_time,
-            'time_per_env': time_per_env,
-            'steps_per_second': steps_per_second,
-            'avg_reward': float(jnp.mean(rewards)),
-            'avg_length': float(jnp.mean(lengths))
+            "batch_size": batch_size,
+            "total_time": total_time,
+            "time_per_env": time_per_env,
+            "steps_per_second": steps_per_second,
+            "avg_reward": float(jnp.mean(rewards)),
+            "avg_length": float(jnp.mean(lengths)),
         }
-        
-        results['batch_metrics'][batch_size] = metrics
-        
+
+        results["batch_metrics"][batch_size] = metrics
+
         # Track optimal batch size
-        if steps_per_second > results['peak_throughput']:
-            results['peak_throughput'] = steps_per_second
-            results['optimal_batch_size'] = batch_size
-    
+        if steps_per_second > results["peak_throughput"]:
+            results["peak_throughput"] = steps_per_second
+            results["optimal_batch_size"] = batch_size
+
     return results
 
 
 # PRNG Key Management Utilities for Batch Processing
 
+
 def create_batch_keys(key: PRNGKey, batch_size: int) -> jnp.ndarray:
     """Create array of PRNG keys for batch processing.
-    
+
     This utility function splits a single PRNG key into multiple keys
     for parallel batch processing, ensuring deterministic behavior
     across batch elements.
-    
+
     Args:
         key: Base PRNG key to split
         batch_size: Number of keys to generate
-    
+
     Returns:
         Array of PRNG keys with shape (batch_size, 2)
-    
+
     Examples:
         ```python
         # Create keys for batch processing
         base_key = jax.random.PRNGKey(42)
         batch_keys = create_batch_keys(base_key, 8)
-        
+
         # Use with batch_reset
         states, obs = batch_reset(batch_keys, config, task_data)
         ```
@@ -1549,24 +1509,24 @@ def create_batch_keys(key: PRNGKey, batch_size: int) -> jnp.ndarray:
 
 def split_key_for_batch_step(key: PRNGKey, batch_size: int) -> jnp.ndarray:
     """Split PRNG key for batch step operations.
-    
+
     This function provides deterministic key splitting for batch step
     operations, ensuring reproducible behavior when stepping multiple
     environments in parallel.
-    
+
     Args:
         key: PRNG key to split for batch operations
         batch_size: Number of environments in the batch
-    
+
     Returns:
         Array of PRNG keys for batch step operations
-    
+
     Examples:
         ```python
         # Split key for batch stepping
         step_key = jax.random.PRNGKey(123)
         batch_keys = split_key_for_batch_step(step_key, 16)
-        
+
         # Keys can be used for any random operations during stepping
         # (though current step function doesn't use keys directly)
         ```
@@ -1576,23 +1536,23 @@ def split_key_for_batch_step(key: PRNGKey, batch_size: int) -> jnp.ndarray:
 
 def validate_batch_keys(keys: jnp.ndarray, expected_batch_size: int) -> bool:
     """Validate that PRNG keys array has correct shape for batch processing.
-    
+
     This utility function validates that the provided keys array has the
     correct shape and dtype for batch processing operations.
-    
+
     Args:
         keys: Array of PRNG keys to validate
         expected_batch_size: Expected batch size
-    
+
     Returns:
         True if keys are valid for batch processing
-    
+
     Examples:
         ```python
         # Validate keys before batch processing
         keys = create_batch_keys(jax.random.PRNGKey(42), 8)
         is_valid = validate_batch_keys(keys, 8)  # Returns True
-        
+
         # Invalid keys
         bad_keys = jnp.array([1, 2, 3])
         is_valid = validate_batch_keys(bad_keys, 8)  # Returns False
@@ -1600,47 +1560,45 @@ def validate_batch_keys(keys: jnp.ndarray, expected_batch_size: int) -> bool:
     """
     if not isinstance(keys, jnp.ndarray):
         return False
-    
+
     # Check shape: should be (batch_size, 2) for JAX PRNG keys
     if len(keys.shape) != 2 or keys.shape[1] != 2:
         return False
-    
+
     # Check batch size matches
     if keys.shape[0] != expected_batch_size:
         return False
-    
+
     # Check dtype (JAX PRNG keys are uint32)
     if keys.dtype != jnp.uint32:
         return False
-    
+
     return True
 
 
 def ensure_deterministic_batch_keys(
-    base_key: PRNGKey, 
-    batch_size: int, 
-    step_count: int = 0
+    base_key: PRNGKey, batch_size: int, step_count: int = 0
 ) -> jnp.ndarray:
     """Ensure deterministic PRNG key generation for reproducible batch processing.
-    
+
     This function creates deterministic PRNG keys for batch processing by
     incorporating step count and batch size into the key generation process,
     ensuring reproducible behavior across training runs.
-    
+
     Args:
         base_key: Base PRNG key for deterministic generation
         batch_size: Number of environments in the batch
         step_count: Current step count for temporal determinism
-    
+
     Returns:
         Array of deterministic PRNG keys for batch processing
-    
+
     Examples:
         ```python
         # Create deterministic keys for training
         base_key = jax.random.PRNGKey(42)
         keys = ensure_deterministic_batch_keys(base_key, 8, step_count=100)
-        
+
         # Same inputs always produce same keys
         keys2 = ensure_deterministic_batch_keys(base_key, 8, step_count=100)
         assert jnp.array_equal(keys, keys2)  # True
@@ -1648,71 +1606,67 @@ def ensure_deterministic_batch_keys(
     """
     # Create deterministic seed by combining base key with step count
     step_key = jax.random.fold_in(base_key, step_count)
-    
+
     # Split into batch keys
     return jax.random.split(step_key, batch_size)
 
 
 def test_prng_key_splitting(batch_sizes: list[int] | None = None) -> Dict[str, Any]:
     """Test PRNG key splitting with different batch sizes.
-    
+
     This function tests the PRNG key management utilities with various
     batch sizes to ensure proper functionality and deterministic behavior.
-    
+
     Args:
         batch_sizes: List of batch sizes to test (default: [1, 2, 4, 8, 16, 32, 64])
-    
+
     Returns:
         Dictionary containing test results and validation metrics
-    
+
     Examples:
         ```python
         # Test PRNG key splitting
         results = test_prng_key_splitting()
-        
+
         # Check if all tests passed
-        all_passed = all(results['batch_results'][bs]['valid'] 
+        all_passed = all(results['batch_results'][bs]['valid']
                         for bs in results['batch_results'])
         ```
     """
     if batch_sizes is None:
         batch_sizes = [1, 2, 4, 8, 16, 32, 64]
-    
+
     base_key = jax.random.PRNGKey(42)
-    results = {
-        'batch_results': {},
-        'determinism_test': True,
-        'validation_test': True
-    }
-    
+    results = {"batch_results": {}, "determinism_test": True, "validation_test": True}
+
     for batch_size in batch_sizes:
         # Test key creation
         keys = create_batch_keys(base_key, batch_size)
-        
+
         # Test validation
         is_valid = validate_batch_keys(keys, batch_size)
-        
+
         # Test deterministic generation
         keys2 = ensure_deterministic_batch_keys(base_key, batch_size, step_count=0)
         keys3 = ensure_deterministic_batch_keys(base_key, batch_size, step_count=0)
         is_deterministic = jnp.array_equal(keys2, keys3)
-        
+
         # Test uniqueness within batch
         unique_keys = jnp.unique(keys.reshape(-1, 2), axis=0)
         is_unique = unique_keys.shape[0] == batch_size
-        
-        results['batch_results'][batch_size] = {
-            'valid': is_valid,
-            'deterministic': is_deterministic,
-            'unique': is_unique,
-            'shape': keys.shape,
-            'dtype': str(keys.dtype)
+
+        results["batch_results"][batch_size] = {
+            "valid": is_valid,
+            "deterministic": is_deterministic,
+            "unique": is_unique,
+            "shape": keys.shape,
+            "dtype": str(keys.dtype),
         }
-        
+
         # Update overall results
         if not is_valid:
-            results['validation_test'] = False
+            results["validation_test"] = False
         if not is_deterministic:
-            results['determinism_test'] = False
-    
+            results["determinism_test"] = False
+
     return results

@@ -31,6 +31,13 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
+from jaxarc.utils.pytree import update_multiple_fields
+from jaxarc.utils.state_utils import (
+    set_episode_done,
+    update_similarity_score,
+    update_working_grid,
+)
+
 from ..utils.jax_types import (
     ColorValue,
     GridArray,
@@ -38,66 +45,261 @@ from ..utils.jax_types import (
     SelectionArray,
     SimilarityScore,
 )
+from ..utils.validation import validate_state_consistency
 
 if TYPE_CHECKING:
     from ..state import ArcEnvState
 
+# Central operation names mapping
+OPERATION_NAMES = {
+    # Fill operations (0-9)
+    0: "Fill 0",
+    1: "Fill 1",
+    2: "Fill 2",
+    3: "Fill 3",
+    4: "Fill 4",
+    5: "Fill 5",
+    6: "Fill 6",
+    7: "Fill 7",
+    8: "Fill 8",
+    9: "Fill 9",
+    # Flood fill operations (10-19)
+    10: "Flood Fill 0",
+    11: "Flood Fill 1",
+    12: "Flood Fill 2",
+    13: "Flood Fill 3",
+    14: "Flood Fill 4",
+    15: "Flood Fill 5",
+    16: "Flood Fill 6",
+    17: "Flood Fill 7",
+    18: "Flood Fill 8",
+    19: "Flood Fill 9",
+    # Movement operations (20-23)
+    20: "Move Up",
+    21: "Move Down",
+    22: "Move Left",
+    23: "Move Right",
+    # Transformation operations (24-27)
+    24: "Rotate CW",
+    25: "Rotate CCW",
+    26: "Flip H",
+    27: "Flip V",
+    # Editing operations (28-31)
+    28: "Copy",
+    29: "Paste",
+    30: "Cut",
+    31: "Clear",
+    # Special operations (32-34)
+    32: "Copy Input",
+    33: "Resize",
+    34: "Submit",
+}
+
+
+def get_operation_name(operation_id: int) -> str:
+    """Get the human-readable name for an operation ID.
+
+    Args:
+        operation_id: Integer operation ID
+
+    Returns:
+        Human-readable operation name
+
+    Raises:
+        ValueError: If operation_id is not recognized
+
+    Example:
+        ```python
+        from jaxarc.envs.grid_operations import get_operation_name
+
+        name = get_operation_name(0)  # "Fill 0"
+        name = get_operation_name(24)  # "Rotate CW"
+        ```
+    """
+    if operation_id not in OPERATION_NAMES:
+        raise ValueError(f"Unknown operation ID: {operation_id}")
+
+    return OPERATION_NAMES[operation_id]
+
+
+def get_operation_display_text(operation_id: int) -> str:
+    """Get display text for visualization (includes ID and name).
+
+    Args:
+        operation_id: Integer operation ID
+
+    Returns:
+        Display text in format "Op {id}: {name}"
+
+    Raises:
+        ValueError: If operation_id is not recognized
+
+    Example:
+        ```python
+        from jaxarc.envs.grid_operations import get_operation_display_text
+
+        text = get_operation_display_text(0)  # "Op 0: Fill 0"
+        text = get_operation_display_text(34)  # "Op 34: Submit"
+        ```
+    """
+    name = get_operation_name(operation_id)
+    return f"Op {operation_id}: {name}"
+
+
+def is_valid_operation_id(operation_id: int) -> bool:
+    """Check if an operation ID is valid.
+
+    Args:
+        operation_id: Integer operation ID to check
+
+    Returns:
+        True if operation ID is valid, False otherwise
+
+    Example:
+        ```python
+        from jaxarc.envs.grid_operations import is_valid_operation_id
+
+        assert is_valid_operation_id(0) == True
+        assert is_valid_operation_id(34) == True
+        assert is_valid_operation_id(41) == False
+        assert is_valid_operation_id(35) == False
+        ```
+    """
+    return operation_id in OPERATION_NAMES
+
+
+def get_all_operation_ids() -> list[int]:
+    """Get all valid operation IDs.
+
+    Returns:
+        List of all valid operation IDs sorted in ascending order
+
+    Example:
+        ```python
+        from jaxarc.envs.grid_operations import get_all_operation_ids
+
+        ids = get_all_operation_ids()  # [0, 1, 2, ..., 34]
+        ```
+    """
+    return sorted(OPERATION_NAMES.keys())
+
+
+def get_operations_by_category() -> dict[str, list[int]]:
+    """Get operations grouped by category.
+
+    Returns:
+        Dictionary mapping category names to lists of operation IDs
+
+    Example:
+        ```python
+        from jaxarc.envs.grid_operations import get_operations_by_category
+
+        categories = get_operations_by_category()
+        fill_ops = categories["fill"]  # [0, 1, 2, ..., 9]
+        movement_ops = categories["movement"]  # [20, 21, 22, 23]
+        # No control ops (removed)
+        ```
+    """
+    return {
+        "fill": list(range(10)),
+        "flood_fill": list(range(10, 20)),
+        "movement": list(range(20, 24)),
+        "transformation": list(range(24, 28)),
+        "editing": list(range(28, 32)),
+        "special": list(range(32, 35)),
+        # Control operations removed
+    }
+
+
+def get_operation_category(operation_id: int) -> str:
+    """Get the category name for an operation ID.
+
+    Args:
+        operation_id: Integer operation ID
+
+    Returns:
+        Category name for the operation
+
+    Raises:
+        ValueError: If operation_id is not recognized
+
+    Example:
+        ```python
+        from jaxarc.envs.grid_operations import get_operation_category
+
+        category = get_operation_category(5)  # "fill"
+        category = get_operation_category(24)  # "transformation"
+        ```
+    """
+    if not is_valid_operation_id(operation_id):
+        raise ValueError(f"Unknown operation ID: {operation_id}")
+
+    categories = get_operations_by_category()
+    for category_name, op_ids in categories.items():
+        if operation_id in op_ids:
+            return category_name
+
+    # This should never happen if is_valid_operation_id works correctly
+    raise ValueError(f"Operation ID {operation_id} not found in any category")
+
 
 @eqx.filter_jit
 def compute_grid_similarity(
-    working_grid: GridArray, 
-    working_mask: SelectionArray, 
+    working_grid: GridArray,
+    working_mask: SelectionArray,
     target_grid: GridArray,
-    target_mask: SelectionArray
+    target_mask: SelectionArray,
 ) -> SimilarityScore:
     """
     Compute size-aware similarity between working and target grids.
-    
+
     This function compares grids on a fixed canvas based on the target grid's
     actual dimensions. Size mismatches are properly penalized:
     - If working grid is smaller: missing areas count as mismatches
     - If working grid is larger: only the target-sized area is compared
-    
+
     Args:
         working_grid: The current working grid
         working_mask: Mask indicating active area of working grid
         target_grid: The target grid to compare against
         target_mask: Mask indicating active area of target grid
-        
+
     Returns:
         Similarity score from 0.0 to 1.0
     """
     from ..utils.grid_utils import get_actual_grid_shape_from_mask
-    
+
     # Check if target has any content
     target_has_content = jnp.sum(target_mask) > 0
-    
+
     def compute_similarity_with_content():
         # Use utility function to get target dimensions
         target_height, target_width = get_actual_grid_shape_from_mask(target_mask)
-        
+
         # Create comparison canvas based on target dimensions
         rows = jnp.arange(target_grid.shape[0])[:, None]
         cols = jnp.arange(target_grid.shape[1])[None, :]
         canvas_mask = (rows < target_height) & (cols < target_width)
-        
+
         # Compare grids only where target_mask indicates content should exist
         # Working grid content is considered within canvas and working mask
         working_content = jnp.where(canvas_mask & working_mask, working_grid, -1)
         target_content = jnp.where(target_mask, target_grid, -1)
-        
+
         # Count matches only in target mask positions
         matches = jnp.sum((working_content == target_content) & target_mask)
         total_target_positions = jnp.sum(target_mask)
-        
+
         return matches.astype(jnp.float32) / total_target_positions.astype(jnp.float32)
-    
+
     def empty_target_similarity():
         # If target is empty, similarity is 1.0 if working is also empty, 0.0 otherwise
         working_has_content = jnp.sum(working_mask) > 0
         return jnp.where(working_has_content, 0.0, 1.0)
-    
-    return jax.lax.cond(target_has_content, compute_similarity_with_content, empty_target_similarity)
+
+    return jax.lax.cond(
+        target_has_content, compute_similarity_with_content, empty_target_similarity
+    )
 
 
 @eqx.filter_jit
@@ -137,8 +339,7 @@ def fill_color(
     state: ArcEnvState, selection: SelectionArray, color: ColorValue
 ) -> ArcEnvState:
     """Fill selected region with specified color."""
-    from jaxarc.utils.pytree_utils import update_working_grid
-    
+
     new_grid = apply_within_bounds(state.working_grid, selection, color)
     return update_working_grid(state, new_grid)
 
@@ -205,8 +406,6 @@ def flood_fill_color(
     state: ArcEnvState, selection: SelectionArray, color: ColorValue
 ) -> ArcEnvState:
     """Flood fill from selected region with specified color."""
-    from jaxarc.utils.pytree_utils import update_working_grid
-    
     new_grid = simple_flood_fill(state.working_grid, selection, color)
     return update_working_grid(state, new_grid)
 
@@ -249,8 +448,6 @@ def move_object(
         direction, [move_up, move_down, move_left, move_right]
     )
     # Combine with cleared grid
-    from jaxarc.utils.pytree_utils import update_working_grid
-    
     new_grid = jnp.where(moved_object > 0, moved_object, cleared_grid)
     return update_working_grid(state, new_grid)
 
@@ -306,8 +503,6 @@ def rotate_object(
     )
 
     # Combine with cleared grid
-    from jaxarc.utils.pytree_utils import update_working_grid
-    
     new_grid = jnp.where(final_rotated_region != 0, final_rotated_region, cleared_grid)
     return update_working_grid(state, new_grid)
 
@@ -342,8 +537,6 @@ def flip_object(
 
     flipped_region = jax.lax.switch(axis, [flip_horizontal, flip_vertical])
     # Combine with cleared grid
-    from jaxarc.utils.pytree_utils import update_working_grid
-    
     new_grid = jnp.where(flipped_region != 0, flipped_region, cleared_grid)
     return update_working_grid(state, new_grid)
 
@@ -354,8 +547,6 @@ def flip_object(
 @eqx.filter_jit
 def copy_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     """Copy selected region to clipboard."""
-    from jaxarc.utils.pytree_utils import update_multiple_fields
-    
     new_clipboard = jnp.where(selection, state.working_grid, 0)
     return update_multiple_fields(state, clipboard=new_clipboard)
 
@@ -424,8 +615,6 @@ def paste_from_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEn
 
     # Only paste if we should paste and where selected
     paste_mask = should_paste & selection
-    from jaxarc.utils.pytree_utils import update_working_grid
-    
     new_grid = jnp.where(paste_mask, clipboard_values, state.working_grid)
     return update_working_grid(state, new_grid)
 
@@ -440,8 +629,6 @@ def cut_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvSta
     new_grid = jnp.where(selection, 0, state.working_grid)
 
     # Update both working_grid and clipboard using PyTree utilities
-    from jaxarc.utils.pytree_utils import update_multiple_fields
-    
     return update_multiple_fields(state, working_grid=new_grid, clipboard=new_clipboard)
 
 
@@ -459,8 +646,6 @@ def clear_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     def clear_all():
         return jnp.zeros_like(state.working_grid)
 
-    from jaxarc.utils.pytree_utils import update_working_grid
-    
     new_grid = jax.lax.cond(has_selection, clear_selection, clear_all)
     return update_working_grid(state, new_grid)
 
@@ -470,8 +655,6 @@ def copy_input_grid(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
     """Copy input grid to current grid."""
     input_grid = state.task_data.input_grids_examples[state.current_example_idx]
     # Copy input grid to working grid shape
-    from jaxarc.utils.pytree_utils import update_working_grid
-    
     new_working_grid = _copy_grid_to_target_shape(input_grid, state.working_grid)
     return update_working_grid(state, new_working_grid)
 
@@ -479,94 +662,96 @@ def copy_input_grid(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
 @eqx.filter_jit
 def _get_bottom_right_from_selection(selection: SelectionArray) -> tuple[int, int]:
     """Find the bottom-rightmost selected cell coordinates.
-    
+
     Args:
         selection: Boolean selection mask
-        
+
     Returns:
         Tuple of (bottom_right_row, bottom_right_col) or (-1, -1) if no selection
     """
     # Check if selection is empty
     has_selection = jnp.sum(selection) > 0
-    
+
     def get_coordinates():
         # Create coordinate grids
         height, width = selection.shape
         rows = jnp.arange(height)[:, None]
         cols = jnp.arange(width)[None, :]
-        
+
         # Find all selected positions
         selected_rows = jnp.where(selection, rows, -1)
         selected_cols = jnp.where(selection, cols, -1)
-        
+
         # Find maximum row among selected cells
         max_row = jnp.max(selected_rows)
-        
+
         # Among cells in the maximum row, find the maximum column
         # Create mask for cells in the maximum row
         max_row_mask = selection & (rows == max_row)
         max_row_cols = jnp.where(max_row_mask, cols, -1)
         max_col = jnp.max(max_row_cols)
-        
+
         return max_row, max_col
-    
+
     def no_selection():
         return -1, -1
-    
+
     return jax.lax.cond(has_selection, get_coordinates, no_selection)
 
 
 @eqx.filter_jit
 def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
     """Resize grid active area using bottom-rightmost selected cell to define new dimensions.
-    
+
     The resizing always originates from the top-left (0,0) corner:
     - When expanding: preserves existing content and fills new area with black (0)
     - When shrinking: preserves top-left content that fits in new dimensions
     """
     # Get the bottom-right coordinate that defines new dimensions
     bottom_right_row, bottom_right_col = _get_bottom_right_from_selection(selection)
-    
+
     # Check if we have a valid selection
     has_valid_selection = (bottom_right_row >= 0) & (bottom_right_col >= 0)
-    
+
     def resize_to_bottom_right():
         # Calculate new dimensions
         new_height = bottom_right_row + 1
         new_width = bottom_right_col + 1
-        
+
         # Get current grid dimensions from mask
         from jaxarc.utils.grid_utils import get_actual_grid_shape_from_mask
-        current_height, current_width = get_actual_grid_shape_from_mask(state.working_grid_mask)
-        
+
+        current_height, current_width = get_actual_grid_shape_from_mask(
+            state.working_grid_mask
+        )
+
         # Create new mask for the resized area
         max_height, max_width = state.working_grid.shape
         rows = jnp.arange(max_height)[:, None]
         cols = jnp.arange(max_width)[None, :]
         new_mask = (rows < new_height) & (cols < new_width)
-        
+
         # Create new grid starting with padding (-1)
         new_grid = jnp.full_like(state.working_grid, -1)
-        
+
         # Determine how much content to copy from original grid
         copy_height = jnp.minimum(current_height, new_height)
         copy_width = jnp.minimum(current_width, new_width)
-        
+
         # Copy the overlapping content from original grid
         copy_mask = (rows < copy_height) & (cols < copy_width)
         new_grid = jnp.where(copy_mask, state.working_grid, new_grid)
-        
+
         # Fill newly active areas (that weren't copied) with black (0)
         newly_active = new_mask & ~copy_mask
         new_grid = jnp.where(newly_active, 0, new_grid)
-        
-        from jaxarc.utils.pytree_utils import update_multiple_fields
-        
-        return update_multiple_fields(state, working_grid=new_grid, working_grid_mask=new_mask)
-    
+        return update_multiple_fields(
+            state, working_grid=new_grid, working_grid_mask=new_mask
+        )
+
     def no_resize():
         return state
-    
+
     return jax.lax.cond(has_valid_selection, resize_to_bottom_right, no_resize)
 
 
@@ -576,8 +761,7 @@ def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
 @eqx.filter_jit
 def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvState:
     """Submit current grid as solution."""
-    from jaxarc.utils.pytree_utils import set_episode_done
-    
+
     return set_episode_done(state, True)
 
 
@@ -588,9 +772,8 @@ def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
 def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnvState:
     """Execute grid operation based on operation ID."""
     # Validate grid operation before execution
-    from ..utils.error_handling import JAXErrorHandler
-    validated_state = JAXErrorHandler.validate_grid_operation(state, operation, state.selected)
-    
+    validated_state = validate_state_consistency(state)
+
     selection = validated_state.selected
 
     # This refactored structure is much more efficient for the JAX JIT compiler.
@@ -604,7 +787,7 @@ def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnv
         # --- Category: Fill & Flood Fill ---
         is_fill = is_in_range(operation, 0, 9)
         is_flood_fill = is_in_range(operation, 10, 19)
-        
+
         # --- Category: Movement & Transformation ---
         is_move = is_in_range(operation, 20, 23)
         is_rotate = is_in_range(operation, 24, 25)
@@ -622,8 +805,8 @@ def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnv
             lambda: jax.lax.cond(
                 is_flood_fill,
                 lambda: flood_fill_color(state, selection, operation - 10),
-                lambda: state
-            )
+                lambda: state,
+            ),
         )
         s2 = jax.lax.cond(
             is_move,
@@ -634,47 +817,53 @@ def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnv
                 lambda: jax.lax.cond(
                     is_flip,
                     lambda: flip_object(state, selection, operation - 26),
-                    lambda: state
-                )
-            )
+                    lambda: state,
+                ),
+            ),
         )
         s3 = jax.lax.cond(
-            operation == 28, lambda: copy_to_clipboard(state, selection),
+            operation == 28,
+            lambda: copy_to_clipboard(state, selection),
             lambda: jax.lax.cond(
-                operation == 29, lambda: paste_from_clipboard(state, selection),
+                operation == 29,
+                lambda: paste_from_clipboard(state, selection),
                 lambda: jax.lax.cond(
-                    operation == 30, lambda: cut_to_clipboard(state, selection),
-                    lambda: state
-                )
-            )
+                    operation == 30,
+                    lambda: cut_to_clipboard(state, selection),
+                    lambda: state,
+                ),
+            ),
         )
         s4 = jax.lax.cond(
-            operation == 31, lambda: clear_grid(state, selection),
+            operation == 31,
+            lambda: clear_grid(state, selection),
             lambda: jax.lax.cond(
-                operation == 32, lambda: copy_input_grid(state, selection),
+                operation == 32,
+                lambda: copy_input_grid(state, selection),
                 lambda: jax.lax.cond(
-                    operation == 33, lambda: resize_grid(state, selection),
-                    lambda: state
-                )
-            )
+                    operation == 33,
+                    lambda: resize_grid(state, selection),
+                    lambda: state,
+                ),
+            ),
         )
         s5 = jax.lax.cond(
-            is_submit,
-            lambda: submit_solution(state, selection),
-            lambda: state
+            is_submit, lambda: submit_solution(state, selection), lambda: state
         )
 
         # Combine results. Only one of these will have changed from the original state.
         # This looks complex, but JAX understands that only one branch is taken.
         # We merge the changes from the single taken branch back into the state.
         # A simple way is to check which operation range was active.
-        
+
         new_state = jax.lax.cond(is_fill | is_flood_fill, lambda: s1, lambda: state)
-        new_state = jax.lax.cond(is_move | is_rotate | is_flip, lambda: s2, lambda: new_state)
+        new_state = jax.lax.cond(
+            is_move | is_rotate | is_flip, lambda: s2, lambda: new_state
+        )
         new_state = jax.lax.cond(is_clipboard, lambda: s3, lambda: new_state)
         new_state = jax.lax.cond(is_grid_op, lambda: s4, lambda: new_state)
         new_state = jax.lax.cond(is_submit, lambda: s5, lambda: new_state)
-        
+
         return new_state
 
     # The final returned state from the one chosen path.
@@ -682,12 +871,10 @@ def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnv
 
     # Update similarity score if grid changed
     # Use target_grid from state (which handles train/test mode properly)
-    from jaxarc.utils.pytree_utils import update_similarity_score
-    
     similarity = compute_grid_similarity(
-        new_state.working_grid, 
-        new_state.working_grid_mask, 
+        new_state.working_grid,
+        new_state.working_grid_mask,
         new_state.target_grid,
-        new_state.target_grid_mask
+        new_state.target_grid_mask,
     )
     return update_similarity_score(new_state, similarity)

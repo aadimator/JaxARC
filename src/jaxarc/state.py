@@ -26,12 +26,15 @@ Examples:
     )
 
     # Update state using PyTree utilities
-    from jaxarc.utils.pytree_utils import increment_step_count, update_multiple_fields
-    
+    from jaxarc.utils.state_utils import increment_step_count
+    from jaxarc.utils.pytree import update_multiple_fields
+
     new_state = increment_step_count(state)
 
     # Or use utilities for multiple updates
-    new_state = update_multiple_fields(state, step_count=state.step_count + 1, episode_done=True)
+    new_state = update_multiple_fields(
+        state, step_count=state.step_count + 1, episode_done=True
+    )
     ```
 """
 
@@ -135,15 +138,14 @@ class ArcEnvState(eqx.Module):
         )
 
         # Update state using PyTree utilities
-        from jaxarc.utils.pytree_utils import increment_step_count, update_multiple_fields
-        
+        from jaxarc.utils.state_utils import increment_step_count
+        from jaxarc.utils.pytree import update_multiple_fields
+
         new_state = increment_step_count(state)
 
         # Update multiple fields efficiently
         new_state = update_multiple_fields(
-            state,
-            step_count=state.step_count + 1,
-            episode_done=jnp.array(True)
+            state, step_count=state.step_count + 1, episode_done=jnp.array(True)
         )
         ```
     """
@@ -302,8 +304,11 @@ class ArcEnvState(eqx.Module):
 
         Examples:
             ```python
-            from jaxarc.utils.pytree_utils import update_multiple_fields
-            new_state = update_multiple_fields(state, step_count=state.step_count + 1, episode_done=True)
+            from jaxarc.utils.pytree import update_multiple_fields
+
+            new_state = update_multiple_fields(
+                state, step_count=state.step_count + 1, episode_done=True
+            )
             ```
         """
         # Get current field values
@@ -581,13 +586,13 @@ class ArcEnvState(eqx.Module):
         # Update write position for next write (circular)
         new_write_pos = (self.action_history_write_pos + 1) % max_history_length
 
-        from jaxarc.utils.pytree_utils import update_multiple_fields
-        
+        from jaxarc.utils.pytree import update_multiple_fields
+
         return update_multiple_fields(
             self,
             action_history=new_action_history,
             action_history_length=new_length,
-            action_history_write_pos=new_write_pos
+            action_history_write_pos=new_write_pos,
         )
 
     def get_action_from_history(self, index: int) -> dict:
@@ -701,12 +706,12 @@ class ArcEnvState(eqx.Module):
             ```
         """
         # Reset history length and write position to 0
-        from jaxarc.utils.pytree_utils import update_multiple_fields
-        
+        from jaxarc.utils.pytree import update_multiple_fields
+
         return update_multiple_fields(
             self,
             action_history_length=jnp.array(0, dtype=jnp.int32),
-            action_history_write_pos=jnp.array(0, dtype=jnp.int32)
+            action_history_write_pos=jnp.array(0, dtype=jnp.int32),
         )
 
     def get_action_history_summary(self) -> dict:
@@ -1105,7 +1110,7 @@ class ArcEnvState(eqx.Module):
 
         return self.task_data.get_test_pair_data(int(self.current_example_idx))
 
-    def get_available_demo_indices(self) -> Int[Array, "max_train_pairs"]:
+    def get_available_demo_indices(self) -> Int[Array, ""]:
         """Get indices of available demonstration pairs.
 
         Returns:
@@ -1115,7 +1120,7 @@ class ArcEnvState(eqx.Module):
         indices = jnp.arange(len(available_mask))
         return jnp.where(available_mask, indices, -1)
 
-    def get_available_test_indices(self) -> Int[Array, "max_test_pairs"]:
+    def get_available_test_indices(self) -> Int[Array, ""]:
         """Get indices of available test pairs.
 
         Returns:
@@ -1125,7 +1130,7 @@ class ArcEnvState(eqx.Module):
         indices = jnp.arange(len(available_mask))
         return jnp.where(available_mask, indices, -1)
 
-    def get_completed_demo_indices(self) -> Int[Array, "max_train_pairs"]:
+    def get_completed_demo_indices(self) -> Int[Array, ""]:
         """Get indices of completed demonstration pairs.
 
         Returns:
@@ -1135,7 +1140,7 @@ class ArcEnvState(eqx.Module):
         indices = jnp.arange(len(completed_mask))
         return jnp.where(completed_mask, indices, -1)
 
-    def get_completed_test_indices(self) -> Int[Array, "max_test_pairs"]:
+    def get_completed_test_indices(self) -> Int[Array, ""]:
         """Get indices of completed test pairs.
 
         Returns:
@@ -1145,7 +1150,7 @@ class ArcEnvState(eqx.Module):
         indices = jnp.arange(len(completed_mask))
         return jnp.where(completed_mask, indices, -1)
 
-    def get_uncompleted_demo_indices(self) -> Int[Array, "max_train_pairs"]:
+    def get_uncompleted_demo_indices(self) -> Int[Array, ""]:
         """Get indices of uncompleted demonstration pairs.
 
         Returns:
@@ -1155,7 +1160,7 @@ class ArcEnvState(eqx.Module):
         indices = jnp.arange(len(uncompleted_mask))
         return jnp.where(uncompleted_mask, indices, -1)
 
-    def get_uncompleted_test_indices(self) -> Int[Array, "max_test_pairs"]:
+    def get_uncompleted_test_indices(self) -> Int[Array, ""]:
         """Get indices of uncompleted test pairs.
 
         Returns:

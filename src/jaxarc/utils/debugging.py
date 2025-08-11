@@ -25,7 +25,7 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 
-from ..envs.structured_actions import StructuredAction
+from ..envs.actions import StructuredAction
 from ..envs.config import JaxArcConfig
 from ..state import ArcEnvState
 from ..utils.jax_types import GridArray, SelectionArray

@@ -14,9 +14,16 @@ import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 
+from jaxarc.envs.grid_operations import get_operation_display_text
+
 from .constants import ARC_COLOR_PALETTE
 from .svg_core import add_change_highlighting, add_selection_visualization_overlay
-from .utils import _extract_grid_data, _extract_valid_region, detect_changed_cells, get_info_metric
+from .utils import (
+    _extract_grid_data,
+    _extract_valid_region,
+    detect_changed_cells,
+    get_info_metric,
+)
 
 if TYPE_CHECKING:
     from jaxarc.types import Grid
@@ -25,75 +32,8 @@ if TYPE_CHECKING:
 def get_operation_display_name(
     operation_id: int, action_data: Dict[str, Any] = None
 ) -> str:
-    """Get human-readable operation name from operation ID with context.
-
-    Args:
-        operation_id: Integer operation ID
-        action_data: Optional action data for additional context
-
-    Returns:
-        Human-readable operation name with context
-    """
-    # Map of operation IDs to display names (enhanced for visualization)
-    operation_names = {
-        # Fill operations (0-9) - Enhanced with color names for clarity
-        0: "Fill Black (0)",
-        1: "Fill Blue (1)",
-        2: "Fill Red (2)",
-        3: "Fill Green (3)",
-        4: "Fill Yellow (4)",
-        5: "Fill Grey (5)",
-        6: "Fill Pink (6)",
-        7: "Fill Orange (7)",
-        8: "Fill Light Blue (8)",
-        9: "Fill Brown (9)",
-        # Flood fill operations (10-19) - Enhanced with color names for clarity
-        10: "Flood Fill Black (0)",
-        11: "Flood Fill Blue (1)",
-        12: "Flood Fill Red (2)",
-        13: "Flood Fill Green (3)",
-        14: "Flood Fill Yellow (4)",
-        15: "Flood Fill Grey (5)",
-        16: "Flood Fill Pink (6)",
-        17: "Flood Fill Orange (7)",
-        18: "Flood Fill Light Blue (8)",
-        19: "Flood Fill Brown (9)",
-        # Movement operations (20-23)
-        20: "Move Up",
-        21: "Move Down",
-        22: "Move Left",
-        23: "Move Right",
-        # Transformation operations (24-27)
-        24: "Rotate CW",
-        25: "Rotate CCW",
-        26: "Flip H",
-        27: "Flip V",
-        # Editing operations (28-31)
-        28: "Copy",
-        29: "Paste",
-        30: "Cut",
-        31: "Clear",
-        # Special operations (32-34)
-        32: "Copy Input",
-        33: "Resize",
-        34: "Submit",
-        # Enhanced control operations (35-41)
-        35: "Next Demo Pair",
-        36: "Prev Demo Pair",
-        37: "Next Test Pair",
-        38: "Prev Test Pair",
-        39: "Reset Current Pair",
-        40: "First Unsolved Demo",
-        41: "First Unsolved Test",
-    }
-
-    base_name = operation_names.get(operation_id, f"Operation {operation_id}")
-
-    # For fill operations (0-9), the color is already included in the name
-    # For flood fill operations (10-19), the color is already included in the name
-    # No need for additional context processing since the names are already descriptive
-
-    return base_name
+    """Get human-readable operation name from operation ID with context."""
+    return get_operation_display_text(operation_id)
 
 
 def draw_rl_step_svg_enhanced(
@@ -194,7 +134,7 @@ def draw_rl_step_svg_enhanced(
             task_context_text += f" | Pair {task_pair_index + 1}/{total_task_pairs}"
         else:
             task_context_text = f"Pair {task_pair_index + 1}/{total_task_pairs}"
-    
+
     if task_context_text:
         drawing.append(
             draw.Text(
@@ -402,26 +342,26 @@ def draw_rl_step_svg_enhanced(
             grid_data, grid_mask = _extract_grid_data(before_grid)
             if grid_mask is not None:
                 grid_mask = np.asarray(grid_mask)
-            
+
             # Extract valid region to get actual dimensions
             valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(
                 grid_data, grid_mask
             )
-            
+
             if height > 0 and width > 0:
                 # Extract and clip coordinates
                 r1 = int(np.clip(bbox[0], 0, height - 1))
                 c1 = int(np.clip(bbox[1], 0, width - 1))
                 r2 = int(np.clip(bbox[2], 0, height - 1))
                 c2 = int(np.clip(bbox[3], 0, width - 1))
-                
+
                 # Ensure proper ordering
                 min_r, max_r = min(r1, r2), max(r1, r2)
                 min_c, max_c = min(c1, c2), max(c1, c2)
-                
+
                 # Create selection mask for the valid region
                 selection_mask = np.zeros((height, width), dtype=bool)
-                selection_mask[min_r:max_r+1, min_c:max_c+1] = True
+                selection_mask[min_r : max_r + 1, min_c : max_c + 1] = True
 
     # Draw before grid with selection overlay
     before_width, before_height = draw_enhanced_grid(
@@ -495,7 +435,9 @@ def draw_rl_step_svg_enhanced(
         info_items.append(f"Similarity: {similarity_val:.3f}")
 
     # Check for episode_reward or total_reward
-    episode_reward_val = get_info_metric(info, "episode_reward") or get_info_metric(info, "total_reward")
+    episode_reward_val = get_info_metric(info, "episode_reward") or get_info_metric(
+        info, "total_reward"
+    )
     if episode_reward_val is not None:
         info_items.append(f"Episode Reward: {episode_reward_val:.3f}")
 
@@ -505,12 +447,22 @@ def draw_rl_step_svg_enhanced(
 
     # Add action details
     # Handle both structured actions and legacy dictionary format for visualization
-    if hasattr(action, 'operation'):
-        op_val = int(action.operation) if hasattr(action.operation, 'item') else action.operation
+    if hasattr(action, "operation"):
+        op_val = (
+            int(action.operation)
+            if hasattr(action.operation, "item")
+            else action.operation
+        )
         info_items.append(f"Operation ID: {op_val}")
     elif "operation" in action:
-        op_val = int(action['operation']) if hasattr(action['operation'], 'item') else action['operation']
-        info_items.append(f"Operation ID: {op_val}")  # Legacy format for visualization only
+        op_val = (
+            int(action["operation"])
+            if hasattr(action["operation"], "item")
+            else action["operation"]
+        )
+        info_items.append(
+            f"Operation ID: {op_val}"
+        )  # Legacy format for visualization only
 
     # Display info items
     info_text = " | ".join(info_items) if info_items else "No additional information"
@@ -606,7 +558,7 @@ def save_rl_step_visualization(
 
     # Extract action components
     # Note: This handles both structured actions and legacy dictionary format for visualization
-    if hasattr(action, 'operation'):
+    if hasattr(action, "operation"):
         operation_id = int(action.operation)
     else:
         operation_id = int(action["operation"])  # Legacy format for visualization only
@@ -722,7 +674,7 @@ def create_action_summary_panel(
 
     # Additional info - check both direct and nested metrics
     similarity_val = get_info_metric(info, "similarity")
-    
+
     if similarity_val is not None:
         drawing.append(
             draw.Text(
