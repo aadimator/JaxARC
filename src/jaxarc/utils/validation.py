@@ -16,7 +16,8 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 
-from ..envs.config import JaxArcConfig
+from jaxarc.configs import JaxArcConfig
+
 from ..state import ArcEnvState
 
 ErrorMode = Literal["raise", "nan", "breakpoint"]

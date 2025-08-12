@@ -118,7 +118,7 @@ def load_and_explore_dataset(config):
     """Load dataset and explore available tasks."""
     try:
         # Initialize the ARC-AGI parser
-        from jaxarc.envs.config import DatasetConfig
+        from jaxarc.configs import DatasetConfig
         typed_dataset_config = DatasetConfig.from_hydra(config.dataset)
         parser = ArcAgiParser(typed_dataset_config)
 
@@ -226,7 +226,7 @@ def initialize_environment(config, parsed_task):
 
     try:
         # Convert Hydra config to unified config and initialize environment
-        from jaxarc.envs.config import JaxArcConfig
+        from jaxarc.configs import JaxArcConfig
 
         unified_config = JaxArcConfig.from_hydra(config)
         env = ArcEnvironment(unified_config)

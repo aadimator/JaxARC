@@ -15,7 +15,7 @@ Examples:
     ```python
     import jax
     from jaxarc import ArcEnvironment
-    from jaxarc.envs.config import JaxArcConfig
+    from jaxarc.configs import JaxArcConfig
 
     # Create environment with unified configuration
     config = JaxArcConfig()  # Uses defaults
@@ -36,15 +36,15 @@ from __future__ import annotations
 
 from ._version import version as __version__
 
+# Unified configuration system
+from .configs import JaxArcConfig
+
 # Core environment and state
 # Functional API
 from .envs import (
     arc_reset,
     arc_step,
 )
-
-# Unified configuration system
-from .envs.config import JaxArcConfig
 from .state import ArcEnvState, create_arc_env_state
 
 # Core types

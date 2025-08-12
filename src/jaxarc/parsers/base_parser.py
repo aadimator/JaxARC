@@ -10,8 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-
-from jaxarc.envs.config import DatasetConfig
+from jaxarc.configs import DatasetConfig
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.jax_types import (
     ColorValue,

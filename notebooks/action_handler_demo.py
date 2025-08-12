@@ -40,7 +40,7 @@ from matplotlib.gridspec import GridSpec
 from jaxarc.envs.actions import get_action_handler
 
 # JaxARC imports
-from jaxarc.envs.config import JaxArcConfig
+from jaxarc.configs import JaxArcConfig
 from jaxarc.envs.environment import ArcEnvironment
 from jaxarc.utils.visualization import (
     create_action_demonstration_figure,
@@ -81,7 +81,7 @@ with initialize_config_dir(config_dir=str(config_dir), version_base=None):
     mask_cfg = compose(config_name="config", overrides=["action=standard"])
 
 # Dataset Parser
-from jaxarc.envs.config import DatasetConfig
+from jaxarc.configs import DatasetConfig
 typed_dataset_config = DatasetConfig.from_hydra(point_cfg.dataset)
 parser = ArcAgiParser(typed_dataset_config)
 

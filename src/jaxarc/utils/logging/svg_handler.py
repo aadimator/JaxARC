@@ -8,7 +8,7 @@ the simplified logging architecture.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from loguru import logger

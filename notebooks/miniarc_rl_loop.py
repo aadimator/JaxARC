@@ -47,10 +47,11 @@ from omegaconf import DictConfig
 from rich.console import Console
 from rich.panel import Panel
 
+from jaxarc.configs import JaxArcConfig
+
 # JaxARC imports
 from jaxarc.envs import (
     ActionSpaceController,
-    JaxArcConfig,
     arc_reset,
     arc_step,
     create_bbox_action,

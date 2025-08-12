@@ -21,7 +21,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from jaxarc.envs.config import ActionConfig
+from jaxarc.configs import ActionConfig
 
 from ..state import ArcEnvState
 from ..utils.jax_types import NUM_OPERATIONS, OperationMask

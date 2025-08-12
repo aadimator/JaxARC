@@ -12,8 +12,8 @@ from rich.text import Text
 
 from ..visualization.rich_display import (
     visualize_grid_rich,
-    visualize_task_pair_rich,
     visualize_parsed_task_data_rich,
+    visualize_task_pair_rich,
 )
 
 

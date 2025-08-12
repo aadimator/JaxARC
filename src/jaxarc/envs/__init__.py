@@ -30,27 +30,6 @@ from .actions import (
     mask_handler,
     point_handler,
 )
-from .config import (
-    ActionConfig as UnifiedActionConfig,
-)
-
-# Unified configuration system (Equinox-based)
-from .config import (
-    ConfigValidationError,
-    EnvironmentConfig,
-    GridInitializationConfig,
-    JaxArcConfig,
-    LoggingConfig,
-    StorageConfig,
-    VisualizationConfig,
-    WandbConfig,
-)
-from .config import (
-    DatasetConfig as UnifiedDatasetConfig,
-)
-from .config import (
-    RewardConfig as UnifiedRewardConfig,
-)
 
 # Functional API
 from .functional import (
@@ -82,22 +61,11 @@ __all__ = [
     "ArcEnvState",
     "BaseAction",
     "BboxAction",
-    "ConfigValidationError",
-    "EnvironmentConfig",
-    "GridInitializationConfig",
-    "JaxArcConfig",
-    "LoggingConfig",
     "MaskAction",
     "MultiBinary",
     "PointAction",
     "Space",
-    "StorageConfig",
     "StructuredAction",
-    "UnifiedActionConfig",
-    "UnifiedDatasetConfig",
-    "UnifiedRewardConfig",
-    "VisualizationConfig",
-    "WandbConfig",
     "arc_reset",
     "arc_step",
     "bbox_handler",
