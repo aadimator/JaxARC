@@ -559,25 +559,8 @@ class SVGHandler:
             # Check visualization config
             if hasattr(self.config, 'visualization'):
                 viz_config = self.config.visualization
-                if not getattr(viz_config, 'enabled', True):
-                    return False
-                
-                level = getattr(viz_config, 'level', 'standard')
-                if level == 'off':
-                    return False
-                
-                # Only generate step SVGs for verbose and full levels
-                if level in ['verbose', 'full']:
-                    return getattr(viz_config, 'step_visualizations', True)
-                else:
-                    # For standard, minimal levels, don't generate step SVGs
-                    return False
-            
-            # Check environment debug level as fallback
-            if hasattr(self.config, 'environment'):
-                debug_level = getattr(self.config.environment, 'debug_level', 'standard')
-                return debug_level in ['verbose', 'research']
-            
+                if getattr(viz_config, 'enabled', True) and getattr(viz_config, 'step_visualizations', True):
+                    return True
             return False
         except Exception:
             return False
@@ -586,24 +569,12 @@ class SVGHandler:
         """Check if task SVG generation is enabled based on configuration."""
         try:
             # Check visualization config
+             # Check visualization config
             if hasattr(self.config, 'visualization'):
                 viz_config = self.config.visualization
-                if not getattr(viz_config, 'enabled', True):
-                    return False
-                
-                level = getattr(viz_config, 'level', 'standard')
-                if level == 'off':
-                    return False
-                
-                # Generate task SVGs for standard and above levels
-                return level in ['standard', 'verbose', 'full']
-            
-            # Check environment debug level as fallback
-            if hasattr(self.config, 'environment'):
-                debug_level = getattr(self.config.environment, 'debug_level', 'standard')
-                return debug_level in ['standard', 'verbose', 'research']
-            
-            return True
+                if getattr(viz_config, 'enabled', True):
+                    return True
+            return False
         except Exception:
             return True
 
@@ -613,21 +584,9 @@ class SVGHandler:
             # Check visualization config
             if hasattr(self.config, 'visualization'):
                 viz_config = self.config.visualization
-                if not getattr(viz_config, 'enabled', True):
-                    return False
-                
-                level = getattr(viz_config, 'level', 'standard')
-                if level == 'off':
-                    return False
-                
-                return getattr(viz_config, 'episode_summaries', True)
-            
-            # Check environment debug level as fallback
-            if hasattr(self.config, 'environment'):
-                debug_level = getattr(self.config.environment, 'debug_level', 'standard')
-                return debug_level != 'off'
-            
-            return True
+                if getattr(viz_config, 'enabled', True) and getattr(viz_config, 'episode_summaries', True):
+                    return True
+            return False
         except Exception:
             return True
     
