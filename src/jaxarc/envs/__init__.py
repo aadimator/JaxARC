@@ -52,9 +52,6 @@ from .config import (
     RewardConfig as UnifiedRewardConfig,
 )
 
-# Episode management system
-from .episode_manager import ArcEpisodeConfig, ArcEpisodeManager
-
 # Functional API
 from .functional import (
     arc_reset,
@@ -83,8 +80,6 @@ __all__ = [
     "OPERATION_NAMES",
     "ActionSpaceController",
     "ArcEnvState",
-    "ArcEpisodeConfig",
-    "ArcEpisodeManager",
     "BaseAction",
     "BboxAction",
     "ConfigValidationError",

@@ -15,6 +15,7 @@ import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
 
+from jaxarc.utils.jax_types import EPISODE_MODE_TEST, EPISODE_MODE_TRAIN
 from jaxarc.utils.visualization import (
     _clear_output_directory,
 )
@@ -49,12 +50,6 @@ from .actions import (
     point_handler,
 )
 from .config import JaxArcConfig
-from .episode_manager import (
-    EPISODE_MODE_TEST,
-    EPISODE_MODE_TRAIN,
-    ArcEpisodeConfig,
-    ArcEpisodeManager,
-)
 from .grid_initialization import initialize_working_grids
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
@@ -369,116 +364,6 @@ def _create_demo_task(config: JaxArcConfig) -> JaxArcTask:
     )
 
 
-def _get_or_create_task_data(
-    task_data: JaxArcTask | None, config: JaxArcConfig
-) -> JaxArcTask:
-    """Get task data or create demo task - focused helper function.
-
-    This helper function ensures that valid task data is available for environment
-    initialization. If no task data is provided, it creates a simple demo task
-    suitable for testing and development purposes.
-
-    Args:
-        task_data: Optional JaxArcTask data. If None, a demo task will be created.
-        config: Environment configuration used for demo task creation parameters
-               including grid dimensions, colors, and dataset settings.
-
-    Returns:
-        JaxArcTask: Valid task data ready for environment initialization.
-                   Either the provided task_data or a newly created demo task.
-
-    Examples:
-        ```python
-        # With existing task data
-        task = _get_or_create_task_data(existing_task, config)
-
-        # Without task data (creates demo)
-        demo_task = _get_or_create_task_data(None, config)
-        ```
-
-    Note:
-        Demo tasks are created with simple patterns suitable for testing.
-        For production training, always provide real task data from parsers.
-    """
-    if task_data is None:
-        # Create demo task as fallback
-        # Parsers are handled separately in the new system
-        task_data = _create_demo_task(config)
-        if config.logging.log_operations:
-            logger.info(f"Created demo task for dataset {config.dataset.dataset_name}")
-    return task_data
-
-
-def _select_initial_pair(
-    key: PRNGKey,
-    task_data: JaxArcTask,
-    episode_mode: int,
-    initial_pair_idx: int | None,
-) -> Tuple[jnp.ndarray, bool]:
-    """Select initial pair based on mode and configuration - focused helper function.
-
-    This helper function handles the selection of which task pair to use for episode
-    initialization. It supports both explicit pair specification and automatic
-    selection based on episode mode and configuration strategy.
-
-    Args:
-        key: JAX PRNG key for random pair selection when needed
-        task_data: JaxArcTask containing available demonstration and test pairs
-        episode_mode: Episode mode (0=train, 1=test) determining pair type selection
-        initial_pair_idx: Optional explicit pair index. If None, uses episode manager
-                         selection strategy based on configuration.
-
-    Returns:
-        Tuple containing:
-        - selected_pair_idx: JAX array with selected pair index (int32)
-        - selection_successful: Boolean indicating if selection was valid
-
-    Examples:
-        ```python
-        # Explicit pair selection
-        pair_idx, success = _select_initial_pair(key, task, 0, 2)
-
-        # Automatic selection based on mode
-        pair_idx, success = _select_initial_pair(key, task, 1, None)
-        ```
-
-    Note:
-        Uses episode manager for intelligent pair selection strategies.
-        Falls back to index 0 if selection fails for any reason.
-    """
-    # JAX-compliant integer-only episode mode validation
-    if episode_mode not in [EPISODE_MODE_TRAIN, EPISODE_MODE_TEST]:
-        raise ValueError(
-            f"episode_mode must be {EPISODE_MODE_TRAIN} (train) or {EPISODE_MODE_TEST} (test), got '{episode_mode}'"
-        )
-
-    # Use integer episode mode directly for JAX compatibility
-    episode_config = ArcEpisodeConfig(episode_mode=episode_mode)
-
-    # Select initial pair based on mode and configuration strategy
-    if initial_pair_idx is not None:
-        # Use explicit pair index if provided
-        selected_pair_idx = jnp.array(initial_pair_idx, dtype=jnp.int32)
-
-        # Validate the explicit pair index using JAX-compatible conditional logic
-        selection_successful = jax.lax.cond(
-            episode_mode == EPISODE_MODE_TRAIN,
-            lambda: task_data.is_demo_pair_available(initial_pair_idx),
-            lambda: task_data.is_test_pair_available(initial_pair_idx),
-        )
-    else:
-        # Use episode manager for pair selection based on configuration strategy
-        selected_pair_idx, selection_successful = ArcEpisodeManager.select_initial_pair(
-            key, task_data, episode_config
-        )
-
-    # Handle selection failure using JAX-compatible operations
-    fallback_idx = jnp.array(0, dtype=jnp.int32)
-    selected_pair_idx = jnp.where(selection_successful, selected_pair_idx, fallback_idx)
-
-    return selected_pair_idx, selection_successful
-
-
 def _initialize_grids(
     task_data: JaxArcTask,
     selected_pair_idx: jnp.ndarray,
@@ -738,25 +623,44 @@ def arc_reset(
         typed_config = JaxArcConfig.from_hydra(hydra_config)
         state, obs = arc_reset(key, typed_config, task_data)
         ```
-
-    Note:
-        Function has been decomposed into helper functions (_get_or_create_task_data,
-        _select_initial_pair, _initialize_grids, _create_initial_state) for better
-        maintainability while preserving performance and JAX compatibility.
     """
     # Ensure we have a typed config
     typed_config = _ensure_config(config)
 
-    # Get or create task data
-    task_data = _get_or_create_task_data(task_data, typed_config)
+    if not task_data and not initial_pair_idx:
+        # Raise error if no task data or initial pair index provided
+        raise ValueError(
+            "Either task_data or initial_pair_idx must be provided. "
+            "For training, provide task_data or set initial_pair_idx to a valid pair index."
+        )
 
+    # Validate episode mode (0=train, 1=test) using JAX-compatible integer check
+    if episode_mode not in [EPISODE_MODE_TRAIN, EPISODE_MODE_TEST]:
+        raise ValueError(
+            f"episode_mode must be {EPISODE_MODE_TRAIN} (train) or {EPISODE_MODE_TEST} (test), "
+            f"got '{episode_mode}'"
+        )
     # Split key for different operations
     pair_key, init_key = jax.random.split(key)
 
-    # Select initial pair based on mode and configuration strategy
-    selected_pair_idx, selection_successful = _select_initial_pair(
-        pair_key, task_data, episode_mode, initial_pair_idx
-    )
+    # Select first pair index, if not provided
+    selected_pair_idx = jnp.array(0, dtype=jnp.int32)
+    if initial_pair_idx is not None:
+        # Use explicit pair index if provided
+        selected_pair_idx = jnp.array(initial_pair_idx, dtype=jnp.int32)
+
+        # Validate the explicit pair index using JAX-compatible conditional logic
+        selection_successful = jax.lax.cond(
+            episode_mode == EPISODE_MODE_TRAIN,
+            lambda: task_data.is_demo_pair_available(initial_pair_idx),
+            lambda: task_data.is_test_pair_available(initial_pair_idx),
+        )
+
+        if not selection_successful:
+            raise ValueError(
+                f"Initial pair index {initial_pair_idx} is not available in "
+                f"{['demo', 'test'][episode_mode]} pairs."
+            )
 
     # Initialize grids based on episode mode using JAX-compatible operations
     initial_grid, target_grid, initial_mask, target_mask = _initialize_grids(
