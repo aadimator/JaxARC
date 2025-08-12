@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 if TYPE_CHECKING:
-    from jaxarc.envs.config import JaxArcConfig
+    from jaxarc.configs import JaxArcConfig
 
 
 def validate_dataset_config(config: JaxArcConfig, dataset_name: str) -> None:

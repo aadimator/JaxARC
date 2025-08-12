@@ -19,7 +19,7 @@ from typing import Any
 
 from loguru import logger
 
-from ...envs.config import JaxArcConfig
+from jaxarc.configs import JaxArcConfig
 
 
 class ExperimentLogger:
@@ -40,7 +40,7 @@ class ExperimentLogger:
     Examples:
         ```python
         from jaxarc.utils.logging import ExperimentLogger
-        from jaxarc.envs.config import JaxArcConfig
+        from jaxarc.configs import JaxArcConfig
         
         # Initialize logger with configuration
         config = JaxArcConfig(...)

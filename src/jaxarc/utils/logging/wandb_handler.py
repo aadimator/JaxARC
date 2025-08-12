@@ -8,13 +8,12 @@ connectivity checks in favor of using official wandb features.
 from __future__ import annotations
 
 import os
-import importlib
 from contextlib import suppress
 from typing import Any
 
+import wandb
 from loguru import logger
 
-import wandb
 
 class WandbHandler:
     """Simplified Weights & Biases integration handler.

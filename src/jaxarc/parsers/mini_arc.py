@@ -16,7 +16,7 @@ import jax
 from loguru import logger
 from pyprojroot import here
 
-from jaxarc.envs.config import DatasetConfig
+from jaxarc.configs import DatasetConfig
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.task_manager import create_jax_task_index
 
@@ -52,7 +52,7 @@ class MiniArcParser(ArcDataParserBase):
         Examples:
             ```python
             # Direct typed config usage (preferred)
-            from jaxarc.envs.config import DatasetConfig
+            from jaxarc.configs import DatasetConfig
             from omegaconf import DictConfig
             
             hydra_config = DictConfig({...})

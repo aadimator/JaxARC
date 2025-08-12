@@ -13,9 +13,10 @@ from typing import Tuple
 import jax.numpy as jnp
 from loguru import logger
 
+from jaxarc.configs import GridInitializationConfig
+
 from ..types import JaxArcTask
 from ..utils.jax_types import GridArray, MaskArray
-from .config import GridInitializationConfig
 
 
 class GridInitializationError(Exception):

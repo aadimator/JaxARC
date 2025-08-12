@@ -17,9 +17,10 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 
+from jaxarc.configs import GridInitializationConfig, JaxArcConfig
+
 from ..types import JaxArcTask
 from ..utils.jax_types import GridArray, MaskArray, PRNGKey
-from .config import GridInitializationConfig, JaxArcConfig
 from .grid_initialization_validation import (
     ConfigurationValidationError,
     GridInitializationError,

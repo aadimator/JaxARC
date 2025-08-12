@@ -15,6 +15,7 @@ import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
 
+from jaxarc.configs import JaxArcConfig
 from jaxarc.utils.jax_types import EPISODE_MODE_TEST, EPISODE_MODE_TRAIN
 from jaxarc.utils.visualization import (
     _clear_output_directory,
@@ -49,7 +50,6 @@ from .actions import (
     mask_handler,
     point_handler,
 )
-from .config import JaxArcConfig
 from .grid_initialization import initialize_working_grids
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 
@@ -619,7 +619,7 @@ def arc_reset(
         state, obs = arc_reset(key, config, task_data, episode_mode=0, initial_pair_idx=2)
 
         # Using typed config (preferred)
-        from jaxarc.envs.config import JaxArcConfig
+        from jaxarc.configs import JaxArcConfig
         typed_config = JaxArcConfig.from_hydra(hydra_config)
         state, obs = arc_reset(key, typed_config, task_data)
         ```
@@ -1009,7 +1009,7 @@ def arc_step(
         new_state, obs, reward, done, info = arc_step(state, action, config)
 
         # Using typed config (preferred)
-        from jaxarc.envs.config import JaxArcConfig
+        from jaxarc.configs import JaxArcConfig
         typed_config = JaxArcConfig.from_hydra(hydra_config)
         new_state, obs, reward, done, info = arc_step(state, action, typed_config)
         ```
