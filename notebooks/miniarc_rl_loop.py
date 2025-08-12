@@ -91,6 +91,9 @@ def setup_configuration() -> DictConfig:
         "action=raw",
         "action.selection_format=bbox",
         "wandb.enabled=false",
+        "logging.log_operations=false",
+        "logging.log_rewards=false",
+        "visualization.enabled=false",
     ]
 
     # Load the configuration using the get_config utility from JaxARC
@@ -385,11 +388,6 @@ def run_rl_loop(
             # Store state before the step for visualization
             state_before = state
 
-            # Step the environment
-            logger.debug(
-                f"Action before step: operation={action.operation}, bbox=({action.r1}, {action.c1}, {action.r2}, {action.c2})"
-            )
-
             try:
                 state, observation, reward, done, info = arc_step(state, action, config)
             except Exception as e:
@@ -460,10 +458,6 @@ def run_rl_loop(
                 import traceback
 
                 logger.debug(f"Step logging error details: {traceback.format_exc()}")
-
-            logger.info(
-                f"  Step {step_num}: Op={action_log['operation']}, Reward={reward:.3f}, Similarity={info_log.get('similarity', 0.0):.3f}"
-            )
 
             if done:
                 logger.info(f"Episode finished at step {step_num}.")
