@@ -9,7 +9,6 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any, List, Optional
 
-import drawsvg  # type: ignore[import-untyped]
 import numpy as np
 
 from .constants import ARC_COLOR_PALETTE

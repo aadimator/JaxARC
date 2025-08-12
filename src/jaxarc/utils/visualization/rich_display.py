@@ -75,8 +75,6 @@ def visualize_grid_rich(
     if mask is None:
         mask = grid_mask
 
-
-    
     if mask is not None:
         mask = serialize_jax_array(mask)
 

@@ -15,8 +15,8 @@ permutation_types:
   - color_remap
 
 # Random initialization configuration
-random_density: 0.3      # 30% density for random patterns
-random_pattern_type: sparse  # Sparse random patterns (other options: dense, structured, noise)
+random_density: 0.3 # 30% density for random patterns
+random_pattern_type: sparse # Sparse random patterns (other options: dense, structured, noise)
 
 # Fallback configuration
 enable_fallback: true

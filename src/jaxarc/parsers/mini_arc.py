@@ -54,11 +54,11 @@ class MiniArcParser(ArcDataParserBase):
             # Direct typed config usage (preferred)
             from jaxarc.configs import DatasetConfig
             from omegaconf import DictConfig
-            
+
             hydra_config = DictConfig({...})
             dataset_config = DatasetConfig.from_hydra(hydra_config)
             parser = MiniArcParser(dataset_config)
-            
+
             # Alternative: use from_hydra class method
             parser = MiniArcParser.from_hydra(hydra_config)
             ```
@@ -80,9 +80,9 @@ class MiniArcParser(ArcDataParserBase):
 
     def get_data_path(self) -> str:
         """Get the actual data path for MiniARC based on split.
-        
+
         MiniARC structure: {base_path}/data/MiniARC (only one dataset)
-        
+
         Returns:
             str: The resolved path to the MiniARC data directory
         """

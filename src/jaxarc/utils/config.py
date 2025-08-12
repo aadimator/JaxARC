@@ -7,13 +7,13 @@ on Hydra integration without mixing in factory functions.
 
 from __future__ import annotations
 
+import importlib.resources
 from pathlib import Path
 
 from hydra import compose, initialize_config_dir
 from loguru import logger
 from omegaconf import DictConfig
 from pyprojroot import here
-import importlib.resources
 
 
 def get_config(overrides: list[str] | None = None) -> DictConfig:
@@ -37,7 +37,7 @@ def get_config(overrides: list[str] | None = None) -> DictConfig:
         ```
     """
     # Find the path to the 'conf' directory within the 'jaxarc' package
-    config_dir = importlib.resources.files('jaxarc') / 'conf'
+    config_dir = importlib.resources.files("jaxarc") / "conf"
 
     with initialize_config_dir(
         config_dir=str(config_dir.absolute()), version_base=None

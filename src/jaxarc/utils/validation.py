@@ -35,7 +35,9 @@ def get_error_mode() -> ErrorMode:
 def set_error_mode(mode: ErrorMode) -> None:
     """Set the error handling mode via an environment variable."""
     if mode not in ["raise", "nan", "breakpoint"]:
-        raise ValueError(f"Invalid error mode: {mode}. Must be 'raise', 'nan', or 'breakpoint'")
+        raise ValueError(
+            f"Invalid error mode: {mode}. Must be 'raise', 'nan', or 'breakpoint'"
+        )
     os.environ["EQX_ON_ERROR"] = mode
     logger.info(f"Error handling mode set to: {mode}")
 
@@ -50,17 +52,19 @@ def configure_debugging(
     os.environ["EQX_ON_ERROR_BREAKPOINT_FRAMES"] = str(breakpoint_frames)
     if enable_nan_checks:
         os.environ["JAX_DEBUG_NANS"] = "True"
-    logger.info(f"Debugging configured: mode={mode}, frames={breakpoint_frames}, nan_checks={enable_nan_checks}")
+    logger.info(
+        f"Debugging configured: mode={mode}, frames={breakpoint_frames}, nan_checks={enable_nan_checks}"
+    )
 
 
 @eqx.filter_jit
-def validate_action(action: "StructuredAction", config: JaxArcConfig) -> "StructuredAction":
+def validate_action(action: StructuredAction, config: JaxArcConfig) -> StructuredAction:
     """Validate a structured action with runtime error checking."""
     max_operations = 42
     action = eqx.error_if(
         action,
         (action.operation < 0) | (action.operation >= max_operations),
-        f"Invalid operation ID: must be in [0, {max_operations-1}]",
+        f"Invalid operation ID: must be in [0, {max_operations - 1}]",
     )
     action = action.validate(
         grid_shape=(config.dataset.max_grid_height, config.dataset.max_grid_width),
@@ -70,14 +74,14 @@ def validate_action(action: "StructuredAction", config: JaxArcConfig) -> "Struct
 
 
 def validate_batch_actions(
-    actions: "StructuredAction", config: JaxArcConfig, batch_size: int
-) -> "StructuredAction":
+    actions: StructuredAction, config: JaxArcConfig, batch_size: int
+) -> StructuredAction:
     """Validate a batch of structured actions with clear error messages."""
     try:
         validate_fn = lambda action: validate_action(action, config)
         return jax.vmap(validate_fn)(actions)
     except Exception as e:
-        error_msg = f"Batch action validation failed (batch_size={batch_size}): {str(e)}"
+        error_msg = f"Batch action validation failed (batch_size={batch_size}): {e!s}"
         logger.error(error_msg)
         raise RuntimeError(error_msg) from e
 
@@ -88,11 +92,15 @@ def validate_state_consistency(state: ArcEnvState) -> ArcEnvState:
     working_shape = state.working_grid.shape
     target_shape = state.target_grid.shape
     shapes_match = jnp.array_equal(jnp.array(working_shape), jnp.array(target_shape))
-    state = eqx.error_if(state, ~shapes_match, "Working and target grid shapes must match")
+    state = eqx.error_if(
+        state, ~shapes_match, "Working and target grid shapes must match"
+    )
 
     mask_shape = state.working_grid_mask.shape
     grid_mask_matches = jnp.array_equal(jnp.array(working_shape), jnp.array(mask_shape))
-    state = eqx.error_if(state, ~grid_mask_matches, "Working grid mask shape must match working grid")
+    state = eqx.error_if(
+        state, ~grid_mask_matches, "Working grid mask shape must match working grid"
+    )
 
     state = eqx.error_if(state, state.step_count < 0, "Step count cannot be negative")
     state = eqx.error_if(
@@ -128,4 +136,6 @@ def assert_shape_matches(
     """Assert that an array has the expected shape."""
     actual_shape = array.shape
     shapes_match = jnp.array_equal(jnp.array(actual_shape), jnp.array(expected_shape))
-    return eqx.error_if(array, ~shapes_match, f"{name} shape mismatch: expected {expected_shape}")
+    return eqx.error_if(
+        array, ~shapes_match, f"{name} shape mismatch: expected {expected_shape}"
+    )

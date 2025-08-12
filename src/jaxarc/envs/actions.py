@@ -55,7 +55,6 @@ class BaseAction(eqx.Module):
         Returns:
             Boolean mask with same shape as grid indicating selected cells
         """
-        pass
 
     @abc.abstractmethod
     def validate(
@@ -70,7 +69,6 @@ class BaseAction(eqx.Module):
         Returns:
             Validated action with clipped/corrected parameters
         """
-        pass
 
 
 class PointAction(BaseAction):

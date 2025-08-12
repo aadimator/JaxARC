@@ -45,10 +45,18 @@ class RewardConfig(eqx.Module):
             validate_float_range(self.success_bonus, "success_bonus", -100.0, 1000.0)
             validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 10.0)
             validate_float_range(self.progress_bonus, "progress_bonus", -10.0, 10.0)
-            validate_float_range(self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0)
-            validate_float_range(self.demo_completion_bonus, "demo_completion_bonus", -100.0, 100.0)
-            validate_float_range(self.test_completion_bonus, "test_completion_bonus", -100.0, 100.0)
-            validate_non_negative_int(self.efficiency_bonus_threshold, "efficiency_bonus_threshold")
+            validate_float_range(
+                self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0
+            )
+            validate_float_range(
+                self.demo_completion_bonus, "demo_completion_bonus", -100.0, 100.0
+            )
+            validate_float_range(
+                self.test_completion_bonus, "test_completion_bonus", -100.0, 100.0
+            )
+            validate_non_negative_int(
+                self.efficiency_bonus_threshold, "efficiency_bonus_threshold"
+            )
             validate_float_range(self.efficiency_bonus, "efficiency_bonus", -10.0, 10.0)
         except ConfigValidationError as e:
             errors.append(str(e))

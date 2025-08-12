@@ -112,7 +112,7 @@ class ArcEnvState(eqx.Module):
         ```python
         # Create new state with dataset-specific sizes
         max_train_pairs = 10  # e.g., ARC-AGI 2024
-        max_test_pairs = 4    # e.g., ARC-AGI 2024
+        max_test_pairs = 4  # e.g., ARC-AGI 2024
 
         state = ArcEnvState(
             task_data=task,
@@ -268,7 +268,9 @@ class ArcEnvState(eqx.Module):
             if action_history_fields < 6:  # Minimum: 2 (point) + 4 (metadata)
                 msg = f"Action history should have at least 6 fields, got {action_history_fields}"
                 raise ValueError(msg)
-            if action_history_fields > 10000:  # Reasonable upper bound for very large grids
+            if (
+                action_history_fields > 10000
+            ):  # Reasonable upper bound for very large grids
                 msg = (
                     f"Action history has unusually many fields: {action_history_fields}"
                 )
@@ -499,7 +501,7 @@ class ArcEnvState(eqx.Module):
         selection_data: jnp.ndarray,
         timestamp: float = 0.0,
         pair_index: int = -1,
-    ) -> "ArcEnvState":
+    ) -> ArcEnvState:
         """Add an action to the action history using circular buffer logic.
 
         This method implements format-specific storage by storing only the necessary
@@ -510,7 +512,7 @@ class ArcEnvState(eqx.Module):
             operation_id: The operation ID (0-34)
             selection_data: Selection data in format-specific shape:
                 - Point: [row, col] (2 elements)
-                - Bbox: [r1, c1, r2, c2] (4 elements)  
+                - Bbox: [r1, c1, r2, c2] (4 elements)
                 - Mask: flattened mask (height*width elements)
             timestamp: Timestamp for the action (default: current step count)
             pair_index: Current pair index (default: current_example_idx)
@@ -522,29 +524,22 @@ class ArcEnvState(eqx.Module):
             ```python
             # Add point action
             point_data = jnp.array([5, 7])  # row=5, col=7
-            new_state = state.add_action_to_history(
-                operation_id=0,
-                selection_data=point_data
-            )
+            new_state = state.add_action_to_history(operation_id=0, selection_data=point_data)
 
             # Add bbox action
             bbox_data = jnp.array([2, 3, 8, 9])  # r1=2, c1=3, r2=8, c2=9
-            new_state = state.add_action_to_history(
-                operation_id=1,
-                selection_data=bbox_data
-            )
+            new_state = state.add_action_to_history(operation_id=1, selection_data=bbox_data)
 
             # Add mask action
             mask_data = mask.flatten()  # Flatten 2D mask to 1D
-            new_state = state.add_action_to_history(
-                operation_id=2,
-                selection_data=mask_data
-            )
+            new_state = state.add_action_to_history(operation_id=2, selection_data=mask_data)
             ```
         """
         # Use defaults if not provided
         actual_timestamp = timestamp if timestamp != 0.0 else float(self.step_count)
-        actual_pair_index = pair_index if pair_index != -1 else int(self.current_example_idx)
+        actual_pair_index = (
+            pair_index if pair_index != -1 else int(self.current_example_idx)
+        )
 
         # Calculate circular buffer position
         max_history_length = self.action_history.shape[0]
@@ -553,36 +548,40 @@ class ArcEnvState(eqx.Module):
         # Prepare the action record
         # Format: [selection_data..., operation_id, timestamp, pair_index, valid]
         selection_size = self.action_history.shape[1] - 4  # Subtract metadata fields
-        
+
         # Ensure selection_data fits the expected size
         if len(selection_data) != selection_size:
             # Pad or truncate selection_data to fit
             if len(selection_data) < selection_size:
                 # Pad with zeros
                 padded_data = jnp.zeros(selection_size)
-                padded_data = padded_data.at[:len(selection_data)].set(selection_data)
+                padded_data = padded_data.at[: len(selection_data)].set(selection_data)
                 selection_data = padded_data
             else:
                 # Truncate
                 selection_data = selection_data[:selection_size]
 
         # Create the full record
-        record = jnp.concatenate([
-            selection_data.astype(jnp.float32),
-            jnp.array([
-                float(operation_id),
-                actual_timestamp,
-                float(actual_pair_index),
-                1.0  # valid flag
-            ])
-        ])
+        record = jnp.concatenate(
+            [
+                selection_data.astype(jnp.float32),
+                jnp.array(
+                    [
+                        float(operation_id),
+                        actual_timestamp,
+                        float(actual_pair_index),
+                        1.0,  # valid flag
+                    ]
+                ),
+            ]
+        )
 
         # Update action history at the write position
         new_action_history = self.action_history.at[write_position].set(record)
 
         # Update history length (increment but cap at max_history_length for logical length)
         new_length = jnp.minimum(self.action_history_length + 1, max_history_length)
-        
+
         # Update write position for next write (circular)
         new_write_pos = (self.action_history_write_pos + 1) % max_history_length
 
@@ -616,18 +615,18 @@ class ArcEnvState(eqx.Module):
             ```python
             # Get most recent action
             recent_action = state.get_action_from_history(-1)
-            
+
             # Get oldest action
             oldest_action = state.get_action_from_history(0)
-            
+
             # Access action data
-            selection = recent_action['selection_data']
-            op_id = recent_action['operation_id']
+            selection = recent_action["selection_data"]
+            op_id = recent_action["operation_id"]
             ```
         """
         history_length = int(self.action_history_length)
         max_history_length = self.action_history.shape[0]
-        
+
         if history_length == 0:
             raise IndexError("No actions in history")
 
@@ -636,7 +635,9 @@ class ArcEnvState(eqx.Module):
             index = history_length + index
 
         if index < 0 or index >= history_length:
-            raise IndexError(f"Index {index} out of bounds for history length {history_length}")
+            raise IndexError(
+                f"Index {index} out of bounds for history length {history_length}"
+            )
 
         # Calculate actual position in circular buffer
         if history_length < max_history_length:
@@ -653,11 +654,11 @@ class ArcEnvState(eqx.Module):
         selection_size = len(record) - 4
 
         return {
-            'selection_data': record[:selection_size],
-            'operation_id': int(record[selection_size]),
-            'timestamp': float(record[selection_size + 1]),
-            'pair_index': int(record[selection_size + 2]),
-            'valid': bool(record[selection_size + 3])
+            "selection_data": record[:selection_size],
+            "operation_id": int(record[selection_size]),
+            "timestamp": float(record[selection_size + 1]),
+            "pair_index": int(record[selection_size + 2]),
+            "valid": bool(record[selection_size + 3]),
         }
 
     def get_recent_actions(self, count: int) -> list[dict]:
@@ -673,7 +674,7 @@ class ArcEnvState(eqx.Module):
             ```python
             # Get last 5 actions
             recent = state.get_recent_actions(5)
-            
+
             # Process recent actions
             for action in recent:
                 print(f"Operation {action['operation_id']} at {action['timestamp']}")
@@ -681,19 +682,19 @@ class ArcEnvState(eqx.Module):
         """
         history_length = int(self.action_history_length)
         actual_count = min(count, history_length)
-        
+
         if actual_count == 0:
             return []
 
         actions = []
         start_index = max(0, history_length - actual_count)
-        
+
         for i in range(start_index, history_length):
             actions.append(self.get_action_from_history(i))
-            
+
         return actions
 
-    def clear_action_history(self) -> "ArcEnvState":
+    def clear_action_history(self) -> ArcEnvState:
         """Clear all action history.
 
         Returns:
@@ -730,23 +731,23 @@ class ArcEnvState(eqx.Module):
         history_length = int(self.action_history_length)
         max_length = self.action_history.shape[0]
         record_fields = self.action_history.shape[1]
-        
+
         # Calculate memory usage
         memory_bytes = self.action_history.nbytes
         memory_mb = memory_bytes / (1024 * 1024)
-        
+
         # Get recent actions for summary
         recent_actions = self.get_recent_actions(min(5, history_length))
-        
+
         return {
-            'length': history_length,
-            'max_length': max_length,
-            'record_fields': record_fields,
-            'memory_usage_bytes': memory_bytes,
-            'memory_usage_mb': memory_mb,
-            'is_full': history_length >= max_length,
-            'recent_actions': recent_actions,
-            'selection_data_size': record_fields - 4,  # Exclude metadata fields
+            "length": history_length,
+            "max_length": max_length,
+            "record_fields": record_fields,
+            "memory_usage_bytes": memory_bytes,
+            "memory_usage_mb": memory_mb,
+            "is_full": history_length >= max_length,
+            "recent_actions": recent_actions,
+            "selection_data_size": record_fields - 4,  # Exclude metadata fields
         }
 
     def get_action_history_for_pair(self, pair_index: int) -> list[dict]:
@@ -762,19 +763,19 @@ class ArcEnvState(eqx.Module):
             ```python
             # Get all actions for current pair
             pair_actions = state.get_action_history_for_pair(state.current_example_idx)
-            
+
             # Get actions for a specific pair
             demo_actions = state.get_action_history_for_pair(0)
             ```
         """
         history_length = int(self.action_history_length)
         pair_actions = []
-        
+
         for i in range(history_length):
             action = self.get_action_from_history(i)
-            if action['pair_index'] == pair_index:
+            if action["pair_index"] == pair_index:
                 pair_actions.append(action)
-                
+
         return pair_actions
 
     # =========================================================================
@@ -783,83 +784,80 @@ class ArcEnvState(eqx.Module):
 
     def save(self, path: str) -> None:
         """Save state efficiently by excluding large static task_data field.
-        
+
         This method saves the state with only the task_index from task_data,
         significantly reducing file size. The full task_data can be reconstructed
         during loading using the task_index and a parser.
-        
+
         Args:
             path: Path to save the serialized state
-            
+
         Examples:
             ```python
             # Save state efficiently
             state.save("checkpoint.eqx")
-            
+
             # File will be much smaller without task_data
             ```
         """
-        import equinox as eqx
         import pickle
-        
+
         # Create a dictionary with all state data except large task_data arrays
         state_dict = {
             # Core state fields
-            'working_grid': self.working_grid,
-            'working_grid_mask': self.working_grid_mask,
-            'target_grid': self.target_grid,
-            'target_grid_mask': self.target_grid_mask,
-            'step_count': self.step_count,
-            'episode_done': self.episode_done,
-            'current_example_idx': self.current_example_idx,
-            'selected': self.selected,
-            'clipboard': self.clipboard,
-            'similarity_score': self.similarity_score,
-            
+            "working_grid": self.working_grid,
+            "working_grid_mask": self.working_grid_mask,
+            "target_grid": self.target_grid,
+            "target_grid_mask": self.target_grid_mask,
+            "step_count": self.step_count,
+            "episode_done": self.episode_done,
+            "current_example_idx": self.current_example_idx,
+            "selected": self.selected,
+            "clipboard": self.clipboard,
+            "similarity_score": self.similarity_score,
             # Enhanced functionality fields
-            'episode_mode': self.episode_mode,
-            'available_demo_pairs': self.available_demo_pairs,
-            'available_test_pairs': self.available_test_pairs,
-            'demo_completion_status': self.demo_completion_status,
-            'test_completion_status': self.test_completion_status,
-            'action_history': self.action_history,
-            'action_history_length': self.action_history_length,
-            'action_history_write_pos': self.action_history_write_pos,
-            'allowed_operations_mask': self.allowed_operations_mask,
-            
+            "episode_mode": self.episode_mode,
+            "available_demo_pairs": self.available_demo_pairs,
+            "available_test_pairs": self.available_test_pairs,
+            "demo_completion_status": self.demo_completion_status,
+            "test_completion_status": self.test_completion_status,
+            "action_history": self.action_history,
+            "action_history_length": self.action_history_length,
+            "action_history_write_pos": self.action_history_write_pos,
+            "allowed_operations_mask": self.allowed_operations_mask,
             # Only essential task_data fields
-            'task_index': self.task_data.task_index,
-            'num_train_pairs': self.task_data.num_train_pairs,
-            'num_test_pairs': self.task_data.num_test_pairs,
+            "task_index": self.task_data.task_index,
+            "num_train_pairs": self.task_data.num_train_pairs,
+            "num_test_pairs": self.task_data.num_test_pairs,
         }
-        
+
         # Save using pickle for flexibility
-        with open(path, 'wb') as f:
+        with open(path, "wb") as f:
             pickle.dump(state_dict, f)
 
     @classmethod
-    def load(cls, path: str, parser) -> 'ArcEnvState':
+    def load(cls, path: str, parser) -> ArcEnvState:
         """Load state efficiently by reconstructing task_data from task_index.
-        
+
         This method loads a state that was saved with the efficient save() method,
         reconstructing the task_data field from the stored task_index using the
         provided parser.
-        
+
         Args:
             path: Path to the serialized state file
             parser: ArcDataParserBase instance to reconstruct task_data
-            
+
         Returns:
             ArcEnvState with fully reconstructed task_data
-            
+
         Raises:
             ValueError: If task_index cannot be resolved or task not found
             FileNotFoundError: If the serialized state file doesn't exist
-            
+
         Examples:
             ```python
             from jaxarc.parsers import ArcAgiParser
-            
+
             # Load state with task_data reconstruction
             parser = ArcAgiParser(config)
             state = ArcEnvState.load("checkpoint.eqx", parser)
@@ -867,96 +865,114 @@ class ArcEnvState(eqx.Module):
         """
         import pickle
         from pathlib import Path
-        
+
         # Validate input file exists
         if not Path(path).exists():
             raise FileNotFoundError(f"Serialized state file not found: {path}")
-        
+
         # Load state dictionary
         try:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 state_dict = pickle.load(f)
         except Exception as e:
             raise ValueError(f"Failed to deserialize state from {path}: {e}") from e
-        
+
         # Reconstruct task_data from task_index
         try:
             import jax.numpy as jnp
+
             # Convert to JAX array for the canonical extract_task_id_from_index function
-            task_index_array = jnp.array(state_dict['task_index'], dtype=jnp.int32)
+            task_index_array = jnp.array(state_dict["task_index"], dtype=jnp.int32)
             task_id = extract_task_id_from_index(task_index_array)
             if task_id is None:
-                raise ValueError("Cannot reconstruct task_data: task_index points to unknown task (-1)")
-                
+                raise ValueError(
+                    "Cannot reconstruct task_data: task_index points to unknown task (-1)"
+                )
+
             # Validate task_index consistency with parser
-            if not parser.validate_task_index_mapping(state_dict['task_index']):
-                raise ValueError(f"Task index is inconsistent with parser dataset")
-                
+            if not parser.validate_task_index_mapping(state_dict["task_index"]):
+                raise ValueError("Task index is inconsistent with parser dataset")
+
             task_data = parser.get_task_by_id(task_id)
-            
+
         except Exception as e:
             raise ValueError(f"Failed to reconstruct task_data: {e}") from e
-        
+
         # Create new state with reconstructed task_data
         return cls(
             task_data=task_data,
-            working_grid=state_dict['working_grid'],
-            working_grid_mask=state_dict['working_grid_mask'],
-            target_grid=state_dict['target_grid'],
-            target_grid_mask=state_dict['target_grid_mask'],
-            step_count=state_dict['step_count'],
-            episode_done=state_dict['episode_done'],
-            current_example_idx=state_dict['current_example_idx'],
-            selected=state_dict['selected'],
-            clipboard=state_dict['clipboard'],
-            similarity_score=state_dict['similarity_score'],
-            episode_mode=state_dict['episode_mode'],
-            available_demo_pairs=state_dict['available_demo_pairs'],
-            available_test_pairs=state_dict['available_test_pairs'],
-            demo_completion_status=state_dict['demo_completion_status'],
-            test_completion_status=state_dict['test_completion_status'],
-            action_history=state_dict['action_history'],
-            action_history_length=state_dict['action_history_length'],
-            action_history_write_pos=state_dict['action_history_write_pos'],
-            allowed_operations_mask=state_dict['allowed_operations_mask'],
+            working_grid=state_dict["working_grid"],
+            working_grid_mask=state_dict["working_grid_mask"],
+            target_grid=state_dict["target_grid"],
+            target_grid_mask=state_dict["target_grid_mask"],
+            step_count=state_dict["step_count"],
+            episode_done=state_dict["episode_done"],
+            current_example_idx=state_dict["current_example_idx"],
+            selected=state_dict["selected"],
+            clipboard=state_dict["clipboard"],
+            similarity_score=state_dict["similarity_score"],
+            episode_mode=state_dict["episode_mode"],
+            available_demo_pairs=state_dict["available_demo_pairs"],
+            available_test_pairs=state_dict["available_test_pairs"],
+            demo_completion_status=state_dict["demo_completion_status"],
+            test_completion_status=state_dict["test_completion_status"],
+            action_history=state_dict["action_history"],
+            action_history_length=state_dict["action_history_length"],
+            action_history_write_pos=state_dict["action_history_write_pos"],
+            allowed_operations_mask=state_dict["allowed_operations_mask"],
         )
 
     @classmethod
-    def create_dummy_for_loading(cls) -> 'ArcEnvState':
+    def create_dummy_for_loading(cls) -> ArcEnvState:
         """Create dummy state with correct structure for deserialization.
-        
+
         This method creates a minimal state structure with None task_data but
         correct shapes for other fields, enabling proper deserialization.
-        
+
         Returns:
             ArcEnvState with dummy task_data and correct field shapes
         """
         import jax.numpy as jnp
+
         from .types import JaxArcTask
         from .utils.jax_types import (
+            ACTION_RECORD_FIELDS,
             DEFAULT_MAX_TEST_PAIRS,
             DEFAULT_MAX_TRAIN_PAIRS,
             MAX_HISTORY_LENGTH,
-            ACTION_RECORD_FIELDS,
             NUM_OPERATIONS,
         )
-        
+
         # Create dummy task_data that can accommodate any saved structure
         # Use maximum dimensions to ensure compatibility
         dummy_task_data = JaxArcTask(
-            input_grids_examples=jnp.zeros((DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.int32),
-            input_masks_examples=jnp.zeros((DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.bool_),
-            output_grids_examples=jnp.zeros((DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.int32),
-            output_masks_examples=jnp.zeros((DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.bool_),
+            input_grids_examples=jnp.zeros(
+                (DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.int32
+            ),
+            input_masks_examples=jnp.zeros(
+                (DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.bool_
+            ),
+            output_grids_examples=jnp.zeros(
+                (DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.int32
+            ),
+            output_masks_examples=jnp.zeros(
+                (DEFAULT_MAX_TRAIN_PAIRS, 1, 1), dtype=jnp.bool_
+            ),
             num_train_pairs=0,  # Will be overwritten during loading
             test_input_grids=jnp.zeros((DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.int32),
             test_input_masks=jnp.zeros((DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.bool_),
-            true_test_output_grids=jnp.zeros((DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.int32),
-            true_test_output_masks=jnp.zeros((DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.bool_),
+            true_test_output_grids=jnp.zeros(
+                (DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.int32
+            ),
+            true_test_output_masks=jnp.zeros(
+                (DEFAULT_MAX_TEST_PAIRS, 1, 1), dtype=jnp.bool_
+            ),
             num_test_pairs=0,  # Will be overwritten during loading
-            task_index=jnp.array(-1, dtype=jnp.int32),  # Will be overwritten during loading
+            task_index=jnp.array(
+                -1, dtype=jnp.int32
+            ),  # Will be overwritten during loading
         )
-        
+
         # Create dummy state with minimal but correct shapes
         return cls(
             task_data=dummy_task_data,
@@ -975,7 +991,9 @@ class ArcEnvState(eqx.Module):
             available_test_pairs=jnp.ones(DEFAULT_MAX_TEST_PAIRS, dtype=jnp.bool_),
             demo_completion_status=jnp.zeros(DEFAULT_MAX_TRAIN_PAIRS, dtype=jnp.bool_),
             test_completion_status=jnp.zeros(DEFAULT_MAX_TEST_PAIRS, dtype=jnp.bool_),
-            action_history=jnp.zeros((MAX_HISTORY_LENGTH, ACTION_RECORD_FIELDS), dtype=jnp.float32),
+            action_history=jnp.zeros(
+                (MAX_HISTORY_LENGTH, ACTION_RECORD_FIELDS), dtype=jnp.float32
+            ),
             action_history_length=jnp.array(0, dtype=jnp.int32),
             action_history_write_pos=jnp.array(0, dtype=jnp.int32),
             allowed_operations_mask=jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_),
@@ -1076,7 +1094,9 @@ class ArcEnvState(eqx.Module):
     # Enhanced Utility Methods for Demonstration and Test Pair Access
     # =========================================================================
 
-    def get_current_demo_pair_data(self) -> tuple[GridArray, GridArray, MaskArray, MaskArray]:
+    def get_current_demo_pair_data(
+        self,
+    ) -> tuple[GridArray, GridArray, MaskArray, MaskArray]:
         """Get current demonstration pair data.
 
         Returns:
@@ -1459,7 +1479,7 @@ def create_arc_env_state(
     action_history_length: int = 0,
     selection_format: str = "mask",  # New parameter for format-specific storage
     max_grid_height: int = 30,  # New parameter for calculating storage size
-    max_grid_width: int = 30,   # New parameter for calculating storage size
+    max_grid_width: int = 30,  # New parameter for calculating storage size
 ) -> ArcEnvState:
     """Factory function to create ArcEnvState with dataset-appropriate sizes and format-specific action history.
 
@@ -1501,7 +1521,7 @@ def create_arc_env_state(
             max_test_pairs=4,
             selection_format="point",  # Only 6 fields per action
             max_grid_height=30,
-            max_grid_width=30
+            max_grid_width=30,
         )
 
         # For MiniARC with bbox actions
@@ -1515,7 +1535,7 @@ def create_arc_env_state(
             max_test_pairs=1,
             selection_format="bbox",  # Only 8 fields per action
             max_grid_height=5,
-            max_grid_width=5
+            max_grid_width=5,
         )
 
         # For full ARC with mask actions (when needed)
@@ -1529,13 +1549,13 @@ def create_arc_env_state(
             max_test_pairs=4,
             selection_format="mask",  # 904 fields per action for 30x30 grids
             max_grid_height=30,
-            max_grid_width=30
+            max_grid_width=30,
         )
         ```
     """
     # Import the function here to avoid circular imports
     from .utils.jax_types import get_action_record_fields
-    
+
     # Validate selection format parameter
     valid_formats = {"point", "bbox", "mask"}
     if selection_format not in valid_formats:
@@ -1543,14 +1563,14 @@ def create_arc_env_state(
             f"Invalid selection_format '{selection_format}'. "
             f"Must be one of: {valid_formats}"
         )
-    
+
     # Validate grid dimensions
     if max_grid_height <= 0 or max_grid_width <= 0:
         raise ValueError(
             f"Grid dimensions must be positive. "
             f"Got max_grid_height={max_grid_height}, max_grid_width={max_grid_width}"
         )
-    
+
     # Validate that grid dimensions match the actual working grid
     actual_height, actual_width = working_grid.shape
     if max_grid_height < actual_height or max_grid_width < actual_width:
@@ -1559,37 +1579,40 @@ def create_arc_env_state(
             f"are smaller than actual working grid dimensions ({actual_height}x{actual_width}). "
             f"This would cause format mismatches in action history storage."
         )
-    
+
     # Calculate format-specific action record fields
     action_record_fields = get_action_record_fields(
         selection_format, max_grid_height, max_grid_width
     )
-    
+
     # Validate action history length
     if action_history_length < 0:
-        raise ValueError(f"action_history_length must be non-negative, got {action_history_length}")
-    
+        raise ValueError(
+            f"action_history_length must be non-negative, got {action_history_length}"
+        )
+
     if action_history_length > MAX_HISTORY_LENGTH:
         raise ValueError(
             f"action_history_length ({action_history_length}) exceeds maximum "
             f"allowed history length ({MAX_HISTORY_LENGTH})"
         )
-    
+
     # Log memory usage information for different formats (for debugging/monitoring)
     memory_per_record = action_record_fields * 4  # 4 bytes per float32
     total_memory_bytes = MAX_HISTORY_LENGTH * memory_per_record
     total_memory_mb = total_memory_bytes / (1024 * 1024)
-    
+
     # Only log if this is a significant memory allocation (>1MB)
     if total_memory_mb > 1.0:
         import logging
+
         logger = logging.getLogger(__name__)
         logger.debug(
             f"Creating action history with format '{selection_format}': "
             f"{action_record_fields} fields/record, "
             f"{total_memory_mb:.2f}MB total memory"
         )
-    
+
     return ArcEnvState(
         task_data=task_data,
         working_grid=working_grid,
@@ -1610,7 +1633,9 @@ def create_arc_env_state(
         test_completion_status=jnp.zeros(max_test_pairs, dtype=bool),
         # Format-specific action history with optimal memory usage
         # Initialize with negative timestamps to indicate invalid records
-        action_history=jnp.full((MAX_HISTORY_LENGTH, action_record_fields), -1.0, dtype=jnp.float32),
+        action_history=jnp.full(
+            (MAX_HISTORY_LENGTH, action_record_fields), -1.0, dtype=jnp.float32
+        ),
         action_history_length=jnp.array(action_history_length, dtype=jnp.int32),
         action_history_write_pos=jnp.array(0, dtype=jnp.int32),  # Track write position
         allowed_operations_mask=jnp.ones(NUM_OPERATIONS, dtype=bool),
@@ -1626,7 +1651,7 @@ def create_arc_env_state_with_format(
     selection_format: str,
     max_train_pairs: int = DEFAULT_MAX_TRAIN_PAIRS,
     max_test_pairs: int = DEFAULT_MAX_TEST_PAIRS,
-    **kwargs
+    **kwargs,
 ) -> ArcEnvState:
     """Convenience function to create ArcEnvState with format-specific action history.
 
@@ -1656,7 +1681,7 @@ def create_arc_env_state_with_format(
             working_grid_mask=mask,
             target_grid=target,
             target_grid_mask=target_mask,
-            selection_format="point"  # Will use only 6 fields per action
+            selection_format="point",  # Will use only 6 fields per action
         )
         ```
     """
@@ -1667,16 +1692,16 @@ def create_arc_env_state_with_format(
             f"Invalid selection_format '{selection_format}'. "
             f"Must be one of: {valid_formats}"
         )
-    
+
     # Determine grid dimensions from working_grid
     max_grid_height, max_grid_width = working_grid.shape
-    
+
     # Validate that grid dimensions are reasonable
     if max_grid_height <= 0 or max_grid_width <= 0:
         raise ValueError(
             f"Working grid has invalid dimensions: {max_grid_height}x{max_grid_width}"
         )
-    
+
     return create_arc_env_state(
         task_data=task_data,
         working_grid=working_grid,
@@ -1688,5 +1713,5 @@ def create_arc_env_state_with_format(
         selection_format=selection_format,
         max_grid_height=max_grid_height,
         max_grid_width=max_grid_width,
-        **kwargs
+        **kwargs,
     )

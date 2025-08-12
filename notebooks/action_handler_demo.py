@@ -37,10 +37,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from jaxarc.envs.actions import get_action_handler
-
 # JaxARC imports
 from jaxarc.configs import JaxArcConfig
+from jaxarc.envs.actions import get_action_handler
 from jaxarc.envs.environment import ArcEnvironment
 from jaxarc.utils.visualization import (
     create_action_demonstration_figure,
@@ -82,6 +81,7 @@ with initialize_config_dir(config_dir=str(config_dir), version_base=None):
 
 # Dataset Parser
 from jaxarc.configs import DatasetConfig
+
 typed_dataset_config = DatasetConfig.from_hydra(point_cfg.dataset)
 parser = ArcAgiParser(typed_dataset_config)
 

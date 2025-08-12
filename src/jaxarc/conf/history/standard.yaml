@@ -7,5 +7,5 @@ max_history_length: 1000
 
 # Storage options
 store_selection_data: true
-store_intermediate_grids: false  # Memory-intensive, disabled by default
+store_intermediate_grids: false # Memory-intensive, disabled by default
 compress_repeated_actions: true

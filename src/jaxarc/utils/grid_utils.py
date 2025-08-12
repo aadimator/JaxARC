@@ -226,6 +226,7 @@ def crop_grid_to_mask(grid: GridArray, mask: chex.Array) -> GridArray:
     # Use regular Python slicing (not JIT compatible)
     return grid[:h, :w]
 
+
 @jax.jit
 def compute_grid_similarity(
     working_grid: GridArray,

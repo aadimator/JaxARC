@@ -2,27 +2,27 @@
 # Designed for test pair evaluation with proper target masking
 
 # Basic reward settings for evaluation
-reward_on_submit_only: true  # Only reward on submission for evaluation
-step_penalty: -0.02  # Higher step penalty to encourage efficiency
-success_bonus: 20.0  # High success bonus for test completion
-similarity_weight: 0.0  # No similarity rewards (target masked)
+reward_on_submit_only: true # Only reward on submission for evaluation
+step_penalty: -0.02 # Higher step penalty to encourage efficiency
+success_bonus: 20.0 # High success bonus for test completion
+similarity_weight: 0.0 # No similarity rewards (target masked)
 
 # Minimal progress tracking in evaluation
-progress_bonus: 0.0  # No progress bonus in evaluation mode
+progress_bonus: 0.0 # No progress bonus in evaluation mode
 
 # Control operation penalty removed (legacy field)
 
 # Mode-specific weights
-training_similarity_weight: 1.0  # Full similarity in training
+training_similarity_weight: 1.0 # Full similarity in training
 
 # Test-focused bonuses
-demo_completion_bonus: 0.5  # Lower demo bonus in evaluation context
-test_completion_bonus: 15.0  # Very high test completion bonus
+demo_completion_bonus: 0.5 # Lower demo bonus in evaluation context
+test_completion_bonus: 15.0 # Very high test completion bonus
 
 # Efficiency is critical in evaluation
-efficiency_bonus_threshold: 25  # Strict efficiency requirement
-efficiency_bonus: 5.0  # High efficiency bonus
+efficiency_bonus_threshold: 25 # Strict efficiency requirement
+efficiency_bonus: 5.0 # High efficiency bonus
 
 # Evaluation-specific reward frequencies
-training_reward_frequency: "step"  # Step rewards in training
-evaluation_reward_frequency: "submit"  # Submit-only in evaluation
+training_reward_frequency: "step" # Step rewards in training
+evaluation_reward_frequency: "submit" # Submit-only in evaluation

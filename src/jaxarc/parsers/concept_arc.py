@@ -60,11 +60,11 @@ class ConceptArcParser(ArcDataParserBase):
             # Direct typed config usage (preferred)
             from jaxarc.configs import DatasetConfig
             from omegaconf import DictConfig
-            
+
             hydra_config = DictConfig({...})
             dataset_config = DatasetConfig.from_hydra(hydra_config)
             parser = ConceptArcParser(dataset_config)
-            
+
             # Alternative: use from_hydra class method
             parser = ConceptArcParser.from_hydra(hydra_config)
             ```
@@ -86,9 +86,9 @@ class ConceptArcParser(ArcDataParserBase):
 
     def get_data_path(self) -> str:
         """Get the actual data path for ConceptARC based on split.
-        
+
         ConceptARC structure: {base_path}/corpus (only one dataset)
-        
+
         Returns:
             str: The resolved path to the ConceptARC corpus directory
         """
@@ -107,9 +107,22 @@ class ConceptArcParser(ArcDataParserBase):
 
             # Define expected concept groups for ConceptARC
             expected_concept_groups = [
-                "AboveBelow", "Center", "CleanUp", "CompleteShape", "Copy", "Count",
-                "ExtendToBoundary", "ExtractObjects", "FilledNotFilled", "HorizontalVertical",
-                "InsideOutside", "MoveToBoundary", "Order", "SameDifferent", "TopBottom2D", "TopBottom3D"
+                "AboveBelow",
+                "Center",
+                "CleanUp",
+                "CompleteShape",
+                "Copy",
+                "Count",
+                "ExtendToBoundary",
+                "ExtractObjects",
+                "FilledNotFilled",
+                "HorizontalVertical",
+                "InsideOutside",
+                "MoveToBoundary",
+                "Order",
+                "SameDifferent",
+                "TopBottom2D",
+                "TopBottom3D",
             ]
 
             # Discover concept groups from directory structure

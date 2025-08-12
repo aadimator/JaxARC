@@ -44,7 +44,6 @@ from ..utils.jax_types import (
     GridArray,
     OperationId,
     SelectionArray,
-    SimilarityScore,
 )
 from ..utils.validation import validate_state_consistency
 
@@ -242,6 +241,7 @@ def get_operation_category(operation_id: int) -> str:
 
     # This should never happen if is_valid_operation_id works correctly
     raise ValueError(f"Operation ID {operation_id} not found in any category")
+
 
 @eqx.filter_jit
 def _copy_grid_to_target_shape(

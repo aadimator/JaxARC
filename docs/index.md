@@ -15,7 +15,8 @@ on abstract reasoning puzzles.
 - **Streamlined Configuration**: Hydra-first approach with comprehensive
   validation
 - **Rich Visualization**: Terminal and SVG grid rendering utilities
-- **Comprehensive Logging**: Handler-based logging system with batched training support
+- **Comprehensive Logging**: Handler-based logging system with batched training
+  support
 - **Centralized State Management**: Single source of truth with Equinox modules
 
 ## Quick Start
@@ -66,7 +67,8 @@ pixi run test
   Equinox and JAXTyping patterns
 - **[Configuration Guide](configuration.md)**: Enhanced configuration system
   with Hydra composition
-- **[Logging System](logging_system.md)**: Comprehensive logging and batched training support
+- **[Logging System](logging_system.md)**: Comprehensive logging and batched
+  training support
 - **[Datasets Guide](datasets.md)**: Comprehensive guide for using ARC dataset
   parsers
 - **[Migration Guide](migration_guide.md)**: Step-by-step guide for upgrading to
