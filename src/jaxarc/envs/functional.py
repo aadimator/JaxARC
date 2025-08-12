@@ -7,7 +7,8 @@ that work with both typed configs and Hydra DictConfig objects.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple, Union
+import time
+from typing import Any, Union
 
 import equinox as eqx
 import jax
@@ -27,7 +28,6 @@ from ..utils.jax_types import (
     NUM_OPERATIONS,
     EpisodeDone,
     ObservationArray,
-    OperationId,
     PRNGKey,
     RewardValue,
     get_action_record_fields,
@@ -73,7 +73,7 @@ def _initialize_grids(
     config: JaxArcConfig,
     key: PRNGKey | None = None,
     initial_pair_idx: int | None = None,
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize grids with diverse initialization strategies - enhanced helper function.
 
     This enhanced helper function sets up the initial, target, and mask grids based on the
@@ -130,12 +130,8 @@ def _initialize_grids(
         episode_mode == EPISODE_MODE_TRAIN, get_train_target, get_test_target
     )
 
-    # Check if diverse initialization is enabled and key is provided
-    use_diverse_init = (
-        hasattr(config, "grid_initialization")
-        and config.grid_initialization.mode != "demo"
-        and key is not None
-    )
+    # Always use diverse initialization engine when config present and key provided
+    use_diverse_init = hasattr(config, "grid_initialization") and key is not None
 
     if use_diverse_init:
         # Use diverse initialization engine with initial_pair_idx support
@@ -150,20 +146,8 @@ def _initialize_grids(
         initial_grid = jnp.squeeze(initial_grid, axis=0)
         initial_mask = jnp.squeeze(initial_mask, axis=0)
     else:
-        # Fall back to original demo-based initialization
-        def get_train_grids():
-            initial_grid = task_data.input_grids_examples[selected_pair_idx]
-            initial_mask = task_data.input_masks_examples[selected_pair_idx]
-            return initial_grid, initial_mask
-
-        def get_test_grids():
-            initial_grid = task_data.test_input_grids[selected_pair_idx]
-            initial_mask = task_data.test_input_masks[selected_pair_idx]
-            return initial_grid, initial_mask
-
-        initial_grid, initial_mask = jax.lax.cond(
-            episode_mode == EPISODE_MODE_TRAIN, get_train_grids, get_test_grids
-        )
+        msg = "grid_initialization config missing or PRNG key not provided"
+        raise ValueError(msg)
 
     return initial_grid, target_grid, initial_mask, target_mask
 
@@ -247,7 +231,7 @@ def _create_initial_state(
     allowed_operations_mask = jnp.ones(num_operations, dtype=jnp.bool_)
 
     # Create enhanced initial state with all new fields
-    state = ArcEnvState(
+    return ArcEnvState(
         # Core ARC state (unchanged)
         task_data=task_data,
         working_grid=initial_grid,
@@ -272,8 +256,6 @@ def _create_initial_state(
         allowed_operations_mask=allowed_operations_mask,
     )
 
-    return state
-
 
 @eqx.filter_jit
 def arc_reset(
@@ -282,7 +264,7 @@ def arc_reset(
     task_data: JaxArcTask | None = None,
     episode_mode: int = 0,  # 0=train, 1=test (JAX-compatible integers)
     initial_pair_idx: int | None = None,
-) -> Tuple[ArcEnvState, ObservationArray]:
+) -> tuple[ArcEnvState, ObservationArray]:
     """
     Reset ARC environment with enhanced multi-demonstration support.
 
@@ -336,19 +318,21 @@ def arc_reset(
 
     if not task_data and not initial_pair_idx:
         # Raise error if no task data or initial pair index provided
-        raise ValueError(
+        msg = (
             "Either task_data or initial_pair_idx must be provided. "
             "For training, provide task_data or set initial_pair_idx to a valid pair index."
         )
+        raise ValueError(msg)
 
     # Validate episode mode (0=train, 1=test) using JAX-compatible integer check
     if episode_mode not in [EPISODE_MODE_TRAIN, EPISODE_MODE_TEST]:
-        raise ValueError(
+        msg = (
             f"episode_mode must be {EPISODE_MODE_TRAIN} (train) or {EPISODE_MODE_TEST} (test), "
             f"got '{episode_mode}'"
         )
+        raise ValueError(msg)
     # Split key for different operations
-    pair_key, init_key = jax.random.split(key)
+    _, init_key = jax.random.split(key)
 
     # Select first pair index, if not provided
     selected_pair_idx = jnp.array(0, dtype=jnp.int32)
@@ -362,12 +346,12 @@ def arc_reset(
             lambda: task_data.is_demo_pair_available(initial_pair_idx),
             lambda: task_data.is_test_pair_available(initial_pair_idx),
         )
-
         if not selection_successful:
-            raise ValueError(
+            msg = (
                 f"Initial pair index {initial_pair_idx} is not available in "
                 f"{['demo', 'test'][episode_mode]} pairs."
             )
+            raise ValueError(msg)
 
     # Initialize grids based on episode mode using JAX-compatible operations
     initial_grid, target_grid, initial_mask, target_mask = _initialize_grids(
@@ -413,13 +397,11 @@ def arc_reset(
         )
 
     return validated_state, observation
-
-
 def _process_action(
     state: ArcEnvState,
-    action: Union[StructuredAction, Dict[str, Any]],
+    action: StructuredAction | dict[str, Any],
     config: JaxArcConfig,
-) -> Tuple[ArcEnvState, StructuredAction]:
+) -> tuple[ArcEnvState, StructuredAction]:
     """Process action and return updated state.
 
     This function handles the complete action processing pipeline supporting both
@@ -502,7 +484,8 @@ def _process_action(
             mask = selection.reshape(grid_shape).astype(jnp.bool_)
             validated_action = create_mask_action(operation, mask)
         else:
-            raise ValueError(f"Unsupported selection format: shape {selection.shape}")
+            msg = f"Unsupported selection format: shape {selection.shape}"
+            raise ValueError(msg)
     else:
         # Handle structured action
         validated_action = action.validate(grid_shape, max_operations=NUM_OPERATIONS)
@@ -555,9 +538,8 @@ def _process_action(
     new_state = execute_grid_operation(new_state, operation)
     return new_state, validated_action
 
-
 def _update_state(
-    old_state: ArcEnvState,
+    _old_state: ArcEnvState,
     new_state: ArcEnvState,
     action: StructuredAction,
     config: JaxArcConfig,
@@ -626,16 +608,13 @@ def _update_state(
     )
 
     # Update step count using PyTree utilities
-    updated_state = increment_step_count(updated_state)
-
-    return updated_state
-
+    return increment_step_count(updated_state)
 
 def _calculate_reward_and_done(
     old_state: ArcEnvState,
     new_state: ArcEnvState,
     config: JaxArcConfig,
-) -> Tuple[RewardValue, EpisodeDone, ArcEnvState]:
+) -> tuple[RewardValue, EpisodeDone, ArcEnvState]:
     """Compute reward and termination status.
 
     Simplified version after removal of control operations. Delegates reward
@@ -657,7 +636,7 @@ def arc_step(
     state: ArcEnvState,
     action: StructuredAction,
     config: ConfigType,
-) -> Tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, Dict[str, Any]]:
+) -> tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, dict[str, Any]]:
     """
     Execute single step in ARC environment with comprehensive functionality.
 
@@ -683,7 +662,7 @@ def arc_step(
         state: ArcEnvState,
         action: StructuredAction,
         config: ConfigType,
-    ) -> Tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, Dict[str, Any]]:
+     ) -> tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, dict[str, Any]]:
                Contains operation ID and selection data in type-safe format.
         config: Environment configuration (typed JaxArcConfig or Hydra DictConfig).
                Automatically converted to typed config if needed.
@@ -753,7 +732,7 @@ def arc_step(
     observation = create_observation(final_state, typed_config)
 
     # Create enhanced info dict with structured metrics for automatic logging (JAX-compatible)
-    info = {
+    info: dict[str, Any] = {
         # Scalar metrics for time-series logging (wandb, etc.)
         "metrics": {
             "similarity": final_state.similarity_score,
@@ -823,8 +802,6 @@ def arc_step(
 
         # Simple logging callback (removed complex visualization for simplicity)
         def simple_step_log(step_num, reward_val):
-            from loguru import logger
-
             logger.debug(f"Step {step_num}: reward={reward_val:.3f}")
 
         jax.debug.callback(simple_step_log, final_state.step_count, reward)
@@ -843,7 +820,7 @@ def arc_step(
 @eqx.filter_jit
 def batch_reset(
     keys: jnp.ndarray, config: ConfigType, task_data: JaxArcTask | None = None
-) -> Tuple[ArcEnvState, ObservationArray]:
+ ) -> tuple[ArcEnvState, ObservationArray]:
     """Reset multiple environments in parallel using vmap.
 
     This function provides efficient batch processing for environment resets
@@ -887,7 +864,7 @@ def batch_reset(
 @eqx.filter_jit
 def batch_step(
     states: ArcEnvState, actions: StructuredAction, config: ConfigType
-) -> Tuple[ArcEnvState, ObservationArray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
+ ) -> tuple[ArcEnvState, ObservationArray, jnp.ndarray, jnp.ndarray, dict[str, Any]]:
     """Step multiple environments in parallel using vmap.
 
     This function provides efficient batch processing for environment steps
@@ -936,7 +913,6 @@ def batch_step(
 def create_batch_episode_runner(
     config: ConfigType,
     task_data: JaxArcTask | None = None,
-    max_steps: int | None = None,
 ) -> callable:
     """Create a JIT-compiled batch episode runner function.
 
@@ -962,13 +938,12 @@ def create_batch_episode_runner(
         final_states, episode_rewards, episode_lengths = runner(keys, 50)
         ```
     """
-    typed_config = _ensure_config(config)
-    episode_max_steps = max_steps or typed_config.environment.max_episode_steps
+    _ensure_config(config)
 
     @eqx.filter_jit
     def run_batch_episodes(
         keys: jnp.ndarray, num_steps: int
-    ) -> Tuple[ArcEnvState, jnp.ndarray, jnp.ndarray]:
+    ) -> tuple[ArcEnvState, jnp.ndarray, jnp.ndarray]:
         """Run complete episodes for multiple environments."""
 
         # Initialize environments
@@ -1011,13 +986,12 @@ def create_batch_episode_runner(
 
 # Utility functions for batch processing analysis
 
-
 def analyze_batch_performance(
     config: ConfigType,
     task_data: JaxArcTask | None = None,
     batch_sizes: list[int] | None = None,
     num_steps: int = 10,
-) -> Dict[str, Any]:
+ ) -> dict[str, Any]:
     """Analyze batch processing performance across different batch sizes.
 
     This function provides comprehensive performance analysis for batch processing
@@ -1049,7 +1023,7 @@ def analyze_batch_performance(
 
     for batch_size in batch_sizes:
         # Create batch episode runner
-        runner = create_batch_episode_runner(config, task_data, num_steps)
+        runner = create_batch_episode_runner(config, task_data)
 
         # Generate keys
         keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
@@ -1058,10 +1032,8 @@ def analyze_batch_performance(
         _ = runner(keys, 1)
 
         # Time actual execution
-        import time
-
         start_time = time.perf_counter()
-        final_states, rewards, lengths = runner(keys, num_steps)
+        _, rewards, lengths = runner(keys, num_steps)
         end_time = time.perf_counter()
 
         # Calculate metrics
@@ -1091,7 +1063,6 @@ def analyze_batch_performance(
 
 # PRNG Key Management Utilities for Batch Processing
 
-
 def create_batch_keys(key: PRNGKey, batch_size: int) -> jnp.ndarray:
     """Create array of PRNG keys for batch processing.
 
@@ -1117,7 +1088,6 @@ def create_batch_keys(key: PRNGKey, batch_size: int) -> jnp.ndarray:
         ```
     """
     return jax.random.split(key, batch_size)
-
 
 def split_key_for_batch_step(key: PRNGKey, batch_size: int) -> jnp.ndarray:
     """Split PRNG key for batch step operations.
@@ -1182,10 +1152,7 @@ def validate_batch_keys(keys: jnp.ndarray, expected_batch_size: int) -> bool:
         return False
 
     # Check dtype (JAX PRNG keys are uint32)
-    if keys.dtype != jnp.uint32:
-        return False
-
-    return True
+    return keys.dtype == jnp.uint32
 
 
 def ensure_deterministic_batch_keys(
@@ -1223,7 +1190,7 @@ def ensure_deterministic_batch_keys(
     return jax.random.split(step_key, batch_size)
 
 
-def test_prng_key_splitting(batch_sizes: list[int] | None = None) -> Dict[str, Any]:
+def prng_key_splitting_demo(batch_sizes: list[int] | None = None) -> dict[str, Any]:
     """Test PRNG key splitting with different batch sizes.
 
     This function tests the PRNG key management utilities with various

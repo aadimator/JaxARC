@@ -109,4 +109,5 @@ Each configuration group corresponds to a Python configuration class:
 - `wandb/` → `WandbConfig`
 
 The main `JaxArcConfig` class combines all these configurations into a unified,
-typed configuration object that supports YAML serialization and validation.
+typed configuration object that supports YAML serialization and validation. Grid
+initialization is configured directly under `grid_initialization` in `config.yaml`.

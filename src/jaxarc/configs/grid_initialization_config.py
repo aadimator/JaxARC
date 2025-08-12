@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import equinox as eqx
-from loguru import logger
 from omegaconf import DictConfig
 
 from .validation import (
@@ -19,9 +18,6 @@ class GridInitializationConfig(eqx.Module):
     and random patterns for enhanced training diversity.
     """
 
-    # Initialization mode selection
-    mode: str = "demo"
-
     # Probability weights for mixed mode (must sum to 1.0)
     demo_weight: float = 0.25
     permutation_weight: float = 0.25
@@ -35,8 +31,7 @@ class GridInitializationConfig(eqx.Module):
     random_density: float = 0.3
     random_pattern_type: str = "sparse"
 
-    # Fallback and error handling
-    enable_fallback: bool = True
+    # Mode/fallback removed; errors will surface without silent fallback
 
     def __init__(self, **kwargs):
         permutation_types = kwargs.get(
@@ -53,7 +48,6 @@ class GridInitializationConfig(eqx.Module):
         elif not isinstance(permutation_types, tuple):
             permutation_types = ("rotate", "reflect", "color_remap")
 
-        self.mode = kwargs.get("mode", "demo")
         self.demo_weight = kwargs.get("demo_weight", 0.25)
         self.permutation_weight = kwargs.get("permutation_weight", 0.25)
         self.empty_weight = kwargs.get("empty_weight", 0.25)
@@ -61,16 +55,12 @@ class GridInitializationConfig(eqx.Module):
         self.permutation_types = permutation_types
         self.random_density = kwargs.get("random_density", 0.3)
         self.random_pattern_type = kwargs.get("random_pattern_type", "sparse")
-        self.enable_fallback = kwargs.get("enable_fallback", True)
 
     def validate(self) -> tuple[str, ...]:
         """Validate grid initialization configuration and return tuple of errors."""
         errors: list[str] = []
 
         try:
-            valid_modes = ("demo", "permutation", "empty", "random", "mixed")
-            validate_string_choice(self.mode, "mode", valid_modes)
-
             valid_pattern_types = ("sparse", "dense", "structured", "noise")
             validate_string_choice(
                 self.random_pattern_type, "random_pattern_type", valid_pattern_types
@@ -106,23 +96,10 @@ class GridInitializationConfig(eqx.Module):
                             f"Valid types: {valid_permutation_types}"
                         )
 
-            if self.mode != "mixed" and any(
-                w != 0.25
-                for w in [
-                    self.demo_weight,
-                    self.permutation_weight,
-                    self.empty_weight,
-                    self.random_weight,
-                ]
-            ):
-                logger.warning(
-                    f"Mode is '{self.mode}' but weights are specified. "
-                    "Weights are only used in 'mixed' mode."
-                )
-
-            if self.mode == "permutation" and not self.permutation_types:
+            # If permutation weight is positive, require non-empty permutation_types
+            if self.permutation_weight > 0.0 and not self.permutation_types:
                 errors.append(
-                    "permutation_types cannot be empty when mode is 'permutation'"
+                    "permutation_types cannot be empty when permutation_weight > 0"
                 )
 
         except ConfigValidationError as e:
@@ -158,7 +135,6 @@ class GridInitializationConfig(eqx.Module):
             permutation_types = ("rotate", "reflect", "color_remap")
 
         return cls(
-            mode=cfg.get("mode", "demo"),
             demo_weight=cfg.get("demo_weight", 0.25),
             permutation_weight=cfg.get("permutation_weight", 0.25),
             empty_weight=cfg.get("empty_weight", 0.25),
@@ -166,5 +142,4 @@ class GridInitializationConfig(eqx.Module):
             permutation_types=permutation_types,
             random_density=cfg.get("random_density", 0.3),
             random_pattern_type=cfg.get("random_pattern_type", "sparse"),
-            enable_fallback=cfg.get("enable_fallback", True),
         )
