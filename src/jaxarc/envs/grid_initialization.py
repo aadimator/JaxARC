@@ -11,8 +11,6 @@ robust initialization with informative error messages for debugging.
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import jax
 import jax.numpy as jnp
 from loguru import logger
@@ -24,9 +22,7 @@ from ..utils.jax_types import GridArray, MaskArray, PRNGKey
 from .grid_initialization_validation import (
     ConfigurationValidationError,
     GridInitializationError,
-    InitializationFallbackError,
     get_detailed_error_message,
-    log_initialization_debug_info,
     validate_grid_initialization_config,
     validate_task_compatibility,
 )
@@ -38,7 +34,7 @@ def initialize_working_grids_with_validation(
     key: PRNGKey,
     batch_size: int = 1,
     initial_pair_idx: int | None = None,
-) -> Tuple[GridArray, MaskArray]:
+) -> tuple[GridArray, MaskArray]:
     """Initialize working grids with full validation and error handling.
 
     This is the main entry point that includes comprehensive validation
@@ -60,8 +56,7 @@ def initialize_working_grids_with_validation(
 
     Raises:
         ConfigurationValidationError: If configuration is invalid
-        GridInitializationError: If initialization fails and fallback is disabled
-        InitializationFallbackError: If even fallback initialization fails
+    GridInitializationError: If initialization fails
     """
     # Validate configuration before proceeding
     config_errors = validate_grid_initialization_config(config)
@@ -75,9 +70,7 @@ def initialize_working_grids_with_validation(
     if task_errors:
         error_msg = f"Task incompatible with grid initialization: {task_errors}"
         logger.error(error_msg)
-        if not config.enable_fallback:
-            raise GridInitializationError(error_msg)
-        logger.warning(f"Task validation failed but fallback enabled: {task_errors}")
+        raise GridInitializationError(error_msg)
 
     try:
         # Call the JAX-compatible core function
@@ -86,8 +79,7 @@ def initialize_working_grids_with_validation(
         )
 
         # Post-process validation (outside JAX compilation)
-        mode_names = ["demo", "permutation", "empty", "random"]
-        validation_errors = []
+    # validation currently handled in core functions; skip here
 
         # Note: We can't do this validation inside JIT-compiled functions
         # So we skip it for now and rely on the core functions being correct
@@ -99,39 +91,7 @@ def initialize_working_grids_with_validation(
     except Exception as e:
         error_msg = get_detailed_error_message(e, config, "batch_initialization")
         logger.error(error_msg)
-
-        if not config.enable_fallback:
-            raise GridInitializationError(error_msg) from e
-
-        # Use fallback initialization for entire batch
-        logger.warning("Primary initialization failed, using fallback for entire batch")
-        try:
-            # Create a simple fallback without validation (to avoid JIT issues)
-            if task.num_train_pairs > 0:
-                template_grid = task.input_grids_examples[0]
-                fallback_grid = jnp.zeros_like(template_grid, dtype=jnp.int32)
-                fallback_mask = jnp.ones_like(template_grid, dtype=jnp.bool_)
-            else:
-                # If no training pairs, use the task's maximum dimensions
-                max_height, max_width = task.get_grid_shape()
-                fallback_grid = jnp.zeros((max_height, max_width), dtype=jnp.int32)
-                # Create a mask with no valid region since we have no reference
-                fallback_mask = jnp.zeros((max_height, max_width), dtype=jnp.bool_)
-
-            # Replicate fallback grid for entire batch
-            batch_grids = jnp.tile(fallback_grid[None, ...], (batch_size, 1, 1))
-            batch_masks = jnp.tile(fallback_mask[None, ...], (batch_size, 1, 1))
-
-            log_initialization_debug_info(config, task, "fallback", True, "")
-
-            return batch_grids, batch_masks
-
-        except Exception as fallback_error:
-            fallback_msg = get_detailed_error_message(
-                fallback_error, config, "fallback", "Batch fallback failed"
-            )
-            logger.error(fallback_msg)
-            raise InitializationFallbackError(fallback_msg) from fallback_error
+        raise GridInitializationError(error_msg) from e
 
 
 def initialize_working_grids(
@@ -140,7 +100,7 @@ def initialize_working_grids(
     key: PRNGKey,
     batch_size: int = 1,
     initial_pair_idx: int | None = None,
-) -> Tuple[GridArray, MaskArray]:
+) -> tuple[GridArray, MaskArray]:
     """Initialize working grids based on configuration strategy (JAX-compatible core).
 
     This is the JAX-compatible core grid initialization function that can be
@@ -209,30 +169,12 @@ def _select_batch_modes(
 
     Returns:
         JAX array of mode indices [batch_size] with values 0-3:
-        - 0: demo mode
-        - 1: permutation mode
-        - 2: empty mode
-        - 3: random mode
-
-    Note:
-        This function includes basic validation but is designed to be
-        JAX-compatible. More comprehensive validation should be done
-        before calling this function.
+        - 0: demo
+        - 1: permutation
+        - 2: empty
+        - 3: random
     """
-    # Handle single mode selection (not mixed)
-    if config.mode != "mixed":
-        mode_map = {"demo": 0, "permutation": 1, "empty": 2, "random": 3}
-
-        # Validate mode exists in map
-        if config.mode not in mode_map:
-            logger.error(f"Invalid mode '{config.mode}', defaulting to demo mode")
-            single_mode = 0  # Default to demo mode
-        else:
-            single_mode = mode_map[config.mode]
-
-        return jnp.full((batch_size,), single_mode, dtype=jnp.int32)
-
-    # Mixed mode: use probability weights
+    # Use probability weights (always-on)
     weights = jnp.array(
         [
             config.demo_weight,
@@ -257,14 +199,12 @@ def _select_batch_modes(
     )
 
     # Sample mode indices using JAX random choice
-    mode_indices = jax.random.choice(
+    return jax.random.choice(
         key,
-        a=4,  # 4 modes: demo, permutation, empty, random
+        a=4,
         shape=(batch_size,),
         p=weights,
     )
-
-    return mode_indices
 
 
 def _initialize_single_grid(
@@ -273,7 +213,7 @@ def _initialize_single_grid(
     key: PRNGKey,
     mode_idx: int,
     initial_pair_idx: int | None = None,
-) -> Tuple[GridArray, MaskArray]:
+) -> tuple[GridArray, MaskArray]:
     """Initialize a single grid using JAX-compatible mode dispatching.
 
     This is the core initialization function that is JAX-compatible
@@ -304,7 +244,7 @@ def _initialize_single_grid(
 
 def _init_demo_grid(
     task: JaxArcTask, key: PRNGKey, initial_pair_idx: int | None = None
-) -> Tuple[GridArray, MaskArray]:
+) -> tuple[GridArray, MaskArray]:
     """Initialize grid from demo input examples with support for manual pair selection.
 
     Args:
@@ -362,7 +302,7 @@ def _init_permutation_grid(
     config: GridInitializationConfig,
     key: PRNGKey,
     initial_pair_idx: int | None = None,
-) -> Tuple[GridArray, MaskArray]:
+) -> tuple[GridArray, MaskArray]:
     """Initialize grid with permuted versions of demo inputs.
 
     Args:
@@ -397,7 +337,7 @@ def _init_permutation_grid(
     return permuted_grid, base_mask
 
 
-def _init_empty_grid(task: JaxArcTask) -> Tuple[GridArray, MaskArray]:
+def _init_empty_grid(task: JaxArcTask) -> tuple[GridArray, MaskArray]:
     """Initialize completely empty grids (all zeros).
 
     Args:
@@ -443,7 +383,7 @@ def _init_empty_grid(task: JaxArcTask) -> Tuple[GridArray, MaskArray]:
 
 def _init_random_grid(
     task: JaxArcTask, config: GridInitializationConfig, key: PRNGKey
-) -> Tuple[GridArray, MaskArray]:
+) -> tuple[GridArray, MaskArray]:
     """Initialize grids with random patterns.
 
     Args:
@@ -683,13 +623,11 @@ def _apply_color_remap(grid: GridArray, key: PRNGKey) -> GridArray:
     remapped_grid = shuffled_colors[grid_clamped]
 
     # Ensure output is still within valid range (additional safety check)
-    remapped_grid = jnp.clip(remapped_grid, 0, 9)
-
-    return remapped_grid
+    return jnp.clip(remapped_grid, 0, 9)
 
 
 def _generate_sparse_pattern(
-    shape: Tuple[int, int], density: float, key: PRNGKey
+    shape: tuple[int, int], density: float, key: PRNGKey
 ) -> GridArray:
     """Generate sparse random pattern with isolated elements.
 
@@ -724,7 +662,7 @@ def _generate_sparse_pattern(
 
 
 def _generate_dense_pattern(
-    shape: Tuple[int, int], density: float, key: PRNGKey
+    shape: tuple[int, int], density: float, key: PRNGKey
 ) -> GridArray:
     """Generate dense random pattern with connected regions.
 
@@ -772,7 +710,7 @@ def _generate_dense_pattern(
 
 
 def _generate_structured_pattern(
-    shape: Tuple[int, int], density: float, key: PRNGKey
+    shape: tuple[int, int], density: float, key: PRNGKey
 ) -> GridArray:
     """Generate structured pattern with simple geometric shapes.
 
@@ -788,7 +726,7 @@ def _generate_structured_pattern(
         This function creates simple geometric patterns like lines.
         It is designed to be JAX-compatible with static shapes.
     """
-    height, width = shape
+    height, _ = shape
 
     # Validate and clamp density
     density = jnp.clip(density, 0.0, 1.0)
@@ -837,7 +775,7 @@ def _generate_structured_pattern(
 
 
 def _generate_noise_pattern(
-    shape: Tuple[int, int], density: float, key: PRNGKey
+    shape: tuple[int, int], density: float, key: PRNGKey
 ) -> GridArray:
     """Generate completely random noise pattern.
 

@@ -122,7 +122,6 @@ def setup_batched_configuration() -> DictConfig:
         "dataset=mini_arc",
         "action=raw",
         "action.selection_format=bbox",
-        "grid_initialization=mixed",  # Use mixed initialization strategy for diversity
         "wandb.enabled=false",
     ]
 
@@ -133,7 +132,6 @@ def setup_batched_configuration() -> DictConfig:
             f"[bold green]Batched Configuration Loaded[/bold green]\n\n"
             f"Dataset: {hydra_config.dataset.dataset_name}\n"
             f"Environment: {hydra_config.environment.debug_level}\n"
-            f"Grid Initialization: {hydra_config.grid_initialization.mode}\n"
             f"Action Format: {hydra_config.action.selection_format}",
             title="Batched JaxARC Configuration",
             border_style="blue",
@@ -782,17 +780,17 @@ def main():
             logger.error(f"Single-agent RL loop failed: {e}")
             console.print(f"[red]Single-agent RL loop failed: {e}[/red]")
 
-        # console.rule("[bold yellow]Batched Environment Demo")
+        console.rule("[bold yellow]Batched Environment Demo")
 
-        # # Run batched environment demo with larger batch to show performance
-        # console.print("\n[bold cyan]Running Batched Environment Demo...[/bold cyan]")
-        # try:
-        #     run_batched_demo(batch_size=100, num_steps=10)
-        # except Exception as e:
-        #     logger.error(f"Batched demo failed: {e}")
-        #     console.print(f"[red]Batched demo failed: {e}[/red]")
+        # Run batched environment demo with larger batch to show performance
+        console.print("\n[bold cyan]Running Batched Environment Demo...[/bold cyan]")
+        try:
+            run_batched_demo(batch_size=100, num_steps=10)
+        except Exception as e:
+            logger.error(f"Batched demo failed: {e}")
+            console.print(f"[red]Batched demo failed: {e}[/red]")
 
-        # console.rule("[bold green]All Demos Completed Successfully!")
+        console.rule("[bold green]All Demos Completed Successfully!")
 
     except RuntimeError as e:
         logger.error(f"Runtime error occurred: {e}")

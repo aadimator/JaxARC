@@ -41,11 +41,7 @@ class GridValidationError(GridInitializationError):
         super().__init__(message, "GRID_VALIDATION_ERROR")
 
 
-class InitializationFallbackError(GridInitializationError):
-    """Exception when fallback mechanisms fail."""
-
-    def __init__(self, message: str):
-        super().__init__(message, "FALLBACK_ERROR")
+# Fallback functionality removed
 
 
 def validate_grid_initialization_config(config: GridInitializationConfig) -> list[str]:
@@ -68,13 +64,6 @@ def validate_grid_initialization_config(config: GridInitializationConfig) -> lis
     """
     errors = []
 
-    # Validate mode
-    valid_modes = {"demo", "permutation", "empty", "random", "mixed"}
-    if config.mode not in valid_modes:
-        errors.append(
-            f"Invalid mode '{config.mode}'. Valid modes: {sorted(valid_modes)}"
-        )
-
     # Validate weights (must be non-negative and sum to 1.0 for mixed mode)
     weights = [
         ("demo_weight", config.demo_weight),
@@ -95,16 +84,15 @@ def validate_grid_initialization_config(config: GridInitializationConfig) -> lis
         elif weight_value > 1.0:
             errors.append(f"{weight_name} must be <= 1.0, got {weight_value}")
 
-    # For mixed mode, weights must sum to 1.0
-    if config.mode == "mixed":
-        total_weight = sum(weight for _, weight in weights)
-        if abs(total_weight - 1.0) > 1e-6:
-            errors.append(
-                f"In mixed mode, weights must sum to 1.0, got {total_weight:.6f}. "
-                f"Individual weights: demo={config.demo_weight}, "
-                f"permutation={config.permutation_weight}, empty={config.empty_weight}, "
-                f"random={config.random_weight}"
-            )
+    # Weights should sum to 1.0 (always)
+    total_weight = sum(weight for _, weight in weights)
+    if abs(total_weight - 1.0) > 1e-6:
+        errors.append(
+            f"Initialization weights must sum to 1.0, got {total_weight:.6f}. "
+            f"Individual weights: demo={config.demo_weight}, "
+            f"permutation={config.permutation_weight}, empty={config.empty_weight}, "
+            f"random={config.random_weight}"
+        )
 
     # Validate permutation types
     valid_permutation_types = {"rotate", "reflect", "color_remap"}
@@ -116,9 +104,10 @@ def validate_grid_initialization_config(config: GridInitializationConfig) -> lis
                 f"Valid types: {sorted(valid_permutation_types)}"
             )
 
-        if config.mode in ("permutation", "mixed") and not config.permutation_types:
+        # If permutation weight is positive, permutation_types must not be empty
+        if config.permutation_weight > 0.0 and not config.permutation_types:
             errors.append(
-                f"permutation_types cannot be empty when mode is '{config.mode}'"
+                "permutation_types cannot be empty when permutation_weight > 0"
             )
 
     # Validate random density
@@ -139,15 +128,7 @@ def validate_grid_initialization_config(config: GridInitializationConfig) -> lis
             f"Valid types: {sorted(valid_pattern_types)}"
         )
 
-    # Cross-validation warnings (not errors, but logged)
-    if config.mode != "mixed":
-        default_weights = [0.25, 0.25, 0.25, 0.25]
-        actual_weights = [w for _, w in weights]
-        if actual_weights != default_weights:
-            logger.warning(
-                f"Mode is '{config.mode}' but custom weights are specified: {actual_weights}. "
-                "Weights are only used in 'mixed' mode."
-            )
+    # No mode cross-validation anymore
 
     return errors
 
@@ -288,66 +269,7 @@ def validate_task_compatibility(task: JaxArcTask) -> list[str]:
     return errors
 
 
-def create_fallback_grid(task: JaxArcTask) -> Tuple[GridArray, MaskArray]:
-    """
-    Create a safe fallback grid when all initialization modes fail.
-
-    This function creates a minimal valid grid that satisfies ARC constraints
-    and can be used as a last resort when other initialization methods fail.
-
-    Args:
-        task: JaxArcTask to get grid dimensions
-
-    Returns:
-        Tuple of (fallback_grid, fallback_mask)
-
-    Raises:
-        InitializationFallbackError: If even fallback creation fails
-    """
-    try:
-        # Get grid shape from task
-        if hasattr(task, "get_grid_shape"):
-            grid_shape = task.get_grid_shape()
-        else:
-            # Default fallback shape
-            grid_shape = (10, 10)
-            logger.warning(
-                f"Task has no get_grid_shape method, using default {grid_shape}"
-            )
-
-        # Validate shape
-        if len(grid_shape) != 2 or grid_shape[0] <= 0 or grid_shape[1] <= 0:
-            grid_shape = (10, 10)
-            logger.warning(f"Invalid task grid shape, using default {grid_shape}")
-
-        # Create empty grid (all zeros - background color)
-        fallback_grid = jnp.zeros(grid_shape, dtype=jnp.int32)
-
-        # Create full mask (all cells valid)
-        fallback_mask = jnp.ones(grid_shape, dtype=jnp.bool_)
-
-        # Validate the fallback grid
-        validation_errors = validate_generated_grid(
-            fallback_grid, fallback_mask, task, mode="fallback"
-        )
-
-        if validation_errors:
-            raise InitializationFallbackError(
-                f"Fallback grid creation failed validation: {validation_errors}"
-            )
-
-        logger.warning(
-            f"Using fallback grid initialization with shape {grid_shape}. "
-            "This indicates a problem with the primary initialization methods."
-        )
-
-        return fallback_grid, fallback_mask
-
-    except Exception as e:
-        raise InitializationFallbackError(
-            f"Failed to create fallback grid: {e}. "
-            "This is a critical error - no valid grid could be generated."
-        ) from e
+# Fallback grid creation removed
 
 
 def log_initialization_debug_info(
@@ -368,7 +290,6 @@ def log_initialization_debug_info(
         error_message: Error message if initialization failed
     """
     debug_info = {
-        "config_mode": config.mode,
         "actual_mode": mode_used,
         "success": success,
         "task_train_pairs": getattr(task, "num_train_pairs", "unknown"),
@@ -383,7 +304,6 @@ def log_initialization_debug_info(
         else [],
         "random_density": config.random_density,
         "random_pattern_type": config.random_pattern_type,
-        "enable_fallback": config.enable_fallback,
     }
 
     if success:
@@ -412,14 +332,15 @@ def get_detailed_error_message(
     error_details = [
         f"Grid initialization failed in {mode} mode",
         f"Error: {type(error).__name__}: {error}",
-        f"Configuration: mode={config.mode}",
+        (
+            "Weights: demo={:.3f}, permutation={:.3f}, empty={:.3f}, random={:.3f}".format(
+                config.demo_weight,
+                config.permutation_weight,
+                config.empty_weight,
+                config.random_weight,
+            )
+        ),
     ]
-
-    if config.mode == "mixed":
-        error_details.append(
-            f"Weights: demo={config.demo_weight}, permutation={config.permutation_weight}, "
-            f"empty={config.empty_weight}, random={config.random_weight}"
-        )
 
     if mode in ("permutation", "mixed"):
         error_details.append(f"Permutation types: {list(config.permutation_types)}")
@@ -430,7 +351,7 @@ def get_detailed_error_message(
             f"pattern_type={config.random_pattern_type}"
         )
 
-    error_details.append(f"Fallback enabled: {config.enable_fallback}")
+    # No fallback
 
     if context:
         error_details.append(f"Context: {context}")
