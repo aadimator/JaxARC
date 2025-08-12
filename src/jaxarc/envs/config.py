@@ -29,9 +29,6 @@ from omegaconf import DictConfig
 # Import action history configuration
 from .action_history import HistoryConfig
 
-# Import episode configuration
-from .episode_manager import ArcEpisodeConfig
-
 
 # Validation utilities
 class ConfigValidationError(ValueError):
@@ -1085,7 +1082,6 @@ class JaxArcConfig(eqx.Module):
     storage: StorageConfig
     logging: LoggingConfig
     wandb: WandbConfig
-    episode: ArcEpisodeConfig
     history: HistoryConfig
 
     def __init__(
@@ -1099,7 +1095,6 @@ class JaxArcConfig(eqx.Module):
         storage: Optional[StorageConfig] = None,
         logging: Optional[LoggingConfig] = None,
         wandb: Optional[WandbConfig] = None,
-        episode: Optional[ArcEpisodeConfig] = None,
         history: Optional[HistoryConfig] = None,
     ):
         """Initialize unified configuration with optional component overrides."""
@@ -1114,7 +1109,6 @@ class JaxArcConfig(eqx.Module):
         self.storage = storage or StorageConfig()
         self.logging = logging or LoggingConfig()
         self.wandb = wandb or WandbConfig.from_hydra(DictConfig({}))
-        self.episode = episode or ArcEpisodeConfig()
         self.history = history or HistoryConfig()
 
     def __check_init__(self):
@@ -1458,9 +1452,6 @@ class JaxArcConfig(eqx.Module):
             wandb_cfg = WandbConfig.from_hydra(
                 hydra_config.get("wandb", DictConfig({}))
             )
-            episode_cfg = ArcEpisodeConfig.from_hydra(
-                hydra_config.get("episode", DictConfig({}))
-            )
             history_cfg = HistoryConfig.from_hydra(
                 hydra_config.get("history", DictConfig({}))
             )
@@ -1475,7 +1466,6 @@ class JaxArcConfig(eqx.Module):
                 storage=storage_cfg,
                 logging=logging_cfg,
                 wandb=wandb_cfg,
-                episode=episode_cfg,
                 history=history_cfg,
             )
 
