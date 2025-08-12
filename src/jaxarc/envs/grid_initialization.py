@@ -16,16 +16,79 @@ import jax.numpy as jnp
 from loguru import logger
 
 from jaxarc.configs import GridInitializationConfig
+from jaxarc.configs.validation import ConfigValidationError
 
 from ..types import JaxArcTask
 from ..utils.jax_types import GridArray, MaskArray, PRNGKey
-from .grid_initialization_validation import (
-    ConfigurationValidationError,
-    GridInitializationError,
-    get_detailed_error_message,
-    validate_grid_initialization_config,
-    validate_task_compatibility,
-)
+
+
+class GridInitializationError(Exception):
+    """Raised when grid initialization fails."""
+
+
+def validate_task_compatibility(task: JaxArcTask) -> list[str]:
+    """Validate that a task is compatible with grid initialization."""
+    errors: list[str] = []
+
+    # Validate task has required attributes
+    if not hasattr(task, "input_grids_examples"):
+        errors.append("Task missing input_grids_examples attribute")
+        return errors
+
+    if not hasattr(task, "input_masks_examples"):
+        errors.append("Task missing input_masks_examples attribute")
+        return errors
+
+    if not hasattr(task, "num_train_pairs"):
+        errors.append("Task missing num_train_pairs attribute")
+        return errors
+
+    # Validate task has at least one training pair for demo/permutation modes
+    if task.num_train_pairs <= 0:
+        errors.append(
+            f"Task has no training pairs (num_train_pairs={task.num_train_pairs}). "
+            "At least one training pair is required for demo and permutation modes."
+        )
+
+    # Validate grid shapes are consistent
+    if hasattr(task, "get_grid_shape"):
+        try:
+            grid_shape = task.get_grid_shape()
+            if len(grid_shape) != 2:
+                errors.append(f"Task grid shape must be 2D, got {grid_shape}")
+            elif grid_shape[0] <= 0 or grid_shape[1] <= 0:
+                errors.append(f"Task grid shape must be positive, got {grid_shape}")
+        except (AttributeError, TypeError, ValueError) as e:
+            errors.append(f"Failed to get task grid shape: {e}")
+
+    return errors
+
+
+def get_detailed_error_message(
+    error: Exception, config: GridInitializationConfig, mode: str, context: str = ""
+) -> str:
+    """Build a detailed error message for initialization failures."""
+    parts = [
+        f"Grid initialization failed in {mode} mode",
+        f"Error: {type(error).__name__}: {error}",
+        (
+            f"Weights: demo={config.demo_weight:.3f}, "
+            f"permutation={config.permutation_weight:.3f}, "
+            f"empty={config.empty_weight:.3f}, random={config.random_weight:.3f}"
+        ),
+    ]
+
+    if config.permutation_weight > 0.0:
+        parts.append(f"Permutation types: {list(config.permutation_types)}")
+
+    parts.append(
+        f"Random config: density={config.random_density}, pattern_type={config.random_pattern_type}"
+    )
+
+    if context:
+        parts.append(f"Context: {context}")
+
+    return " | ".join(parts)
 
 
 def initialize_working_grids_with_validation(
@@ -55,15 +118,16 @@ def initialize_working_grids_with_validation(
         - grid_masks: JAX array of corresponding masks [batch_size, height, width]
 
     Raises:
-        ConfigurationValidationError: If configuration is invalid
-    GridInitializationError: If initialization fails
+        ConfigValidationError: If configuration is invalid
+        GridInitializationError: If initialization fails
     """
     # Validate configuration before proceeding
-    config_errors = validate_grid_initialization_config(config)
+    # Prefer co-located validation on the config itself
+    config_errors = list(config.validate())
     if config_errors:
         error_msg = f"Invalid grid initialization configuration: {config_errors}"
         logger.error(error_msg)
-        raise ConfigurationValidationError(error_msg)
+        raise ConfigValidationError(error_msg)
 
     # Validate task compatibility
     task_errors = validate_task_compatibility(task)
