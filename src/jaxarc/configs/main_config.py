@@ -124,12 +124,17 @@ class JaxArcConfig(eqx.Module):
                 )
 
         expected_viz_level = self.environment.computed_visualization_level
-        if self.visualization.enabled and self.visualization.level != expected_viz_level:
+        if (
+            self.visualization.enabled
+            and self.visualization.level != expected_viz_level
+        ):
             warnings.append(
                 f"Visualization level '{self.visualization.level}' doesn't match debug level '{debug_level}' (expected '{expected_viz_level}')"
             )
 
-    def _validate_wandb_consistency(self, errors: list[str], warnings: list[str]) -> None:
+    def _validate_wandb_consistency(
+        self, errors: list[str], warnings: list[str]
+    ) -> None:
         if self.wandb.enabled:
             if not self.wandb.project_name.strip():
                 errors.append("WandB enabled but project_name is empty")
@@ -145,13 +150,19 @@ class JaxArcConfig(eqx.Module):
                 "Many operations available but few episode steps - may not explore action space effectively"
             )
 
-        if self.action.selection_format == "mask" and self.environment.max_episode_steps < 30:
+        if (
+            self.action.selection_format == "mask"
+            and self.environment.max_episode_steps < 30
+        ):
             warnings.append(
                 "Mask selection with short episodes may not provide enough time for complex selections"
             )
 
     def _validate_reward_consistency(self, warnings: list[str]) -> None:
-        if self.reward.reward_on_submit_only and self.environment.max_episode_steps < 10:
+        if (
+            self.reward.reward_on_submit_only
+            and self.environment.max_episode_steps < 10
+        ):
             warnings.append(
                 "Submit-only rewards with very few steps may not provide enough exploration time"
             )
@@ -181,7 +192,9 @@ class JaxArcConfig(eqx.Module):
                 )
 
     def _validate_logging_consistency(self, warnings: list[str]) -> None:
-        if getattr(self.logging, "structured_logging", False) and self.logging.log_format not in [
+        if getattr(
+            self.logging, "structured_logging", False
+        ) and self.logging.log_format not in [
             "json",
             "structured",
         ]:
@@ -274,8 +287,12 @@ class JaxArcConfig(eqx.Module):
             dataset_cfg = DatasetConfig.from_hydra(
                 hydra_config.get("dataset", DictConfig({}))
             )
-            action_cfg = ActionConfig.from_hydra(hydra_config.get("action", DictConfig({})))
-            reward_cfg = RewardConfig.from_hydra(hydra_config.get("reward", DictConfig({})))
+            action_cfg = ActionConfig.from_hydra(
+                hydra_config.get("action", DictConfig({}))
+            )
+            reward_cfg = RewardConfig.from_hydra(
+                hydra_config.get("reward", DictConfig({}))
+            )
             grid_init_cfg = GridInitializationConfig.from_hydra(
                 hydra_config.get("grid_initialization", DictConfig({}))
             )
@@ -288,8 +305,12 @@ class JaxArcConfig(eqx.Module):
             logging_cfg = LoggingConfig.from_hydra(
                 hydra_config.get("logging", DictConfig({}))
             )
-            wandb_cfg = WandbConfig.from_hydra(hydra_config.get("wandb", DictConfig({})))
-            history_cfg = HistoryConfig.from_hydra(hydra_config.get("history", DictConfig({})))
+            wandb_cfg = WandbConfig.from_hydra(
+                hydra_config.get("wandb", DictConfig({}))
+            )
+            history_cfg = HistoryConfig.from_hydra(
+                hydra_config.get("history", DictConfig({}))
+            )
 
             return cls(
                 environment=environment_cfg,

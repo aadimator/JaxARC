@@ -35,10 +35,11 @@ def _extract_grid_data(
         ValueError: If input type is not supported
     """
 
-    
     # Check for Grid type by duck typing (more robust than isinstance)
-    if hasattr(grid_input, 'data') and hasattr(grid_input, 'mask'):
-        return serialize_jax_array(grid_input.data), serialize_jax_array(grid_input.mask)
+    if hasattr(grid_input, "data") and hasattr(grid_input, "mask"):
+        return serialize_jax_array(grid_input.data), serialize_jax_array(
+            grid_input.mask
+        )
     if isinstance(grid_input, (jnp.ndarray, np.ndarray)):
         return serialize_jax_array(grid_input), None
 
@@ -179,29 +180,29 @@ def infer_fill_color_from_grids(
 
 def get_info_metric(info: dict, key: str, default=None):
     """Extract metric value from info dict, supporting both old and new structures.
-    
+
     This function handles the transition from storing metrics directly in the info
     dictionary to storing them nested under info['metrics']. It prioritizes the
     nested structure when both are present.
-    
+
     Args:
         info: Info dictionary from environment step
         key: Metric key to extract
         default: Default value if metric not found
-        
+
     Returns:
         Metric value, converted to appropriate type
     """
     # First check if it's in info.metrics (higher priority - new format)
     if "metrics" in info and key in info["metrics"]:
         val = info["metrics"][key]
-        return float(val) if hasattr(val, 'item') else val
-    
+        return float(val) if hasattr(val, "item") else val
+
     # Then check if it's directly in info (lower priority - old format)
     if key in info:
         val = info[key]
-        return float(val) if hasattr(val, 'item') else val
-    
+        return float(val) if hasattr(val, "item") else val
+
     return default
 
 

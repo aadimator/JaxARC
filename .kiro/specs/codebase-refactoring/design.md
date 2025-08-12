@@ -2,16 +2,24 @@
 
 ## Overview
 
-This design document outlines a comprehensive refactoring strategy for the JaxARC codebase to eliminate code duplication, reduce complexity, and modernize the architecture using Equinox and JAXTyping. The refactoring will maintain backward compatibility while significantly improving code maintainability, type safety, and JAX integration.
+This design document outlines a comprehensive refactoring strategy for the
+JaxARC codebase to eliminate code duplication, reduce complexity, and modernize
+the architecture using Equinox and JAXTyping. The refactoring will maintain
+backward compatibility while significantly improving code maintainability, type
+safety, and JAX integration.
 
 ## Architecture
 
 ### Core Principles
 
-1. **Single Source of Truth**: Eliminate all code duplication by centralizing shared functionality
-2. **Modern JAX Patterns**: Leverage Equinox and JAXTyping for better JAX integration and type safety
-3. **Hydra-First Configuration**: Simplify configuration management by fully leveraging Hydra's capabilities
-4. **Clean Separation of Concerns**: Ensure each module has a single, clear responsibility
+1. **Single Source of Truth**: Eliminate all code duplication by centralizing
+   shared functionality
+2. **Modern JAX Patterns**: Leverage Equinox and JAXTyping for better JAX
+   integration and type safety
+3. **Hydra-First Configuration**: Simplify configuration management by fully
+   leveraging Hydra's capabilities
+4. **Clean Separation of Concerns**: Ensure each module has a single, clear
+   responsibility
 5. **Functional Core**: Maintain pure functional patterns for JAX compatibility
 
 ### High-Level Architecture Changes
@@ -84,23 +92,23 @@ from jaxarc.utils.jax_types import GridArray, MaskArray, SimilarityScore
 
 class ArcEnvState(eqx.Module):
     """Equinox-based ARC environment state with automatic PyTree registration."""
-    
+
     # Core ARC state
     task_data: JaxArcTask
     working_grid: GridArray
     working_grid_mask: MaskArray
     target_grid: GridArray
-    
+
     # Episode management
     step_count: int
     episode_done: bool
     current_example_idx: int
-    
+
     # Grid operations
     selected: MaskArray
     clipboard: GridArray
     similarity_score: SimilarityScore
-    
+
     def __check_init__(self):
         """Equinox validation method."""
         # JAXTyping will handle shape validation automatically
@@ -119,10 +127,10 @@ def arc_step(
 ) -> Tuple[ArcEnvState, jnp.ndarray, jnp.ndarray, jnp.ndarray, Dict[str, Any]]:
     """Simplified arc_step that delegates to action handlers."""
     typed_config = _ensure_config(config)
-    
+
     # Get the correct handler based on config
     handler = get_action_handler(typed_config.action.selection_format)
-    
+
     # Extract action data based on format
     if typed_config.action.selection_format == "point":
         action_data = jnp.array(action["point"])
@@ -130,20 +138,20 @@ def arc_step(
         action_data = jnp.array(action["bbox"])
     else:  # mask
         action_data = action["mask"].flatten()
-    
+
     # Handler creates standardized selection mask
     selection_mask = handler(action_data, state.working_grid_mask)
-    
+
     # Create standardized action
     standard_action = {
         "selection": selection_mask,
         "operation": action["operation"]
     }
-    
+
     # Update state and execute operation
     state = state.replace(selected=standard_action["selection"])
     new_state = execute_grid_operation(state, standard_action["operation"])
-    
+
     # Calculate reward, done, observation (unchanged logic)
     # ...
 ```
@@ -155,17 +163,17 @@ def arc_step(
 ```python
 class ArcDataParserBase:
     """Base parser with all common functionality."""
-    
+
     def _process_training_pairs(self, task_data: dict) -> tuple:
         """Common training pair processing logic."""
         # Move all shared logic here from specific parsers
         pass
-    
+
     def _pad_and_create_masks(self, grids: list) -> tuple:
         """Common padding and mask creation logic."""
         # Move all shared logic here from specific parsers
         pass
-    
+
     def _validate_grid_colors(self, grid: jnp.ndarray) -> bool:
         """Common grid color validation logic."""
         # Move all shared logic here from specific parsers
@@ -177,7 +185,7 @@ class ArcDataParserBase:
 ```python
 class ArcAgiParser(ArcDataParserBase):
     """Minimal ARC-AGI specific implementation."""
-    
+
     def _load_and_cache_tasks(self) -> None:
         """ARC-AGI specific loading logic only."""
         # Only dataset-specific logic here
@@ -187,9 +195,11 @@ class ArcAgiParser(ArcDataParserBase):
 
 ### 5. Hydra-First Configuration
 
-**Eliminate Factory Functions**: Remove most factory functions from `factory.py` and rely on Hydra composition.
+**Eliminate Factory Functions**: Remove most factory functions from `factory.py`
+and rely on Hydra composition.
 
 **Enhanced Hydra Structure**:
+
 ```yaml
 # conf/presets/minimal.yaml (replaces create_raw_config)
 defaults:
@@ -205,6 +215,7 @@ defaults:
 ```
 
 **Usage**:
+
 ```python
 # Instead of create_raw_config()
 @hydra.main(config_path="conf", config_name="presets/minimal")
@@ -260,7 +271,7 @@ def compute_similarity(grid1: jnp.ndarray, grid2: jnp.ndarray) -> jnp.ndarray:
 
 # After (precise type annotations)
 def compute_similarity(
-    grid1: GridArray, 
+    grid1: GridArray,
     grid2: GridArray
 ) -> SimilarityScore:
 ```
@@ -313,7 +324,7 @@ except ValueError as e:
 class ActionConfigSchema:
     selection_format: Literal["point", "bbox", "mask"]
     num_operations: int = field(validator=lambda x: x > 0)
-    
+
 # Automatic validation at config creation time
 ```
 
@@ -328,7 +339,8 @@ class ActionConfigSchema:
 ### 2. Integration Testing
 
 - **Hydra Configuration Tests**: Verify all config combinations work
-- **Action Handler Tests**: Ensure simplified action handling maintains functionality
+- **Action Handler Tests**: Ensure simplified action handling maintains
+  functionality
 - **Parser Tests**: Validate DRY parser refactoring doesn't break data loading
 
 ### 3. JAX Transformation Tests
@@ -353,31 +365,37 @@ def test_grid_operations_preserve_shape(grid: GridArray):
 ## Implementation Phases
 
 ### Phase 1: Foundation (Requirements 1-2)
+
 - Move ArcEnvState to centralized location
 - Add JAXTyping annotations to core types
 - Simplify arc_step function to use action handlers
 
 ### Phase 2: Parser Consolidation (Requirement 3)
+
 - Move common methods to base parser
 - Update specific parsers to use inheritance
 - Add comprehensive parser tests
 
 ### Phase 3: Equinox Integration (Requirement 5)
+
 - Convert ArcEnvState to Equinox module
 - Add Equinox utilities
 - Migrate state management patterns
 
 ### Phase 4: Configuration Simplification (Requirement 4)
+
 - Create Hydra preset configurations
 - Remove redundant factory functions
 - Enhance structured config validation
 
 ### Phase 5: Type Safety Enhancement (Requirement 6)
+
 - Add comprehensive JAXTyping annotations
 - Implement runtime type checking
 - Add property-based tests
 
 ### Phase 6: Code Organization (Requirement 7-8)
+
 - Reorganize modules for clarity
 - Add comprehensive documentation
 - Final cleanup and optimization
@@ -405,21 +423,25 @@ def test_grid_operations_preserve_shape(grid: GridArray):
 ## Benefits
 
 ### Code Quality
+
 - **50% reduction** in code duplication
 - **Improved type safety** with JAXTyping runtime validation
 - **Better error messages** from Equinox and structured configs
 
 ### Developer Experience
+
 - **Simplified configuration** through Hydra presets
 - **Cleaner action handling** with single responsibility handlers
 - **Modern JAX patterns** following ecosystem best practices
 
 ### Performance
+
 - **Better JIT compilation** with Equinox PyTrees
 - **Optimized transformations** with proper type annotations
 - **Reduced memory overhead** from eliminating duplicate code
 
 ### Maintainability
+
 - **Single source of truth** for all shared functionality
 - **Clear module boundaries** with well-defined responsibilities
 - **Comprehensive test coverage** with property-based testing

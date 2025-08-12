@@ -56,9 +56,7 @@ class HistoryConfig(eqx.Module):
         """Validate configuration parameters."""
         if self.max_history_length <= 0:
             msg = f"max_history_length must be positive, got {self.max_history_length}"
-            raise ValueError(
-                msg
-            )
+            raise ValueError(msg)
 
         if self.max_history_length > 10000:
             # Warn about very large history lengths

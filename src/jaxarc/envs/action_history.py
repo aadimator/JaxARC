@@ -22,13 +22,14 @@ Examples:
         enabled=True,
         max_history_length=1000,
         store_selection_data=True,
-        compress_repeated_actions=True
+        compress_repeated_actions=True,
     )
 
     tracker = ActionHistoryTracker()
 
     # Add action to history
     from jaxarc.envs.actions import create_mask_action
+
     action = create_mask_action(operation=operation_id, selection=selection_data)
     new_state = tracker.add_action(state, action, config)
 
@@ -334,24 +335,23 @@ class ActionRecord:
             coords = record.get_selection_coordinates("point")  # [row, col]
 
             # Get bbox coordinates
-            coords = record.get_selection_coordinates("bbox")   # [r1, c1, r2, c2]
+            coords = record.get_selection_coordinates("bbox")  # [r1, c1, r2, c2]
 
             # Get mask selection indices
-            coords = record.get_selection_coordinates("mask")   # [idx1, idx2, ...]
+            coords = record.get_selection_coordinates("mask")  # [idx1, idx2, ...]
             ```
         """
         if selection_format == "point":
             return self.selection_data[:2]  # [row, col]
-        elif selection_format == "bbox":
+        if selection_format == "bbox":
             return self.selection_data[:4]  # [r1, c1, r2, c2]
-        elif selection_format == "mask":
+        if selection_format == "mask":
             # Return indices of selected cells (where mask > 0.5)
             return jnp.where(
                 self.selection_data > 0.5, size=self.selection_data.shape[0]
             )[0]
-        else:
-            error_msg = f"Unknown selection format: {selection_format}"
-            raise ValueError(error_msg)
+        error_msg = f"Unknown selection format: {selection_format}"
+        raise ValueError(error_msg)
 
     def get_metadata_summary(self) -> dict:
         """Get a summary of the record metadata.
@@ -408,7 +408,7 @@ class ActionRecord:
         selection_format: str = "mask",
         max_grid_height: int = 30,
         max_grid_width: int = 30,
-    ) -> "ActionRecord":
+    ) -> ActionRecord:
         """Create an invalid (padding) record for JAX compatibility.
 
         This static method creates a properly sized but invalid record
@@ -442,7 +442,7 @@ class ActionRecord:
         selection_format: str = "mask",
         max_grid_height: int = 30,
         max_grid_width: int = 30,
-    ) -> "ActionRecord":
+    ) -> ActionRecord:
         """Create an ActionRecord from an action dictionary.
 
         This static method provides a convenient way to create ActionRecord
@@ -463,7 +463,12 @@ class ActionRecord:
             ```python
             # Create from point action
             from jaxarc.envs.actions import PointAction, MaskAction
-            action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(5, dtype=jnp.int32), col=jnp.array(10, dtype=jnp.int32))
+
+            action = PointAction(
+                operation=jnp.array(15, dtype=jnp.int32),
+                row=jnp.array(5, dtype=jnp.int32),
+                col=jnp.array(10, dtype=jnp.int32),
+            )
             record = ActionRecord.create_from_action(
                 action, timestamp=100, pair_index=0, selection_format="point"
             )
@@ -521,53 +526,46 @@ class ActionRecord:
 
         # Handle structured actions
         if hasattr(action, "operation"):
-            from .actions import PointAction, BboxAction, MaskAction
+            from .actions import BboxAction, MaskAction, PointAction
 
             if selection_format == "point":
                 if isinstance(action, PointAction):
                     return jnp.array([action.row, action.col], dtype=jnp.float32)
-                else:
-                    # For non-point actions in point format, use zeros
-                    return jnp.zeros(2, dtype=jnp.float32)
+                # For non-point actions in point format, use zeros
+                return jnp.zeros(2, dtype=jnp.float32)
 
-            elif selection_format == "bbox":
+            if selection_format == "bbox":
                 if isinstance(action, BboxAction):
                     return jnp.array(
                         [action.r1, action.c1, action.r2, action.c2], dtype=jnp.float32
                     )
-                else:
-                    # For non-bbox actions in bbox format, use zeros
-                    return jnp.zeros(4, dtype=jnp.float32)
+                # For non-bbox actions in bbox format, use zeros
+                return jnp.zeros(4, dtype=jnp.float32)
 
-            elif selection_format == "mask":
+            if selection_format == "mask":
                 if isinstance(action, MaskAction):
                     flattened = action.selection.flatten().astype(jnp.float32)
                     if flattened.shape[0] == selection_size:
                         return flattened
-                    elif flattened.shape[0] < selection_size:
+                    if flattened.shape[0] < selection_size:
                         padded = jnp.zeros(selection_size, dtype=jnp.float32)
                         return padded.at[: flattened.shape[0]].set(flattened)
-                    else:
-                        return flattened[:selection_size]
-                else:
-                    # For non-mask actions, convert to mask using to_selection_mask
-                    grid_shape = (max_grid_height, max_grid_width)
-                    mask = action.to_selection_mask(grid_shape)
-                    flattened = mask.flatten().astype(jnp.float32)
-                    if flattened.shape[0] == selection_size:
-                        return flattened
-                    elif flattened.shape[0] < selection_size:
-                        padded = jnp.zeros(selection_size, dtype=jnp.float32)
-                        return padded.at[: flattened.shape[0]].set(flattened)
-                    else:
-                        return flattened[:selection_size]
-            else:
-                raise ValueError(f"Unknown selection format: {selection_format}")
+                    return flattened[:selection_size]
+                # For non-mask actions, convert to mask using to_selection_mask
+                grid_shape = (max_grid_height, max_grid_width)
+                mask = action.to_selection_mask(grid_shape)
+                flattened = mask.flatten().astype(jnp.float32)
+                if flattened.shape[0] == selection_size:
+                    return flattened
+                if flattened.shape[0] < selection_size:
+                    padded = jnp.zeros(selection_size, dtype=jnp.float32)
+                    return padded.at[: flattened.shape[0]].set(flattened)
+                return flattened[:selection_size]
+            raise ValueError(f"Unknown selection format: {selection_format}")
 
-        else:
-            raise ValueError(
-                f"Unsupported action type: {type(action)}. Only structured actions are supported."
-            )
+        raise ValueError(
+            f"Unsupported action type: {type(action)}. Only structured actions are supported."
+        )
 
 
 # =============================================================================
@@ -580,7 +578,7 @@ def validate_action_record_array(
     selection_format: str = "mask",
     max_grid_height: int = 30,
     max_grid_width: int = 30,
-) -> Bool[Array, "..."]:
+) -> Bool[Array, ...]:
     """Validate an array of action records.
 
     This function validates each record in an array of action records,
@@ -873,7 +871,12 @@ class ActionHistoryTracker:
 
         # Add action to history (preserves original format)
         from jaxarc.envs.actions import PointAction
-        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(5, dtype=jnp.int32), col=jnp.array(10, dtype=jnp.int32))  # Point action
+
+        action = PointAction(
+            operation=jnp.array(15, dtype=jnp.int32),
+            row=jnp.array(5, dtype=jnp.int32),
+            col=jnp.array(10, dtype=jnp.int32),
+        )  # Point action
         new_state = tracker.add_action(state, action, config)
 
         # Get recent actions with original selection data
@@ -914,11 +917,22 @@ class ActionHistoryTracker:
             ```python
             # Add point-based action (stores [row, col] directly)
             from jaxarc.envs.actions import PointAction, BboxAction, MaskAction
-            action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(5, dtype=jnp.int32), col=jnp.array(10, dtype=jnp.int32))
+
+            action = PointAction(
+                operation=jnp.array(15, dtype=jnp.int32),
+                row=jnp.array(5, dtype=jnp.int32),
+                col=jnp.array(10, dtype=jnp.int32),
+            )
             new_state = tracker.add_action(state, action, config, "point", 5, 5)
 
             # Add bbox-based action (stores [r1, c1, r2, c2] directly)
-            action = BboxAction(operation=jnp.array(20, dtype=jnp.int32), r1=jnp.array(1, dtype=jnp.int32), c1=jnp.array(2, dtype=jnp.int32), r2=jnp.array(8, dtype=jnp.int32), c2=jnp.array(9, dtype=jnp.int32))
+            action = BboxAction(
+                operation=jnp.array(20, dtype=jnp.int32),
+                r1=jnp.array(1, dtype=jnp.int32),
+                c1=jnp.array(2, dtype=jnp.int32),
+                r2=jnp.array(8, dtype=jnp.int32),
+                c2=jnp.array(9, dtype=jnp.int32),
+            )
             new_state = tracker.add_action(state, action, config, "bbox", 30, 30)
 
             # Add mask-based action (stores flattened mask)
@@ -1182,7 +1196,7 @@ class ActionHistoryTracker:
 
             summary.update(
                 {
-                    "unique_operations": int(len(jnp.unique(operations))),
+                    "unique_operations": len(jnp.unique(operations)),
                     "most_recent_operation": int(operations[-1])
                     if len(operations) > 0
                     else -1,
@@ -1243,11 +1257,22 @@ def add_action_to_state(
         ```python
         # Point action with MiniARC
         from jaxarc.envs.actions import PointAction, BboxAction
-        action = PointAction(operation=jnp.array(15, dtype=jnp.int32), row=jnp.array(2, dtype=jnp.int32), col=jnp.array(3, dtype=jnp.int32))
+
+        action = PointAction(
+            operation=jnp.array(15, dtype=jnp.int32),
+            row=jnp.array(2, dtype=jnp.int32),
+            col=jnp.array(3, dtype=jnp.int32),
+        )
         new_state = add_action_to_state(state, action, config)
 
         # Bbox action with full ARC
-        action = BboxAction(operation=jnp.array(20, dtype=jnp.int32), r1=jnp.array(1, dtype=jnp.int32), c1=jnp.array(2, dtype=jnp.int32), r2=jnp.array(8, dtype=jnp.int32), c2=jnp.array(9, dtype=jnp.int32))
+        action = BboxAction(
+            operation=jnp.array(20, dtype=jnp.int32),
+            r1=jnp.array(1, dtype=jnp.int32),
+            c1=jnp.array(2, dtype=jnp.int32),
+            r2=jnp.array(8, dtype=jnp.int32),
+            c2=jnp.array(9, dtype=jnp.int32),
+        )
         new_state = add_action_to_state(state, action, config)
         ```
     """

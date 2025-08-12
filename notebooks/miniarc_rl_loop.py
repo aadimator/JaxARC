@@ -60,7 +60,6 @@ from jaxarc.envs.actions import StructuredAction
 from jaxarc.envs.functional import batch_reset, batch_step
 from jaxarc.parsers import MiniArcParser
 from jaxarc.state import ArcEnvState
-from jaxarc.types import Grid
 from jaxarc.utils.config import get_config
 from jaxarc.utils.logging import ExperimentLogger
 
@@ -169,7 +168,7 @@ def setup_experiment_logger(config: JaxArcConfig) -> ExperimentLogger:
 
     # Get handler info for display
     handler_names = list(experiment_logger.handlers.keys())
-    
+
     console.print(
         Panel(
             f"[bold green]Experiment Logger Initialized[/bold green]\n\n"
@@ -327,11 +326,15 @@ def run_rl_loop(
     task_id_index = jr.randint(task_key, shape=(), minval=0, maxval=len(training_tasks))
     task_id = training_tasks[int(task_id_index)]
     task = parser.get_task_by_id(task_id)
-    logger.info(f"Selected Task ID: {task.get_task_id()} with {task.num_train_pairs} training pairs")
+    logger.info(
+        f"Selected Task ID: {task.get_task_id()} with {task.num_train_pairs} training pairs"
+    )
 
     # Start a new run for the entire experiment
-    if 'svg' in experiment_logger.handlers:
-        experiment_logger.handlers['svg'].start_run(f"random_agent_run_{int(time.time())}")
+    if "svg" in experiment_logger.handlers:
+        experiment_logger.handlers["svg"].start_run(
+            f"random_agent_run_{int(time.time())}"
+        )
 
     for episode_idx in range(num_episodes):
         console.rule(f"[bold cyan]Episode {episode_idx + 1}/{num_episodes}")
@@ -346,25 +349,25 @@ def run_rl_loop(
         agent_state = agent.init_agent(agent_key)
 
         # Start episode logging
-        if 'svg' in experiment_logger.handlers:
-            experiment_logger.handlers['svg'].start_episode(episode_idx)
+        if "svg" in experiment_logger.handlers:
+            experiment_logger.handlers["svg"].start_episode(episode_idx)
 
         # Log task information at episode start
         task_stats = {
-            'max_grid_height': config.dataset.max_grid_height,
-            'max_grid_width': config.dataset.max_grid_width,
-            'task_complexity': task.num_train_pairs + task.num_test_pairs,
+            "max_grid_height": config.dataset.max_grid_height,
+            "max_grid_width": config.dataset.max_grid_width,
+            "task_complexity": task.num_train_pairs + task.num_test_pairs,
         }
-        
+
         task_data_for_logging = {
-            'task_id': task_id,
-            'task_object': task,
-            'episode_num': episode_idx,
-            'num_train_pairs': task.num_train_pairs,
-            'num_test_pairs': task.num_test_pairs,
-            'task_stats': task_stats,
+            "task_id": task_id,
+            "task_object": task,
+            "episode_num": episode_idx,
+            "num_train_pairs": task.num_train_pairs,
+            "num_test_pairs": task.num_test_pairs,
+            "task_stats": task_stats,
         }
-        
+
         experiment_logger.log_task_start(task_data_for_logging, show_test=True)
 
         # Debug: Show allowed operations for this episode
@@ -444,7 +447,7 @@ def run_rl_loop(
                         "similarity": float(info_log.get("similarity", 0.0)),
                         "episode": episode_idx,
                         "operation": int(action.operation),
-                    }
+                    },
                 },
                 "task_id": task_id,
                 "task_pair_index": state.current_example_idx,
@@ -457,6 +460,7 @@ def run_rl_loop(
             except Exception as e:
                 logger.warning(f"Step logging failed: {e}")
                 import traceback
+
                 logger.debug(f"Step logging error details: {traceback.format_exc()}")
 
             logger.info(
@@ -544,20 +548,22 @@ class BatchedRandomAgent:
 
         # Split keys for operations and coordinates
         op_keys = keys  # Use the same keys for both operations and coordinates
-        
+
         # Get allowed operations for each environment in the batch
         def get_allowed_ops_single(state):
             return self.action_controller.get_allowed_operations(state, config.action)
 
         # Vectorize over the batch dimension
         get_allowed_ops_batch = jax.vmap(get_allowed_ops_single)
-        allowed_masks = get_allowed_ops_batch(states)  # Shape: (batch_size, num_operations)
+        allowed_masks = get_allowed_ops_batch(
+            states
+        )  # Shape: (batch_size, num_operations)
 
         # Select random operations and coordinates for each environment
         def select_action_single(key, allowed_mask):
             # Split the key for operation selection and coordinate generation
             op_key, coord_key = jr.split(key, 2)
-            
+
             # Get indices of allowed operations
             allowed_indices = jnp.where(
                 allowed_mask, size=allowed_mask.shape[0], fill_value=-1
@@ -576,20 +582,20 @@ class BatchedRandomAgent:
             operation = jax.lax.cond(
                 num_allowed > 0, select_from_allowed, fallback_operation
             )
-            
+
             # Generate coordinates
             k1, k2, k3, k4 = jr.split(coord_key, 4)
             r1 = jr.randint(k1, shape=(), minval=0, maxval=self.grid_height)
             c1 = jr.randint(k2, shape=(), minval=0, maxval=self.grid_width)
             r2 = jr.randint(k3, shape=(), minval=0, maxval=self.grid_height)
             c2 = jr.randint(k4, shape=(), minval=0, maxval=self.grid_width)
-            
+
             # Ensure proper ordering
             min_r = jnp.minimum(r1, r2)
             min_c = jnp.minimum(c1, c2)
             max_r = jnp.maximum(r1, r2)
             max_c = jnp.maximum(c1, c2)
-            
+
             return operation, min_r, min_c, max_r, max_c
 
         # Vectorize action selection over the batch
@@ -597,9 +603,7 @@ class BatchedRandomAgent:
         operations, r1, c1, r2, c2 = select_actions_batch(op_keys, allowed_masks)
 
         # Create batched bbox actions
-        return create_bbox_action(
-            operation=operations, r1=r1, c1=c1, r2=r2, c2=c2
-        )
+        return create_bbox_action(operation=operations, r1=r1, c1=c1, r2=r2, c2=c2)
 
 
 def run_batched_demo(batch_size: int = 1000, num_steps: int = 10):
@@ -667,7 +671,7 @@ def run_batched_demo(batch_size: int = 1000, num_steps: int = 10):
     # Run batched steps
     logger.info("Running batched steps...")
     step_times = []
-    
+
     # Initialize variables in case all steps fail
     rewards = jnp.zeros(batch_size)
     dones = jnp.zeros(batch_size, dtype=bool)
@@ -679,10 +683,12 @@ def run_batched_demo(batch_size: int = 1000, num_steps: int = 10):
             # Generate new keys for this step
             step_key = jr.PRNGKey(42 + step)
             step_keys = jr.split(step_key, batch_size)  # Shape: [batch_size, 2]
-            
+
             # Debug: Check key shapes
             logger.debug(f"Step {step + 1}: step_keys shape = {step_keys.shape}")
-            logger.debug(f"Step {step + 1}: states.working_grid shape = {states.working_grid.shape}")
+            logger.debug(
+                f"Step {step + 1}: states.working_grid shape = {states.working_grid.shape}"
+            )
 
             # Select actions for all environments
             actions = agent.select_batch_actions(step_keys, states, typed_config)

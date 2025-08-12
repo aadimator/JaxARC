@@ -135,7 +135,9 @@ class GridInitializationConfig(eqx.Module):
         try:
             hash(self)
         except TypeError as e:
-            msg = f"GridInitializationConfig must be hashable for JAX compatibility: {e}"
+            msg = (
+                f"GridInitializationConfig must be hashable for JAX compatibility: {e}"
+            )
             raise ValueError(msg) from e
 
     @classmethod

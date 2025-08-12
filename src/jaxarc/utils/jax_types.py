@@ -247,12 +247,11 @@ def get_selection_data_size(
     """
     if selection_format == "point":
         return 2  # [row, col]
-    elif selection_format == "bbox":
+    if selection_format == "bbox":
         return 4  # [r1, c1, r2, c2]
-    elif selection_format == "mask":
+    if selection_format == "mask":
         return max_grid_height * max_grid_width  # flattened mask
-    else:
-        raise ValueError(f"Unknown selection format: {selection_format}")
+    raise ValueError(f"Unknown selection format: {selection_format}")
 
 
 def get_action_record_fields(

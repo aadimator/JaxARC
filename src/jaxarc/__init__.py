@@ -27,6 +27,7 @@ Examples:
 
     # Take a step with structured action
     from jaxarc.envs import create_bbox_action
+
     action = create_bbox_action(operation=0, r1=5, c1=5, r2=7, c2=7)
     state, obs, reward, info = env.step(action)
     ```

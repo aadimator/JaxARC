@@ -69,7 +69,6 @@ __all__ = [
     "arc_reset",
     "arc_step",
     "bbox_handler",
-
     "create_bbox_action",
     "create_mask_action",
     "create_point_action",

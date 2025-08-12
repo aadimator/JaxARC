@@ -12,7 +12,6 @@ import drawsvg  # type: ignore[import-untyped]
 import jax.numpy as jnp
 import numpy as np
 
-from .constants import ARC_COLOR_PALETTE
 from .svg_core import _draw_dotted_squircle, draw_grid_svg
 from .utils import _extract_grid_data, _extract_valid_region
 

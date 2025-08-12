@@ -6,6 +6,6 @@ enabled: true
 max_history_length: 200
 
 # Storage options
-store_selection_data: false  # Save memory
+store_selection_data: false # Save memory
 store_intermediate_grids: false
 compress_repeated_actions: true

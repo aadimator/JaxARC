@@ -119,6 +119,7 @@ def load_and_explore_dataset(config):
     try:
         # Initialize the ARC-AGI parser
         from jaxarc.configs import DatasetConfig
+
         typed_dataset_config = DatasetConfig.from_hydra(config.dataset)
         parser = ArcAgiParser(typed_dataset_config)
 

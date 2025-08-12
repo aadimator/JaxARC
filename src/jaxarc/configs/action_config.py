@@ -40,9 +40,7 @@ class ActionConfig(eqx.Module):
 
     def __init__(self, **kwargs):
         allowed_operations = kwargs.get("allowed_operations")
-        if allowed_operations is not None and not isinstance(
-            allowed_operations, tuple
-        ):
+        if allowed_operations is not None and not isinstance(allowed_operations, tuple):
             allowed_operations = (
                 tuple(allowed_operations) if allowed_operations else None
             )
@@ -91,7 +89,9 @@ class ActionConfig(eqx.Module):
                                 f"allowed_operations[{i}] must be in range [0, {self.max_operations})"
                             )
 
-                    if len(set(self.allowed_operations)) != len(self.allowed_operations):
+                    if len(set(self.allowed_operations)) != len(
+                        self.allowed_operations
+                    ):
                         duplicates = [
                             op
                             for op in set(self.allowed_operations)

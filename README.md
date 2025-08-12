@@ -93,7 +93,7 @@ dataset_config = DatasetConfig(
     max_grid_width=5,
     max_colors=10,
     background_color=0,
-    task_split="train"
+    task_split="train",
 )
 parser = MiniArcParser(dataset_config)
 

@@ -67,7 +67,7 @@ class ArcDataParserBase(ABC):
 
         # Store the typed configuration
         self.config = config
-        
+
         # Extract commonly used values for convenience
         self.max_grid_height = config.max_grid_height
         self.max_grid_width = config.max_grid_width
@@ -80,10 +80,10 @@ class ArcDataParserBase(ABC):
 
     def get_data_path(self) -> str:
         """Get the actual data path based on dataset type and split.
-        
+
         This method should be overridden by subclasses to handle dataset-specific
         path resolution based on the task_split.
-        
+
         Returns:
             str: The resolved path to the data directory
         """
@@ -93,36 +93,38 @@ class ArcDataParserBase(ABC):
     @classmethod
     def from_hydra(cls, hydra_config):
         """Create parser from Hydra configuration for backward compatibility.
-        
+
         This class method provides backward compatibility with existing Hydra-based
         configurations while internally using typed DatasetConfig objects for
         better type safety and validation.
-        
+
         Args:
             hydra_config: Raw Hydra DictConfig for dataset configuration containing
                          fields like dataset_path, max_grid_height, max_grid_width,
                          and other dataset-specific settings.
-            
+
         Returns:
             Parser instance initialized with typed DatasetConfig converted from
             the provided Hydra configuration.
-            
+
         Examples:
             ```python
             from omegaconf import DictConfig
-            
+
             # Hydra configuration
-            hydra_config = DictConfig({
-                "dataset_path": "data/raw/MiniARC",
-                "max_grid_height": 5,
-                "max_grid_width": 5,
-                # ... other fields
-            })
-            
+            hydra_config = DictConfig(
+                {
+                    "dataset_path": "data/raw/MiniARC",
+                    "max_grid_height": 5,
+                    "max_grid_width": 5,
+                    # ... other fields
+                }
+            )
+
             # Create parser using from_hydra
             parser = MiniArcParser.from_hydra(hydra_config)
             ```
-            
+
         Note:
             This method is provided for backward compatibility. For new code,
             prefer creating DatasetConfig objects directly and using the
@@ -481,7 +483,7 @@ class ArcDataParserBase(ABC):
     @abstractmethod
     def get_task_by_id(self, task_id: str) -> JaxArcTask:
         """Get a specific task by its ID.
-        
+
         This method must be implemented by concrete parsers to support
         task_data reconstruction during deserialization.
 
@@ -498,7 +500,7 @@ class ArcDataParserBase(ABC):
     @abstractmethod
     def get_available_task_ids(self) -> list[str]:
         """Get list of all available task IDs.
-        
+
         This method must be implemented by concrete parsers to support
         task index mapping validation.
 
@@ -508,76 +510,80 @@ class ArcDataParserBase(ABC):
 
     def validate_task_index_mapping(self, task_index: int) -> bool:
         """Validate that a task_index can be resolved to a valid task.
-        
+
         This method checks if a given task_index corresponds to a task
         that exists in the current dataset.
-        
+
         Args:
             task_index: Integer task index to validate
-            
+
         Returns:
             True if the task_index can be resolved, False otherwise
         """
         from jaxarc.utils.task_manager import get_task_id_globally
-        
+
         # Get task_id from global task manager
         task_id = get_task_id_globally(task_index)
         if task_id is None:
             return False
-            
+
         # Check if this parser has the task
         available_ids = self.get_available_task_ids()
         return task_id in available_ids
 
     def reconstruct_task_from_index(self, task_index: int) -> JaxArcTask:
         """Reconstruct task_data from task_index.
-        
+
         This method is used during deserialization to reconstruct the full
         task_data from a stored task_index.
-        
+
         Args:
             task_index: Integer task index to reconstruct
-            
+
         Returns:
             JaxArcTask: Reconstructed task data
-            
+
         Raises:
             ValueError: If task_index cannot be resolved or task not found
         """
         from jaxarc.utils.task_manager import get_task_id_globally
-        
+
         # Get task_id from global task manager
         task_id = get_task_id_globally(task_index)
         if task_id is None:
-            raise ValueError(f"Task index {task_index} not found in global task manager")
-            
+            raise ValueError(
+                f"Task index {task_index} not found in global task manager"
+            )
+
         # Get the task using the task_id
         try:
             return self.get_task_by_id(task_id)
         except ValueError as e:
-            raise ValueError(f"Cannot reconstruct task from index {task_index}: {e}") from e
+            raise ValueError(
+                f"Cannot reconstruct task from index {task_index}: {e}"
+            ) from e
 
     def get_task_index_for_id(self, task_id: str) -> int:
         """Get the task_index for a given task_id.
-        
+
         This method looks up the task_index for a task_id, registering
         the task if it's not already in the global task manager.
-        
+
         Args:
             task_id: String task ID to look up
-            
+
         Returns:
             Integer task index
-            
+
         Raises:
             ValueError: If task_id is not available in this parser
         """
         from jaxarc.utils.task_manager import register_task_globally
-        
+
         # Validate that this parser has the task
         available_ids = self.get_available_task_ids()
         if task_id not in available_ids:
             raise ValueError(f"Task ID '{task_id}' not available in this parser")
-            
+
         # Register/get the task index
         return register_task_globally(task_id)

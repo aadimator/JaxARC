@@ -48,11 +48,11 @@ class ArcAgiParser(ArcDataParserBase):
             # Direct typed config usage (preferred)
             from jaxarc.configs import DatasetConfig
             from omegaconf import DictConfig
-            
+
             hydra_config = DictConfig({...})
             dataset_config = DatasetConfig.from_hydra(hydra_config)
             parser = ArcAgiParser(dataset_config)
-            
+
             # Alternative: use from_hydra class method
             parser = ArcAgiParser.from_hydra(hydra_config)
             ```
@@ -71,10 +71,10 @@ class ArcAgiParser(ArcDataParserBase):
 
     def get_data_path(self) -> str:
         """Get the actual data path for ARC-AGI based on split.
-        
+
         ARC-AGI structure: {base_path}/data/{split}
         where split can be 'training' or 'evaluation'
-        
+
         Returns:
             str: The resolved path to the ARC-AGI data directory
         """

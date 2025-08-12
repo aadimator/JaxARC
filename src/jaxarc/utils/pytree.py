@@ -157,26 +157,27 @@ def tree_size_info(tree: PyTree) -> Dict[str, Tuple[Any, int]]:
 
 def filter_arrays_from_state(state: ArcEnvState) -> Tuple[PyTree, PyTree]:
     """Filter arrays and non-arrays from state for serialization.
-    
+
     This function separates array and non-array components of the state,
     which is useful for efficient serialization where you want to handle
     arrays and metadata differently.
-    
+
     Args:
         state: ArcEnvState to filter
-        
+
     Returns:
         Tuple of (arrays, non_arrays) PyTrees
-        
+
     Examples:
         ```python
         arrays, non_arrays = filter_arrays_from_state(state)
-        
+
         # Save arrays with binary format
         eqx.tree_serialise_leaves("state_arrays.eqx", arrays)
-        
+
         # Save non-arrays with JSON
         import json
+
         with open("state_metadata.json", "w") as f:
             json.dump(non_arrays, f)
         ```

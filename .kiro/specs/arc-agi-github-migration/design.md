@@ -2,19 +2,27 @@
 
 ## Overview
 
-This design migrates ARC-AGI dataset downloading from Kaggle to GitHub repositories and consolidates all dataset downloading under a unified API. The migration addresses the need to remove Kaggle dependencies and standardize dataset access across all supported datasets. The key challenge is handling the different data formats between Kaggle (combined JSON files) and GitHub (individual JSON task files).
+This design migrates ARC-AGI dataset downloading from Kaggle to GitHub
+repositories and consolidates all dataset downloading under a unified API. The
+migration addresses the need to remove Kaggle dependencies and standardize
+dataset access across all supported datasets. The key challenge is handling the
+different data formats between Kaggle (combined JSON files) and GitHub
+(individual JSON task files).
 
 ## Architecture
 
 ### Data Format Differences
 
 **Kaggle Format (Current):**
-- Combined JSON files: `arc-agi_training_challenges.json`, `arc-agi_training_solutions.json`
+
+- Combined JSON files: `arc-agi_training_challenges.json`,
+  `arc-agi_training_solutions.json`
 - Structure: `{"task_id": {"train": [...], "test": [...]}}`
 - Challenges and solutions stored separately
 - Solutions contain only test outputs as arrays
 
 **GitHub Format (Target):**
+
 - Individual JSON files per task: `007bbfb7.json`, `00d62c1b.json`, etc.
 - Structure: `{"train": [...], "test": [...]}` (direct task content)
 - Complete task data in single file including test outputs when available
@@ -23,12 +31,14 @@ This design migrates ARC-AGI dataset downloading from Kaggle to GitHub repositor
 ### Repository Structure Analysis
 
 **ARC-AGI-1 (fchollet/ARC-AGI):**
+
 - Repository: `https://github.com/fchollet/ARC-AGI`
 - Structure: `data/training/` and `data/evaluation/` directories
 - 400 training tasks, 400 evaluation tasks
 - Individual JSON files per task
 
 **ARC-AGI-2 (arcprize/ARC-AGI-2):**
+
 - Repository: `https://github.com/arcprize/ARC-AGI-2`
 - Structure: `data/training/` and `data/evaluation/` directories
 - 1000 training tasks, 120 evaluation tasks
@@ -42,13 +52,13 @@ This design migrates ARC-AGI dataset downloading from Kaggle to GitHub repositor
 ```python
 class DatasetDownloader:
     """Unified dataset downloader supporting GitHub repositories."""
-    
+
     def download_arc_agi_1(self, target_dir: Optional[Path] = None) -> Path:
         """Download ARC-AGI-1 from GitHub repository."""
         repo_url = "https://github.com/fchollet/ARC-AGI.git"
         repo_name = "ARC-AGI-1"
         return self._clone_repository(repo_url, target_dir, repo_name)
-    
+
     def download_arc_agi_2(self, target_dir: Optional[Path] = None) -> Path:
         """Download ARC-AGI-2 from GitHub repository."""
         repo_url = "https://github.com/arcprize/ARC-AGI-2.git"
@@ -63,43 +73,43 @@ The existing `ArcAgiParser` needs to be updated to handle GitHub format:
 ```python
 class ArcAgiParser(ArcDataParserBase):
     """Parser for ARC-AGI datasets from GitHub repositories."""
-    
+
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
         self._task_ids: list[str] = []
         self._cached_tasks: dict[str, dict] = {}
         self._load_and_cache_tasks()
-    
+
     def _load_and_cache_tasks(self) -> None:
         """Load and cache tasks from GitHub format (individual JSON files)."""
         try:
             default_split = self.cfg.get("default_split", "training")
             split_config = self.cfg.get(default_split, {})
-            
+
             # GitHub format uses directory paths
             data_dir_path = split_config.get("path")
             if not data_dir_path:
                 raise RuntimeError("No data path specified in configuration")
-            
+
             data_dir = here(data_dir_path)
             if not data_dir.exists() or not data_dir.is_dir():
                 raise RuntimeError(f"Data directory not found: {data_dir}")
-            
+
             # Load individual JSON files
             json_files = list(data_dir.glob("*.json"))
             if not json_files:
                 raise RuntimeError(f"No JSON files found in {data_dir}")
-            
+
             self._cached_tasks = {}
             for json_file in json_files:
                 task_id = json_file.stem  # filename without extension
                 with json_file.open("r", encoding="utf-8") as f:
                     task_data = json.load(f)
                 self._cached_tasks[task_id] = task_data
-            
+
             self._task_ids = list(self._cached_tasks.keys())
             logger.info(f"Loaded {len(self._cached_tasks)} tasks from GitHub format")
-            
+
         except Exception as e:
             logger.error(f"Error loading and caching tasks: {e}")
             raise
@@ -176,7 +186,7 @@ grid:
 
 # Task Configuration
 max_train_pairs: 10
-max_test_pairs: 4  # ARC-AGI-2 can have up to 2 test pairs typically
+max_test_pairs: 4 # ARC-AGI-2 can have up to 2 test pairs typically
 ```
 
 ### Streamlined CLI Interface
@@ -203,46 +213,66 @@ Examples:
     rich_markup_mode="rich",
 )
 
+
 @app.command()
 def arc_agi_1(
     output_dir: Path = typer.Option(
-        None, "--output", "-o", help="Output directory (default: configured raw data path)"
+        None,
+        "--output",
+        "-o",
+        help="Output directory (default: configured raw data path)",
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-download"),
 ) -> None:
     """Download ARC-AGI-1 dataset from GitHub (fchollet/ARC-AGI)."""
-    
+
+
 @app.command()
 def arc_agi_2(
     output_dir: Path = typer.Option(
-        None, "--output", "-o", help="Output directory (default: configured raw data path)"
+        None,
+        "--output",
+        "-o",
+        help="Output directory (default: configured raw data path)",
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-download"),
 ) -> None:
     """Download ARC-AGI-2 dataset from GitHub (arcprize/ARC-AGI-2)."""
 
+
 @app.command()
 def conceptarc(
     output_dir: Path = typer.Option(
-        None, "--output", "-o", help="Output directory (default: configured raw data path)"
+        None,
+        "--output",
+        "-o",
+        help="Output directory (default: configured raw data path)",
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-download"),
 ) -> None:
     """Download ConceptARC dataset from GitHub."""
 
+
 @app.command()
 def miniarc(
     output_dir: Path = typer.Option(
-        None, "--output", "-o", help="Output directory (default: configured raw data path)"
+        None,
+        "--output",
+        "-o",
+        help="Output directory (default: configured raw data path)",
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-download"),
 ) -> None:
     """Download MiniARC dataset from GitHub."""
 
+
 @app.command()
 def all(
     output_dir: Path = typer.Option(
-        None, "--output", "-o", help="Output directory (default: configured raw data path)"
+        None,
+        "--output",
+        "-o",
+        help="Output directory (default: configured raw data path)",
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Force re-download"),
 ) -> None:
@@ -253,7 +283,8 @@ def all(
 
 ### No Changes to JaxArcTask
 
-The existing `JaxArcTask` structure remains unchanged as the GitHub format provides the same task data structure after parsing.
+The existing `JaxArcTask` structure remains unchanged as the GitHub format
+provides the same task data structure after parsing.
 
 ## Error Handling
 
@@ -290,26 +321,31 @@ The existing `JaxArcTask` structure remains unchanged as the GitHub format provi
 ## Implementation Phases
 
 ### Phase 1: Enhanced Parser
+
 - Update `ArcAgiParser` to support GitHub format
 - Replace Kaggle format loading with individual JSON file loading
 - Update task preprocessing for new format
 
 ### Phase 2: Download System Enhancement
+
 - Add GitHub repository support to `DatasetDownloader`
 - Implement ARC-AGI-1 and ARC-AGI-2 download methods
 - Add validation for GitHub dataset structure
 
 ### Phase 3: Configuration Updates
+
 - Update configuration files for GitHub format
 - Replace file paths with directory paths
 - Update existing examples to use GitHub format
 
 ### Phase 4: CLI Streamlining
+
 - Simplify download script interface
 - Replace Kaggle commands with GitHub commands
 - Add comprehensive help and examples
 
 ### Phase 5: Cleanup and Documentation
+
 - Remove Kaggle dependencies from requirements
 - Update documentation and migration guides
 - Remove Kaggle-specific code
@@ -317,6 +353,7 @@ The existing `JaxArcTask` structure remains unchanged as the GitHub format provi
 ## Performance Considerations
 
 ### Optimization
+
 - **Caching**: Efficient caching for individual file loading
 - **Lazy Loading**: Load tasks on demand for large datasets
 - **Memory Management**: Optimize memory usage for GitHub format
@@ -325,11 +362,13 @@ The existing `JaxArcTask` structure remains unchanged as the GitHub format provi
 ## Security Considerations
 
 ### Repository Validation
+
 - **URL Validation**: Validate GitHub repository URLs
 - **Content Verification**: Verify downloaded content integrity
 - **Safe Cloning**: Use safe git cloning practices
 
 ### Dependency Removal
+
 - **Kaggle CLI**: Remove dependency on Kaggle CLI and credentials
 - **Simplified Auth**: No authentication required for public GitHub repositories
 - **Reduced Attack Surface**: Fewer external dependencies and tools

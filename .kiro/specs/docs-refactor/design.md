@@ -2,7 +2,11 @@
 
 ## Overview
 
-This design outlines a comprehensive refactor of the JaxARC documentation to create a streamlined, user-focused structure that eliminates redundancy, improves discoverability, and aligns with the current codebase. The new structure will consolidate information into logical, concise documents while maintaining comprehensive coverage of all features.
+This design outlines a comprehensive refactor of the JaxARC documentation to
+create a streamlined, user-focused structure that eliminates redundancy,
+improves discoverability, and aligns with the current codebase. The new
+structure will consolidate information into logical, concise documents while
+maintaining comprehensive coverage of all features.
 
 ## Architecture
 
@@ -34,9 +38,9 @@ docs/
 
 ### 1. Main README.md (Updated)
 
-**Purpose**: Project overview, installation, and quick navigation
-**Length**: ~200 lines (reduced from current 400+)
-**Key Sections**:
+**Purpose**: Project overview, installation, and quick navigation **Length**:
+~200 lines (reduced from current 400+) **Key Sections**:
+
 - Brief project description
 - Installation (simplified)
 - Quick start (30-second example)
@@ -46,9 +50,9 @@ docs/
 
 ### 2. getting-started.md (New)
 
-**Purpose**: Comprehensive getting started guide for new users
-**Length**: ~150 lines
-**Key Sections**:
+**Purpose**: Comprehensive getting started guide for new users **Length**: ~150
+lines **Key Sections**:
+
 - Installation and setup
 - Download your first dataset
 - Run your first example
@@ -57,9 +61,9 @@ docs/
 
 ### 3. datasets.md (Consolidated)
 
-**Purpose**: All dataset-related information in one place
-**Length**: ~300 lines
+**Purpose**: All dataset-related information in one place **Length**: ~300 lines
 **Key Sections**:
+
 - Dataset overview and comparison table
 - Download instructions (unified)
 - Parser usage for each dataset type
@@ -69,9 +73,9 @@ docs/
 
 ### 4. configuration.md (Consolidated)
 
-**Purpose**: Complete configuration system documentation
-**Length**: ~250 lines
+**Purpose**: Complete configuration system documentation **Length**: ~250 lines
 **Key Sections**:
+
 - Configuration overview and philosophy
 - Factory functions and presets
 - Hydra integration
@@ -82,9 +86,9 @@ docs/
 
 ### 5. api-reference.md (Streamlined)
 
-**Purpose**: Complete API documentation with practical focus
-**Length**: ~400 lines
-**Key Sections**:
+**Purpose**: Complete API documentation with practical focus **Length**: ~400
+lines **Key Sections**:
+
 - Core classes and functions
 - Parser API reference
 - Environment API reference
@@ -94,8 +98,8 @@ docs/
 
 ### 6. examples/ Directory (New Structure)
 
-**Purpose**: Practical, working examples organized by use case
-**Files**:
+**Purpose**: Practical, working examples organized by use case **Files**:
+
 - `basic-usage.md`: Core functionality examples
 - `conceptarc-examples.md`: ConceptARC-specific patterns
 - `miniarc-examples.md`: MiniARC rapid prototyping
@@ -120,6 +124,7 @@ examples: ["example1.py", "example2.py"]
 ### Cross-Reference System
 
 Standardized linking patterns:
+
 - `[Configuration Guide](configuration.md)` for internal links
 - `[Example: Basic Usage](examples/basic-usage.md#section)` for example links
 - `[API: ArcAgiParser](api-reference.md#arcagiparser)` for API references
@@ -155,17 +160,20 @@ Instead of separate troubleshooting documents, each section will include:
 3. **See Also** references to related sections
 
 Example pattern:
+
 ```markdown
 ### Common Issues
 
 **"Dataset not found"**: Run `python scripts/download_dataset.py <dataset-name>`
-**"Legacy format detected"**: Update config to use `path` instead of `challenges`/`solutions`
-**Need help?**: See [Configuration Guide](configuration.md#troubleshooting) for more details
+**"Legacy format detected"**: Update config to use `path` instead of
+`challenges`/`solutions` **Need help?**: See
+[Configuration Guide](configuration.md#troubleshooting) for more details
 ```
 
 ### Error Message Alignment
 
-Documentation will reference actual error messages from the codebase to ensure accuracy.
+Documentation will reference actual error messages from the codebase to ensure
+accuracy.
 
 ## Testing Strategy
 
@@ -217,28 +225,33 @@ Documentation will reference actual error messages from the codebase to ensure a
 
 ### Single-Page Approach for Major Topics
 
-**Decision**: Consolidate related information into single, comprehensive documents
-**Rationale**: Reduces navigation overhead and provides complete context in one place
+**Decision**: Consolidate related information into single, comprehensive
+documents **Rationale**: Reduces navigation overhead and provides complete
+context in one place
 
 ### Contextual Troubleshooting
 
 **Decision**: Embed troubleshooting information within relevant sections
-**Rationale**: Users encounter problems in context, so solutions should be contextual too
+**Rationale**: Users encounter problems in context, so solutions should be
+contextual too
 
 ### Examples-First Approach
 
 **Decision**: Lead with practical examples, follow with explanation
-**Rationale**: Developers prefer working code they can modify over abstract explanations
+**Rationale**: Developers prefer working code they can modify over abstract
+explanations
 
 ### Aggressive Deduplication
 
-**Decision**: Remove all duplicate information, even if it means more cross-references
-**Rationale**: Maintenance burden of duplicate information outweighs navigation convenience
+**Decision**: Remove all duplicate information, even if it means more
+cross-references **Rationale**: Maintenance burden of duplicate information
+outweighs navigation convenience
 
 ### GitHub-First Documentation
 
 **Decision**: Remove all Kaggle-related information and migration guides
-**Rationale**: Migration period is over; maintaining legacy information creates confusion
+**Rationale**: Migration period is over; maintaining legacy information creates
+confusion
 
 ## Performance Considerations
 

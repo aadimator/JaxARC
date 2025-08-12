@@ -2,7 +2,11 @@
 
 ## Overview
 
-The testing overhaul will completely restructure the test suite to align with the current JaxARC codebase, which has evolved significantly from its original state. The design focuses on creating a clean, focused test suite that validates the current Equinox-based architecture, JAXTyping system, and functional API while eliminating outdated and duplicate tests.
+The testing overhaul will completely restructure the test suite to align with
+the current JaxARC codebase, which has evolved significantly from its original
+state. The design focuses on creating a clean, focused test suite that validates
+the current Equinox-based architecture, JAXTyping system, and functional API
+while eliminating outdated and duplicate tests.
 
 ## Architecture
 
@@ -11,12 +15,14 @@ The testing overhaul will completely restructure the test suite to align with th
 Based on the source code analysis, the current JaxARC architecture consists of:
 
 1. **Core Types** (`src/jaxarc/types.py`):
+
    - `Grid` (Equinox Module with JAXTyping)
    - `JaxArcTask` (Equinox Module with fixed-size arrays)
    - `ARCLEAction` (Equinox Module with continuous selection)
    - `TaskPair` (Equinox Module for input-output pairs)
 
 2. **Environment System** (`src/jaxarc/envs/`):
+
    - `ArcEnvironment` (main environment class)
    - Functional API (`arc_reset`, `arc_step`)
    - Configuration system (legacy + unified Equinox-based)
@@ -24,9 +30,11 @@ Based on the source code analysis, the current JaxARC architecture consists of:
    - Grid operations (35 ARCLE operations)
 
 3. **State Management** (`src/jaxarc/state.py`):
+
    - `ArcEnvState` (centralized Equinox Module)
 
 4. **Parsers** (`src/jaxarc/parsers/`):
+
    - `ArcAgiParser`, `ConceptArcParser`, `MiniArcParser`
    - Base parser class with common functionality
 
@@ -75,6 +83,7 @@ tests/
 ### Test Categories
 
 1. **Core Type Tests** (`test_types.py`, `test_state.py`):
+
    - Equinox Module validation
    - JAXTyping annotation compliance
    - JAX transformation compatibility (jit, vmap, pmap)
@@ -82,6 +91,7 @@ tests/
    - Initialization and validation methods
 
 2. **Environment Tests** (`envs/`):
+
    - Environment lifecycle (reset, step, termination)
    - Functional API correctness
    - Configuration system validation
@@ -91,6 +101,7 @@ tests/
    - State transitions
 
 3. **Parser Tests** (`parsers/`):
+
    - Data loading and validation
    - JaxArcTask creation
    - Format compatibility
@@ -116,11 +127,11 @@ def test_jax_transformations():
     # Test jit compilation
     jitted_fn = jax.jit(some_function)
     result = jitted_fn(inputs)
-    
+
     # Test vmap batching
     vmapped_fn = jax.vmap(some_function)
     batch_result = vmapped_fn(batch_inputs)
-    
+
     # Test pmap (if applicable)
     pmapped_fn = jax.pmap(some_function)
     parallel_result = pmapped_fn(parallel_inputs)
@@ -130,8 +141,10 @@ def test_jax_transformations():
 
 The design addresses the dual configuration system:
 
-1. **Legacy Configuration Tests**: Validate existing `ArcEnvConfig` and factory functions
-2. **Unified Configuration Tests**: Validate new `JaxArcConfig` Equinox-based system
+1. **Legacy Configuration Tests**: Validate existing `ArcEnvConfig` and factory
+   functions
+2. **Unified Configuration Tests**: Validate new `JaxArcConfig` Equinox-based
+   system
 3. **Conversion Tests**: Validate conversion between legacy and unified configs
 4. **Integration Tests**: Ensure both systems work with the environment
 
@@ -152,12 +165,12 @@ def validate_equinox_module(module, expected_types, expected_shapes):
     """Validate Equinox module structure and JAX compatibility."""
     # Check module is PyTree
     assert eqx.is_array_like(module)
-    
+
     # Validate field types and shapes
     for field_name, expected_type in expected_types.items():
         field_value = getattr(module, field_name)
         assert isinstance(field_value, expected_type)
-    
+
     # Test JAX transformations
     jitted_module = jax.jit(lambda x: x)(module)
     assert eqx.tree_equal(module, jitted_module)
@@ -168,14 +181,17 @@ def validate_equinox_module(module, expected_types, expected_shapes):
 ### Test Error Categories
 
 1. **Validation Errors**: Invalid inputs, shape mismatches, type errors
-2. **JAX Transformation Errors**: JIT compilation failures, shape inference issues
-3. **Configuration Errors**: Invalid config combinations, missing required fields
+2. **JAX Transformation Errors**: JIT compilation failures, shape inference
+   issues
+3. **Configuration Errors**: Invalid config combinations, missing required
+   fields
 4. **Parser Errors**: Malformed data, missing files, format incompatibilities
 5. **Environment Errors**: Invalid actions, state transition failures
 
 ### Error Testing Strategy
 
 Each module will include comprehensive error testing:
+
 - Invalid input validation
 - Edge case handling
 - JAX-specific error conditions
@@ -209,30 +225,35 @@ Each module will include comprehensive error testing:
 ## Implementation Plan
 
 ### Phase 1: Cleanup and Analysis
+
 1. Analyze existing tests for relevance
 2. Identify obsolete and duplicate tests
 3. Remove outdated test files and cache
 4. Create test inventory and mapping
 
 ### Phase 2: Core Infrastructure
+
 1. Create new test structure
 2. Implement common test utilities and fixtures
 3. Set up JAX compatibility testing framework
 4. Create mock objects and test data
 
 ### Phase 3: Core Tests Implementation
+
 1. Implement type system tests
 2. Implement state management tests
 3. Implement basic environment tests
 4. Validate JAX transformation compatibility
 
 ### Phase 4: Component Tests
+
 1. Implement parser tests
 2. Implement utility tests
 3. Implement configuration tests
 4. Implement visualization tests
 
 ### Phase 5: Integration and Validation
+
 1. Implement integration tests
 2. Validate test coverage
 3. Performance and regression testing
@@ -241,6 +262,7 @@ Each module will include comprehensive error testing:
 ## Dependencies
 
 ### Testing Dependencies
+
 - `pytest`: Test framework
 - `pytest-cov`: Coverage reporting
 - `hypothesis`: Property-based testing
@@ -248,6 +270,7 @@ Each module will include comprehensive error testing:
 - `jax`: Core JAX functionality
 
 ### Mock and Fixture Dependencies
+
 - Custom JAX-compatible mock objects
 - Pytest fixtures for common objects
 - Test data generators for grids and tasks

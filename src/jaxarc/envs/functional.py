@@ -52,6 +52,9 @@ from .actions import (
 )
 from .grid_initialization import initialize_working_grids
 from .grid_operations import compute_grid_similarity, execute_grid_operation
+from .observation import create_observation
+from .reward import _calculate_reward
+from .termination import _is_episode_done
 
 # Type aliases for cleaner signatures
 ConfigType = Union[JaxArcConfig, DictConfig]
@@ -62,307 +65,6 @@ def _ensure_config(config: ConfigType) -> JaxArcConfig:
     if isinstance(config, DictConfig):
         return JaxArcConfig.from_hydra(config)
     return config
-
-
-def _validate_operation(operation: Any, config: JaxArcConfig) -> OperationId:
-    """Validate and normalize operation value (0-34)."""
-    if isinstance(operation, (int, jnp.integer)):
-        operation = jnp.array(operation, dtype=jnp.int32)
-    elif not isinstance(operation, jnp.ndarray):
-        raise ValueError(f"Operation must be int or jnp.ndarray, got {type(operation)}")
-
-    # Operation range validation (0-34)
-    max_operations = NUM_OPERATIONS
-
-    # Validate operation range (JAX-compatible)
-    if config.action.validate_actions and not config.action.allow_invalid_actions:
-        operation = jnp.clip(operation, 0, max_operations - 1)
-
-    return operation
-
-
-def _get_observation(state: ArcEnvState, config: JaxArcConfig) -> ObservationArray:
-    """Extract observation from state."""
-    # For now, just return the working grid
-    # Future: Could include additional channels for selection, target, etc.
-    return state.working_grid
-
-
-def create_observation(state: ArcEnvState, config: JaxArcConfig) -> ObservationArray:
-    """Create agent observation from environment state.
-
-    This function extracts relevant information from the full environment state
-    and constructs a focused observation for the agent, hiding internal
-    implementation details and providing configurable observation formats.
-
-    The observation provides agents with:
-    - Core grid information (working grid and mask)
-    - Episode context (mode, current pair, step count)
-    - Progress tracking (completion status for pairs)
-    - Action space information (allowed operations)
-    - Target information (only in training mode)
-
-    Args:
-        state: Current environment state with enhanced functionality
-        config: Environment configuration
-
-    Returns:
-        Observation array for the agent (currently working grid, future: structured observation)
-
-    Examples:
-        ```python
-        # Create observation for agent
-        observation = create_observation(state, config)
-
-        # In training mode, observation includes target information
-        train_obs = create_observation(train_state, config)
-
-        # In test mode, target information is masked
-        test_obs = create_observation(test_state, config)
-        ```
-    """
-    # Current implementation: return working grid as observation
-    # This maintains backward compatibility while the enhanced observation system
-    # is being developed. Future versions will return structured ArcObservation
-    # with configurable fields based on ObservationConfig.
-
-    # The structured observation will include:
-    # - working_grid: Current grid being modified
-    # - working_grid_mask: Valid cells mask
-    # - episode_mode: Training (0) or test (1) mode
-    # - current_pair_idx: Which pair is currently active
-    # - step_count: Number of steps taken
-    # - demo_completion_status: Which demo pairs are solved
-    # - test_completion_status: Which test pairs are solved
-    # - allowed_operations_mask: Currently allowed operations
-    # - target_grid: Only available in train mode (masked in test mode)
-    # - recent_actions: Optional recent action history
-
-    return _get_observation(state, config)
-
-
-def _calculate_reward(
-    old_state: ArcEnvState, new_state: ArcEnvState, config: JaxArcConfig
-) -> RewardValue:
-    """Calculate reward based on state transition and config."""
-    reward_cfg = config.reward
-
-    # Reward for similarity improvement
-    similarity_improvement = new_state.similarity_score - old_state.similarity_score
-    similarity_reward = reward_cfg.similarity_weight * similarity_improvement
-
-    # Progress bonus (if enabled)
-    progress_reward = jnp.where(
-        similarity_improvement > 0, reward_cfg.progress_bonus, 0.0
-    )
-
-    # Step penalty
-    step_penalty = jnp.array(reward_cfg.step_penalty, dtype=jnp.float32)
-
-    # Success bonus
-    success_bonus = jnp.where(
-        new_state.similarity_score >= 1.0, reward_cfg.success_bonus, 0.0
-    )
-
-    # Calculate total reward
-    total_reward = similarity_reward + progress_reward + step_penalty + success_bonus
-
-    # Apply reward-on-submit-only logic
-    if reward_cfg.reward_on_submit_only:
-        # Only give full reward if episode is done (submit operation)
-        submit_only_reward = step_penalty + success_bonus
-        reward = jnp.where(new_state.episode_done, total_reward, submit_only_reward)
-    else:
-        reward = total_reward
-
-    return reward
-
-
-def _calculate_enhanced_reward(
-    old_state: ArcEnvState,
-    new_state: ArcEnvState,
-    config: JaxArcConfig,
-) -> RewardValue:
-    """Calculate reward with a unified, compiler-friendly structure.
-
-    Control operations were removed; reward depends only on transition dynamics
-    and episode mode. Previous control_operation penalty handling eliminated.
-
-    Args:
-        old_state: Previous environment state
-        new_state: New environment state after action
-        config: Environment configuration
-
-    Returns:
-        JAX scalar array containing the calculated reward
-    """
-    reward_cfg = config.reward
-
-    # --- 1. Calculate all potential reward/penalty components unconditionally ---
-    similarity_improvement = new_state.similarity_score - old_state.similarity_score
-    is_solved = new_state.similarity_score >= 1.0
-    is_training = new_state.episode_mode == 0
-
-    # Generic components
-    step_penalty = jnp.array(reward_cfg.step_penalty, dtype=jnp.float32)
-
-    # Training-specific components
-    training_similarity_reward = (
-        reward_cfg.training_similarity_weight * similarity_improvement
-    )
-    progress_bonus = jnp.where(
-        similarity_improvement > 0, reward_cfg.progress_bonus, 0.0
-    )
-    demo_completion_bonus = jnp.where(is_solved, reward_cfg.demo_completion_bonus, 0.0)
-
-    # Evaluation-specific components
-    test_completion_bonus = jnp.where(is_solved, reward_cfg.test_completion_bonus, 0.0)
-
-    # Shared components
-    success_bonus = jnp.where(is_solved, reward_cfg.success_bonus, 0.0)
-    efficiency_bonus = jnp.where(
-        is_solved & (new_state.step_count <= reward_cfg.efficiency_bonus_threshold),
-        reward_cfg.efficiency_bonus,
-        0.0,
-    )
-
-    # --- 2. Build the training and evaluation rewards using components ---
-    # For simplicity, assume step-based rewards for training and submit-based for eval
-    # This can be made configurable if needed without complex branching
-    training_reward = (
-        training_similarity_reward
-        + progress_bonus
-        + step_penalty
-        + success_bonus
-        + demo_completion_bonus
-        + efficiency_bonus
-    )
-
-    evaluation_reward = (
-        step_penalty + success_bonus + test_completion_bonus + efficiency_bonus
-    )
-
-    # --- 3. Select the final reward based on the mode ---
-    final_reward = jnp.where(is_training, training_reward, evaluation_reward)
-
-    return final_reward
-
-
-def _is_episode_done(state: ArcEnvState, config: JaxArcConfig) -> EpisodeDone:
-    """Check if episode should terminate."""
-    # Episode ends if:
-    # 1. Task is solved (perfect similarity)
-    # 2. Maximum steps reached
-    # 3. Submit operation was used (sets episode_done=True)
-
-    task_solved = state.similarity_score >= 1.0
-    max_steps_reached = state.step_count >= config.environment.max_episode_steps
-    submitted = state.episode_done  # Set by submit operation
-
-    return task_solved | max_steps_reached | submitted
-
-
-def _is_episode_done_enhanced(state: ArcEnvState, config: JaxArcConfig) -> EpisodeDone:
-    """Check if episode should terminate with enhanced multi-pair logic.
-
-    This enhanced termination function provides:
-    - Multi-pair episode management
-    - Mode-specific termination criteria
-    - Configurable continuation policies
-    - Pair completion tracking
-
-    Args:
-        state: Current environment state
-        config: Environment configuration
-
-    Returns:
-        JAX boolean scalar indicating if episode should terminate
-    """
-    # Basic termination conditions
-    basic_done = _is_episode_done(state, config)
-
-    # For now, use basic termination logic to maintain JAX compatibility
-    # Enhanced termination logic with episode manager would require
-    # more complex JAX-compatible implementation
-
-    # Future enhancement: implement JAX-compatible episode manager logic
-    # using jax.lax.cond and pure functions instead of try/except and imports
-
-    return basic_done
-
-
-def _create_demo_task(config: JaxArcConfig) -> JaxArcTask:
-    """Create a simple demo task for testing when no task sampler is available."""
-    logger.warning(
-        "No task sampler provided - creating demo task. "
-        "For real training, provide a task_sampler in config or task_data directly."
-    )
-
-    # Create simple demo grids using dataset-appropriate size
-    # Use full configured grid size for proper testing, with reasonable upper bounds
-    demo_height = min(30, config.dataset.max_grid_height)
-    demo_width = min(30, config.dataset.max_grid_width)
-    grid_shape = (demo_height, demo_width)
-
-    # Use dataset background color
-    bg_color = config.dataset.background_color
-    input_grid = jnp.full(grid_shape, bg_color, dtype=jnp.int32)
-
-    # Add a small pattern (ensure it fits and uses valid colors)
-    pattern_size = min(3, demo_height - 2, demo_width - 2)
-    if pattern_size > 0:
-        start_row = (demo_height - pattern_size) // 2
-        start_col = (demo_width - pattern_size) // 2
-
-        # Use color 1 if available, otherwise background + 1
-        pattern_color = (
-            1
-            if config.dataset.max_colors > 1
-            else (bg_color + 1) % config.dataset.max_colors
-        )
-        input_grid = input_grid.at[
-            start_row : start_row + pattern_size, start_col : start_col + pattern_size
-        ].set(pattern_color)
-
-    # Target: change pattern to different color
-    target_grid = input_grid.copy()
-    if pattern_size > 0:
-        target_color = (
-            2
-            if config.dataset.max_colors > 2
-            else (pattern_color + 1) % config.dataset.max_colors
-        )
-        target_grid = target_grid.at[
-            start_row : start_row + pattern_size, start_col : start_col + pattern_size
-        ].set(target_color)
-
-    # Create masks
-    mask = jnp.ones(grid_shape, dtype=jnp.bool_)
-
-    # Pad to max size
-    max_shape = (config.dataset.max_grid_height, config.dataset.max_grid_width)
-    padded_input = jnp.full(max_shape, -1, dtype=jnp.int32)
-    padded_target = jnp.full(max_shape, -1, dtype=jnp.int32)
-    padded_mask = jnp.zeros(max_shape, dtype=jnp.bool_)
-
-    padded_input = padded_input.at[: grid_shape[0], : grid_shape[1]].set(input_grid)
-    padded_target = padded_target.at[: grid_shape[0], : grid_shape[1]].set(target_grid)
-    padded_mask = padded_mask.at[: grid_shape[0], : grid_shape[1]].set(mask)
-
-    return JaxArcTask(
-        input_grids_examples=jnp.expand_dims(padded_input, 0),
-        output_grids_examples=jnp.expand_dims(padded_target, 0),
-        input_masks_examples=jnp.expand_dims(padded_mask, 0),
-        output_masks_examples=jnp.expand_dims(padded_mask, 0),
-        num_train_pairs=1,
-        test_input_grids=jnp.expand_dims(padded_input, 0),
-        test_input_masks=jnp.expand_dims(padded_mask, 0),
-        true_test_output_grids=jnp.expand_dims(padded_target, 0),
-        true_test_output_masks=jnp.expand_dims(padded_mask, 0),
-        num_test_pairs=1,
-        task_index=jnp.array(0, dtype=jnp.int32),
-    )
-
 
 def _initialize_grids(
     task_data: JaxArcTask,
@@ -396,7 +98,9 @@ def _initialize_grids(
     Examples:
         ```python
         # Training mode with diverse initialization and specific pair
-        init_grid, target, mask = _initialize_grids(task, idx, 0, config, key, initial_pair_idx=2)
+        init_grid, target, mask = _initialize_grids(
+            task, idx, 0, config, key, initial_pair_idx=2
+        )
 
         # Test mode initialization (target masked) with random selection
         init_grid, masked_target, mask = _initialize_grids(task, idx, 1, config, key)
@@ -500,7 +204,9 @@ def _create_initial_state(
         state = _create_initial_state(task, grid, target, mask, target_mask, idx, 0, config)
 
         # Create initial state for testing
-        state = _create_initial_state(task, grid, masked_target, mask, empty_mask, idx, 1, config)
+        state = _create_initial_state(
+            task, grid, masked_target, mask, empty_mask, idx, 1, config
+        )
         ```
 
     Note:
@@ -620,6 +326,7 @@ def arc_reset(
 
         # Using typed config (preferred)
         from jaxarc.configs import JaxArcConfig
+
         typed_config = JaxArcConfig.from_hydra(hydra_config)
         state, obs = arc_reset(key, typed_config, task_data)
         ```
@@ -934,10 +641,10 @@ def _calculate_reward_and_done(
     Simplified version after removal of control operations. Delegates reward
     computation to _calculate_enhanced_reward with control flag fixed False.
     """
-    reward = _calculate_enhanced_reward(old_state, new_state, config)
+    reward = _calculate_reward(old_state, new_state, config)
 
     # Check if episode is done with enhanced termination logic
-    done = _is_episode_done_enhanced(new_state, config)
+    done = _is_episode_done(new_state, config)
 
     # Update episode_done flag using PyTree utilities
     final_state = set_episode_done(new_state, done)
@@ -1010,6 +717,7 @@ def arc_step(
 
         # Using typed config (preferred)
         from jaxarc.configs import JaxArcConfig
+
         typed_config = JaxArcConfig.from_hydra(hydra_config)
         new_state, obs, reward, done, info = arc_step(state, action, typed_config)
         ```
@@ -1205,7 +913,7 @@ def batch_step(
         batched_actions = PointAction(
             operation=jnp.array([0] * batch_size),
             row=jnp.array([3] * batch_size),
-            col=jnp.array([3] * batch_size)
+            col=jnp.array([3] * batch_size),
         )
 
         # Step environments in parallel
@@ -1330,7 +1038,7 @@ def analyze_batch_performance(
         results = analyze_batch_performance(config, task_data)
 
         # Print results
-        for batch_size, metrics in results['batch_metrics'].items():
+        for batch_size, metrics in results["batch_metrics"].items():
             print(f"Batch {batch_size}: {metrics['steps_per_second']:.1f} steps/sec")
         ```
     """
@@ -1533,8 +1241,9 @@ def test_prng_key_splitting(batch_sizes: list[int] | None = None) -> Dict[str, A
         results = test_prng_key_splitting()
 
         # Check if all tests passed
-        all_passed = all(results['batch_results'][bs]['valid']
-                        for bs in results['batch_results'])
+        all_passed = all(
+            results["batch_results"][bs]["valid"] for bs in results["batch_results"]
+        )
         ```
     """
     if batch_sizes is None:

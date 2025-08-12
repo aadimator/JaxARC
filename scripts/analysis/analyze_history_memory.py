@@ -23,7 +23,11 @@ def format_bytes(bytes_value: int) -> str:
     while value >= 1024 and unit_index < len(units) - 1:
         value /= 1024
         unit_index += 1
-    return f"{int(value)} {units[unit_index]}" if unit_index == 0 else f"{value:.2f} {units[unit_index]}"
+    return (
+        f"{int(value)} {units[unit_index]}"
+        if unit_index == 0
+        else f"{value:.2f} {units[unit_index]}"
+    )
 
 
 def estimate_memory_usage(
@@ -40,16 +44,24 @@ def estimate_memory_usage(
             "breakdown": {"history_disabled": True},
         }
 
-    selection_size = get_selection_data_size(selection_format, max_grid_height, max_grid_width)
+    selection_size = get_selection_data_size(
+        selection_format, max_grid_height, max_grid_width
+    )
     metadata_fields = 4  # operation_id, timestamp, pair_index, valid
 
-    record_size = (selection_size + metadata_fields) if config.store_selection_data else metadata_fields
+    record_size = (
+        (selection_size + metadata_fields)
+        if config.store_selection_data
+        else metadata_fields
+    )
     history_bytes = config.max_history_length * record_size * dtype_size
 
     intermediate_grids_bytes = 0
     if config.store_intermediate_grids:
         grid_size = max_grid_height * max_grid_width
-        intermediate_grids_bytes = config.max_history_length * grid_size * 2 * dtype_size
+        intermediate_grids_bytes = (
+            config.max_history_length * grid_size * 2 * dtype_size
+        )
 
     total_bytes = history_bytes + intermediate_grids_bytes
     breakdown = {
@@ -62,7 +74,11 @@ def estimate_memory_usage(
         "selection_format": selection_format,
         "grid_dimensions": f"{max_grid_height}x{max_grid_width}",
     }
-    return {"total_bytes": total_bytes, "human_readable": format_bytes(total_bytes), "breakdown": breakdown}
+    return {
+        "total_bytes": total_bytes,
+        "human_readable": format_bytes(total_bytes),
+        "breakdown": breakdown,
+    }
 
 
 def compare_memory_configurations(
@@ -72,12 +88,17 @@ def compare_memory_configurations(
     max_grid_height: int = 30,
     max_grid_width: int = 30,
 ) -> dict:
-    base_usage = estimate_memory_usage(base, selection_format, max_grid_height, max_grid_width)
+    base_usage = estimate_memory_usage(
+        base, selection_format, max_grid_height, max_grid_width
+    )
     comparisons = []
     for i, other_cfg in enumerate(others):
-        usage = estimate_memory_usage(other_cfg, selection_format, max_grid_height, max_grid_width)
+        usage = estimate_memory_usage(
+            other_cfg, selection_format, max_grid_height, max_grid_width
+        )
         relative_change = (
-            (usage["total_bytes"] - base_usage["total_bytes"]) / base_usage["total_bytes"]
+            (usage["total_bytes"] - base_usage["total_bytes"])
+            / base_usage["total_bytes"]
             if base_usage["total_bytes"] > 0
             else (float("inf") if usage["total_bytes"] > 0 else 0.0)
         )
@@ -87,15 +108,25 @@ def compare_memory_configurations(
                 "config": cfg_to_dict(other_cfg),
                 "memory": usage,
                 "relative_to_base": {
-                    "bytes_difference": usage["total_bytes"] - base_usage["total_bytes"],
+                    "bytes_difference": usage["total_bytes"]
+                    - base_usage["total_bytes"],
                     "percentage_change": relative_change * 100,
-                    "is_more_efficient": usage["total_bytes"] < base_usage["total_bytes"],
+                    "is_more_efficient": usage["total_bytes"]
+                    < base_usage["total_bytes"],
                 },
             }
         )
 
-    most_efficient = min(comparisons, key=lambda x: x["memory"]["total_bytes"]) if comparisons else None
-    least_efficient = max(comparisons, key=lambda x: x["memory"]["total_bytes"]) if comparisons else None
+    most_efficient = (
+        min(comparisons, key=lambda x: x["memory"]["total_bytes"])
+        if comparisons
+        else None
+    )
+    least_efficient = (
+        max(comparisons, key=lambda x: x["memory"]["total_bytes"])
+        if comparisons
+        else None
+    )
 
     return {
         "base_config": {"config": cfg_to_dict(base), "memory": base_usage},
@@ -126,29 +157,67 @@ def get_recommended_config(
     else:
         base = HistoryConfig()
 
-    usage = estimate_memory_usage(base, selection_format, max_grid_height, max_grid_width)
+    usage = estimate_memory_usage(
+        base, selection_format, max_grid_height, max_grid_width
+    )
     if usage["total_bytes"] <= memory_budget_bytes:
         return base
 
     if base.store_intermediate_grids:
-        reduced = HistoryConfig(base.enabled, base.max_history_length, base.store_selection_data, False, base.compress_repeated_actions)
-        if estimate_memory_usage(reduced, selection_format, max_grid_height, max_grid_width)["total_bytes"] <= memory_budget_bytes:
+        reduced = HistoryConfig(
+            base.enabled,
+            base.max_history_length,
+            base.store_selection_data,
+            False,
+            base.compress_repeated_actions,
+        )
+        if (
+            estimate_memory_usage(
+                reduced, selection_format, max_grid_height, max_grid_width
+            )["total_bytes"]
+            <= memory_budget_bytes
+        ):
             return reduced
         base = reduced
 
     if base.store_selection_data:
-        reduced = HistoryConfig(base.enabled, base.max_history_length, False, base.store_intermediate_grids, base.compress_repeated_actions)
-        if estimate_memory_usage(reduced, selection_format, max_grid_height, max_grid_width)["total_bytes"] <= memory_budget_bytes:
+        reduced = HistoryConfig(
+            base.enabled,
+            base.max_history_length,
+            False,
+            base.store_intermediate_grids,
+            base.compress_repeated_actions,
+        )
+        if (
+            estimate_memory_usage(
+                reduced, selection_format, max_grid_height, max_grid_width
+            )["total_bytes"]
+            <= memory_budget_bytes
+        ):
             return reduced
         base = reduced
 
-    selection_size = get_selection_data_size(selection_format, max_grid_height, max_grid_width)
+    selection_size = get_selection_data_size(
+        selection_format, max_grid_height, max_grid_width
+    )
     metadata_fields = 4
-    record_size = metadata_fields if not base.store_selection_data else selection_size + metadata_fields
+    record_size = (
+        metadata_fields
+        if not base.store_selection_data
+        else selection_size + metadata_fields
+    )
     dtype_size = 4
-    max_affordable_length = max(1, int(memory_budget_bytes / (record_size * dtype_size)))
+    max_affordable_length = max(
+        1, int(memory_budget_bytes / (record_size * dtype_size))
+    )
 
-    return HistoryConfig(base.enabled, max_affordable_length, base.store_selection_data, base.store_intermediate_grids, base.compress_repeated_actions)
+    return HistoryConfig(
+        base.enabled,
+        max_affordable_length,
+        base.store_selection_data,
+        base.store_intermediate_grids,
+        base.compress_repeated_actions,
+    )
 
 
 def cfg_to_dict(config: HistoryConfig) -> dict[str, Any]:
@@ -162,18 +231,24 @@ def cfg_to_dict(config: HistoryConfig) -> dict[str, Any]:
 
 
 def main(
-    selection_format: str = typer.Option("mask", "--selection-format", case_sensitive=False),
+    selection_format: str = typer.Option(
+        "mask", "--selection-format", case_sensitive=False
+    ),
     grid_h: int = typer.Option(30, "--grid-h"),
     grid_w: int = typer.Option(30, "--grid-w"),
     budget_mb: float = typer.Option(100.0, "--budget-mb"),
     use_case: str = typer.Option("development", "--use-case", case_sensitive=False),
-    custom: bool = typer.Option(False, "--custom", help="Use custom HistoryConfig values"),
+    custom: bool = typer.Option(
+        False, "--custom", help="Use custom HistoryConfig values"
+    ),
     enabled: bool = typer.Option(True, "--enabled"),
     max_history: int = typer.Option(1000, "--max-history"),
     store_selection: bool = typer.Option(True, "--store-selection"),
     store_grids: bool = typer.Option(False, "--store-grids"),
     compress: bool = typer.Option(True, "--compress"),
-    compare: bool = typer.Option(False, "--compare", help="Run a small comparison sweep"),
+    compare: bool = typer.Option(
+        False, "--compare", help="Run a small comparison sweep"
+    ),
 ):
     if custom or use_case == "custom":
         config = HistoryConfig(
@@ -198,11 +273,31 @@ def main(
     if compare:
         sweep = [
             config,
-            HistoryConfig(config.enabled, max(config.max_history_length // 2, 1), config.store_selection_data, config.store_intermediate_grids, config.compress_repeated_actions),
-            HistoryConfig(config.enabled, config.max_history_length, not config.store_selection_data, config.store_intermediate_grids, config.compress_repeated_actions),
-            HistoryConfig(config.enabled, max(config.max_history_length // 4, 1), False, False, True),
+            HistoryConfig(
+                config.enabled,
+                max(config.max_history_length // 2, 1),
+                config.store_selection_data,
+                config.store_intermediate_grids,
+                config.compress_repeated_actions,
+            ),
+            HistoryConfig(
+                config.enabled,
+                config.max_history_length,
+                not config.store_selection_data,
+                config.store_intermediate_grids,
+                config.compress_repeated_actions,
+            ),
+            HistoryConfig(
+                config.enabled,
+                max(config.max_history_length // 4, 1),
+                False,
+                False,
+                True,
+            ),
         ]
-        cmp_res = compare_memory_configurations(config, sweep, selection_format, grid_h, grid_w)
+        cmp_res = compare_memory_configurations(
+            config, sweep, selection_format, grid_h, grid_w
+        )
         typer.echo(json.dumps(cmp_res, indent=2))
 
 

@@ -251,30 +251,32 @@ class JaxArcTask(eqx.Module):
     # Enhanced Utility Methods for State Management
     # =========================================================================
 
-    def get_available_demo_pairs(self) -> Bool[Array, "max_train_pairs"]:
+    def get_available_demo_pairs(self) -> Bool[Array, max_train_pairs]:
         """Get mask of available training pairs.
-        
+
         Returns:
             JAX boolean array indicating which training pairs are available
             (based on num_train_pairs)
         """
         return jnp.arange(self.input_grids_examples.shape[0]) < self.num_train_pairs
 
-    def get_available_test_pairs(self) -> Bool[Array, "max_test_pairs"]:
+    def get_available_test_pairs(self) -> Bool[Array, max_test_pairs]:
         """Get mask of available test pairs.
-        
+
         Returns:
             JAX boolean array indicating which test pairs are available
             (based on num_test_pairs)
         """
         return jnp.arange(self.test_input_grids.shape[0]) < self.num_test_pairs
 
-    def get_demo_pair_data(self, pair_idx: int) -> tuple[GridArray, GridArray, MaskArray, MaskArray]:
+    def get_demo_pair_data(
+        self, pair_idx: int
+    ) -> tuple[GridArray, GridArray, MaskArray, MaskArray]:
         """Get training pair data by index.
-        
+
         Args:
             pair_idx: Index of the training pair to retrieve
-            
+
         Returns:
             Tuple of (input_grid, output_grid, input_mask, output_mask)
         """
@@ -282,29 +284,26 @@ class JaxArcTask(eqx.Module):
             self.input_grids_examples[pair_idx],
             self.output_grids_examples[pair_idx],
             self.input_masks_examples[pair_idx],
-            self.output_masks_examples[pair_idx]
+            self.output_masks_examples[pair_idx],
         )
 
     def get_test_pair_data(self, pair_idx: int) -> tuple[GridArray, MaskArray]:
         """Get test pair input data by index (no target during evaluation).
-        
+
         Args:
             pair_idx: Index of the test pair to retrieve
-            
+
         Returns:
             Tuple of (input_grid, input_mask)
         """
-        return (
-            self.test_input_grids[pair_idx],
-            self.test_input_masks[pair_idx]
-        )
+        return (self.test_input_grids[pair_idx], self.test_input_masks[pair_idx])
 
     def is_demo_pair_available(self, pair_idx: int) -> Bool[Array, ""]:
         """Check if a specific demonstration pair is available.
-        
+
         Args:
             pair_idx: Index of the demonstration pair to check
-            
+
         Returns:
             JAX boolean scalar array indicating if the pair is available
         """
@@ -312,10 +311,10 @@ class JaxArcTask(eqx.Module):
 
     def is_test_pair_available(self, pair_idx: int) -> Bool[Array, ""]:
         """Check if a specific test pair is available.
-        
+
         Args:
             pair_idx: Index of the test pair to check
-            
+
         Returns:
             JAX boolean scalar array indicating if the pair is available
         """
@@ -323,7 +322,7 @@ class JaxArcTask(eqx.Module):
 
     def get_max_train_pairs(self) -> int:
         """Get the maximum number of training pairs this task can hold.
-        
+
         Returns:
             Maximum number of training pairs (array dimension)
         """
@@ -331,7 +330,7 @@ class JaxArcTask(eqx.Module):
 
     def get_max_test_pairs(self) -> int:
         """Get the maximum number of test pairs this task can hold.
-        
+
         Returns:
             Maximum number of test pairs (array dimension)
         """
@@ -339,7 +338,7 @@ class JaxArcTask(eqx.Module):
 
     def get_grid_shape(self) -> tuple[int, int]:
         """Get the grid dimensions for this task.
-        
+
         Returns:
             Tuple of (height, width) for the grid dimensions
         """
@@ -347,7 +346,7 @@ class JaxArcTask(eqx.Module):
 
     def get_task_summary(self) -> dict:
         """Get a summary of task information.
-        
+
         Returns:
             Dictionary containing task metadata
         """
@@ -362,17 +361,17 @@ class JaxArcTask(eqx.Module):
 
     def get_task_id(self) -> str | None:
         """Get the task ID for this task.
-        
+
         This is a convenience method that looks up the task ID from the global
         task manager using the stored task_index.
-        
+
         Note: This method is NOT JAX-compatible and should not be used
         within JAX transformations (jit, vmap, etc.). Use only for
         debugging, logging, visualization, or other non-JAX code.
-        
+
         Returns:
             String task ID if found in the global task manager, None otherwise
-            
+
         Example:
             ```python
             task = parser.get_task_by_id("some_task")
@@ -380,6 +379,7 @@ class JaxArcTask(eqx.Module):
             ```
         """
         from jaxarc.utils import get_task_id_globally
+
         return get_task_id_globally(int(self.task_index))
 
 

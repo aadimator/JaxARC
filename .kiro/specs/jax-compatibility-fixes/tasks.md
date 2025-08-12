@@ -1,14 +1,20 @@
 - [x] 1. Configuration System Hashability Fix
 
-  - [x] 1.1 Replace unhashable types in existing configuration classes (Single Source of Truth)
-    - Modify existing classes in `src/jaxarc/envs/config.py` directly - no new classes
-    - Convert all `List[T]` to `tuple[T, ...]` in VisualizationConfig, WandbConfig, and other config classes
-    - Replace complex type annotations (Int, Float) with primitive types (int, float) 
+  - [x] 1.1 Replace unhashable types in existing configuration classes (Single
+        Source of Truth)
+
+    - Modify existing classes in `src/jaxarc/envs/config.py` directly - no new
+      classes
+    - Convert all `List[T]` to `tuple[T, ...]` in VisualizationConfig,
+      WandbConfig, and other config classes
+    - Replace complex type annotations (Int, Float) with primitive types (int,
+      float)
     - Ensure all nested configuration objects are also hashable
     - Add hashability validation in `__post_init__` methods
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
 
   - [x] 1.2 Update configuration validation and factory functions
+
     - Modify `from_hydra` class methods to handle tuple conversions
     - Update validation logic to work with tuples instead of lists
     - Ensure backward compatibility in configuration loading
@@ -24,15 +30,19 @@
 
 - [x] 2. Structured Action System Implementation
 
-  - [x] 2.1 Replace dictionary actions with structured actions (Single Source of Truth)
+  - [x] 2.1 Replace dictionary actions with structured actions (Single Source of
+        Truth)
+
     - Remove all dictionary action handling from `src/jaxarc/envs/functional.py`
-    - Define `PointAction`, `BboxAction`, and `MaskAction` classes using Equinox modules
+    - Define `PointAction`, `BboxAction`, and `MaskAction` classes using Equinox
+      modules
     - Add `to_selection_mask` method for converting actions to grid selections
     - Implement validation methods for each action type
     - Update all action processing to use structured actions only
     - _Requirements: 2.1, 2.2, 2.3, 2.7_
 
   - [x] 2.2 Remove dictionary action support completely (Single Source of Truth)
+
     - Remove all dictionary action handling code from the codebase
     - Update examples and tests to use structured actions only
     - Remove any conversion utilities or backward compatibility code
@@ -40,7 +50,9 @@
     - _Requirements: 2.1, 2.6_
 
   - [x] 2.3 Update action handlers to work with structured actions
-    - Modify `point_handler`, `bbox_handler`, and `mask_handler` to accept structured actions
+
+    - Modify `point_handler`, `bbox_handler`, and `mask_handler` to accept
+      structured actions
     - Update action processing pipeline in `arc_step` function
     - Ensure structured actions work with existing grid operations
     - Test action handler performance with JIT compilation
@@ -55,15 +67,21 @@
 
 - [x] 3. Memory-Efficient Action History System
 
-  - [x] 3.1 Modify existing action history field for format-specific storage (Single Source of Truth)
-    - Modify `action_history` field in existing `ArcEnvState` class in `src/jaxarc/state.py`
+  - [x] 3.1 Modify existing action history field for format-specific storage
+        (Single Source of Truth)
+
+    - Modify `action_history` field in existing `ArcEnvState` class in
+      `src/jaxarc/state.py`
     - No separate `ActionHistoryManager` class - enhance existing field directly
-    - Implement storage calculation logic for point (6 fields), bbox (8 fields), and mask (900+ fields)
-    - Add methods to existing `ArcEnvState` for adding, retrieving, and managing action history
+    - Implement storage calculation logic for point (6 fields), bbox (8 fields),
+      and mask (900+ fields)
+    - Add methods to existing `ArcEnvState` for adding, retrieving, and managing
+      action history
     - Implement circular buffer logic within the existing state structure
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
   - [x] 3.2 Update state creation to use optimized action history
+
     - Modify `create_arc_env_state` to accept selection format parameter
     - Update state initialization to create format-appropriate action history
     - Ensure action history size matches the configured selection format
@@ -80,6 +98,7 @@
 - [x] 4. Filtered Transformations Integration
 
   - [x] 4.1 Replace jax.jit with equinox.filter_jit in core functions
+
     - Update `arc_reset` to use `@eqx.filter_jit` decorator
     - Update `arc_step` to use `@eqx.filter_jit` decorator
     - Remove manual `static_argnames` specifications
@@ -87,6 +106,7 @@
     - _Requirements: 4.1, 4.2, 4.6, 4.7_
 
   - [x] 4.2 Implement filtered transformations for grid operations
+
     - Update grid operation functions to use `@eqx.filter_jit`
     - Ensure grid operations maintain JIT compatibility
     - Test performance improvements from filtered transformations
@@ -94,6 +114,7 @@
     - _Requirements: 4.3, 4.4, 4.5_
 
   - [x] 4.3 Test filtered transformations with batch processing
+
     - Verify that filtered JIT works with `jax.vmap` ✓
     - Test batch processing performance with filtered transformations ✓
     - Ensure deterministic behavior with PRNG key splitting ✓
@@ -101,7 +122,9 @@
     - _Requirements: 4.6, 4.7_
 
     **Implementation:**
-    - Added comprehensive test suite in `tests/test_filtered_transformations_batch.py`
+
+    - Added comprehensive test suite in
+      `tests/test_filtered_transformations_batch.py`
     - Implemented batch processing functions in `src/jaxarc/envs/functional.py`:
       - `batch_reset()`: Vectorized environment reset using vmap
       - `batch_step()`: Vectorized environment step using vmap
@@ -109,20 +132,29 @@
       - `analyze_batch_performance()`: Performance analysis across batch sizes
     - Verified that `@eqx.filter_jit` works seamlessly with `jax.vmap`
     - Confirmed deterministic behavior with proper PRNG key splitting
-    - Validated batch operations produce identical results to individual operations
-    - Tested all structured action types (Point, Bbox, Mask) with batch processing
-    - Performance characteristics are excellent (< 1ms per environment for most operations)
+    - Validated batch operations produce identical results to individual
+      operations
+    - Tested all structured action types (Point, Bbox, Mask) with batch
+      processing
+    - Performance characteristics are excellent (< 1ms per environment for most
+      operations)
 
 - [x] 5. Batch Processing Implementation
 
-  - [x] 5.1 Add batch processing to existing functional API (Single Source of Truth)
-    - No separate `BatchProcessor` class - add batch functions to existing `src/jaxarc/envs/functional.py`
-    - Create `batch_reset` function using `jax.vmap(arc_reset, in_axes=(0, None, None))`
-    - Create `batch_step` function using `jax.vmap(arc_step, in_axes=(0, 0, None))`
+  - [x] 5.1 Add batch processing to existing functional API (Single Source of
+        Truth)
+
+    - No separate `BatchProcessor` class - add batch functions to existing
+      `src/jaxarc/envs/functional.py`
+    - Create `batch_reset` function using
+      `jax.vmap(arc_reset, in_axes=(0, None, None))`
+    - Create `batch_step` function using
+      `jax.vmap(arc_step, in_axes=(0, 0, None))`
     - Add batch utilities as standalone functions in the functional module
     - _Requirements: 5.1, 5.2, 5.5_
 
   - [x] 5.2 Implement PRNG key management for batch processing
+
     - Create utilities for splitting PRNG keys for batch operations
     - Ensure deterministic behavior across batch elements
     - Test PRNG key splitting with different batch sizes
@@ -139,16 +171,20 @@
 - [x] 6. Performance Optimization and Validation
 
   - [x] 6.1 Implement performance benchmarking suite
+
     - Create `PerformanceBenchmarks` class with comprehensive timing tests
-    - Implement benchmarks for JIT compilation, step execution, and batch processing
+    - Implement benchmarks for JIT compilation, step execution, and batch
+      processing
     - Add memory usage profiling for different configurations
     - Create automated performance regression tests
     - _Requirements: 6.1, 6.2, 6.4, 6.6_
 
   - [x] 6.2 Optimize grid operations for performance
+
     - Profiled existing grid operations to identify bottlenecks
     - Confirmed existing implementations are already well-optimized for JAX
-    - Identified that main performance gains come from JAX compatibility, not algorithmic changes
+    - Identified that main performance gains come from JAX compatibility, not
+      algorithmic changes
     - Maintained single source of truth by keeping original implementations
     - _Requirements: 6.1, 6.5_
 
@@ -162,6 +198,7 @@
 - [x] 7. Advanced Equinox Features Integration
 
   - [x] 7.1 Implement PyTree manipulation utilities
+
     - Add optimized state update methods using `equinox.tree_at`
     - Create utilities for efficient multi-field updates
     - Implement functional update patterns for grid operations
@@ -169,6 +206,7 @@
     - _Requirements: 7.2, 7.6_
 
   - [x] 7.2 Integrate runtime error handling
+
     - Implement `JAXErrorHandler` class using `equinox.error_if`
     - Add action validation with runtime error checking
     - Implement grid operation validation with specific error messages
@@ -184,49 +222,72 @@
 
 - [x] 8. Efficient Serialization System Implementation
 
-  - [x] 8.1 Add efficient serialization methods to existing classes (Single Source of Truth)
-    - No separate `SerializationManager` class - add methods directly to `ArcEnvState` and `JaxArcConfig`
-    - Add `save()` method with custom filter spec that excludes large static `task_data` field
-    - Add `load()` method that reconstructs `task_data` from `task_index` using parser
-    - Implement `create_dummy_for_loading()` method for proper deserialization structure
+  - [x] 8.1 Add efficient serialization methods to existing classes (Single
+        Source of Truth)
+
+    - No separate `SerializationManager` class - add methods directly to
+      `ArcEnvState` and `JaxArcConfig`
+    - Add `save()` method with custom filter spec that excludes large static
+      `task_data` field
+    - Add `load()` method that reconstructs `task_data` from `task_index` using
+      parser
+    - Implement `create_dummy_for_loading()` method for proper deserialization
+      structure
     - Add `extract_task_id_from_index()` utility for task reconstruction
     - _Requirements: 8.1, 8.2, 8.3, 8.6, 8.8, 8.9_
 
   - [x] 8.2 Implement task_data exclusion and reconstruction logic
-    - Create custom filter specification that excludes `task_data` field during serialization
-    - Implement `extract_task_id_from_index()` function to map task_index back to task_id
-    - Add logic to reconstruct full `task_data` from parser during deserialization
-    - Test that serialized files are significantly smaller without redundant task data
-    - Validate that deserialized states are functionally identical to original states
+
+    - Create custom filter specification that excludes `task_data` field during
+      serialization
+    - Implement `extract_task_id_from_index()` function to map task_index back
+      to task_id
+    - Add logic to reconstruct full `task_data` from parser during
+      deserialization
+    - Test that serialized files are significantly smaller without redundant
+      task data
+    - Validate that deserialized states are functionally identical to original
+      states
     - _Requirements: 8.4, 8.5, 8.7, 8.8, 8.9_
 
   - [x] 8.3 Implement task_index to task_id mapping system
-    - Add global task registry or enhance existing parser to support task_index lookups
-    - Implement `extract_task_id_from_index()` function that maps task_index back to original task_id
-    - Add error handling for cases where task_index cannot be resolved to a valid task
+
+    - Add global task registry or enhance existing parser to support task_index
+      lookups
+    - Implement `extract_task_id_from_index()` function that maps task_index
+      back to original task_id
+    - Add error handling for cases where task_index cannot be resolved to a
+      valid task
     - Test task reconstruction with various parsers and datasets
-    - Ensure task_index mapping works consistently across different dataset configurations
+    - Ensure task_index mapping works consistently across different dataset
+      configurations
     - _Requirements: 8.8, 8.9_
 
   - [x] 8.4 Test efficient serialization functionality
     - Create comprehensive serialization tests that verify task_data exclusion
-    - Test that serialized file sizes are dramatically smaller (90%+ reduction expected)
-    - Verify serialization/deserialization round-trip accuracy with task_data reconstruction
+    - Test that serialized file sizes are dramatically smaller (90%+ reduction
+      expected)
+    - Verify serialization/deserialization round-trip accuracy with task_data
+      reconstruction
     - Test serialization with different action formats and various task sizes
     - Benchmark serialization performance and file size improvements
-    - Test error handling when parser cannot reconstruct task_data from task_index
+    - Test error handling when parser cannot reconstruct task_data from
+      task_index
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9_
 
 - [x] 9. Runtime Error Handling and Debugging
 
   - [x] 9.1 Implement JAX-compatible error system
-    - Create error handling utilities using `equinox.error_if` and `equinox.branched_error_if`
+
+    - Create error handling utilities using `equinox.error_if` and
+      `equinox.branched_error_if`
     - Implement action validation with specific error messages
     - Add grid operation error checking with detailed diagnostics
     - Create utilities for environment variable-based error configuration
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.7_
 
   - [x] 9.2 Add debugging support
+
     - Implement support for EQX_ON_ERROR=breakpoint debugging mode
     - Add support for EQX_ON_ERROR=nan graceful degradation mode
     - Create debugging utilities for batch processing error diagnosis
@@ -243,13 +304,16 @@
 - [x] 10. Comprehensive Testing and Validation
 
   - [x] 10.1 Create JAX compliance test suite
-    - Implement `JAXComplianceTests` class with comprehensive JIT compilation tests
+
+    - Implement `JAXComplianceTests` class with comprehensive JIT compilation
+      tests
     - Create tests for all core functions (arc_reset, arc_step, grid operations)
     - Add tests for batch processing with various batch sizes
     - Implement configuration hashability validation tests
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.7_
 
   - [x] 10.2 Implement memory usage and performance tests
+
     - Create memory profiling tests for different action formats
     - Implement performance benchmarks with before/after comparisons
     - Add scalability tests for batch processing
@@ -266,6 +330,7 @@
 - [x] 11. Documentation and Examples
 
   - [x] 11.1 Create JAX optimization usage examples
+
     - Write examples demonstrating JIT compilation benefits
     - Create batch processing examples with performance comparisons
     - Add examples showing memory usage improvements
@@ -273,6 +338,7 @@
     - _Requirements: All requirements (documentation)_
 
   - [x] 11.2 Update API documentation
+
     - Document new structured action system
     - Add documentation for batch processing utilities
     - Document serialization and error handling features

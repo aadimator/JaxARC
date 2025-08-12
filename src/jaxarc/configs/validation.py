@@ -27,7 +27,9 @@ def validate_non_negative_int(value: int, field_name: str) -> None:
         raise ConfigValidationError(msg)
 
 
-def validate_float_range(value: float, field_name: str, min_val: float, max_val: float) -> None:
+def validate_float_range(
+    value: float, field_name: str, min_val: float, max_val: float
+) -> None:
     """Validate that a float value is within a specified range."""
     if not isinstance(value, (int, float)):
         msg = f"{field_name} must be a number, got {type(value).__name__}"
@@ -37,7 +39,9 @@ def validate_float_range(value: float, field_name: str, min_val: float, max_val:
         raise ConfigValidationError(msg)
 
 
-def validate_string_choice(value: str, field_name: str, choices: tuple[str, ...]) -> None:
+def validate_string_choice(
+    value: str, field_name: str, choices: tuple[str, ...]
+) -> None:
     """Validate that a string value is one of the allowed choices."""
     if not isinstance(value, str):
         msg = f"{field_name} must be a string, got {type(value).__name__}"

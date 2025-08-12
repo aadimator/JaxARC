@@ -57,7 +57,7 @@ packages = ["src/jaxarc"]
 # Include Hydra configuration files as package data
 include = [
     "jaxarc/conf/**/*.yaml",
-    "jaxarc/conf/**/*.yml",  
+    "jaxarc/conf/**/*.yml",
     "jaxarc/conf/README.md"
 ]
 

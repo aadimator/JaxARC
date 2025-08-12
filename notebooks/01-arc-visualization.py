@@ -79,6 +79,7 @@ print(
 # %%
 # Initialize parser with configuration
 from jaxarc.configs import DatasetConfig
+
 typed_dataset_config = DatasetConfig.from_hydra(dataset_config)
 parser = ArcAgiParser(typed_dataset_config)
 

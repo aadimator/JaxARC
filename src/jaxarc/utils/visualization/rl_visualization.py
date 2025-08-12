@@ -7,9 +7,8 @@ actions, and related RL-specific data structures.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-import drawsvg  # type: ignore[import-untyped]
 import jax.numpy as jnp
 import numpy as np
 from loguru import logger
@@ -21,7 +20,6 @@ from .svg_core import add_change_highlighting, add_selection_visualization_overl
 from .utils import (
     _extract_grid_data,
     _extract_valid_region,
-    detect_changed_cells,
     get_info_metric,
 )
 
@@ -541,6 +539,7 @@ def save_rl_step_visualization(
         output_dir: Directory to save visualization files
     """
     from pathlib import Path
+
     from jaxarc.types import Grid
 
     # Ensure output directory exists

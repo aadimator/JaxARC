@@ -7,5 +7,5 @@ max_history_length: 2000
 
 # Storage options
 store_selection_data: true
-store_intermediate_grids: true  # Full data for research
-compress_repeated_actions: false  # No compression for analysis
+store_intermediate_grids: true # Full data for research
+compress_repeated_actions: false # No compression for analysis

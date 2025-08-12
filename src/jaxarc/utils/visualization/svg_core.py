@@ -7,7 +7,6 @@ grid visualizations and basic SVG utilities.
 from __future__ import annotations
 
 import io
-import time
 from typing import TYPE_CHECKING, Any, cast
 
 import drawsvg  # type: ignore[import-untyped]
