@@ -631,7 +631,7 @@ def _calculate_reward_and_done(
 
 
 @eqx.filter_jit(donate="all")
-def arc_step(
+def _arc_step_unsafe(
     state: ArcEnvState,
     action: StructuredAction,
     config: ConfigType,
@@ -678,11 +678,11 @@ def arc_step(
         ```python
         # Point-based grid operation
         action = PointAction(operation=15, row=5, col=10)
-        new_state, obs, reward, done, info = arc_step(state, action, config)
+        new_state, obs, reward, done, info = _arc_step_unsafe(state, action, config)
 
         # Bounding box grid operation
         action = BboxAction(operation=10, r1=2, c1=3, r2=5, c2=7)
-        new_state, obs, reward, done, info = arc_step(state, action, config)
+        new_state, obs, reward, done, info = _arc_step_unsafe(state, action, config)
 
         # Mask-based grid operation
         mask = jnp.zeros((30, 30), dtype=jnp.bool_).at[5:10, 5:10].set(True)
@@ -697,7 +697,7 @@ def arc_step(
         from jaxarc.configs import JaxArcConfig
 
         typed_config = JaxArcConfig.from_hydra(hydra_config)
-        new_state, obs, reward, done, info = arc_step(state, action, typed_config)
+        new_state, obs, reward, done, info = _arc_step_unsafe(state, action, typed_config)
         ```
 
     Note:
@@ -771,7 +771,7 @@ def validate_action_jax(
 
     # Selection-specific checks
     def _check_point(a):
-    return (a.row >= 0) & (a.row < grid_h) & (a.col >= 0) & (a.col < grid_w)
+        return (a.row >= 0) & (a.row < grid_h) & (a.col >= 0) & (a.col < grid_w)
 
     def _check_bbox(a):
         # All coords must be within grid (ordering handled during execution)
@@ -805,7 +805,7 @@ def validate_action_jax(
 
 
 @eqx.filter_jit
-def safe_arc_step(
+def arc_step(
     state: ArcEnvState,
     action: StructuredAction,
     config: ConfigType,
@@ -820,7 +820,7 @@ def safe_arc_step(
     is_valid = validate_action_jax(action, state, typed_config)
 
     def _valid_step():
-        return arc_step(state, action, typed_config)
+        return _arc_step_unsafe(state, action, typed_config)
 
     def _invalid_step():
         obs = create_observation(state, typed_config)
