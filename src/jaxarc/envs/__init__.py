@@ -54,10 +54,12 @@ from .grid_operations import (
 
 # Action and observation spaces
 from .spaces import MultiBinary, Space
+from .wrapper import ArcEnv
 
 __all__ = [
     "OPERATION_NAMES",
     "ActionSpaceController",
+    "ArcEnv",
     "ArcEnvState",
     "BaseAction",
     "BboxAction",
