@@ -35,7 +35,6 @@ from .actions import (
 from .functional import (
     arc_reset,
     arc_step,
-    safe_arc_step,
 )
 
 # Grid initialization
@@ -57,13 +56,13 @@ from .grid_operations import (
 from .spaces import MultiBinary, Space
 
 __all__ = [
+    "OPERATION_NAMES",
     "ActionSpaceController",
     "ArcEnvState",
     "BaseAction",
     "BboxAction",
     "MaskAction",
     "MultiBinary",
-    "OPERATION_NAMES",
     "PointAction",
     "Space",
     "StructuredAction",
@@ -84,5 +83,4 @@ __all__ = [
     "is_valid_operation_id",
     "mask_handler",
     "point_handler",
-    "safe_arc_step",
 ]

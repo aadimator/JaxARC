@@ -154,6 +154,7 @@ isort.required-imports = ["from __future__ import annotations"]
 "noxfile.py" = ["T20"]
 "notebooks/**" = ["T20", "PLC0415", "E402", "F841", "EM102", "UP035", "UP006", "RET504", "B018", "G004", "ARG002", "PT028", "RUF005"]
 "examples/**" = ["T20", "PLC0415", "E402", "F841", "EM102", "NPY002", "G004", "EXE001", "ARG005"]
+"benchmarks/**" = ["T20", "PLC0415", "E402", "F841", "EM102", "NPY002", "G004", "EXE001", "ARG005"]
 
 
 

@@ -5,8 +5,8 @@ Baseline Performance Benchmark for JaxARC
 This script establishes baseline performance metrics for the current JaxARC implementation
 before applying optimizations. It measures:
 
-1. Single environment performance (arc_reset, arc_step)
-2. Batch environment performance (batch_reset, batch_step)
+1. Single environment performance (arc_reset, arc_step [safe default], optional unsafe variant)
+2. Batch environment performance (batch_reset, batch_step or vmapped arc_step/_arc_step_unsafe)
 3. Scaling behavior with different batch sizes
 4. System information and configuration
 
@@ -15,18 +15,21 @@ Results are saved to JSON for comparison after optimization.
 Usage Examples:
     # Basic benchmark with default settings
     pixi run python benchmarks/baseline_benchmark.py
-    
+
     # With description and tag
     pixi run python benchmarks/baseline_benchmark.py -d "Phase 1: Removed callbacks" -t "phase1"
-    
+
     # Custom batch sizes
     pixi run python benchmarks/baseline_benchmark.py -b "1,10,100,1000,5000"
-    
+
     # Automatic batch size range
     pixi run python benchmarks/baseline_benchmark.py --min-batch 1 --max-batch 1000
-    
+
     # Custom step counts
     pixi run python benchmarks/baseline_benchmark.py --single-steps 2000 --batch-steps 100
+
+    # Compare standard vs safe implementation (Phase 2 JAX-native error handling)
+    pixi run python benchmarks/baseline_benchmark.py --step-impl both
 """
 
 from __future__ import annotations
@@ -60,7 +63,12 @@ from jaxarc.envs.actions import (
     create_mask_action,
     create_point_action,
 )
-from jaxarc.envs.functional import arc_reset, arc_step, batch_reset, batch_step
+from jaxarc.envs.functional import (
+    _arc_step_unsafe,
+    arc_reset,
+    arc_step,  # safe-by-default
+    batch_reset,
+)
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.jax_types import EPISODE_MODE_TRAIN
 
@@ -249,11 +257,36 @@ def create_test_actions(grid_shape: tuple[int, int], num_actions: int = 100) -> 
     return actions
 
 
+def _replicate_action_for_batch(action, batch_size: int):
+    """Replicate a single StructuredAction across batch dimension."""
+    from jax import tree_util
+
+    def _b(x):
+        if isinstance(x, jnp.ndarray):
+            return jnp.broadcast_to(x, (batch_size,) + x.shape)
+        return x
+
+    return tree_util.tree_map(_b, action)
+
+
 def benchmark_single_environment(
-    config: JaxArcConfig, task_data: JaxArcTask, num_steps: int = 1000
+    config: JaxArcConfig,
+    task_data: JaxArcTask,
+    num_steps: int = 1000,
+    step_impl: str = "arc",
 ) -> Dict[str, float]:
-    """Benchmark single environment performance."""
-    logger.info(f"Benchmarking single environment with {num_steps} steps...")
+    """Benchmark single environment performance (arc or safe implementation)."""
+    logger.info(
+        f"Benchmarking single environment with {num_steps} steps (impl={step_impl})..."
+    )
+    # Map implementation choice: 'arc' or 'safe' -> safe arc_step; 'unsafe' -> _arc_step_unsafe
+    if step_impl in {"arc", "safe"}:
+        step_fn = arc_step
+    elif step_impl == "unsafe":
+        step_fn = _arc_step_unsafe
+    else:
+        msg = f"Unknown step_impl '{step_impl}'. Use 'arc', 'safe', or 'unsafe'."
+        raise ValueError(msg)
 
     # Create test actions
     grid_shape = (config.dataset.max_grid_height, config.dataset.max_grid_width)
@@ -269,11 +302,16 @@ def benchmark_single_environment(
     mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
     mask_action = create_mask_action(0, mask)
 
-    # Run one step for each action type to ensure all paths are compiled
-    logger.info("Warming up JIT compiler for all action types...")
-    arc_step(state, point_action, config)[2].block_until_ready()
-    arc_step(state, bbox_action, config)[2].block_until_ready()
-    arc_step(state, mask_action, config)[2].block_until_ready()
+    # Run one step for each action type to ensure all paths are compiled.
+    # IMPORTANT: arc_step/_arc_step_unsafe donates the state buffer; we must
+    # always reassign the returned state to keep using it safely.
+    logger.info("Warming up JIT compiler for all action types (with donation)...")
+    state, _, r, _, _ = step_fn(state, point_action, config)
+    r.block_until_ready()
+    state, _, r, _, _ = step_fn(state, bbox_action, config)
+    r.block_until_ready()
+    state, _, r, _, _ = step_fn(state, mask_action, config)
+    r.block_until_ready()
     logger.info("Warmup complete.")
 
     # Benchmark reset
@@ -293,7 +331,7 @@ def benchmark_single_environment(
     start_time = time.perf_counter()
     for i in range(num_steps):
         action = actions[i % len(actions)]
-        state, obs, reward, done, info = arc_step(state, action, config)
+        state, obs, reward, done, info = step_fn(state, action, config)
         reward.block_until_ready()  # Ensure computation completes
 
         # Reset if episode is done
@@ -316,11 +354,15 @@ def benchmark_single_environment(
 
 
 def benchmark_batch_environment(
-    config: JaxArcConfig, task_data: JaxArcTask, batch_size: int, num_steps: int = 100
+    config: JaxArcConfig,
+    task_data: JaxArcTask,
+    batch_size: int,
+    num_steps: int = 100,
+    step_impl: str = "arc",
 ) -> Dict[str, float]:
-    """Benchmark batch environment performance."""
+    """Benchmark batch environment performance (arc or safe implementation)."""
     logger.info(
-        f"Benchmarking batch environment with batch_size={batch_size}, {num_steps} steps..."
+        f"Benchmarking batch environment with batch_size={batch_size}, {num_steps} steps (impl={step_impl})..."
     )
 
     # Create batch keys and actions
@@ -343,10 +385,22 @@ def benchmark_batch_environment(
     # Warm up batch_step with all action types
     logger.info("Warming up batch JIT compiler for all action types...")
     for action in [point_action, bbox_action, mask_action]:
-        batched_action = jax.tree.map(
-            lambda x: jnp.tile(x, (batch_size,) + (1,) * x.ndim), action
-        )
-        batch_step(states, batched_action, config)[2].block_until_ready()
+        batched_action = _replicate_action_for_batch(action, batch_size)
+        if step_impl in {"arc", "safe"}:  # safe path (non-donating)
+            vectorized_safe = jax.vmap(
+                arc_step, in_axes=(0, 0, None), out_axes=(0, 0, 0, 0, 0)
+            )
+            states, _, r, _, _ = vectorized_safe(states, batched_action, config)
+            r.block_until_ready()
+        elif step_impl == "unsafe":  # donating path - reassign states
+            vectorized_unsafe = jax.vmap(
+                _arc_step_unsafe, in_axes=(0, 0, None), out_axes=(0, 0, 0, 0, 0)
+            )
+            states, _, r, _, _ = vectorized_unsafe(states, batched_action, config)
+            r.block_until_ready()
+        else:
+            msg = f"Unknown step_impl '{step_impl}'."
+            raise ValueError(msg)
     logger.info("Batch warmup complete.")
 
     # Benchmark batch reset
@@ -361,10 +415,24 @@ def benchmark_batch_environment(
     for i in range(num_steps):
         action = actions[i % len(actions)]
         # Replicate action across batch
-        batched_action = jax.tree.map(
-            lambda x: jnp.tile(x, (batch_size,) + (1,) * x.ndim), action
-        )
-        states, obs, rewards, dones, infos = batch_step(states, batched_action, config)
+        batched_action = _replicate_action_for_batch(action, batch_size)
+        if step_impl in {"arc", "safe"}:
+            vectorized_safe = jax.vmap(
+                arc_step, in_axes=(0, 0, None), out_axes=(0, 0, 0, 0, 0)
+            )
+            states, obs, rewards, dones, infos = vectorized_safe(
+                states, batched_action, config
+            )
+        elif step_impl == "unsafe":
+            vectorized_unsafe = jax.vmap(
+                _arc_step_unsafe, in_axes=(0, 0, None), out_axes=(0, 0, 0, 0, 0)
+            )
+            states, obs, rewards, dones, infos = vectorized_unsafe(
+                states, batched_action, config
+            )
+        else:
+            msg = f"Unknown step_impl '{step_impl}'."
+            raise ValueError(msg)
         rewards.block_until_ready()  # Ensure computation completes
 
     end_time = time.perf_counter()
@@ -384,19 +452,23 @@ def benchmark_batch_environment(
 
 
 def run_scaling_benchmark(
-    config: JaxArcConfig, task_data: JaxArcTask, batch_sizes: Optional[List[int]] = None, num_steps: int = 50
+    config: JaxArcConfig,
+    task_data: JaxArcTask,
+    batch_sizes: Optional[List[int]] = None,
+    num_steps: int = 50,
+    step_impl: str = "arc",
 ) -> Dict[str, Any]:
-    """Run scaling benchmark with different batch sizes."""
+    """Run scaling benchmark with different batch sizes for selected implementation."""
     if batch_sizes is None:
         batch_sizes = [1, 10, 50, 100, 500, 1000, 2000, 5000, 10000]
-    
+
     logger.info(f"Running scaling benchmark with batch sizes: {batch_sizes}")
     scaling_results = {}
 
     for batch_size in batch_sizes:
         try:
             result = benchmark_batch_environment(
-                config, task_data, batch_size, num_steps=num_steps
+                config, task_data, batch_size, num_steps=num_steps, step_impl=step_impl
             )
             scaling_results[str(batch_size)] = result
             logger.info(
@@ -410,35 +482,66 @@ def run_scaling_benchmark(
 
 
 def main(
-    description: str = typer.Option("", "--description", "-d", help="Description of the benchmark run (e.g., 'Phase 1: Removed callbacks')"),
-    tag: str = typer.Option("", "--tag", "-t", help="Short tag for the benchmark (e.g., 'phase1', 'baseline')"),
-    batch_sizes: Optional[str] = typer.Option(None, "--batch-sizes", "-b", help="Comma-separated list of batch sizes to test (e.g., '1,10,100,1000')"),
-    min_batch: Optional[int] = typer.Option(None, "--min-batch", help="Minimum batch size for automatic range"),
-    max_batch: Optional[int] = typer.Option(None, "--max-batch", help="Maximum batch size for automatic range"),
-    single_steps: int = typer.Option(1000, "--single-steps", help="Number of steps for single environment benchmark"),
-    batch_steps: int = typer.Option(50, "--batch-steps", help="Number of steps for batch environment benchmark"),
+    description: str = typer.Option(
+        "",
+        "--description",
+        "-d",
+        help="Description of the benchmark run (e.g., 'Phase 1: Removed callbacks')",
+    ),
+    tag: str = typer.Option(
+        "",
+        "--tag",
+        "-t",
+        help="Short tag for the benchmark (e.g., 'phase1', 'baseline')",
+    ),
+    batch_sizes: Optional[str] = typer.Option(
+        None,
+        "--batch-sizes",
+        "-b",
+        help="Comma-separated list of batch sizes to test (e.g., '1,10,100,1000')",
+    ),
+    min_batch: Optional[int] = typer.Option(
+        None, "--min-batch", help="Minimum batch size for automatic range"
+    ),
+    max_batch: Optional[int] = typer.Option(
+        None, "--max-batch", help="Maximum batch size for automatic range"
+    ),
+    single_steps: int = typer.Option(
+        1000, "--single-steps", help="Number of steps for single environment benchmark"
+    ),
+    batch_steps: int = typer.Option(
+        50, "--batch-steps", help="Number of steps for batch environment benchmark"
+    ),
+    step_impl: str = typer.Option(
+        "arc",
+        "--step-impl",
+        help="Which step implementation(s): 'arc' (safe), 'safe' (alias), 'unsafe', or 'both' (safe+unsafe)",
+    ),
 ):
     """
     JaxARC Performance Benchmark
-    
+
     This script establishes baseline performance metrics for the current JaxARC implementation.
-    
+
     Examples:
-    
+
         # Basic benchmark with default settings
         python benchmarks/baseline_benchmark.py
-        
+
         # With description and tag
         python benchmarks/baseline_benchmark.py -d "Phase 1: Removed callbacks" -t "phase1"
-        
+
         # Custom batch sizes
         python benchmarks/baseline_benchmark.py -b "1,10,100,1000,5000"
-        
+
         # Automatic batch size range
         python benchmarks/baseline_benchmark.py --min-batch 1 --max-batch 1000
-        
-        # Custom step counts
-        python benchmarks/baseline_benchmark.py --single-steps 2000 --batch-steps 100
+
+    # Custom step counts
+    python benchmarks/baseline_benchmark.py --single-steps 2000 --batch-steps 100
+
+    # Compare implementations (Phase 2 JAX-native error handling)
+    python benchmarks/baseline_benchmark.py --step-impl both
     """
     # Set loguru to only show ERROR and above to reduce noise
     logger.remove()
@@ -447,7 +550,7 @@ def main(
     benchmark_title = "JaxARC Performance Benchmark"
     if description:
         benchmark_title += f": {description}"
-    
+
     logger.info(f"Starting {benchmark_title}")
 
     # Create output directory
@@ -477,22 +580,22 @@ def main(
         if min_batch >= max_batch:
             typer.echo("Error: min-batch must be less than max-batch", err=True)
             raise typer.Exit(1)
-        
+
         # Generate linear scale between min and max
         num_points = 10  # Number of points in the range
-        
+
         parsed_batch_sizes = []
         for i in range(num_points):
             batch_size = int(min_batch + (max_batch - min_batch) * i / (num_points - 1))
             if batch_size not in parsed_batch_sizes:
                 parsed_batch_sizes.append(batch_size)
-        
+
         # Ensure min and max are included
         if min_batch not in parsed_batch_sizes:
             parsed_batch_sizes.insert(0, min_batch)
         if max_batch not in parsed_batch_sizes:
             parsed_batch_sizes.append(max_batch)
-        
+
         parsed_batch_sizes.sort()
 
     # Run benchmarks
@@ -516,32 +619,43 @@ def main(
         },
     }
 
-    # Single environment benchmark
-    try:
-        single_results = benchmark_single_environment(config, task_data, num_steps=single_steps)
-        results["single_environment"] = single_results
-        logger.info(f"Single environment: {single_results['steps_per_second']:.0f} SPS")
-    except Exception as e:
-        logger.error(f"Single environment benchmark failed: {e}")
-        results["single_environment"] = {"error": str(e)}
-
-    # Batch environment benchmarks
-    try:
-        scaling_results = run_scaling_benchmark(config, task_data, parsed_batch_sizes, batch_steps)
-        results["batch_scaling"] = scaling_results
-    except Exception as e:
-        logger.error(f"Batch scaling benchmark failed: {e}")
-        results["batch_scaling"] = {"error": str(e)}
+    if step_impl == "both":
+        impls = ["arc", "unsafe"]  # 'arc' is safe default
+    else:
+        impls = [step_impl]
+    results["implementations"] = impls
+    for impl in impls:
+        single_key = f"single_environment_{impl}"
+        batch_key = f"batch_scaling_{impl}"
+        try:
+            single_results = benchmark_single_environment(
+                config, task_data, num_steps=single_steps, step_impl=impl
+            )
+            results[single_key] = single_results
+            logger.info(
+                f"Single environment ({impl}): {single_results['steps_per_second']:.0f} SPS"
+            )
+        except Exception as e:
+            logger.error(f"Single environment benchmark ({impl}) failed: {e}")
+            results[single_key] = {"error": str(e)}
+        try:
+            scaling_results = run_scaling_benchmark(
+                config, task_data, parsed_batch_sizes, batch_steps, step_impl=impl
+            )
+            results[batch_key] = scaling_results
+        except Exception as e:
+            logger.error(f"Batch scaling benchmark ({impl}) failed: {e}")
+            results[batch_key] = {"error": str(e)}
 
     # Save results
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    
+
     # Create filename with optional tag
     filename_parts = ["benchmark", timestamp]
     if tag:
         filename_parts.insert(1, tag)
     filename = "_".join(filename_parts) + ".json"
-    
+
     output_file = output_dir / filename
 
     with open(output_file, "w") as f:
@@ -557,19 +671,19 @@ def main(
     print(summary_title)
     print("=" * 60)
 
-    if (
-        "single_environment" in results
-        and "steps_per_second" in results["single_environment"]
-    ):
-        single_sps = results["single_environment"]["steps_per_second"]
-        print(f"Single Environment: {single_sps:,.0f} SPS")
-
-    if "batch_scaling" in results:
-        print("\nBatch Environment Scaling:")
-        for batch_size, result in results["batch_scaling"].items():
-            if "steps_per_second" in result:
-                sps = result["steps_per_second"]
-                print(f"  Batch {batch_size:>4}: {sps:,.0f} SPS")
+    for impl in impls:
+        single_key = f"single_environment_{impl}"
+        if single_key in results and "steps_per_second" in results[single_key]:
+            sps = results[single_key]["steps_per_second"]
+            print(f"Single Environment ({impl}): {sps:,.0f} SPS")
+    for impl in impls:
+        batch_key = f"batch_scaling_{impl}"
+        if batch_key in results:
+            print(f"\nBatch Environment Scaling ({impl}):")
+            for batch_size, result in results[batch_key].items():
+                if "steps_per_second" in result:
+                    sps = result["steps_per_second"]
+                    print(f"  Batch {batch_size:>4}: {sps:,.0f} SPS")
 
     print(f"\nResults saved to: {output_file}")
     if description:
