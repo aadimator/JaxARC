@@ -15,6 +15,7 @@ Results are saved to JSON for comparison after optimization.
 
 from __future__ import annotations
 
+import argparse
 import json
 import platform
 import time
@@ -393,11 +394,41 @@ def run_scaling_benchmark(
 
 def main():
     """Run the complete baseline benchmark."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="JaxARC Performance Benchmark",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python benchmarks/baseline_benchmark.py
+  python benchmarks/baseline_benchmark.py --description "Phase 1: Removed callbacks, added StepInfo"
+  python benchmarks/baseline_benchmark.py -d "Baseline before optimizations"
+        """
+    )
+    parser.add_argument(
+        "--description", "-d",
+        type=str,
+        default="",
+        help="Description of the benchmark run (e.g., 'Phase 1: Removed callbacks')"
+    )
+    parser.add_argument(
+        "--tag", "-t",
+        type=str,
+        default="",
+        help="Short tag for the benchmark (e.g., 'phase1', 'baseline')"
+    )
+    
+    args = parser.parse_args()
+    
     # Set loguru to only show ERROR and above to reduce noise
     logger.remove()
     logger.add(lambda msg: print(msg, end=""), level="INFO")
 
-    logger.info("Starting JaxARC Baseline Performance Benchmark")
+    benchmark_title = "JaxARC Performance Benchmark"
+    if args.description:
+        benchmark_title += f": {args.description}"
+    
+    logger.info(f"Starting {benchmark_title}")
 
     # Create output directory
     output_dir = Path("benchmarks/results")
@@ -416,6 +447,8 @@ def main():
     # Run benchmarks
     results = {
         "timestamp": time.time(),
+        "description": args.description,
+        "tag": args.tag,
         "system_info": system_info,
         "config_summary": {
             "max_grid_height": config.dataset.max_grid_height,
@@ -446,7 +479,14 @@ def main():
 
     # Save results
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    output_file = output_dir / f"baseline_benchmark_{timestamp}.json"
+    
+    # Create filename with optional tag
+    filename_parts = ["benchmark", timestamp]
+    if args.tag:
+        filename_parts.insert(1, args.tag)
+    filename = "_".join(filename_parts) + ".json"
+    
+    output_file = output_dir / filename
 
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2, default=str)
@@ -455,7 +495,10 @@ def main():
 
     # Print summary
     print("\n" + "=" * 60)
-    print("BASELINE BENCHMARK SUMMARY")
+    summary_title = "BENCHMARK SUMMARY"
+    if args.description:
+        summary_title += f": {args.description}"
+    print(summary_title)
     print("=" * 60)
 
     if (
@@ -473,6 +516,10 @@ def main():
                 print(f"  Batch {batch_size:>4}: {sps:,.0f} SPS")
 
     print(f"\nResults saved to: {output_file}")
+    if args.description:
+        print(f"Description: {args.description}")
+    if args.tag:
+        print(f"Tag: {args.tag}")
     print("=" * 60)
 
 

@@ -1,0 +1,83 @@
+{
+  "timestamp": 1755056375.9874182,
+  "description": "Phase1-Callbacks-Removed",
+  "tag": "phase1",
+  "system_info": {
+    "platform": "macOS-15.5-arm64-arm-64bit-Mach-O",
+    "python_version": "3.13.5",
+    "jax_version": "0.6.2",
+    "jax_devices": {
+      "count": 1,
+      "types": [
+        "cpu"
+      ],
+      "platform": "cpu"
+    },
+    "cpu_count": "arm",
+    "architecture": "64bit"
+  },
+  "config_summary": {
+    "max_grid_height": 30,
+    "max_grid_width": 30,
+    "max_train_pairs": 3,
+    "selection_format": "point",
+    "logging_enabled": false,
+    "history_enabled": false
+  },
+  "single_environment": {
+    "steps_per_second": 619.5764953249408,
+    "total_time": 1.6140057080046972,
+    "avg_reset_time": 0.00047242500295396894,
+    "num_steps": 1000
+  },
+  "batch_scaling": {
+    "1": {
+      "batch_size": 1,
+      "steps_per_second": 34.27384770037461,
+      "total_time": 1.4588382500005537,
+      "batch_reset_time": 0.0007015830051386729,
+      "total_env_steps": 50,
+      "num_steps": 50
+    },
+    "10": {
+      "batch_size": 10,
+      "steps_per_second": 321.72589211372275,
+      "total_time": 1.5541180000000168,
+      "batch_reset_time": 0.0014594169988413341,
+      "total_env_steps": 500,
+      "num_steps": 50
+    },
+    "50": {
+      "batch_size": 50,
+      "steps_per_second": 1424.860041071257,
+      "total_time": 1.754558291999274,
+      "batch_reset_time": 0.002146332997654099,
+      "total_env_steps": 2500,
+      "num_steps": 50
+    },
+    "100": {
+      "batch_size": 100,
+      "steps_per_second": 2497.9447634833173,
+      "total_time": 2.001645542004553,
+      "batch_reset_time": 0.0029195419992902316,
+      "total_env_steps": 5000,
+      "num_steps": 50
+    },
+    "500": {
+      "batch_size": 500,
+      "steps_per_second": 11195.072076838544,
+      "total_time": 2.2331254170057946,
+      "batch_reset_time": 0.006902332999743521,
+      "total_env_steps": 25000,
+      "num_steps": 50
+    },
+    "1000": {
+      "batch_size": 1000,
+      "steps_per_second": 18602.27583729088,
+      "total_time": 2.6878431670047576,
+      "batch_reset_time": 0.013273416996526066,
+      "total_env_steps": 50000,
+      "num_steps": 50
+    }
+  }
+}

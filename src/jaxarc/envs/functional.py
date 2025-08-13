@@ -16,6 +16,25 @@ import jax.numpy as jnp
 from loguru import logger
 from omegaconf import DictConfig
 
+
+class StepInfo(eqx.Module):
+    """JAX-compatible step info structure - replaces dict for performance.
+    
+    This structure contains all the information that was previously in the info dict
+    but is now JAX-compatible and doesn't require device-to-host transfers.
+    """
+    similarity: jnp.float32
+    similarity_improvement: jnp.float32
+    operation_type: jnp.int32
+    step_count: jnp.int32
+    episode_done: jnp.bool_
+    episode_mode: jnp.int32
+    current_pair_index: jnp.int32
+    available_demo_pairs: jnp.int32
+    available_test_pairs: jnp.int32
+    action_history_length: jnp.int32
+    success: jnp.bool_
+
 from jaxarc.configs import JaxArcConfig
 from jaxarc.utils.jax_types import EPISODE_MODE_TEST, EPISODE_MODE_TRAIN
 from jaxarc.utils.visualization import (
@@ -381,20 +400,8 @@ def arc_reset(
     # Create initial observation using the enhanced create_observation function
     observation = create_observation(validated_state, typed_config)
 
-    # Optional logging with enhanced information
-    if typed_config.logging.log_operations:
-        jax.debug.callback(
-            lambda mode, idx, sim, avail_demo, avail_test: logger.info(
-                f"Reset ARC environment in {['train', 'test'][int(mode)]} mode, "
-                f"pair {int(idx)}, similarity: {float(sim):.3f}, "
-                f"available demos: {int(avail_demo)}, available tests: {int(avail_test)}"
-            ),
-            episode_mode,
-            selected_pair_idx,
-            validated_state.similarity_score,
-            jnp.sum(validated_state.available_demo_pairs),
-            jnp.sum(validated_state.available_test_pairs),
-        )
+    # Logging removed for performance - callbacks cause 10-50x slowdown
+    # All logging information is now available in the returned state for external logging
 
     return validated_state, observation
 def _process_action(
@@ -636,7 +643,7 @@ def arc_step(
     state: ArcEnvState,
     action: StructuredAction,
     config: ConfigType,
-) -> tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, dict[str, Any]]:
+) -> tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, StepInfo]:
     """
     Execute single step in ARC environment with comprehensive functionality.
 
@@ -673,7 +680,7 @@ def arc_step(
         - agent_observation: Focused observation for agent (currently working grid)
         - reward: Calculated reward value with mode-specific logic
         - done: Boolean indicating episode termination
-        - info: Dictionary with step information and context
+        - info: JAX-compatible StepInfo structure with step information and context
 
     Examples:
         ```python
@@ -731,83 +738,24 @@ def arc_step(
     # Use create_observation function to generate focused agent view
     observation = create_observation(final_state, typed_config)
 
-    # Create enhanced info dict with structured metrics for automatic logging (JAX-compatible)
-    info: dict[str, Any] = {
-        # Scalar metrics for time-series logging (wandb, etc.)
-        "metrics": {
-            "similarity": final_state.similarity_score,
-            "similarity_improvement": final_state.similarity_score
-            - state.similarity_score,
-            "step_count": final_state.step_count,
-            "episode_mode": final_state.episode_mode,  # 0=train, 1=test
-            "current_pair_index": final_state.current_example_idx,
-            "available_demo_pairs": final_state.get_available_demo_count(),
-            "available_test_pairs": final_state.get_available_test_count(),
-            "action_history_length": final_state.get_action_history_length(),
-            "operation_type": jnp.array(0, dtype=jnp.int32),  # Only grid ops remain
-        },
-        # Non-metric data for visualization and analysis
-        "success": final_state.similarity_score >= 1.0,
-    }
+    # Create JAX-compatible info structure - replaces dict for performance
+    info = StepInfo(
+        similarity=final_state.similarity_score,
+        similarity_improvement=final_state.similarity_score - state.similarity_score,
+        operation_type=standardized_action.operation,
+        step_count=final_state.step_count,
+        episode_done=done,
+        episode_mode=final_state.episode_mode,
+        current_pair_index=final_state.current_example_idx,
+        available_demo_pairs=jnp.sum(final_state.available_demo_pairs),
+        available_test_pairs=jnp.sum(final_state.available_test_pairs),
+        action_history_length=final_state.get_action_history_length(),
+        success=final_state.similarity_score >= 1.0,
+    )
 
-    # Optional logging with enhanced information (JAX-compatible)
-    def log_operations():
-        """Log operations if enabled."""
-        jax.debug.callback(
-            lambda step, op, sim, rew, mode, pair: logger.info(
-                f"Step {int(step)}: op={int(op)}, sim={float(sim):.3f}, reward={float(rew):.3f}, "
-                f"mode={'train' if int(mode) == 0 else 'test'}, pair={int(pair)}"
-            ),
-            final_state.step_count,
-            standardized_action.operation,
-            final_state.similarity_score,
-            reward,
-            final_state.episode_mode,
-            final_state.current_example_idx,
-        )
-
-    def log_rewards():
-        """Log rewards if enabled."""
-        jax.debug.callback(
-            lambda rew, imp: logger.info(
-                f"Reward: {float(rew):.3f} (improvement: {float(imp):.3f})"
-            ),
-            reward,
-            info["metrics"]["similarity_improvement"],
-        )
-
-    # Use JAX-compatible conditionals for logging
-    jax.lax.cond(typed_config.logging.log_operations, log_operations, lambda: None)
-
-    jax.lax.cond(typed_config.logging.log_rewards, log_rewards, lambda: None)
-
-    # Optional visualization callback with enhanced information (JAX-compatible)
-    def handle_visualization():
-        """Handle visualization if enabled."""
-
-        # Clear output directory at episode start (step 0) - using JAX-compatible conditional
-        def clear_if_needed():
-            # Note: This still has a Python conditional, but it's inside a callback
-            # so it won't be traced by JAX
-            jax.debug.callback(
-                lambda output_dir, should_clear: _clear_output_directory(output_dir)
-                if should_clear
-                else None,
-                typed_config.storage.base_output_dir,
-                typed_config.storage.clear_output_on_start,
-            )
-
-        # Use lax.cond for JAX-compatible conditional on traced values
-        jax.lax.cond(state.step_count == 0, clear_if_needed, lambda: None)
-
-        # Simple logging callback (removed complex visualization for simplicity)
-        def simple_step_log(step_num, reward_val):
-            logger.debug(f"Step {step_num}: reward={reward_val:.3f}")
-
-        jax.debug.callback(simple_step_log, final_state.step_count, reward)
-
-    # Use JAX-compatible conditional for visualization
-    jax.lax.cond(typed_config.visualization.enabled, handle_visualization, lambda: None)
+    # All logging and visualization callbacks removed for performance
+    # Callbacks cause 10-50x slowdown due to device-to-host transfers
+    # All information is now available in the StepInfo structure for external logging
 
     return final_state, observation, reward, done, info
 
@@ -864,7 +812,7 @@ def batch_reset(
 @eqx.filter_jit
 def batch_step(
     states: ArcEnvState, actions: StructuredAction, config: ConfigType
- ) -> tuple[ArcEnvState, ObservationArray, jnp.ndarray, jnp.ndarray, dict[str, Any]]:
+ ) -> tuple[ArcEnvState, ObservationArray, jnp.ndarray, jnp.ndarray, StepInfo]:
     """Step multiple environments in parallel using vmap.
 
     This function provides efficient batch processing for environment steps
@@ -881,7 +829,7 @@ def batch_step(
         - Batched observations with shape (batch_size, ...)
         - Batched rewards with shape (batch_size,)
         - Batched done flags with shape (batch_size,)
-        - Batched info dictionaries
+        - Batched StepInfo structures
 
     Examples:
         ```python
