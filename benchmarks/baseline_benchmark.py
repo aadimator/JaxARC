@@ -11,20 +11,36 @@ before applying optimizations. It measures:
 4. System information and configuration
 
 Results are saved to JSON for comparison after optimization.
+
+Usage Examples:
+    # Basic benchmark with default settings
+    pixi run python benchmarks/baseline_benchmark.py
+    
+    # With description and tag
+    pixi run python benchmarks/baseline_benchmark.py -d "Phase 1: Removed callbacks" -t "phase1"
+    
+    # Custom batch sizes
+    pixi run python benchmarks/baseline_benchmark.py -b "1,10,100,1000,5000"
+    
+    # Automatic batch size range
+    pixi run python benchmarks/baseline_benchmark.py --min-batch 1 --max-batch 1000
+    
+    # Custom step counts
+    pixi run python benchmarks/baseline_benchmark.py --single-steps 2000 --batch-steps 100
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import platform
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+import typer
 from loguru import logger
 
 # JaxARC imports
@@ -368,18 +384,19 @@ def benchmark_batch_environment(
 
 
 def run_scaling_benchmark(
-    config: JaxArcConfig, task_data: JaxArcTask
+    config: JaxArcConfig, task_data: JaxArcTask, batch_sizes: Optional[List[int]] = None, num_steps: int = 50
 ) -> Dict[str, Any]:
     """Run scaling benchmark with different batch sizes."""
-    logger.info("Running scaling benchmark...")
-
-    batch_sizes = [1, 10, 50, 100, 500, 1000]
+    if batch_sizes is None:
+        batch_sizes = [1, 10, 50, 100, 500, 1000, 2000, 5000, 10000]
+    
+    logger.info(f"Running scaling benchmark with batch sizes: {batch_sizes}")
     scaling_results = {}
 
     for batch_size in batch_sizes:
         try:
             result = benchmark_batch_environment(
-                config, task_data, batch_size, num_steps=50
+                config, task_data, batch_size, num_steps=num_steps
             )
             scaling_results[str(batch_size)] = result
             logger.info(
@@ -392,41 +409,44 @@ def run_scaling_benchmark(
     return scaling_results
 
 
-def main():
-    """Run the complete baseline benchmark."""
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description="JaxARC Performance Benchmark",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python benchmarks/baseline_benchmark.py
-  python benchmarks/baseline_benchmark.py --description "Phase 1: Removed callbacks, added StepInfo"
-  python benchmarks/baseline_benchmark.py -d "Baseline before optimizations"
-        """
-    )
-    parser.add_argument(
-        "--description", "-d",
-        type=str,
-        default="",
-        help="Description of the benchmark run (e.g., 'Phase 1: Removed callbacks')"
-    )
-    parser.add_argument(
-        "--tag", "-t",
-        type=str,
-        default="",
-        help="Short tag for the benchmark (e.g., 'phase1', 'baseline')"
-    )
+def main(
+    description: str = typer.Option("", "--description", "-d", help="Description of the benchmark run (e.g., 'Phase 1: Removed callbacks')"),
+    tag: str = typer.Option("", "--tag", "-t", help="Short tag for the benchmark (e.g., 'phase1', 'baseline')"),
+    batch_sizes: Optional[str] = typer.Option(None, "--batch-sizes", "-b", help="Comma-separated list of batch sizes to test (e.g., '1,10,100,1000')"),
+    min_batch: Optional[int] = typer.Option(None, "--min-batch", help="Minimum batch size for automatic range"),
+    max_batch: Optional[int] = typer.Option(None, "--max-batch", help="Maximum batch size for automatic range"),
+    single_steps: int = typer.Option(1000, "--single-steps", help="Number of steps for single environment benchmark"),
+    batch_steps: int = typer.Option(50, "--batch-steps", help="Number of steps for batch environment benchmark"),
+):
+    """
+    JaxARC Performance Benchmark
     
-    args = parser.parse_args()
+    This script establishes baseline performance metrics for the current JaxARC implementation.
     
+    Examples:
+    
+        # Basic benchmark with default settings
+        python benchmarks/baseline_benchmark.py
+        
+        # With description and tag
+        python benchmarks/baseline_benchmark.py -d "Phase 1: Removed callbacks" -t "phase1"
+        
+        # Custom batch sizes
+        python benchmarks/baseline_benchmark.py -b "1,10,100,1000,5000"
+        
+        # Automatic batch size range
+        python benchmarks/baseline_benchmark.py --min-batch 1 --max-batch 1000
+        
+        # Custom step counts
+        python benchmarks/baseline_benchmark.py --single-steps 2000 --batch-steps 100
+    """
     # Set loguru to only show ERROR and above to reduce noise
     logger.remove()
     logger.add(lambda msg: print(msg, end=""), level="INFO")
 
     benchmark_title = "JaxARC Performance Benchmark"
-    if args.description:
-        benchmark_title += f": {args.description}"
+    if description:
+        benchmark_title += f": {description}"
     
     logger.info(f"Starting {benchmark_title}")
 
@@ -444,11 +464,42 @@ Examples:
     logger.info(f"JAX version: {system_info['jax_version']}")
     logger.info(f"JAX devices: {system_info['jax_devices']}")
 
+    # Parse batch sizes
+    parsed_batch_sizes = None
+    if batch_sizes:
+        try:
+            parsed_batch_sizes = [int(x.strip()) for x in batch_sizes.split(",")]
+        except ValueError:
+            typer.echo(f"Error: Invalid batch sizes format: {batch_sizes}", err=True)
+            raise typer.Exit(1)
+    elif min_batch is not None and max_batch is not None:
+        # Generate automatic range
+        if min_batch >= max_batch:
+            typer.echo("Error: min-batch must be less than max-batch", err=True)
+            raise typer.Exit(1)
+        
+        # Generate linear scale between min and max
+        num_points = 10  # Number of points in the range
+        
+        parsed_batch_sizes = []
+        for i in range(num_points):
+            batch_size = int(min_batch + (max_batch - min_batch) * i / (num_points - 1))
+            if batch_size not in parsed_batch_sizes:
+                parsed_batch_sizes.append(batch_size)
+        
+        # Ensure min and max are included
+        if min_batch not in parsed_batch_sizes:
+            parsed_batch_sizes.insert(0, min_batch)
+        if max_batch not in parsed_batch_sizes:
+            parsed_batch_sizes.append(max_batch)
+        
+        parsed_batch_sizes.sort()
+
     # Run benchmarks
     results = {
         "timestamp": time.time(),
-        "description": args.description,
-        "tag": args.tag,
+        "description": description,
+        "tag": tag,
         "system_info": system_info,
         "config_summary": {
             "max_grid_height": config.dataset.max_grid_height,
@@ -458,11 +509,16 @@ Examples:
             "logging_enabled": config.logging.log_operations,
             "history_enabled": config.history.enabled,
         },
+        "benchmark_params": {
+            "single_steps": single_steps,
+            "batch_steps": batch_steps,
+            "custom_batch_sizes": parsed_batch_sizes,
+        },
     }
 
     # Single environment benchmark
     try:
-        single_results = benchmark_single_environment(config, task_data, num_steps=1000)
+        single_results = benchmark_single_environment(config, task_data, num_steps=single_steps)
         results["single_environment"] = single_results
         logger.info(f"Single environment: {single_results['steps_per_second']:.0f} SPS")
     except Exception as e:
@@ -471,7 +527,7 @@ Examples:
 
     # Batch environment benchmarks
     try:
-        scaling_results = run_scaling_benchmark(config, task_data)
+        scaling_results = run_scaling_benchmark(config, task_data, parsed_batch_sizes, batch_steps)
         results["batch_scaling"] = scaling_results
     except Exception as e:
         logger.error(f"Batch scaling benchmark failed: {e}")
@@ -482,8 +538,8 @@ Examples:
     
     # Create filename with optional tag
     filename_parts = ["benchmark", timestamp]
-    if args.tag:
-        filename_parts.insert(1, args.tag)
+    if tag:
+        filename_parts.insert(1, tag)
     filename = "_".join(filename_parts) + ".json"
     
     output_file = output_dir / filename
@@ -496,8 +552,8 @@ Examples:
     # Print summary
     print("\n" + "=" * 60)
     summary_title = "BENCHMARK SUMMARY"
-    if args.description:
-        summary_title += f": {args.description}"
+    if description:
+        summary_title += f": {description}"
     print(summary_title)
     print("=" * 60)
 
@@ -516,12 +572,14 @@ Examples:
                 print(f"  Batch {batch_size:>4}: {sps:,.0f} SPS")
 
     print(f"\nResults saved to: {output_file}")
-    if args.description:
-        print(f"Description: {args.description}")
-    if args.tag:
-        print(f"Tag: {args.tag}")
+    if description:
+        print(f"Description: {description}")
+    if tag:
+        print(f"Tag: {tag}")
+    if parsed_batch_sizes:
+        print(f"Batch sizes tested: {parsed_batch_sizes}")
     print("=" * 60)
 
 
 if __name__ == "__main__":
-    main()
+    typer.run(main)
