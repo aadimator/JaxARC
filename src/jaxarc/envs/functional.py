@@ -13,33 +13,10 @@ from typing import Any, Union
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from loguru import logger
 from omegaconf import DictConfig
-
-
-class StepInfo(eqx.Module):
-    """JAX-compatible step info structure - replaces dict for performance.
-    
-    This structure contains all the information that was previously in the info dict
-    but is now JAX-compatible and doesn't require device-to-host transfers.
-    """
-    similarity: jnp.float32
-    similarity_improvement: jnp.float32
-    operation_type: jnp.int32
-    step_count: jnp.int32
-    episode_done: jnp.bool_
-    episode_mode: jnp.int32
-    current_pair_index: jnp.int32
-    available_demo_pairs: jnp.int32
-    available_test_pairs: jnp.int32
-    action_history_length: jnp.int32
-    success: jnp.bool_
 
 from jaxarc.configs import JaxArcConfig
 from jaxarc.utils.jax_types import EPISODE_MODE_TEST, EPISODE_MODE_TRAIN
-from jaxarc.utils.visualization import (
-    _clear_output_directory,
-)
 
 from ..state import ArcEnvState
 from ..types import JaxArcTask
@@ -74,6 +51,21 @@ from .grid_operations import compute_grid_similarity, execute_grid_operation
 from .observation import create_observation
 from .reward import _calculate_reward
 from .termination import _is_episode_done
+
+# JAX-compatible step info structure - replaces dict for performance.
+class StepInfo(eqx.Module):
+    """Step info as an Equinox Module for PyTree compatibility."""
+    similarity: jax.Array
+    similarity_improvement: jax.Array
+    operation_type: jax.Array
+    step_count: jax.Array
+    episode_done: jax.Array
+    episode_mode: jax.Array
+    current_pair_index: jax.Array
+    available_demo_pairs: jax.Array
+    available_test_pairs: jax.Array
+    action_history_length: jax.Array
+    success: jax.Array
 
 # Type aliases for cleaner signatures
 ConfigType = Union[JaxArcConfig, DictConfig]
@@ -638,7 +630,7 @@ def _calculate_reward_and_done(
     return reward, done, final_state
 
 
-@eqx.filter_jit
+@eqx.filter_jit(donate="all")
 def arc_step(
     state: ArcEnvState,
     action: StructuredAction,
@@ -758,6 +750,102 @@ def arc_step(
     # All information is now available in the StepInfo structure for external logging
 
     return final_state, observation, reward, done, info
+
+
+@eqx.filter_jit
+def validate_action_jax(
+    action: StructuredAction, state: ArcEnvState, _config: ConfigType
+) -> jax.Array:
+    """JAX-friendly validation returning a boolean predicate.
+
+    This avoids raising inside JIT and can be used with lax.cond.
+    """
+    # Operation bounds check
+    max_ops = jnp.asarray(NUM_OPERATIONS, dtype=jnp.int32)
+    op = jnp.asarray(action.operation, dtype=jnp.int32)
+    op_valid = (op >= 0) & (op < max_ops)
+
+    # Grid bounds from static shapes
+    grid_h: int = state.working_grid.shape[0]
+    grid_w: int = state.working_grid.shape[1]
+
+    # Selection-specific checks
+    def _check_point(a):
+    return (a.row >= 0) & (a.row < grid_h) & (a.col >= 0) & (a.col < grid_w)
+
+    def _check_bbox(a):
+        # All coords must be within grid (ordering handled during execution)
+        return (
+            (a.r1 >= 0)
+            & (a.r1 < grid_h)
+            & (a.c1 >= 0)
+            & (a.c1 < grid_w)
+            & (a.r2 >= 0)
+            & (a.r2 < grid_h)
+            & (a.c2 >= 0)
+            & (a.c2 < grid_w)
+        )
+
+    def _check_mask(a):
+        sel_shape = a.selection.shape
+        # Compare static shapes; coerce to boolean scalar array
+        shape_ok = (sel_shape[0] == grid_h) and (sel_shape[1] == grid_w)
+        return jnp.asarray(shape_ok, dtype=jnp.bool_)
+
+    # Since action is an Equinox Module, isinstance checks are static-friendly here
+    selection_valid = jnp.asarray(True, dtype=jnp.bool_)
+    if isinstance(action, PointAction):
+        selection_valid = _check_point(action)
+    elif isinstance(action, BboxAction):
+        selection_valid = _check_bbox(action)
+    elif isinstance(action, MaskAction):
+        selection_valid = _check_mask(action)
+
+    return jnp.asarray(op_valid & selection_valid, dtype=jnp.bool_)
+
+
+@eqx.filter_jit
+def safe_arc_step(
+    state: ArcEnvState,
+    action: StructuredAction,
+    config: ConfigType,
+) -> tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, StepInfo]:
+    """Step with JAX-native error handling.
+
+    Uses lax.cond to avoid raising in hot path. On invalid actions, returns a
+    safe fallback with negative reward and unchanged state.
+    """
+    typed_config = _ensure_config(config)
+
+    is_valid = validate_action_jax(action, state, typed_config)
+
+    def _valid_step():
+        return arc_step(state, action, typed_config)
+
+    def _invalid_step():
+        obs = create_observation(state, typed_config)
+        info = StepInfo(
+            similarity=state.similarity_score,
+            similarity_improvement=jnp.asarray(0.0, dtype=jnp.float32),
+            operation_type=jnp.asarray(-1, dtype=jnp.int32),
+            step_count=state.step_count,
+            episode_done=jnp.asarray(False),
+            episode_mode=state.episode_mode,
+            current_pair_index=state.current_example_idx,
+            available_demo_pairs=jnp.sum(state.available_demo_pairs),
+            available_test_pairs=jnp.sum(state.available_test_pairs),
+            action_history_length=state.get_action_history_length(),
+            success=jnp.asarray(False),
+        )
+        return (
+            state,
+            obs,
+            jnp.asarray(-1.0, dtype=jnp.float32),
+            jnp.asarray(False),
+            info,
+        )
+
+    return jax.lax.cond(is_valid, _valid_step, _invalid_step)
 
 
 # =========================================================================
