@@ -1,0 +1,90 @@
+{
+  "functional_scan": {
+    "1": {
+      "steps_per_second": 130753.13809445236,
+      "total_time": 0.003823999999440275,
+      "jit_compile_time": 0.7921380839979975,
+      "num_steps": 500
+    },
+    "10": {
+      "steps_per_second": 15550.045960144545,
+      "total_time": 0.3215424579975661,
+      "jit_compile_time": 1.2988627500017174,
+      "num_steps": 500
+    },
+    "100": {
+      "steps_per_second": 28051.061346944312,
+      "total_time": 1.7824637500016252,
+      "jit_compile_time": 2.844697458000155,
+      "num_steps": 500
+    },
+    "1000": {
+      "steps_per_second": 48835.639722343556,
+      "total_time": 10.238424291004776,
+      "jit_compile_time": 11.152094832999865,
+      "num_steps": 500
+    },
+    "5000": {
+      "steps_per_second": 51333.354231142,
+      "total_time": 48.70127887499984,
+      "jit_compile_time": 50.17973079200601,
+      "num_steps": 500
+    },
+    "10000": {
+      "steps_per_second": 52631.33349587679,
+      "total_time": 95.00044304200856,
+      "jit_compile_time": 100.28376433299854,
+      "num_steps": 500
+    },
+    "20000": {
+      "steps_per_second": 34009.7107904164,
+      "total_time": 294.03366766699764,
+      "jit_compile_time": 348.70355862499855,
+      "num_steps": 500
+    }
+  },
+  "wrapper_scan_fixed": {
+    "1": {
+      "steps_per_second": 121639.70325223252,
+      "total_time": 0.004110499998205341,
+      "jit_compile_time": 0.464319541992154,
+      "num_steps": 500
+    },
+    "10": {
+      "steps_per_second": 15223.31846985519,
+      "total_time": 0.3284435000095982,
+      "jit_compile_time": 1.0777586660115048,
+      "num_steps": 500
+    },
+    "100": {
+      "steps_per_second": 27761.81023338038,
+      "total_time": 1.801035291995504,
+      "jit_compile_time": 2.619056042007287,
+      "num_steps": 500
+    },
+    "1000": {
+      "steps_per_second": 48839.04224296604,
+      "total_time": 10.237710999994306,
+      "jit_compile_time": 11.00145833400893,
+      "num_steps": 500
+    },
+    "5000": {
+      "steps_per_second": 52540.97558343284,
+      "total_time": 47.58191054199415,
+      "jit_compile_time": 48.379925707995426,
+      "num_steps": 500
+    },
+    "10000": {
+      "steps_per_second": 54849.400428416215,
+      "total_time": 91.15869929199107,
+      "jit_compile_time": 90.8056935420027,
+      "num_steps": 500
+    },
+    "20000": {
+      "steps_per_second": 43148.19881651985,
+      "total_time": 231.75938449999376,
+      "jit_compile_time": 372.64030145799916,
+      "num_steps": 500
+    }
+  }
+}
