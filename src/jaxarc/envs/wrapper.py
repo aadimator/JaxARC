@@ -9,31 +9,38 @@ Safe-by-default, thin convenience layer adding:
 
 Functional primitives remain the single source of truth.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
 
 from jaxarc.configs import JaxArcConfig
+from jaxarc.envs.actions import (
+    StructuredAction,
+    create_bbox_action,
+    create_mask_action,
+    create_point_action,
+)
 from jaxarc.envs.functional import (
+    StepInfo,  # re-exported structure
     _arc_step_unsafe,
     arc_reset,
     arc_step,
     batch_reset,
 )
-from jaxarc.types import JaxArcTask
-from jaxarc.utils.jax_types import EPISODE_MODE_TRAIN, PRNGKey
-from jaxarc.envs.actions import (
-    create_bbox_action,
-    create_mask_action,
-    create_point_action,
-    StructuredAction,
-)
 from jaxarc.state import ArcEnvState
-from jaxarc.envs.functional import StepInfo  # re-exported structure
-from jaxarc.utils.jax_types import ObservationArray, RewardValue, EpisodeDone
+from jaxarc.types import JaxArcTask
+from jaxarc.utils.jax_types import (
+    EPISODE_MODE_TRAIN,
+    EpisodeDone,
+    ObservationArray,
+    PRNGKey,
+    RewardValue,
+)
 
 
 @dataclass
@@ -159,12 +166,20 @@ class ArcEnv:
             raise ValueError(msg)
 
         if self.num_envs == 1:
-            use_key = key if key is not None else (self._next_key() if self._manage_keys else None)
+            use_key = (
+                key
+                if key is not None
+                else (self._next_key() if self._manage_keys else None)
+            )
             if use_key is None:
                 msg = "Key required when key management disabled."
                 raise ValueError(msg)
             state, obs = arc_reset(
-                use_key, self.config, td, episode_mode=episode_mode, initial_pair_idx=initial_pair_idx
+                use_key,
+                self.config,
+                td,
+                episode_mode=episode_mode,
+                initial_pair_idx=initial_pair_idx,
             )
             return state, obs
         # Batch mode
@@ -199,7 +214,10 @@ class ArcEnv:
                     # If user disabled management they must handle reset externally
                     return new_state, obs, reward, done, info
                 reset_state, reset_obs = arc_reset(
-                    reset_key, self.config, self._task_data, episode_mode=state.episode_mode
+                    reset_key,
+                    self.config,
+                    self._task_data,
+                    episode_mode=state.episode_mode,
                 )
                 # Replace state & obs but preserve done for this step's signal
                 return reset_state, reset_obs, reward, done, info
@@ -208,28 +226,37 @@ class ArcEnv:
         if self._batched_step_fn is None:
             msg = "Batched step function not initialized."
             raise RuntimeError(msg)
-        new_states, obs, rewards, dones, infos = self._batched_step_fn(state, action, self.config)
+        new_states, obs, rewards, dones, infos = self._batched_step_fn(
+            state, action, self.config
+        )
         if self._auto_reset and self._manage_keys:
+
             def do_resets(carry):
                 ns, ob = carry
                 keys = self._next_batch_keys()
+
                 def full_reset(_st, k):  # _st unused; kept for vmap in_axes signature
                     # Use training mode constant to avoid traced Python branching inside arc_reset
-                    rs, ro = arc_reset(k, self.config, self._task_data, episode_mode=EPISODE_MODE_TRAIN)
+                    rs, ro = arc_reset(
+                        k, self.config, self._task_data, episode_mode=EPISODE_MODE_TRAIN
+                    )
                     return rs, ro
-                rs_states, rs_obs = jax.vmap(full_reset, in_axes=(0,0))(ns, keys)
+
+                rs_states, rs_obs = jax.vmap(full_reset, in_axes=(0, 0))(ns, keys)
+
                 # Blend using mask broadcasting; handle arbitrary leaf shapes.
                 def blend(a, b):
                     # If leaf has batch dimension first, broadcast dones.
                     if a.shape[0] == dones.shape[0]:
                         # Determine trailing broadcast shape
-                        expand_shape = (dones.shape[0],) + (1,)* (a.ndim -1)
+                        expand_shape = (dones.shape[0],) + (1,) * (a.ndim - 1)
                         mask = dones.reshape(expand_shape)
                         return jnp.where(mask, b, a)
                     return a  # Non-batched leaf
+
                 blended_states = jax.tree_util.tree_map(blend, ns, rs_states)
                 # Observations assumed batched in first dim
-                expand_shape_obs = (dones.shape[0],) + (1,)* (obs.ndim -1)
+                expand_shape_obs = (dones.shape[0],) + (1,) * (obs.ndim - 1)
                 obs_mask = dones.reshape(expand_shape_obs)
                 blended_obs = jnp.where(obs_mask, rs_obs, ob)
                 return blended_states, blended_obs
@@ -241,6 +268,52 @@ class ArcEnv:
                 operand=(new_states, obs),
             )
         return new_states, obs, rewards, dones, infos
+
+    def get_rollout_fn(
+        self,
+        policy_fn: Callable[[ArcEnvState, PRNGKey, JaxArcConfig], StructuredAction],
+        num_steps: int,
+    ) -> Callable[[ArcEnvState, PRNGKey], ArcEnvState]:
+        """
+        Returns a pure, JIT-able function for running a complete episode rollout.
+
+        This function is designed for high-performance benchmarking and batch
+        processing using the efficient `vmap(scan(...))` pattern. It closes over
+        the environment's static configuration.
+
+        NOTE: This rollout function does NOT perform auto-reset for performance
+        reasons inside a scan.
+
+        Args:
+            policy_fn: A pure function with signature `(state, key, config) -> action`
+                       that determines the action to take at each step.
+            num_steps: The number of steps to scan over (length of the episode).
+
+        Returns:
+            A JIT-able function with signature `(initial_state, key) -> final_state`.
+            If `self.num_envs > 1`, this function will be vmapped.
+        """
+        config = self.config
+        step_fn = self._single_step_fn
+
+        def _rollout_body_fn(carry, _):
+            state, key = carry
+            key, policy_key = jax.random.split(key)
+            action = policy_fn(state, policy_key, config)
+            next_state, _, _, _, _ = step_fn(state, action, config)
+            return (next_state, key), None
+
+        def _single_env_rollout(
+            initial_state: ArcEnvState, key: PRNGKey
+        ) -> ArcEnvState:
+            (final_state, _), _ = jax.lax.scan(
+                _rollout_body_fn, (initial_state, key), None, length=num_steps
+            )
+            return final_state
+
+        if self.num_envs > 1:
+            return jax.vmap(_single_env_rollout, in_axes=(0, 0))
+        return _single_env_rollout
 
     # ------------------------------------------------------------------
     # Warmup
@@ -263,5 +336,6 @@ class ArcEnv:
 
     def get_num_envs(self) -> int:
         return self.num_envs
+
 
 __all__ = ["ArcEnv"]
