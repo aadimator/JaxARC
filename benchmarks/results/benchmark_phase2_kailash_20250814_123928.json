@@ -1,0 +1,240 @@
+{
+  "timestamp": 1755189137.6130126,
+  "description": "Phase 2: Safe Step on Kailash",
+  "tag": "phase2_kailash",
+  "system_info": {
+    "platform": "Linux-6.8.0-47-generic-x86_64-with-glibc2.39",
+    "python_version": "3.13.5",
+    "jax_version": "0.6.2",
+    "jax_devices": {
+      "count": 1,
+      "types": [
+        "NVIDIA H100 80GB HBM3"
+      ],
+      "platform": "gpu"
+    },
+    "cpu_count": "x86_64",
+    "architecture": "64bit"
+  },
+  "config_summary": {
+    "max_grid_height": 30,
+    "max_grid_width": 30,
+    "max_train_pairs": 3,
+    "selection_format": "point",
+    "logging_enabled": false,
+    "history_enabled": false
+  },
+  "benchmark_params": {
+    "single_steps": 1000,
+    "batch_steps": 50,
+    "custom_batch_sizes": [
+      1,
+      10,
+      50,
+      100,
+      500,
+      1000,
+      2000,
+      5000,
+      10000,
+      20000,
+      50000
+    ]
+  },
+  "implementations": [
+    "arc",
+    "unsafe"
+  ],
+  "single_environment_arc": {
+    "steps_per_second": 85.51023944235958,
+    "total_time": 11.694505903869867,
+    "avg_reset_time": 0.0056829690933227536,
+    "num_steps": 1000
+  },
+  "batch_scaling_arc": {
+    "1": {
+      "batch_size": 1,
+      "steps_per_second": 14.34976769955428,
+      "total_time": 3.4843769632279873,
+      "batch_reset_time": 0.0037709660828113556,
+      "total_env_steps": 50,
+      "num_steps": 50
+    },
+    "10": {
+      "batch_size": 10,
+      "steps_per_second": 199.8015387232707,
+      "total_time": 2.502483230084181,
+      "batch_reset_time": 0.0020976588129997253,
+      "total_env_steps": 500,
+      "num_steps": 50
+    },
+    "50": {
+      "batch_size": 50,
+      "steps_per_second": 786.7350451149658,
+      "total_time": 3.177689891308546,
+      "batch_reset_time": 0.00855620950460434,
+      "total_env_steps": 2500,
+      "num_steps": 50
+    },
+    "100": {
+      "batch_size": 100,
+      "steps_per_second": 1067.6496867693318,
+      "total_time": 4.683184064924717,
+      "batch_reset_time": 0.0017440244555473328,
+      "total_env_steps": 5000,
+      "num_steps": 50
+    },
+    "500": {
+      "batch_size": 500,
+      "steps_per_second": 10380.635418653495,
+      "total_time": 2.408330414444208,
+      "batch_reset_time": 0.0017224103212356567,
+      "total_env_steps": 25000,
+      "num_steps": 50
+    },
+    "1000": {
+      "batch_size": 1000,
+      "steps_per_second": 20941.69059048014,
+      "total_time": 2.3875818327069283,
+      "batch_reset_time": 0.0018428750336170197,
+      "total_env_steps": 50000,
+      "num_steps": 50
+    },
+    "2000": {
+      "batch_size": 2000,
+      "steps_per_second": 22904.83641256417,
+      "total_time": 4.36589016392827,
+      "batch_reset_time": 0.008597057312726974,
+      "total_env_steps": 100000,
+      "num_steps": 50
+    },
+    "5000": {
+      "batch_size": 5000,
+      "steps_per_second": 66331.90768583864,
+      "total_time": 3.7689252234995365,
+      "batch_reset_time": 0.0021446868777275085,
+      "total_env_steps": 250000,
+      "num_steps": 50
+    },
+    "10000": {
+      "batch_size": 10000,
+      "steps_per_second": 157690.78285954465,
+      "total_time": 3.1707623675465584,
+      "batch_reset_time": 0.00206620991230011,
+      "total_env_steps": 500000,
+      "num_steps": 50
+    },
+    "20000": {
+      "batch_size": 20000,
+      "steps_per_second": 202346.2120839499,
+      "total_time": 4.9420248083770275,
+      "batch_reset_time": 0.009380728006362915,
+      "total_env_steps": 1000000,
+      "num_steps": 50
+    },
+    "50000": {
+      "batch_size": 50000,
+      "steps_per_second": 533062.0586412617,
+      "total_time": 4.689885463565588,
+      "batch_reset_time": 0.0042228102684021,
+      "total_env_steps": 2500000,
+      "num_steps": 50
+    }
+  },
+  "single_environment_unsafe": {
+    "steps_per_second": 74.31313492515136,
+    "total_time": 13.456571318209171,
+    "avg_reset_time": 0.002321186661720276,
+    "num_steps": 1000
+  },
+  "batch_scaling_unsafe": {
+    "1": {
+      "batch_size": 1,
+      "steps_per_second": 23.40361875905904,
+      "total_time": 2.1364217437803745,
+      "batch_reset_time": 0.0019815191626548767,
+      "total_env_steps": 50,
+      "num_steps": 50
+    },
+    "10": {
+      "batch_size": 10,
+      "steps_per_second": 179.92161295777981,
+      "total_time": 2.778987981379032,
+      "batch_reset_time": 0.0016053542494773865,
+      "total_env_steps": 500,
+      "num_steps": 50
+    },
+    "50": {
+      "batch_size": 50,
+      "steps_per_second": 600.5405153002255,
+      "total_time": 4.162916466593742,
+      "batch_reset_time": 0.0024348273873329163,
+      "total_env_steps": 2500,
+      "num_steps": 50
+    },
+    "100": {
+      "batch_size": 100,
+      "steps_per_second": 1252.654396920387,
+      "total_time": 3.991523928940296,
+      "batch_reset_time": 0.010689884424209595,
+      "total_env_steps": 5000,
+      "num_steps": 50
+    },
+    "500": {
+      "batch_size": 500,
+      "steps_per_second": 6486.10795490718,
+      "total_time": 3.854391597211361,
+      "batch_reset_time": 0.005056548863649368,
+      "total_env_steps": 25000,
+      "num_steps": 50
+    },
+    "1000": {
+      "batch_size": 1000,
+      "steps_per_second": 20244.59825434339,
+      "total_time": 2.469794627279043,
+      "batch_reset_time": 0.008096296340227127,
+      "total_env_steps": 50000,
+      "num_steps": 50
+    },
+    "2000": {
+      "batch_size": 2000,
+      "steps_per_second": 24824.54167027391,
+      "total_time": 4.0282717533409595,
+      "batch_reset_time": 0.0057698749005794525,
+      "total_env_steps": 100000,
+      "num_steps": 50
+    },
+    "5000": {
+      "batch_size": 5000,
+      "steps_per_second": 61146.547719228736,
+      "total_time": 4.088538262993097,
+      "batch_reset_time": 0.005218859761953354,
+      "total_env_steps": 250000,
+      "num_steps": 50
+    },
+    "10000": {
+      "batch_size": 10000,
+      "steps_per_second": 140861.84942604756,
+      "total_time": 3.549577135592699,
+      "batch_reset_time": 0.009535830467939377,
+      "total_env_steps": 500000,
+      "num_steps": 50
+    },
+    "20000": {
+      "batch_size": 20000,
+      "steps_per_second": 259195.63547174755,
+      "total_time": 3.858089655637741,
+      "batch_reset_time": 0.006177246570587158,
+      "total_env_steps": 1000000,
+      "num_steps": 50
+    },
+    "50000": {
+      "batch_size": 50000,
+      "steps_per_second": 546492.33672648,
+      "total_time": 4.5746295638382435,
+      "batch_reset_time": 0.0055153630673885345,
+      "total_env_steps": 2500000,
+      "num_steps": 50
+    }
+  }
+}
