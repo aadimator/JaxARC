@@ -11,11 +11,9 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
-import functools
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import typer
 from loguru import logger
 
@@ -32,7 +30,6 @@ from jaxarc.configs.visualization_config import VisualizationConfig
 from jaxarc.configs.wandb_config import WandbConfig
 from jaxarc.envs.actions import (
     create_bbox_action,
-    create_mask_action,
     create_point_action,
     StructuredAction
 )
@@ -44,7 +41,6 @@ from jaxarc.envs.functional import (
 from jaxarc.envs.wrapper import ArcEnv
 from jaxarc.types import JaxArcTask
 from jaxarc.state import ArcEnvState
-from jaxarc.utils.jax_types import EPISODE_MODE_TRAIN
 
 # ---------------------------------------------------------------------------
 # Config & Task Creation (mirrors baseline benchmark minimal config)
@@ -249,6 +245,115 @@ def benchmark_scan(
     )
 
 # ---------------------------------------------------------------------------
+# Wrapper-based benchmark using random policy + scan
+# ---------------------------------------------------------------------------
+
+def random_agent_policy(state: ArcEnvState, key: jax.Array, config: JaxArcConfig) -> StructuredAction:
+    """Simple random policy generating bbox actions for each env in batch.
+
+    The state input allows future extension (e.g., observation-based sampling) but
+    is unused for the random policy.
+    """
+    del state  # unused
+    # Determine batch size from key splitting (caller supplies correct split size)
+    # For efficiency we sample all needed random numbers in a single split chain.
+    # We'll assume caller keeps one key per call and we generate per-env inside.
+    # Instead, simpler: rely on shape of key via fold_in over an index if needed.
+    # Here we just sample a fixed-size batch given by config/environment assumptions.
+    # We derive batch size from config.environment parallel usage by inspecting nothing from state,
+    # so caller must provide correct vectorization context.
+    # To keep things simple, we will infer batch_size from config via environment wrapper outside.
+    # Thus this function expects key already split externally when batch_size>1.
+    # We'll implement two branches: single-env and batched (key is a PRNGKey or array of keys).
+    def _sample_bbox(k):
+        h, w = config.dataset.max_grid_height, config.dataset.max_grid_width
+        k1, k2, k3, k4, k5 = jax.random.split(k, 5)
+        op = jax.random.randint(k1, (), 0, 35)
+        r1 = jax.random.randint(k2, (), 0, h)
+        c1 = jax.random.randint(k3, (), 0, w)
+        r2 = jax.random.randint(k4, (), 0, h)
+        c2 = jax.random.randint(k5, (), 0, w)
+        rlo, rhi = jnp.minimum(r1, r2), jnp.maximum(r1, r2)
+        clo, chi = jnp.minimum(c1, c2), jnp.maximum(c1, c2)
+        return create_bbox_action(op, rlo, clo, rhi, chi)
+
+    def _sample_point(k):
+        h, w = config.dataset.max_grid_height, config.dataset.max_grid_width
+        k1, k2, k3 = jax.random.split(k, 3)
+        op = jax.random.randint(k1, (), 0, 35)
+        r = jax.random.randint(k2, (), 0, h)
+        c = jax.random.randint(k3, (), 0, w)
+        return create_point_action(op, r, c)
+
+    select_bbox = config.action.selection_format == "bbox"
+    sampler = _sample_bbox if select_bbox else _sample_point
+
+    if key.ndim == 1:  # single key
+        return sampler(key)
+    return jax.vmap(sampler)(key)
+
+
+def benchmark_wrapper_scan(
+    config: JaxArcConfig,
+    task_data: JaxArcTask,
+    batch_size: int,
+    steps: int,
+    pattern: str,
+) -> TimingResult:
+    """Measures the true, high-performance SPS for the ArcEnv wrapper using lax.scan.
+
+    pattern argument retained for interface parity; currently ignored as the
+    random policy always emits bbox actions.
+    """
+    del pattern
+    # 1. Instantiate environment (wrapper object lives on host; internal steps JIT-trace device ops)
+    # Disable auto_reset to avoid Python bool(done) conversion inside jit trace
+    env = ArcEnv(config, num_envs=batch_size, task_data=task_data, seed=42, auto_reset=False)
+    key = jax.random.PRNGKey(0)
+
+    # 2. Define rollout function closing over env
+    def rollout_fn(initial_state: ArcEnvState, key: jax.Array):
+        def _scan_body(carry, _):
+            state, key = carry
+            key, action_key = jax.random.split(key)
+            # For batched case: split per env
+            if batch_size == 1:
+                actions = random_agent_policy(state, action_key, env.config)
+            else:
+                action_keys = jax.random.split(action_key, batch_size)
+                actions = random_agent_policy(state, action_keys, env.config)
+            next_state, obs, rewards, dones, infos = env.step(state, actions)
+            return (next_state, key), None
+
+        (final_carry, _outputs) = jax.lax.scan(_scan_body, (initial_state, key), None, length=steps)
+        final_state, _final_key = final_carry
+        return final_state.working_grid
+
+    jitted_rollout = jax.jit(rollout_fn)
+
+    # 3. Obtain initial state
+    initial_state, _ = env.reset(key)
+
+    # 4. Warmup/compile timing
+    _, compile_time = _time_first_call(jitted_rollout, initial_state, key)
+
+    # 5. Timed execution
+    start_time = time.perf_counter()
+    final_grid = jitted_rollout(initial_state, key)
+    final_grid.block_until_ready()
+    run_time = time.perf_counter() - start_time
+
+    total_env_steps = steps * batch_size
+    sps = total_env_steps / run_time if run_time > 0 else float('inf')
+
+    return TimingResult(
+        steps_per_second=sps,
+        total_time=run_time,
+        jit_compile_time=compile_time,
+        num_steps=steps,
+    )
+
+# ---------------------------------------------------------------------------
 # CLI and Orchestration
 # ---------------------------------------------------------------------------
 
@@ -269,14 +374,23 @@ def main(
     print("ArcEnv High-Performance Benchmark (Scan-Based)")
     print("=" * 60)
 
-    results = {}
+    results = {"functional_scan": {}, "wrapper_scan": {}}
     for pattern in patterns_list:
-        results[pattern] = {}
-        print(f"\n--- Pattern: {pattern} ---")
+        results["functional_scan"][pattern] = {}
+        print(f"\n--- Functional Pattern: {pattern} ---")
         for bs in batch_sizes_list:
             sps_result = benchmark_scan(config, task_data, bs, num_steps, pattern)
-            results[pattern][bs] = sps_result.to_dict()
-            print(f"Batch Size: {bs:<6} | Steps Per Second: {sps_result.steps_per_second:,.2f}")
+            results["functional_scan"][pattern][bs] = sps_result.to_dict()
+            print(f"[functional] Batch Size: {bs:<6} | SPS: {sps_result.steps_per_second:,.2f}")
+
+    # Wrapper benchmark (pattern ignored, but iterate for symmetry)
+    for pattern in patterns_list:
+        results["wrapper_scan"][pattern] = {}
+        print(f"\n--- Wrapper Pattern: {pattern} ---")
+        for bs in batch_sizes_list:
+            sps_result = benchmark_wrapper_scan(config, task_data, bs, num_steps, pattern)
+            results["wrapper_scan"][pattern][bs] = sps_result.to_dict()
+            print(f"[wrapper]    Batch Size: {bs:<6} | SPS: {sps_result.steps_per_second:,.2f}")
 
     print("=" * 60)
     print("Benchmark complete.")
@@ -286,7 +400,7 @@ def main(
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     output_file = output_dir / f"scan_benchmark_{timestamp}.json"
-    with open(output_file, "w") as f:
+    with output_file.open("w") as f:
         json.dump(results, f, indent=2)
     print(f"Results saved to {output_file}")
 
