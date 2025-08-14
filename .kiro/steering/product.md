@@ -15,14 +15,14 @@ potentially Multi-Agent RL (MARL).
   iteration
 - **Extensible Architecture**: Designed to support future HRL, Meta-RL, and
   Multi-Task RL extensions
-- **Type Safety**: Typed configuration dataclasses with comprehensive validation
-  using `chex`
+- **Type Safety**: Typed configuration using `equinox.Module` with comprehensive
+  validation and JAXTyping annotations
 - **Modular Design**: Composable configuration components with Hydra integration
 - **Rich Visualization**: Terminal and SVG grid rendering utilities with JAX
   debug callbacks
 - **Multiple Action Formats**: Point-based, bounding box, and mask-based actions
-- **PureJaxRL Compatible**: Designed to integrate with PureJaxRL for agent
-  training
+- **Functional API**: Pure functional environment operations for maximum JAX
+  compatibility
 
 ## Core Purpose
 

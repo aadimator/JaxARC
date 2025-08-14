@@ -1,6 +1,5 @@
 ---
-inclusion: fileMatch
-fileMatchPattern: ["docs/**/*.md", "**/*.md"]
+inclusion: always
 ---
 
 # Documentation Guidelines
@@ -66,9 +65,9 @@ def arc_reset(config: JaxArcConfig, key: PRNGKey) -> ArcEnvState:
     Example:
         ```python
         import jax
-        from jaxarc.envs import arc_reset, create_standard_config
+        from jaxarc import JaxArcConfig, arc_reset
 
-        config = create_standard_config()
+        config = JaxArcConfig()
         key = jax.random.PRNGKey(42)
         state = arc_reset(config, key)
         ```

@@ -21,10 +21,12 @@ inclusion: always
   functions
 - **JIT Compatibility**: Ensure functions work with `jax.jit`, `jax.vmap`, and
   `jax.pmap`
-- **Immutable State**: Use `equinox.Module` for state management (preferred over
-  `chex.dataclass`)
+- **Immutable State**: Use `equinox.Module` for state management with automatic
+  PyTree registration
 - **Static Shapes**: Maintain static array shapes using padding and masks
 - **PRNG Management**: Use explicit PRNG key management with `jax.random.split`
+- **Type Safety**: Use `jaxtyping` annotations for precise array shape
+  documentation
 
 ### Implementation Standards
 
@@ -59,10 +61,11 @@ inclusion: always
 
 ### Configuration Management
 
-- Use `equinox.Module` for configuration structures (preferred over
-  `@chex.dataclass`)
+- Use `equinox.Module` for configuration structures with automatic validation
 - Leverage Hydra for complex parameter hierarchies
-- Validate configuration parameters at creation time
+- Use `JaxArcConfig` as the unified entry point for all configuration
+- Validate configuration parameters at creation time with cross-config
+  consistency checks
 
 ### Functional Design
 
@@ -74,8 +77,9 @@ inclusion: always
 
 ### Error Handling
 
-- Use `equinox` patterns and standard Python assertions for runtime validation
-  in JAX-compatible code
+- Use `equinox` patterns and `chex` assertions for runtime validation in
+  JAX-compatible code
 - Provide clear error messages that help developers understand issues
 - Validate inputs early and fail fast with descriptive errors
 - Handle edge cases explicitly rather than relying on implicit behavior
+- Use `__check_init__` methods in Equinox modules for automatic validation

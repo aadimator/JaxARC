@@ -4,17 +4,18 @@
 
 - **JAX**: Primary framework for high-performance numerical computing with JIT
   compilation
-- **Python 3.13+**: Base language with type hints and modern features (updated
-  from 3.9+)
-- **Chex**: JAX testing and validation utilities for dataclasses and array
-  shapes
+- **Python 3.13+**: Base language with type hints and modern features
+- **Equinox**: Primary framework for JAX-compatible modules and PyTree
+  registration (preferred over chex.dataclass)
+- **JAXTyping**: Precise type annotations for JAX arrays with shape information
 - **Hydra**: Configuration management system for complex parameter hierarchies
 - **Pixi**: Modern Python package and environment manager (replaces conda/pip)
 
 ## Key Libraries
 
-- **JAX Ecosystem**: `jax`, `jax.numpy`, `chex` for functional programming and
-  testing
+- **JAX Ecosystem**: `jax`, `jax.numpy`, `equinox`, `jaxtyping` for functional
+  programming and type safety
+- **Validation**: `chex` for runtime assertions and array validation
 - **Configuration**: `hydra-core`, `omegaconf` for typed configuration
   management
 - **Visualization**: `rich` (terminal), `drawsvg`, `cairosvg`, `seaborn` for
@@ -27,12 +28,11 @@
 
 - **Code Quality**: `ruff` (linting + formatting), `mypy` (type checking),
   `pylint`
-- **Testing**: `pytest`, `pytest-cov` for unit tests and coverage (targeting
-  100% coverage)
-- **Pre-commit**: Automated code quality checks with hooks for ruff, mypy,
-  prettier
+- **Testing**: `pytest`, `pytest-cov`, `hypothesis` for unit tests and coverage
+- **Pre-commit**: Automated code quality checks with hooks for ruff, mypy
 - **Documentation**: `jupyter-book` for documentation generation
-- **Notebooks**: `jupyter` for exploration and experimentation
+- **Notebooks**: `jupyter`, `marimo` for exploration and experimentation
+- **Experiment Tracking**: `wandb` for experiment logging and visualization
 
 ## Build System
 
@@ -56,11 +56,10 @@ pixi run pylint                         # Run pylint specifically
 # Documentation
 pixi run docs-serve                     # Serve documentation locally
 
-# Examples
-# Always make sure that you use pixi run python to select the relevant environment
-pixi run python examples/config_api_demo.py      # Basic API demo
-pixi run python examples/hydra_integration_example.py  # Hydra config demo
-pixi run python examples/visualization_demo.py   # Visualization utilities demo
+# Examples - use pixi run python to select the relevant environment
+pixi run python examples/basic_usage.py           # Basic environment usage
+pixi run python examples/functional_api.py       # Functional API demo
+pixi run python examples/configuration_demo.py   # Configuration system demo
 ```
 
 ## JAX-Specific Considerations
@@ -73,8 +72,10 @@ pixi run python examples/visualization_demo.py   # Visualization utilities demo
   efficient transformations
 - **Batch Processing**: Leverage `jax.vmap` for batch processing and `jax.pmap`
   for multi-device
-- **Immutable State**: Use `chex.dataclass` for immutable state structures with
-  `.replace()` for updates
+- **Immutable State**: Use `equinox.Module` for immutable state structures with
+  PyTree registration
+- **Type Safety**: Use `jaxtyping` annotations for precise array shape
+  documentation
 - **Debug Integration**: Use `jax.debug.callback` for logging during JAX
   transformations
 - **Testing**: Use `chex.assert_*` functions for JAX-specific assertions and
@@ -82,9 +83,9 @@ pixi run python examples/visualization_demo.py   # Visualization utilities demo
 
 ## RL Integration
 
-- **PureJaxRL Compatible**: Environment designed to integrate with PureJaxRL for
-  agent training
 - **Single-Agent Focus**: Current implementation optimized for SARL with
   extensible architecture
+- **Functional API**: Pure functional environment operations (`arc_reset`,
+  `arc_step`) for maximum JAX compatibility
 - **Future Extensions**: Architecture supports HRL, Meta-RL, Multi-Task RL, and
   MARL extensions
