@@ -82,7 +82,7 @@ def _initialize_grids(
     selected_pair_idx: jnp.ndarray,
     episode_mode: int,
     config: JaxArcConfig,
-    key: PRNGKey | None = None,
+    key: PRNGKey,
     initial_pair_idx: int | None = None,
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize grids with diverse initialization strategies - enhanced helper function.
@@ -96,7 +96,7 @@ def _initialize_grids(
         selected_pair_idx: JAX array with the index of the selected pair
         episode_mode: Episode mode (0=train, 1=test) determining grid initialization
         config: Environment configuration containing grid initialization settings
-        key: Optional JAX PRNG key for diverse initialization (required for non-demo modes)
+        key: JAX PRNG key for diverse initialization.
         initial_pair_idx: Optional specific pair index for demo-based initialization.
                          If None, uses random selection. If specified, uses that pair.
 
@@ -119,8 +119,7 @@ def _initialize_grids(
 
     Note:
         Uses the new diverse grid initialization engine when grid_initialization
-        config is not in demo mode. Falls back to original behavior for demo mode
-        or when key is not provided. Respects initial_pair_idx for demo-based modes.
+        config is present and key is not provided. Respects initial_pair_idx for demo-based modes.
     """
 
     # Get target grid and mask based on episode mode
@@ -141,24 +140,20 @@ def _initialize_grids(
         episode_mode == EPISODE_MODE_TRAIN, get_train_target, get_test_target
     )
 
-    # Always use diverse initialization engine when config present and key provided
-    use_diverse_init = hasattr(config, "grid_initialization") and key is not None
+    # The calling context (`arc_reset`) ensures that `config.grid_initialization` exists
+    # and `key` is a valid PRNG key. The Python `if` statement that caused the TracerBoolConversionError
+    # is removed. We now directly call the initialization logic.
+    initial_grid, initial_mask = initialize_working_grids(
+        task_data,
+        config.grid_initialization,
+        key,
+        batch_size=1,
+        initial_pair_idx=initial_pair_idx,
+    )
+    # Remove batch dimension (squeeze first axis)
+    initial_grid = jnp.squeeze(initial_grid, axis=0)
+    initial_mask = jnp.squeeze(initial_mask, axis=0)
 
-    if use_diverse_init:
-        # Use diverse initialization engine with initial_pair_idx support
-        initial_grid, initial_mask = initialize_working_grids(
-            task_data,
-            config.grid_initialization,
-            key,
-            batch_size=1,
-            initial_pair_idx=initial_pair_idx,
-        )
-        # Remove batch dimension (squeeze first axis)
-        initial_grid = jnp.squeeze(initial_grid, axis=0)
-        initial_mask = jnp.squeeze(initial_mask, axis=0)
-    else:
-        msg = "grid_initialization config missing or PRNG key not provided"
-        raise ValueError(msg)
 
     return initial_grid, target_grid, initial_mask, target_mask
 
@@ -327,21 +322,16 @@ def arc_reset(
     # Ensure we have a typed config
     typed_config = _ensure_config(config)
 
-    if not task_data and not initial_pair_idx:
-        # Raise error if no task data or initial pair index provided
-        msg = (
-            "Either task_data or initial_pair_idx must be provided. "
-            "For training, provide task_data or set initial_pair_idx to a valid pair index."
-        )
-        raise ValueError(msg)
+    # This check is not JIT-compatible and should be done by the caller.
+    # It's removed from the JIT path to prevent Tracer errors.
+    # if not task_data and not initial_pair_idx:
+    #     # Raise error if no task data or initial pair index provided
+    #     msg = (
+    #         "Either task_data or initial_pair_idx must be provided. "
+    #         "For training, provide task_data or set initial_pair_idx to a valid pair index."
+    #     )
+    #     raise ValueError(msg)
 
-    # Validate episode mode (0=train, 1=test) using JAX-compatible integer check
-    if episode_mode not in [EPISODE_MODE_TRAIN, EPISODE_MODE_TEST]:
-        msg = (
-            f"episode_mode must be {EPISODE_MODE_TRAIN} (train) or {EPISODE_MODE_TEST} (test), "
-            f"got '{episode_mode}'"
-        )
-        raise ValueError(msg)
     # Split key for different operations
     _, init_key = jax.random.split(key)
 
