@@ -24,10 +24,8 @@ class EnvironmentConfig(eqx.Module):
     max_episode_steps: int = 100
     auto_reset: bool = True
 
-    # Debug level (moved from separate DebugConfig)
-    debug_level: Literal["off", "minimal", "standard", "verbose", "research"] = (
-        "standard"
-    )
+    # Debug level (simplified: off|minimal|verbose)
+    debug_level: Literal["off", "minimal", "verbose"] = "minimal"
 
     def validate(self) -> tuple[str, ...]:
         """Validate environment configuration and return tuple of errors."""
@@ -42,7 +40,7 @@ class EnvironmentConfig(eqx.Module):
                 )
 
             # Validate debug level
-            valid_levels = ("off", "minimal", "standard", "verbose", "research")
+            valid_levels = ("off", "minimal", "verbose")
             validate_string_choice(self.debug_level, "debug_level", valid_levels)
 
         except ConfigValidationError as e:
@@ -50,17 +48,6 @@ class EnvironmentConfig(eqx.Module):
 
         return tuple(errors)
 
-    @property
-    def computed_visualization_level(self) -> str:
-        """Get computed visualization level based on debug level."""
-        level_mapping = {
-            "off": "off",
-            "minimal": "minimal",
-            "standard": "standard",
-            "verbose": "verbose",
-            "research": "full",
-        }
-        return level_mapping.get(self.debug_level, "standard")
 
     def __check_init__(self):
         """Validate hashability after initialization."""
@@ -76,5 +63,5 @@ class EnvironmentConfig(eqx.Module):
         return cls(
             max_episode_steps=cfg.get("max_episode_steps", 100),
             auto_reset=cfg.get("auto_reset", True),
-            debug_level=cfg.get("debug_level", "standard"),
+            debug_level=cfg.get("debug_level", "minimal"),
         )

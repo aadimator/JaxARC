@@ -108,24 +108,27 @@ class ExperimentLogger:
             return handlers
 
         try:
-            # File logging handler - enabled unless debug level is "off"
-            if debug_level != "off":
+            # File logging handler - enabled for minimal and verbose
+            if debug_level in ["minimal", "verbose"]:
                 handlers["file"] = self._create_file_handler()
                 logger.debug("FileHandler initialized")
         except Exception as e:
             logger.warning(f"Failed to initialize FileHandler: {e}")
 
         try:
-            # SVG visualization handler - enabled for standard and above debug levels
-            if debug_level in ["standard", "verbose", "research"]:
+            # SVG visualization handler - now controlled explicitly by visualization.enabled
+            if (
+                hasattr(self.config, "visualization")
+                and getattr(self.config.visualization, "enabled", False)
+            ):
                 handlers["svg"] = self._create_svg_handler()
-                logger.debug("SVGHandler initialized")
+                logger.debug("SVGHandler initialized (visualization.enabled=True)")
         except Exception as e:
             logger.warning(f"Failed to initialize SVGHandler: {e}")
 
         try:
-            # Console output handler - enabled unless debug level is "off"
-            if debug_level != "off":
+            # Console output handler - enabled for minimal and verbose
+            if debug_level in ["minimal", "verbose"]:
                 handlers["rich"] = self._create_rich_handler()
                 logger.debug("RichHandler initialized")
         except Exception as e:

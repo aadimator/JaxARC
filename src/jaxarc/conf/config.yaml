@@ -7,7 +7,7 @@ defaults:
 
 environment:
   max_episode_steps: 150
-  debug_level: "minimal" # off/minimal/standard/verbose/research
+  debug_level: "minimal" # off|minimal|verbose
   auto_reset: true
 
 logging:
@@ -40,7 +40,6 @@ storage:
 
 visualization:
   enabled: true
-  level: "standard" # Visualization detail level (off/minimal/standard/verbose/full)
   episode_summaries: true
   step_visualizations: true
 
