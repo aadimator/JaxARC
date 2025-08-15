@@ -13,6 +13,7 @@ import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 
+from jaxarc.envs.actions import BboxAction, MaskAction, PointAction
 from jaxarc.envs.grid_operations import get_operation_display_text
 
 from .constants import ARC_COLOR_PALETTE
@@ -37,7 +38,7 @@ def get_operation_display_name(
 def draw_rl_step_svg_enhanced(
     before_grid: Grid,
     after_grid: Grid,
-    action: Dict[str, Any],
+    action: Any, # Can be PointAction, BboxAction, MaskAction, or dict
     reward: float,
     info: Dict[str, Any],
     step_num: int,
@@ -64,9 +65,9 @@ def draw_rl_step_svg_enhanced(
     Args:
         before_grid: Grid state before the action
         after_grid: Grid state after the action
-        action: Action dictionary containing selection and operation info
+        action: Action object or dictionary
         reward: Reward received for this step
-        info: Additional information dictionary
+        info: Additional information dictionary or StepInfo object
         step_num: Step number in the episode
         operation_name: Human-readable operation name
         changed_cells: Optional mask of cells that changed
@@ -330,36 +331,16 @@ def draw_rl_step_svg_enhanced(
 
     # Extract selection mask from action
     selection_mask = None
-    if "selection" in action:
-        selection_mask = np.asarray(action["selection"])
-    elif "bbox" in action:
-        # Convert bbox to selection mask for visualization
-        bbox = np.asarray(action["bbox"])
-        if len(bbox) >= 4:
-            # Get grid dimensions from before_grid
-            grid_data, grid_mask = _extract_grid_data(before_grid)
-            if grid_mask is not None:
-                grid_mask = np.asarray(grid_mask)
-
-            # Extract valid region to get actual dimensions
-            valid_grid, (start_row, start_col), (height, width) = _extract_valid_region(
-                grid_data, grid_mask
-            )
-
-            if height > 0 and width > 0:
-                # Extract and clip coordinates
-                r1 = int(np.clip(bbox[0], 0, height - 1))
-                c1 = int(np.clip(bbox[1], 0, width - 1))
-                r2 = int(np.clip(bbox[2], 0, height - 1))
-                c2 = int(np.clip(bbox[3], 0, width - 1))
-
-                # Ensure proper ordering
-                min_r, max_r = min(r1, r2), max(r1, r2)
-                min_c, max_c = min(c1, c2), max(c1, c2)
-
-                # Create selection mask for the valid region
-                selection_mask = np.zeros((height, width), dtype=bool)
-                selection_mask[min_r : max_r + 1, min_c : max_c + 1] = True
+    if isinstance(action, MaskAction):
+        selection_mask = np.asarray(action.selection)
+    elif isinstance(action, (PointAction, BboxAction)):
+        # For Point and Bbox actions, we need to generate the mask
+        grid_data, _ = _extract_grid_data(before_grid)
+        grid_shape = grid_data.shape
+        selection_mask = np.asarray(action.to_selection_mask(grid_shape))
+    elif isinstance(action, dict): # Fallback for old dictionary format
+        if "selection" in action:
+            selection_mask = np.asarray(action["selection"])
 
     # Draw before grid with selection overlay
     before_width, before_height = draw_enhanced_grid(

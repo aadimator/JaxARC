@@ -730,18 +730,8 @@ class SVGHandler:
             logger.error(f"Failed to extract operation ID: {e}")
             return 0
 
-    def _filter_info_for_visualization(self, info: dict[str, Any]) -> dict[str, Any]:
-        """Filter info dictionary to only include keys relevant for visualization.
-
-        This method makes SVGHandler ignore unknown keys gracefully by only
-        passing through keys that are known to be used by the visualization functions.
-
-        Args:
-            info: Original info dictionary
-
-        Returns:
-            Filtered info dictionary with only visualization-relevant keys
-        """
+    def _filter_info_for_visualization(self, info: Any) -> dict[str, Any]:
+        """Filter info object (StepInfo or dict) to include keys relevant for visualization."""
         # Known keys used by visualization functions
         known_viz_keys = {
             "success",
@@ -751,17 +741,21 @@ class SVGHandler:
             "operation_type",
             "episode_mode",
             "current_pair_index",
-            "metrics",  # Include metrics for potential future use
         }
 
-        # Filter to only include known keys, gracefully ignoring unknown ones
         filtered_info = {}
-        for key, value in info.items():
-            if key in known_viz_keys:
-                filtered_info[key] = value
-            # Unknown keys are silently ignored (graceful handling)
+        # Handle both the new StepInfo object and old dict format for robustness
+        if hasattr(info, '__class__') and 'StepInfo' in info.__class__.__name__:
+            for key in known_viz_keys:
+                if hasattr(info, key):
+                    filtered_info[key] = getattr(info, key)
+        elif isinstance(info, dict):
+             for key, value in info.items():
+                if key in known_viz_keys:
+                    filtered_info[key] = value
 
         return filtered_info
+
 
     def get_current_run_info(self) -> dict[str, Any]:
         """Get information about the current run.
