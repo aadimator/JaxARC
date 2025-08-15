@@ -8,6 +8,7 @@ defaults:
 environment:
   max_episode_steps: 150
   debug_level: "minimal" # off/minimal/standard/verbose/research
+  auto_reset: true
 
 logging:
   log_operations: true
