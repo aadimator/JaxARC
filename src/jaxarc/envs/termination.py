@@ -11,8 +11,7 @@ from jaxarc.utils.jax_types import EpisodeDone
 
 
 def _is_episode_done(state: ArcEnvState, config: JaxArcConfig) -> EpisodeDone:
-    """Basic termination: solved, max steps, or submitted."""
-    task_solved = state.similarity_score >= 1.0
+    """Basic termination: max steps, or submitted."""
     max_steps_reached = state.step_count >= config.environment.max_episode_steps
     submitted = state.episode_done
-    return task_solved | max_steps_reached | submitted
+    return max_steps_reached | submitted

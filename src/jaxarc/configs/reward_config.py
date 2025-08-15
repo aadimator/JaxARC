@@ -29,10 +29,6 @@ class RewardConfig(eqx.Module):
     # Mode-specific reward structures
     training_similarity_weight: float = 1.0
 
-    # Pair-type specific bonuses
-    demo_completion_bonus: float = 1.0
-    test_completion_bonus: float = 5.0
-
     efficiency_bonus_threshold: int = 50
     efficiency_bonus: float = 1.0
 
@@ -47,12 +43,6 @@ class RewardConfig(eqx.Module):
             validate_float_range(self.progress_bonus, "progress_bonus", -10.0, 10.0)
             validate_float_range(
                 self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0
-            )
-            validate_float_range(
-                self.demo_completion_bonus, "demo_completion_bonus", -100.0, 100.0
-            )
-            validate_float_range(
-                self.test_completion_bonus, "test_completion_bonus", -100.0, 100.0
             )
             validate_non_negative_int(
                 self.efficiency_bonus_threshold, "efficiency_bonus_threshold"
@@ -81,8 +71,6 @@ class RewardConfig(eqx.Module):
             similarity_weight=cfg.get("similarity_weight", 1.0),
             progress_bonus=cfg.get("progress_bonus", 0.0),
             training_similarity_weight=cfg.get("training_similarity_weight", 1.0),
-            demo_completion_bonus=cfg.get("demo_completion_bonus", 1.0),
-            test_completion_bonus=cfg.get("test_completion_bonus", 5.0),
             efficiency_bonus_threshold=cfg.get("efficiency_bonus_threshold", 50),
             efficiency_bonus=cfg.get("efficiency_bonus", 1.0),
         )
