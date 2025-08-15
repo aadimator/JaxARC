@@ -52,6 +52,7 @@ from .observation import create_observation
 from .reward import _calculate_reward
 from .termination import _is_episode_done
 
+
 # JAX-compatible step info structure - replaces dict for performance.
 class StepInfo(eqx.Module):
     """Step info as an Equinox Module for PyTree compatibility."""
