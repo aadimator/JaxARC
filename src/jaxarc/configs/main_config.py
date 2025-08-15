@@ -114,7 +114,7 @@ class JaxArcConfig(eqx.Module):
         debug_level = self.environment.debug_level
 
         if debug_level == "off":
-            if self.visualization.enabled and self.visualization.level != "off":
+            if self.visualization.enabled:
                 warnings.append(
                     "Debug level is 'off' but visualization is enabled - consider disabling visualization for better performance"
                 )
@@ -122,15 +122,6 @@ class JaxArcConfig(eqx.Module):
                 warnings.append(
                     "Debug level is 'off' but detailed logging is enabled - consider reducing log level"
                 )
-
-        expected_viz_level = self.environment.computed_visualization_level
-        if (
-            self.visualization.enabled
-            and self.visualization.level != expected_viz_level
-        ):
-            warnings.append(
-                f"Visualization level '{self.visualization.level}' doesn't match debug level '{debug_level}' (expected '{expected_viz_level}')"
-            )
 
     def _validate_wandb_consistency(
         self, errors: list[str], warnings: list[str]

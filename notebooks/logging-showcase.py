@@ -82,12 +82,11 @@ def run_logging_showcase(config_overrides: list[str]):
         "dataset=mini_arc",
         "action=full",  # Use all actions to see variety in logs
         "history=standard",
-        "environment.debug_level=standard",  # Standard debug level
+        "environment.debug_level=verbose",  # Standard debug level
         # Enable all logging and visualization features
         "logging.log_operations=true",
         "logging.log_rewards=true",
         "visualization.enabled=true",
-        "visualization.level=verbose",  # Show step-by-step visualizations
         "visualization.episode_summaries=true",
         "visualization.step_visualizations=true",
         # Use a dedicated output directory for this showcase
@@ -107,7 +106,7 @@ def run_logging_showcase(config_overrides: list[str]):
             f"Dataset: {config.dataset.dataset_name}\n"
             f"Action Format: {config.action.selection_format}\n"
             f"Logging Level: {config.logging.log_level}\n"
-            f"Visualization Level: {config.visualization.level}\n"
+            f"Visualization Enabled: {config.visualization.enabled}\n"
             f"Output Directory: {config.storage.base_output_dir}/{config.storage.run_name}\n"
             f"WandB Enabled: {config.wandb.enabled}",
             title="Showcase Configuration",
