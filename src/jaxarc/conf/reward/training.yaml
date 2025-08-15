@@ -15,14 +15,6 @@ progress_bonus: 0.2 # Reward similarity improvements
 # Training mode settings
 training_similarity_weight: 1.0 # Full similarity feedback
 
-# Pair completion incentives
-demo_completion_bonus: 2.0 # Good bonus for demo completion
-test_completion_bonus: 10.0 # High bonus for test completion
-
 # Efficiency incentives
 efficiency_bonus_threshold: 30 # Encourage efficient solutions
 efficiency_bonus: 3.0 # Good efficiency bonus
-
-# Reward frequencies
-training_reward_frequency: "step" # Continuous feedback
-evaluation_reward_frequency: "submit" # Only on completion
