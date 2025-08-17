@@ -86,7 +86,7 @@ BboxCoords: TypeAlias = Int[Array, "4"]
 
 # Operation identifiers
 OperationId: TypeAlias = Int[Array, ""]
-"""Scalar integer representing an ARCLE operation (0-34 after removing control operations)."""
+"""Scalar integer representing an ARC operation (0-34 after removing control operations)."""
 
 # Action data for different formats
 PointActionData: TypeAlias = Int[Array, "2"]
@@ -202,7 +202,7 @@ MAX_GRID_SIZE = 30  # Maximum grid dimension in ARC
 MAX_TRAIN_PAIRS = 10  # Maximum training pairs per task
 MAX_TEST_PAIRS = 3  # Maximum test pairs per task
 NUM_COLORS = 10  # Number of colors in ARC (0-9)
-NUM_OPERATIONS = 35  # Number of ARCLE operations (0-34)
+NUM_OPERATIONS = 35  # Number of ARC operations (0-34)
 
 # Enhanced functionality constants
 # Note: MAX_PAIRS removed - now dataset/config dependent

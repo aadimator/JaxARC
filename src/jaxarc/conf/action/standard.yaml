@@ -8,7 +8,7 @@ selection_format: "mask" # Use mask + operation format (others: point, bbox)
 
 # Operation Settings
 max_operations: 42 # Maximum operation ID + 1 (to allow operation 41) - updated for enhanced control operations
-allowed_operations: # Standard operations using ARCLEOperationType IDs
+allowed_operations: # Standard operations using ARCOperationType IDs
   - 0 # FILL_0 (black)
   - 1 # FILL_1 (blue)
   - 2 # FILL_2 (red)

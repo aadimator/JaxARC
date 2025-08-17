@@ -401,13 +401,13 @@ class PrimitiveType(IntEnum):
 
 All operations are now treated uniformly (IDs 0-34). Any legacy references to
 ControlType or ActionCategory should be refactored to directly use
-ARCLEOperationType constants or removed entirely.
+ARCOperationType constants or removed entirely.
 """
 
 
-# ARCLE-specific types
-class ARCLEOperationType:
-    """ARCLE operation types (grid + submit only).
+# ARC-specific types
+class ARCOperationType:
+    """ARC operation types (grid + submit only).
 
     Pair control operations (35-41) have been removed to simplify the action space.
     Remaining valid operation IDs: 0-34.
@@ -465,13 +465,13 @@ class ARCLEOperationType:
     SUBMIT = 34
 
 
-class ARCLEAction(eqx.Module):
+class ARCAction(eqx.Module):
     """
-    ARCLE-specific action representation using Equinox Module.
+    ARC-specific action representation using Equinox Module.
 
     Attributes:
         selection: Continuous selection mask for the grid
-        operation: ARCLE operation ID (0-34)
+        operation: ARC operation ID (0-34)
         agent_id: ID of the agent taking this action
         timestamp: When the action was taken
     """
@@ -482,7 +482,7 @@ class ARCLEAction(eqx.Module):
     timestamp: int
 
     def __check_init__(self) -> None:
-        """Equinox validation method for ARCLE action structure."""
+        """Equinox validation method for ARC action structure."""
         if not hasattr(self.selection, "shape"):
             return
         try:

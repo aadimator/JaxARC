@@ -7,7 +7,7 @@ selection_format: "mask" # Use mask + operation format (others: point, bbox)
 
 # Operation Settings
 max_operations: 35 # Reduced set of operations (0-34) after removing pair control operations
-allowed_operations: # All available operations (grid + submit) using ARCLEOperationType IDs
+allowed_operations: # All available operations (grid + submit) using ARCOperationType IDs
   - 0 # FILL_0 (black)
   - 1 # FILL_1 (blue)
   - 2 # FILL_2 (red)

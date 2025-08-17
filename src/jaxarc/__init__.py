@@ -49,11 +49,11 @@ from .envs import (
 from .state import ArcEnvState, create_arc_env_state
 
 # Core types
-from .types import ARCLEAction, Grid, JaxArcTask, TaskPair
+from .types import ARCAction, Grid, JaxArcTask, TaskPair
 
 __all__ = [
     # Core types
-    "ARCLEAction",
+    "ARCAction",
     # Configuration
     "ArcEnvState",
     "Grid",
