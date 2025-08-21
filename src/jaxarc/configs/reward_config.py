@@ -23,12 +23,6 @@ class RewardConfig(eqx.Module):
     success_bonus: float = 10.0
     similarity_weight: float = 1.0
 
-    # Additional reward shaping
-    progress_bonus: float = 0.0
-
-    # Mode-specific reward structures
-    training_similarity_weight: float = 1.0
-
     efficiency_bonus_threshold: int = 50
     efficiency_bonus: float = 1.0
 
@@ -40,10 +34,6 @@ class RewardConfig(eqx.Module):
             validate_float_range(self.step_penalty, "step_penalty", -10.0, 1.0)
             validate_float_range(self.success_bonus, "success_bonus", -100.0, 1000.0)
             validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 10.0)
-            validate_float_range(self.progress_bonus, "progress_bonus", -10.0, 10.0)
-            validate_float_range(
-                self.training_similarity_weight, "training_similarity_weight", 0.0, 10.0
-            )
             validate_non_negative_int(
                 self.efficiency_bonus_threshold, "efficiency_bonus_threshold"
             )
@@ -69,8 +59,6 @@ class RewardConfig(eqx.Module):
             step_penalty=cfg.get("step_penalty", -0.01),
             success_bonus=cfg.get("success_bonus", 10.0),
             similarity_weight=cfg.get("similarity_weight", 1.0),
-            progress_bonus=cfg.get("progress_bonus", 0.0),
-            training_similarity_weight=cfg.get("training_similarity_weight", 1.0),
             efficiency_bonus_threshold=cfg.get("efficiency_bonus_threshold", 50),
             efficiency_bonus=cfg.get("efficiency_bonus", 1.0),
         )
