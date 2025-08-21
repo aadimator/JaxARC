@@ -4,14 +4,8 @@
 # Basic reward settings for evaluation
 reward_on_submit_only: true # Only reward on submission for evaluation
 step_penalty: -0.02 # Higher step penalty to encourage efficiency
-success_bonus: 20.0 # High success bonus for test completion
+success_bonus: 1000.0 # High success bonus for test completion
 similarity_weight: 0.0 # No similarity rewards (target masked)
-
-# Minimal progress tracking in evaluation
-progress_bonus: 0.0 # No progress bonus in evaluation mode
-
-# Mode-specific weights
-training_similarity_weight: 1.0 # Full similarity in training
 
 # Efficiency is critical in evaluation
 efficiency_bonus_threshold: 25 # Strict efficiency requirement

@@ -41,11 +41,8 @@ def _calculate_reward(
 
     step_penalty = jnp.array(reward_cfg.step_penalty, dtype=jnp.float32)
 
-    training_similarity_reward = (
-        reward_cfg.training_similarity_weight * similarity_improvement
-    )
-    progress_bonus = jnp.where(
-        similarity_improvement > 0, reward_cfg.progress_bonus, 0.0
+    similarity_reward = (
+        reward_cfg.similarity_weight * similarity_improvement
     )
 
     success_bonus = jnp.where(is_solved, reward_cfg.success_bonus, 0.0)
@@ -63,8 +60,7 @@ def _calculate_reward(
 
     # 2) Mode-specific totals
     training_reward = (
-        training_similarity_reward
-        + progress_bonus
+        similarity_reward
         + step_penalty
         + success_bonus
         + efficiency_bonus

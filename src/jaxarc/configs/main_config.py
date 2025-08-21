@@ -165,8 +165,6 @@ class JaxArcConfig(eqx.Module):
                 "Cumulative step penalties may exceed success bonus - consider adjusting reward balance"
             )
 
-        if self.reward.progress_bonus != 0.0 and self.reward.reward_on_submit_only:
-            warnings.append("Progress bonus is ignored when reward_on_submit_only=True")
 
     def _validate_dataset_consistency(self, warnings: list[str]) -> None:
         max_grid_area = self.dataset.max_grid_height * self.dataset.max_grid_width
