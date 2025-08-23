@@ -47,16 +47,25 @@ def _calculate_reward(
 
     success_bonus = jnp.where(is_solved, reward_cfg.success_bonus, 0.0)
     success_bonus = jnp.where(
-        reward_cfg.reward_on_submit_only, 
-        jnp.where(is_submit_step, success_bonus, 0.0), 
-        success_bonus
+        reward_cfg.reward_on_submit_only,
+        jnp.where(is_submit_step, success_bonus, 0.0),
+        success_bonus,
     )
-    
+
     efficiency_bonus = jnp.where(
         is_solved & (new_state.step_count <= reward_cfg.efficiency_bonus_threshold),
         reward_cfg.efficiency_bonus,
         0.0,
     )
+
+    # Penalty for submitting without solving the task.
+    # This directly counteracts the reward hacking behavior.
+    submission_penalty = jnp.where(
+        is_submit_step & ~is_solved,
+        reward_cfg.unsolved_submission_penalty,
+        0.0
+    )
+
 
     # 2) Mode-specific totals
     training_reward = (
@@ -64,10 +73,14 @@ def _calculate_reward(
         + step_penalty
         + success_bonus
         + efficiency_bonus
+        + submission_penalty
     )
 
     evaluation_reward = (
-        step_penalty + success_bonus + efficiency_bonus
+        step_penalty
+        + success_bonus
+        + efficiency_bonus
+        + submission_penalty
     )
 
     # 3) Select by mode

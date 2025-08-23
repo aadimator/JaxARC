@@ -5,6 +5,7 @@
 reward_on_submit_only: true # Only reward on submission for evaluation
 step_penalty: -0.02 # Higher step penalty to encourage efficiency
 success_bonus: 1000.0 # High success bonus for test completion
+unsolved_submission_penalty: -1.0 # Penalty for submitting an unsolved task to prevent reward hacking.
 similarity_weight: 0.0 # No similarity rewards (target masked)
 
 # Efficiency is critical in evaluation

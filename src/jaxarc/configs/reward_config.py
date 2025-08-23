@@ -25,6 +25,7 @@ class RewardConfig(eqx.Module):
 
     efficiency_bonus_threshold: int = 50
     efficiency_bonus: float = 1.0
+    unsolved_submission_penalty: float = 0.0
 
     def validate(self) -> tuple[str, ...]:
         """Validate reward configuration and return tuple of errors."""
@@ -38,6 +39,12 @@ class RewardConfig(eqx.Module):
                 self.efficiency_bonus_threshold, "efficiency_bonus_threshold"
             )
             validate_float_range(self.efficiency_bonus, "efficiency_bonus", -10.0, 10.0)
+            validate_float_range(
+                self.unsolved_submission_penalty,
+                "unsolved_submission_penalty",
+                -1000.0,
+                0.0,
+            )
         except ConfigValidationError as e:
             errors.append(str(e))
 
@@ -61,4 +68,5 @@ class RewardConfig(eqx.Module):
             similarity_weight=cfg.get("similarity_weight", 1.0),
             efficiency_bonus_threshold=cfg.get("efficiency_bonus_threshold", 50),
             efficiency_bonus=cfg.get("efficiency_bonus", 1.0),
+            unsolved_submission_penalty=cfg.get("unsolved_submission_penalty", 0.0),
         )
