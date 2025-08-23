@@ -5,6 +5,7 @@
 reward_on_submit_only: false # Step-by-step rewards for better learning signal
 step_penalty: -0.005 # Smaller penalty to encourage exploration
 success_bonus: 1000.0 # Higher success bonus for motivation
+unsolved_submission_penalty: -1.0 # Penalty for submitting an unsolved task to prevent reward hacking.
 similarity_weight: 1.0
 
 # Efficiency incentives
