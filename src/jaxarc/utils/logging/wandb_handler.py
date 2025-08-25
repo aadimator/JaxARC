@@ -252,8 +252,26 @@ class WandbHandler:
             return
 
         try:
+            # Normalize scalar-like values to Python floats for WandB
+            normalized: dict[str, float] = {}
+            for key, value in metrics.items():
+                v = value
+                # Convert JAX/NumPy scalars
+                if hasattr(v, "shape") and v.shape == ():
+                    v = v.item() if hasattr(v, "item") else v
+                if hasattr(v, "item"):
+                    with suppress(Exception):
+                        v = v.item()
+                # Only keep scalar-like values
+                if isinstance(v, (bool, int, float)):
+                    normalized[key] = float(v) if not isinstance(v, bool) else float(int(v))
+
+            # Ensure gradient norm is available under a common name if present
+            if "gradient_norm" in normalized and "grad_norm" not in normalized:
+                normalized["grad_norm"] = normalized["gradient_norm"]
+            
             # Add batch/ prefix to distinguish from individual step metrics
-            batch_metrics = {f"batch/{key}": value for key, value in metrics.items()}
+            batch_metrics = {f"batch/{key}": value for key, value in normalized.items()}
 
             # Log with proper step information for time-series plots
             self.run.log(batch_metrics, step=step)
