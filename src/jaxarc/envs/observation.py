@@ -4,6 +4,7 @@ Observation utilities for JaxARC environments.
 This module contains functions for constructing agent observations from
 ArcEnvState, extracted from the monolithic functional API.
 """
+
 from __future__ import annotations
 
 from jaxarc.configs import JaxArcConfig

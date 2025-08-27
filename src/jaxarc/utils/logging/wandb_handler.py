@@ -264,12 +264,14 @@ class WandbHandler:
                         v = v.item()
                 # Only keep scalar-like values
                 if isinstance(v, (bool, int, float)):
-                    normalized[key] = float(v) if not isinstance(v, bool) else float(int(v))
+                    normalized[key] = (
+                        float(v) if not isinstance(v, bool) else float(int(v))
+                    )
 
             # Ensure gradient norm is available under a common name if present
             if "gradient_norm" in normalized and "grad_norm" not in normalized:
                 normalized["grad_norm"] = normalized["gradient_norm"]
-            
+
             # Add batch/ prefix to distinguish from individual step metrics
             batch_metrics = {f"batch/{key}": value for key, value in normalized.items()}
 

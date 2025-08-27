@@ -48,7 +48,6 @@ class EnvironmentConfig(eqx.Module):
 
         return tuple(errors)
 
-
     def __check_init__(self):
         """Validate hashability after initialization."""
         try:

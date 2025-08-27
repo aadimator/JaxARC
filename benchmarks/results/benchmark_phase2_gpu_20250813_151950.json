@@ -8,9 +8,7 @@
     "jax_version": "0.6.2",
     "jax_devices": {
       "count": 1,
-      "types": [
-        "NVIDIA GeForce RTX 3090"
-      ],
+      "types": ["NVIDIA GeForce RTX 3090"],
       "platform": "gpu"
     },
     "cpu_count": "unknown",
@@ -29,10 +27,7 @@
     "batch_steps": 50,
     "custom_batch_sizes": null
   },
-  "implementations": [
-    "arc",
-    "unsafe"
-  ],
+  "implementations": ["arc", "unsafe"],
   "single_environment_arc": {
     "steps_per_second": 218.06944029064292,
     "total_time": 4.585695265999675,

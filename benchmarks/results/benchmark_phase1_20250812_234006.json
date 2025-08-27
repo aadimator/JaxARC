@@ -8,9 +8,7 @@
     "jax_version": "0.6.2",
     "jax_devices": {
       "count": 1,
-      "types": [
-        "cpu"
-      ],
+      "types": ["cpu"],
       "platform": "cpu"
     },
     "cpu_count": "arm",

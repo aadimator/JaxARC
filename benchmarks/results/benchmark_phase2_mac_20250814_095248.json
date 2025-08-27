@@ -8,9 +8,7 @@
     "jax_version": "0.6.2",
     "jax_devices": {
       "count": 1,
-      "types": [
-        "cpu"
-      ],
+      "types": ["cpu"],
       "platform": "cpu"
     },
     "cpu_count": "arm",
@@ -29,9 +27,7 @@
     "batch_steps": 50,
     "custom_batch_sizes": null
   },
-  "implementations": [
-    "arc"
-  ],
+  "implementations": ["arc"],
   "single_environment_arc": {
     "steps_per_second": 535.2484522933432,
     "total_time": 1.868291250008042,

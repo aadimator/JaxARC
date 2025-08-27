@@ -190,8 +190,10 @@ def run_logging_showcase(config_overrides: list[str]):
         "total_reward": total_reward,
         "final_similarity": state.similarity_score,
         "success": state.similarity_score >= 1.0,
-        "reward_progression": [step['reward'] for step in episode_steps_data],
-        "similarity_progression": [step['after_state'].similarity_score for step in episode_steps_data],
+        "reward_progression": [step["reward"] for step in episode_steps_data],
+        "similarity_progression": [
+            step["after_state"].similarity_score for step in episode_steps_data
+        ],
         "task_id": task_id,
         "step_data": [
             serialize_log_step(s) for s in episode_steps_data

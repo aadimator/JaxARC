@@ -143,7 +143,7 @@ def initialize_working_grids_with_validation(
         )
 
         # Post-process validation (outside JAX compilation)
-    # validation currently handled in core functions; skip here
+        # validation currently handled in core functions; skip here
 
         # Note: We can't do this validation inside JIT-compiled functions
         # So we skip it for now and rely on the core functions being correct

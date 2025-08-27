@@ -8,9 +8,7 @@
     "jax_version": "0.6.2",
     "jax_devices": {
       "count": 1,
-      "types": [
-        "NVIDIA GeForce RTX 3090"
-      ],
+      "types": ["NVIDIA GeForce RTX 3090"],
       "platform": "gpu"
     },
     "cpu_count": "unknown",
@@ -28,16 +26,7 @@
     "single_steps": 1000,
     "batch_steps": 50,
     "custom_batch_sizes": [
-      1,
-      5556,
-      11111,
-      16667,
-      22222,
-      27778,
-      33333,
-      38889,
-      44444,
-      50000
+      1, 5556, 11111, 16667, 22222, 27778, 33333, 38889, 44444, 50000
     ]
   },
   "single_environment": {

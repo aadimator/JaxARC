@@ -8,9 +8,7 @@
     "jax_version": "0.6.2",
     "jax_devices": {
       "count": 1,
-      "types": [
-        "NVIDIA H100 80GB HBM3"
-      ],
+      "types": ["NVIDIA H100 80GB HBM3"],
       "platform": "gpu"
     },
     "cpu_count": "x86_64",
@@ -28,23 +26,10 @@
     "single_steps": 1000,
     "batch_steps": 50,
     "custom_batch_sizes": [
-      1,
-      10,
-      50,
-      100,
-      500,
-      1000,
-      2000,
-      5000,
-      10000,
-      20000,
-      50000
+      1, 10, 50, 100, 500, 1000, 2000, 5000, 10000, 20000, 50000
     ]
   },
-  "implementations": [
-    "arc",
-    "unsafe"
-  ],
+  "implementations": ["arc", "unsafe"],
   "single_environment_arc": {
     "steps_per_second": 85.51023944235958,
     "total_time": 11.694505903869867,

@@ -98,7 +98,9 @@ def test_auto_reset_single():
     action = create_point_action(0, 0, 0)
     state2, obs2, reward, done, _ = env.step(state, action)
     # Episode should terminate after 1 step
-    assert bool(done) is False or bool(done) is True  # done may be False if termination logic not triggered
+    assert (
+        bool(done) is False or bool(done) is True
+    )  # done may be False if termination logic not triggered
     # Ensure we still return proper shapes
     chex.assert_shape(obs2, obs.shape)
 
@@ -109,7 +111,11 @@ def test_batch_env_reset_and_step():
     env = ArcEnv(cfg, task_data=task, num_envs=4, manage_keys=True, seed=123)
     state, obs = env.reset(jax.random.PRNGKey(3))
     chex.assert_shape(obs, (4, *state.working_grid.shape[1:]))
-    action = create_point_action(jnp.zeros(4, dtype=jnp.int32), jnp.zeros(4, dtype=jnp.int32), jnp.zeros(4, dtype=jnp.int32))
+    action = create_point_action(
+        jnp.zeros(4, dtype=jnp.int32),
+        jnp.zeros(4, dtype=jnp.int32),
+        jnp.zeros(4, dtype=jnp.int32),
+    )
     new_state, new_obs, rewards, dones, infos = env.step(state, action)
     chex.assert_shape(rewards, (4,))
     chex.assert_shape(dones, (4,))
@@ -126,4 +132,3 @@ def test_safe_vs_unsafe_parity_single():
     _, _, reward_safe, _, _ = arc_step(state_safe, action, cfg)
     _, _, reward_unsafe, _, _ = _arc_step_unsafe(state_safe, action, cfg)
     assert jnp.allclose(reward_safe, reward_unsafe)
-
