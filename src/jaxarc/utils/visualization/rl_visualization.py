@@ -38,7 +38,7 @@ def get_operation_display_name(
 def draw_rl_step_svg_enhanced(
     before_grid: Grid,
     after_grid: Grid,
-    action: Any, # Can be PointAction, BboxAction, MaskAction, or dict
+    action: Any,  # Can be PointAction, BboxAction, MaskAction, or dict
     reward: float,
     info: Dict[str, Any],
     step_num: int,
@@ -338,7 +338,7 @@ def draw_rl_step_svg_enhanced(
         grid_data, _ = _extract_grid_data(before_grid)
         grid_shape = grid_data.shape
         selection_mask = np.asarray(action.to_selection_mask(grid_shape))
-    elif isinstance(action, dict): # Fallback for old dictionary format
+    elif isinstance(action, dict):  # Fallback for old dictionary format
         if "selection" in action:
             selection_mask = np.asarray(action["selection"])
 

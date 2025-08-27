@@ -41,9 +41,7 @@ def _calculate_reward(
 
     step_penalty = jnp.array(reward_cfg.step_penalty, dtype=jnp.float32)
 
-    similarity_reward = (
-        reward_cfg.similarity_weight * similarity_improvement
-    )
+    similarity_reward = reward_cfg.similarity_weight * similarity_improvement
 
     success_bonus = jnp.where(is_solved, reward_cfg.success_bonus, 0.0)
     success_bonus = jnp.where(
@@ -61,11 +59,8 @@ def _calculate_reward(
     # Penalty for submitting without solving the task.
     # This directly counteracts the reward hacking behavior.
     submission_penalty = jnp.where(
-        is_submit_step & ~is_solved,
-        reward_cfg.unsolved_submission_penalty,
-        0.0
+        is_submit_step & ~is_solved, reward_cfg.unsolved_submission_penalty, 0.0
     )
-
 
     # 2) Mode-specific totals
     training_reward = (
@@ -77,10 +72,7 @@ def _calculate_reward(
     )
 
     evaluation_reward = (
-        step_penalty
-        + success_bonus
-        + efficiency_bonus
-        + submission_penalty
+        step_penalty + success_bonus + efficiency_bonus + submission_penalty
     )
 
     # 3) Select by mode

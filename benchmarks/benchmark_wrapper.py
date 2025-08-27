@@ -109,6 +109,7 @@ def create_dummy_task_data(config: JaxArcConfig) -> JaxArcTask:
         task_index=jnp.array(0, dtype=jnp.int32),
     )
 
+
 # ---------------------------------------------------------------------------
 # Shared Benchmark Utilities
 # ---------------------------------------------------------------------------
@@ -144,6 +145,7 @@ def random_agent_policy(
     c = jax.random.randint(k3, (), 0, w)
     return create_point_action(op, r, c)
 
+
 # ---------------------------------------------------------------------------
 # Functional API Benchmark (Apples-to-Apples)
 # ---------------------------------------------------------------------------
@@ -160,7 +162,9 @@ def make_rollout_fn(config: JaxArcConfig, steps: int):
             next_state, _, _, _, _ = arc_step(state, action, config)
             return (next_state, key), None
 
-        (final_state, _), _ = jax.lax.scan(scan_body, (initial_state, key), None, length=steps)
+        (final_state, _), _ = jax.lax.scan(
+            scan_body, (initial_state, key), None, length=steps
+        )
         return final_state
 
     return rollout_fn

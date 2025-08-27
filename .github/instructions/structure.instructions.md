@@ -169,8 +169,8 @@ from jaxarc.utils.config import get_config
 
 1. **Task Loading**: `parsers/` → `JaxArcTask` data structures with static
    shapes and JAXTyping annotations
-2. **Environment Setup**: `configs/` → `JaxArcConfig` unified configuration
-   with Equinox validation
+2. **Environment Setup**: `configs/` → `JaxArcConfig` unified configuration with
+   Equinox validation
 3. **Environment Execution**: Pure functions in `envs/functional.py` with
    immutable `ArcEnvState`
 4. **Action Processing**: Action handlers transform inputs to grid operations

@@ -745,17 +745,16 @@ class SVGHandler:
 
         filtered_info = {}
         # Handle both the new StepInfo object and old dict format for robustness
-        if hasattr(info, '__class__') and 'StepInfo' in info.__class__.__name__:
+        if hasattr(info, "__class__") and "StepInfo" in info.__class__.__name__:
             for key in known_viz_keys:
                 if hasattr(info, key):
                     filtered_info[key] = getattr(info, key)
         elif isinstance(info, dict):
-             for key, value in info.items():
+            for key, value in info.items():
                 if key in known_viz_keys:
                     filtered_info[key] = value
 
         return filtered_info
-
 
     def get_current_run_info(self) -> dict[str, Any]:
         """Get information about the current run.

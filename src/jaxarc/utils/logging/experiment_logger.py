@@ -117,9 +117,8 @@ class ExperimentLogger:
 
         try:
             # SVG visualization handler - now controlled explicitly by visualization.enabled
-            if (
-                hasattr(self.config, "visualization")
-                and getattr(self.config.visualization, "enabled", False)
+            if hasattr(self.config, "visualization") and getattr(
+                self.config.visualization, "enabled", False
             ):
                 handlers["svg"] = self._create_svg_handler()
                 logger.debug("SVGHandler initialized (visualization.enabled=True)")

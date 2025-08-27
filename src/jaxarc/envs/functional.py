@@ -16,7 +16,7 @@ import jax.numpy as jnp
 from omegaconf import DictConfig
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.utils.jax_types import EPISODE_MODE_TEST, EPISODE_MODE_TRAIN
+from jaxarc.utils.jax_types import EPISODE_MODE_TRAIN
 
 from ..state import ArcEnvState
 from ..types import JaxArcTask
@@ -56,6 +56,7 @@ from .termination import _is_episode_done
 # JAX-compatible step info structure - replaces dict for performance.
 class StepInfo(eqx.Module):
     """Step info as an Equinox Module for PyTree compatibility."""
+
     similarity: jax.Array
     similarity_improvement: jax.Array
     operation_type: jax.Array
@@ -68,6 +69,7 @@ class StepInfo(eqx.Module):
     action_history_length: jax.Array
     success: jax.Array
 
+
 # Type aliases for cleaner signatures
 ConfigType = Union[JaxArcConfig, DictConfig]
 
@@ -77,6 +79,7 @@ def _ensure_config(config: ConfigType) -> JaxArcConfig:
     if isinstance(config, DictConfig):
         return JaxArcConfig.from_hydra(config)
     return config
+
 
 def _initialize_grids(
     task_data: JaxArcTask,
@@ -154,7 +157,6 @@ def _initialize_grids(
     # Remove batch dimension (squeeze first axis)
     initial_grid = jnp.squeeze(initial_grid, axis=0)
     initial_mask = jnp.squeeze(initial_mask, axis=0)
-
 
     return initial_grid, target_grid, initial_mask, target_mask
 
@@ -387,6 +389,8 @@ def arc_reset(
     # All logging information is now available in the returned state for external logging
 
     return validated_state, observation
+
+
 def _process_action(
     state: ArcEnvState,
     action: StructuredAction | dict[str, Any],
@@ -528,6 +532,7 @@ def _process_action(
     new_state = execute_grid_operation(new_state, operation)
     return new_state, validated_action
 
+
 def _update_state(
     _old_state: ArcEnvState,
     new_state: ArcEnvState,
@@ -599,6 +604,7 @@ def _update_state(
 
     # Update step count using PyTree utilities
     return increment_step_count(updated_state)
+
 
 def _calculate_reward_and_done(
     old_state: ArcEnvState,
@@ -847,7 +853,7 @@ def arc_step(
 @eqx.filter_jit
 def batch_reset(
     keys: jnp.ndarray, config: ConfigType, task_data: JaxArcTask | None = None
- ) -> tuple[ArcEnvState, ObservationArray]:
+) -> tuple[ArcEnvState, ObservationArray]:
     """Reset multiple environments in parallel using vmap.
 
     This function provides efficient batch processing for environment resets
@@ -891,7 +897,7 @@ def batch_reset(
 @eqx.filter_jit
 def batch_step(
     states: ArcEnvState, actions: StructuredAction, config: ConfigType
- ) -> tuple[ArcEnvState, ObservationArray, jnp.ndarray, jnp.ndarray, StepInfo]:
+) -> tuple[ArcEnvState, ObservationArray, jnp.ndarray, jnp.ndarray, StepInfo]:
     """Step multiple environments in parallel using vmap.
 
     This function provides efficient batch processing for environment steps
@@ -1013,12 +1019,13 @@ def create_batch_episode_runner(
 
 # Utility functions for batch processing analysis
 
+
 def analyze_batch_performance(
     config: ConfigType,
     task_data: JaxArcTask | None = None,
     batch_sizes: list[int] | None = None,
     num_steps: int = 10,
- ) -> dict[str, Any]:
+) -> dict[str, Any]:
     """Analyze batch processing performance across different batch sizes.
 
     This function provides comprehensive performance analysis for batch processing
@@ -1090,6 +1097,7 @@ def analyze_batch_performance(
 
 # PRNG Key Management Utilities for Batch Processing
 
+
 def create_batch_keys(key: PRNGKey, batch_size: int) -> jnp.ndarray:
     """Create array of PRNG keys for batch processing.
 
@@ -1115,6 +1123,7 @@ def create_batch_keys(key: PRNGKey, batch_size: int) -> jnp.ndarray:
         ```
     """
     return jax.random.split(key, batch_size)
+
 
 def split_key_for_batch_step(key: PRNGKey, batch_size: int) -> jnp.ndarray:
     """Split PRNG key for batch step operations.

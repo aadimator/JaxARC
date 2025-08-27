@@ -135,14 +135,19 @@ class RichHandler:
         after_state = step_data.get("after_state")
 
         # Check if we have state objects for grid visualization
-        if before_state and hasattr(before_state, 'working_grid') and after_state and hasattr(after_state, 'working_grid'):
-             visualize_task_pair_rich(
+        if (
+            before_state
+            and hasattr(before_state, "working_grid")
+            and after_state
+            and hasattr(after_state, "working_grid")
+        ):
+            visualize_task_pair_rich(
                 input_grid=before_state.working_grid,
                 output_grid=after_state.working_grid,
                 title=f"Step {step_num}",
                 console=self.console,
             )
-        elif before_state and hasattr(before_state, 'working_grid'):
+        elif before_state and hasattr(before_state, "working_grid"):
             grid_table = visualize_grid_rich(
                 before_state.working_grid,
                 title=f"Step {step_num} - Before",
@@ -150,32 +155,34 @@ class RichHandler:
             )
             self.console.print(grid_table)
 
-
         # Handle info, which can be a StepInfo object or a dict
         if info:
             # Check for attributes directly, compatible with StepInfo object
-            if hasattr(info, 'success') and hasattr(info, 'similarity_improvement'):
+            if hasattr(info, "success") and hasattr(info, "similarity_improvement"):
                 self.console.print("[bold]Metrics:[/bold]")
                 for key in ("success", "similarity_improvement", "similarity"):
                     if hasattr(info, key):
                         v = getattr(info, key)
                         # Convert JAX array to Python scalar if necessary
-                        if hasattr(v, 'item'):
+                        if hasattr(v, "item"):
                             v = v.item()
                         if isinstance(v, (int, float, bool)):
-                             self.console.print(f"  {key}: {v:.3f}" if isinstance(v, float) else f"  {key}: {v}")
+                            self.console.print(
+                                f"  {key}: {v:.3f}"
+                                if isinstance(v, float)
+                                else f"  {key}: {v}"
+                            )
                         else:
-                             self.console.print(f"  {key}: {v}")
+                            self.console.print(f"  {key}: {v}")
             # Fallback for dictionary-based info
             elif isinstance(info, dict):
-                 if "metrics" in info and isinstance(info["metrics"], dict):
+                if "metrics" in info and isinstance(info["metrics"], dict):
                     self.console.print("[bold]Metrics:[/bold]")
                     for k, v in info["metrics"].items():
                         if isinstance(v, (int, float)):
                             self.console.print(f"  {k}: {v:.3f}")
                         else:
                             self.console.print(f"  {k}: {v}")
-
 
         action = step_data.get("action")
         if action is not None:

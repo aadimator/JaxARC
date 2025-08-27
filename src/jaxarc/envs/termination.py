@@ -3,6 +3,7 @@ Termination utilities for JaxARC environments.
 
 This module provides episode termination checks extracted from the functional API.
 """
+
 from __future__ import annotations
 
 from jaxarc.configs import JaxArcConfig

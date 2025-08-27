@@ -165,7 +165,6 @@ class JaxArcConfig(eqx.Module):
                 "Cumulative step penalties may exceed success bonus - consider adjusting reward balance"
             )
 
-
     def _validate_dataset_consistency(self, warnings: list[str]) -> None:
         max_grid_area = self.dataset.max_grid_height * self.dataset.max_grid_width
         if max_grid_area > 400 and self.environment.max_episode_steps < 100:
