@@ -8,7 +8,7 @@ State, extracted from the monolithic functional API.
 from __future__ import annotations
 
 from typing import Any
-from jaxarc.configs import JaxArcConfig
+
 from jaxarc.state import State
 from jaxarc.types import EnvParams
 from jaxarc.utils.jax_types import ObservationArray
@@ -22,15 +22,16 @@ def _get_observation(state: State, _unused: Any) -> ObservationArray:
     return state.working_grid
 
 
-def create_observation(state: State, config: JaxArcConfig) -> ObservationArray:
-    """Create agent observation from environment state.
-
-    For now, returns the working grid to maintain backward compatibility.
-    """
-    return _get_observation(state, config)
 
 
-def create_observation_from_params(state: State, params: EnvParams) -> ObservationArray:
+
+
+
+
+
+
+
+def create_observation(state: State, params: EnvParams) -> ObservationArray:
     """Create agent observation using EnvParams-based API.
 
     Kept separate to support new functional signatures while maintaining legacy compatibility.

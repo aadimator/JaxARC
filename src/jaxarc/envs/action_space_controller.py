@@ -11,9 +11,9 @@ Features:
 
 Example:
     controller = ActionSpaceController()
-    mask = controller.get_allowed_operations(state, cfg)
-    ok, msg = controller.validate_operation(12, state, cfg)
-    filtered = controller.filter_invalid_operation(99, state, cfg)  # clipped
+    mask = controller.get_allowed_operations(state, params.action)
+    ok, msg = controller.validate_operation(12, state, params.action)
+    filtered = controller.filter_invalid_operation(99, state, params.action)  # clipped
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from jaxarc.configs import ActionConfig
+from jaxarc.configs.action_config import ActionConfig
 
 from ..state import State
 from ..utils.jax_types import NUM_OPERATIONS, OperationMask

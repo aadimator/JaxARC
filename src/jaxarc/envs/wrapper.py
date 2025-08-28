@@ -20,18 +20,19 @@ Note:
   per-environment keys for batched usage.
 
 Example:
-    from jaxarc.envs.wrapper import ArcEnv
-    from jaxarc.configs import JaxArcConfig
-    from jaxarc.parsers import MiniArcParser
+    from jaxarc.envs.environment import Environment
+    from jaxarc.envs.wrapper import GymAutoResetWrapper
+    from jaxarc.types import EnvParams
     import jax
 
-    cfg = JaxArcConfig(...)
-    task = MiniArcParser(...).get_task_by_id("...")
-    env = ArcEnv(cfg, task_data=task, episode_mode=0, pair_idx=0, auto_reset="gym", num_envs=1)
+    # Build EnvParams from a project config and a pre-stacked task buffer (not shown)
+    params = EnvParams.from_config(config, buffer=buffer, episode_mode=0)
+
+    env = GymAutoResetWrapper(Environment())
 
     key = jax.random.PRNGKey(0)
-    timestep = env.reset(key)  # -> TimeStep
-    timestep = env.step(timestep, action)  # -> TimeStep
+    ts = env.reset(params, key)  # -> TimeStep
+    ts = env.step(params, ts, action)  # -> TimeStep
 """
 
 from __future__ import annotations
