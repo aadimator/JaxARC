@@ -42,10 +42,7 @@ from .configs import JaxArcConfig
 
 # Core environment and state
 # Functional API
-from .envs import (
-    arc_reset,
-    arc_step,
-)
+
 from .state import ArcEnvState
 
 # Core types
@@ -65,6 +62,6 @@ __all__ = [
     # Version
     "__version__",
     # Functional API
-    "arc_reset",
-    "arc_step",
+
+
 ]
