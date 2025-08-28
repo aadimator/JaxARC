@@ -10,6 +10,8 @@ from __future__ import annotations
 
 # State definition (centralized)
 from ..state import ArcEnvState
+# Core types for new functional API
+from ..types import EnvParams, TimeStep
 
 # Action space controller
 from .action_space_controller import ActionSpaceController
@@ -35,6 +37,8 @@ from .actions import (
 from .functional import (
     arc_reset,
     arc_step,
+    reset,
+    step,
 )
 
 # Grid initialization
@@ -61,6 +65,8 @@ __all__ = [
     "ActionSpaceController",
     "ArcEnv",
     "ArcEnvState",
+    "EnvParams",
+    "TimeStep",
     "BaseAction",
     "BboxAction",
     "MaskAction",
@@ -70,6 +76,8 @@ __all__ = [
     "StructuredAction",
     "arc_reset",
     "arc_step",
+    "reset",
+    "step",
     "bbox_handler",
     "create_bbox_action",
     "create_mask_action",

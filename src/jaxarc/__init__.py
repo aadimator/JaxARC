@@ -46,14 +46,16 @@ from .envs import (
     arc_reset,
     arc_step,
 )
-from .state import ArcEnvState, create_arc_env_state
+from .state import ArcEnvState
 
 # Core types
-from .types import ARCAction, Grid, JaxArcTask, TaskPair
+from .types import ARCAction, Grid, JaxArcTask, TaskPair, EnvParams, TimeStep
 
 __all__ = [
     # Core types
     "ARCAction",
+    "EnvParams",
+    "TimeStep",
     # Configuration
     "ArcEnvState",
     "Grid",

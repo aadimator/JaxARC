@@ -9,7 +9,7 @@ All types are designed to be JAX-compatible with proper validation and JAXTyping
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import NewType
+from typing import Any, NewType
 
 import chex
 import equinox as eqx
@@ -27,7 +27,105 @@ from jaxarc.utils.jax_types import (
     TaskInputMasks,
     TaskOutputGrids,
     TaskOutputMasks,
+    ObservationArray,
 )
+
+# Import configuration types for EnvParams
+from jaxarc.configs.action_config import ActionConfig
+from jaxarc.configs.dataset_config import DatasetConfig
+
+from jaxarc.configs.grid_initialization_config import GridInitializationConfig
+from jaxarc.configs.main_config import JaxArcConfig
+from jaxarc.configs.reward_config import RewardConfig
+
+
+class EnvParams(eqx.Module):
+    """
+    Clean environment parameters - only what's needed for environment logic.
+
+    This is NOT a rename of JaxArcConfig. JaxArcConfig contains framework concerns
+    (logging, visualization, storage) that don't belong in environment parameters.
+    """
+
+    # Core configurations (references, not duplicated fields)
+    dataset: DatasetConfig
+    action: ActionConfig
+    reward: RewardConfig
+    grid_initialization: GridInitializationConfig
+
+    # Episode-specific settings
+    max_episode_steps: int
+
+    # Task specification
+    task_data: "JaxArcTask"
+    episode_mode: int = 0  # 0=train, 1=test
+    pair_idx: int = 0      # Which pair to use
+
+    def __check_init__(self) -> None:
+        # Basic validations
+        assert isinstance(self.max_episode_steps, int) and self.max_episode_steps > 0
+        assert self.episode_mode in (0, 1)
+        assert isinstance(self.pair_idx, int) and self.pair_idx >= 0
+
+        # Validate pair_idx against available pairs
+        if self.episode_mode == 0:
+            # train mode
+            assert self.pair_idx < int(self.task_data.num_train_pairs)
+        else:
+            # test mode
+            assert self.pair_idx < int(self.task_data.num_test_pairs)
+
+    @classmethod
+    def from_config(
+        cls,
+        config: JaxArcConfig,
+        task_data: "JaxArcTask",
+        episode_mode: int = 0,
+        pair_idx: int = 0,
+    ) -> "EnvParams":
+        """
+        Extract environment parameters from the unified JaxArcConfig.
+        """
+        # EnvironmentConfig is kept in the framework config; we only take what we need
+        return cls(
+            dataset=config.dataset,
+            action=config.action,
+            reward=config.reward,
+            grid_initialization=config.grid_initialization,
+            max_episode_steps=int(config.environment.max_episode_steps),
+            task_data=task_data,
+            episode_mode=int(episode_mode),
+            pair_idx=int(pair_idx),
+        )
+
+
+class TimeStep(eqx.Module):
+    """
+    TimeStep object following the Xland-Minigrid pattern.
+
+    Contains step information and embedded state.
+    """
+
+    # Core timestep data
+    step_type: jnp.ndarray  # 0=first, 1=mid, 2=last
+    reward: jnp.ndarray
+    discount: jnp.ndarray
+    observation: ObservationArray
+
+    # Embedded environment state (kept generic to avoid tight coupling)
+    state: Any
+
+    def first(self) -> jnp.ndarray:
+        """Whether this is the first timestep of an episode."""
+        return self.step_type == jnp.asarray(0)
+
+    def mid(self) -> jnp.ndarray:
+        """Whether this is a middle timestep."""
+        return self.step_type == jnp.asarray(1)
+
+    def last(self) -> jnp.ndarray:
+        """Whether this is the last timestep of an episode."""
+        return self.step_type == jnp.asarray(2)
 
 
 class Grid(eqx.Module):
@@ -251,7 +349,7 @@ class JaxArcTask(eqx.Module):
     # Enhanced Utility Methods for State Management
     # =========================================================================
 
-    def get_available_demo_pairs(self) -> Bool[Array, max_train_pairs]:
+    def get_available_demo_pairs(self) -> Bool[Array, "..."]:
         """Get mask of available training pairs.
 
         Returns:
@@ -260,7 +358,7 @@ class JaxArcTask(eqx.Module):
         """
         return jnp.arange(self.input_grids_examples.shape[0]) < self.num_train_pairs
 
-    def get_available_test_pairs(self) -> Bool[Array, max_test_pairs]:
+    def get_available_test_pairs(self) -> Bool[Array, "..."]:
         """Get mask of available test pairs.
 
         Returns:
@@ -298,7 +396,7 @@ class JaxArcTask(eqx.Module):
         """
         return (self.test_input_grids[pair_idx], self.test_input_masks[pair_idx])
 
-    def is_demo_pair_available(self, pair_idx: int) -> Bool[Array, ""]:
+    def is_demo_pair_available(self, pair_idx: int) -> jnp.ndarray:
         """Check if a specific demonstration pair is available.
 
         Args:
@@ -309,7 +407,7 @@ class JaxArcTask(eqx.Module):
         """
         return jnp.array((pair_idx >= 0) & (pair_idx < self.num_train_pairs))
 
-    def is_test_pair_available(self, pair_idx: int) -> Bool[Array, ""]:
+    def is_test_pair_available(self, pair_idx: int) -> jnp.ndarray:
         """Check if a specific test pair is available.
 
         Args:
