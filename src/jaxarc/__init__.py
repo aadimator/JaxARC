@@ -43,7 +43,7 @@ from .configs import JaxArcConfig
 # Core environment and state
 # Functional API
 
-from .state import ArcEnvState
+from .state import State
 
 # Core types
 from .types import ARCAction, Grid, JaxArcTask, TaskPair, EnvParams, TimeStep
@@ -54,7 +54,7 @@ __all__ = [
     "EnvParams",
     "TimeStep",
     # Configuration
-    "ArcEnvState",
+    "State",
     "Grid",
     "JaxArcConfig",
     "JaxArcTask",

@@ -17,8 +17,9 @@ import jax.numpy as jnp
 from loguru import logger
 
 from jaxarc.configs import JaxArcConfig
+from ..envs.actions import StructuredAction
 
-from ..state import ArcEnvState
+from ..state import State
 
 ErrorMode = Literal["raise", "nan", "breakpoint"]
 
@@ -87,7 +88,7 @@ def validate_batch_actions(
 
 
 @eqx.filter_jit
-def validate_state_consistency(state: ArcEnvState) -> ArcEnvState:
+def validate_state_consistency(state: State) -> State:
     """Perform comprehensive validation of the environment state."""
     working_shape = state.working_grid.shape
     target_shape = state.target_grid.shape

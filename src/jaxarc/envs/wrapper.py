@@ -32,7 +32,7 @@ from jaxarc.envs.functional import (
 )
 from jaxarc.types import EnvParams, TimeStep
 from jaxarc.envs.observation import create_observation
-from jaxarc.state import ArcEnvState
+from jaxarc.state import State
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.jax_types import (
     EPISODE_MODE_TRAIN,
@@ -152,7 +152,7 @@ class ArcEnv:
         task_data: JaxArcTask | None = None,
         episode_mode: int = EPISODE_MODE_TRAIN,
         initial_pair_idx: int | None = None,
-    ) -> tuple[ArcEnvState, ObservationArray]:
+    ) -> tuple[State, ObservationArray]:
         """Reset the environment(s)."""
         td = task_data if task_data is not None else self._task_data
         if td is None:
@@ -198,9 +198,9 @@ class ArcEnv:
 
     def step(
         self,
-        state: ArcEnvState,
+        state: State,
         action: StructuredAction | dict,
-    ) -> tuple[ArcEnvState, ObservationArray, RewardValue, EpisodeDone, StepInfo]:
+    ) -> tuple[State, ObservationArray, RewardValue, EpisodeDone, StepInfo]:
         """Step environment(s) with action.
 
         Auto-reset behavior (if enabled) returns post-reset state while keeping
@@ -324,9 +324,9 @@ class ArcEnv:
 
     def get_rollout_fn(
         self,
-        policy_fn: Callable[[ArcEnvState, PRNGKey, JaxArcConfig], StructuredAction],
+        policy_fn: Callable[[State, PRNGKey, JaxArcConfig], StructuredAction],
         num_steps: int,
-    ) -> Callable[[ArcEnvState, PRNGKey], ArcEnvState]:
+    ) -> Callable[[State, PRNGKey], State]:
         """
         Returns a pure, JIT-able function for running a complete episode rollout.
 
@@ -357,8 +357,8 @@ class ArcEnv:
             return (next_state, key), None
 
         def _single_env_rollout(
-            initial_state: ArcEnvState, key: PRNGKey
-        ) -> ArcEnvState:
+            initial_state: State, key: PRNGKey
+        ) -> State:
             (final_state, _), _ = jax.lax.scan(
                 _rollout_body_fn, (initial_state, key), None, length=num_steps
             )
@@ -371,7 +371,7 @@ class ArcEnv:
     # ------------------------------------------------------------------
     # Warmup
     # ------------------------------------------------------------------
-    def warmup(self, state: ArcEnvState) -> ArcEnvState:
+    def warmup(self, state: State) -> State:
         """Run one step for each action archetype to trigger compilation.
 
         Returns final state after three no-op style actions.

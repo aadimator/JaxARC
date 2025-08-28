@@ -18,7 +18,7 @@ from omegaconf import DictConfig
 from jaxarc.configs import JaxArcConfig
 from jaxarc.utils.jax_types import EPISODE_MODE_TRAIN
 
-from ..state import ArcEnvState
+from ..state import State
 from ..types import JaxArcTask
 from ..utils.jax_types import (
     NUM_OPERATIONS,
@@ -80,7 +80,7 @@ def _initialize_grids(
     config: JaxArcConfig,
     key: PRNGKey,
     initial_pair_idx: int | None = None,
-) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize grids with diverse initialization strategies - enhanced helper function.
 
     This enhanced helper function sets up the initial, target, and mask grids based on the
@@ -150,7 +150,24 @@ def _initialize_grids(
     initial_grid = jnp.squeeze(initial_grid, axis=0)
     initial_mask = jnp.squeeze(initial_mask, axis=0)
 
-    return initial_grid, target_grid, initial_mask, target_mask
+    # Raw (dataset) input grid/mask for this pair based on episode_mode
+    def get_train_input():
+        return (
+            task_data.input_grids_examples[selected_pair_idx],
+            task_data.input_masks_examples[selected_pair_idx],
+        )
+
+    def get_test_input():
+        return (
+            task_data.test_input_grids[selected_pair_idx],
+            task_data.test_input_masks[selected_pair_idx],
+        )
+
+    raw_input_grid, raw_input_mask = jax.lax.cond(
+        episode_mode == EPISODE_MODE_TRAIN, get_train_input, get_test_input
+    )
+
+    return initial_grid, target_grid, initial_mask, target_mask, raw_input_grid, raw_input_mask
 
 
 def _create_initial_state(
@@ -158,15 +175,17 @@ def _create_initial_state(
     initial_grid: jnp.ndarray,
     target_grid: jnp.ndarray,
     initial_mask: jnp.ndarray,
+    input_grid: jnp.ndarray,
+    input_mask: jnp.ndarray,
     target_mask: jnp.ndarray,
     selected_pair_idx: jnp.ndarray,
     episode_mode: int,
     config: JaxArcConfig,
     key: PRNGKey,
-) -> ArcEnvState:
+) -> State:
     """Create initial state - focused helper function.
 
-    This helper function constructs the complete initial ArcEnvState with all
+    This helper function constructs the complete initial State with all
     required fields properly initialized. It handles enhanced functionality
     including action history, operation masks, and completion tracking.
 
@@ -180,7 +199,7 @@ def _create_initial_state(
         config: Environment configuration for state initialization parameters
 
     Returns:
-        ArcEnvState: Complete initial environment state with all fields properly
+        State: Complete initial environment state with all fields properly
                     initialized including action history, completion tracking,
                     and operation masks.
 
@@ -210,16 +229,18 @@ def _create_initial_state(
     allowed_operations_mask = jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_)
 
     # Create initial state with simplified fields
-    return ArcEnvState(
+    return State(
         working_grid=initial_grid,
         working_grid_mask=initial_mask,
+        input_grid=input_grid,
+        input_grid_mask=input_mask,
         target_grid=target_grid,
         target_grid_mask=target_mask,
         selected=jnp.zeros_like(initial_grid, dtype=jnp.bool_),
         clipboard=jnp.zeros_like(initial_grid, dtype=jnp.int32),
         step_count=jnp.array(0, dtype=jnp.int32),
         allowed_operations_mask=allowed_operations_mask,
-        similarity_score=initial_similarity,
+        similarity_score=jnp.asarray(initial_similarity, dtype=jnp.float32),
         key=key,
     )
 
@@ -248,7 +269,7 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
     cfg = _build_config_from_params(params)
 
     # Initialize grids/masks using dataset and initialization settings
-    initial_grid, target_grid, initial_mask, target_mask = _initialize_grids(
+    initial_grid, target_grid, initial_mask, target_mask, input_grid, input_mask = _initialize_grids(
         key=key,
         config=cfg,
         task_data=params.task_data,
@@ -263,6 +284,8 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
         initial_grid=initial_grid,
         target_grid=target_grid,
         initial_mask=initial_mask,
+        input_grid=input_grid,
+        input_mask=input_mask,
         target_mask=target_mask,
         selected_pair_idx=selected_pair_idx,
         episode_mode=int(params.episode_mode),
@@ -319,10 +342,10 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
 
 
 def _process_action(
-    state: ArcEnvState,
+    state: State,
     action: StructuredAction | dict[str, Any],
     config: JaxArcConfig,
-) -> tuple[ArcEnvState, StructuredAction]:
+) -> tuple[State, StructuredAction]:
     """Process action and return updated state.
 
     This function handles the complete action processing pipeline supporting both
@@ -461,11 +484,11 @@ def _process_action(
 
 
 def _update_state(
-    _old_state: ArcEnvState,
-    new_state: ArcEnvState,
+    _old_state: State,
+    new_state: State,
     action: StructuredAction,
     config: JaxArcConfig,
-) -> ArcEnvState:
+) -> State:
     """Update state with action history and step count - focused helper function.
 
     This helper function handles post-action state updates including action history
@@ -505,7 +528,7 @@ def _update_state(
 
 @eqx.filter_jit
 def validate_action_jax(
-    action: StructuredAction, state: ArcEnvState, _config: ConfigType
+    action: StructuredAction, state: State, _config: ConfigType
 ) -> jax.Array:
     """JAX-friendly validation returning a boolean predicate.
 

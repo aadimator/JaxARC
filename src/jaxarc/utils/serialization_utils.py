@@ -13,7 +13,7 @@ import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 
-from jaxarc.state import ArcEnvState
+from jaxarc.state import State
 
 from .pytree import filter_arrays_from_state
 from .task_manager import extract_task_id_from_index
@@ -107,8 +107,8 @@ def serialize_action(action: dict[str, Any] | Any) -> dict[str, Any]:
         return {"error": str(e), "type": type(action).__name__}
 
 
-def serialize_arc_state(state: ArcEnvState) -> dict[str, Any]:
-    """Serialize ArcEnvState for safe callback usage.
+def serialize_arc_state(state: State) -> dict[str, Any]:
+    """Serialize State for safe callback usage.
 
     Args:
         state: Environment state to serialize
@@ -144,7 +144,7 @@ def serialize_arc_state(state: ArcEnvState) -> dict[str, Any]:
             ),
         }
     except Exception as e:
-        logger.warning(f"Failed to serialize ArcEnvState: {e}")
+        logger.warning(f"Failed to serialize State: {e}")
         return {}
 
 
@@ -220,7 +220,7 @@ def serialize_log_state(state: Any) -> dict[str, Any]:
     """Serialize state objects using existing utilities.
 
     Args:
-        state: ArcEnvState or similar state object
+        state: State or similar state object
 
     Returns:
         Serialized state representation
@@ -230,7 +230,7 @@ def serialize_log_state(state: Any) -> dict[str, Any]:
 
     try:
         # Try to use existing pytree utilities for real ArcEnvState objects
-        if hasattr(state, "__class__") and "ArcEnvState" in state.__class__.__name__:
+        if hasattr(state, "__class__") and "State" in state.__class__.__name__:
             arrays, non_arrays = filter_arrays_from_state(state)
 
             # Convert arrays to lists for JSON serialization
