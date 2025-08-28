@@ -1,21 +1,21 @@
 """
-Functional API for JaxARC environments with Hydra integration.
+Functional API for JaxARC environments.
 
 This module provides pure functional implementations of the ARC environment
-that work with both typed configs and Hydra DictConfig objects.
+using EnvParams (static environment parameters) decoupled from framework configs.
 """
 
 from __future__ import annotations
 
 
-from typing import Any, Union
+from typing import Any
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from omegaconf import DictConfig
 
-from jaxarc.configs import JaxArcConfig
+
+
 from jaxarc.utils.jax_types import EPISODE_MODE_TRAIN
 
 from ..state import State
@@ -63,22 +63,14 @@ class StepInfo(eqx.Module):
     success: jax.Array
 
 
-# Type aliases for cleaner signatures
-ConfigType = Union[JaxArcConfig, DictConfig]
 
-
-def _ensure_config(config: ConfigType) -> JaxArcConfig:
-    """Convert config to typed JaxArcConfig if needed."""
-    if isinstance(config, DictConfig):
-        return JaxArcConfig.from_hydra(config)
-    return config
 
 
 def _initialize_grids(
     task_data: JaxArcTask,
     selected_pair_idx: jnp.ndarray,
     episode_mode: int,
-    config: JaxArcConfig,
+    params: EnvParams,
     key: PRNGKey,
     initial_pair_idx: int | None = None,
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -127,7 +119,7 @@ def _initialize_grids(
 
     def get_test_target():
         # In test mode, target grid is masked (set to background color) to prevent cheating
-        background_color = config.dataset.background_color
+        background_color = params.dataset.background_color
         initial_grid = task_data.test_input_grids[selected_pair_idx]
         target_grid = jnp.full_like(initial_grid, background_color)
         target_mask = jnp.zeros_like(task_data.test_input_masks[selected_pair_idx])
@@ -142,7 +134,7 @@ def _initialize_grids(
     # is removed. We now directly call the initialization logic.
     initial_grid, initial_mask = initialize_working_grids(
         task_data,
-        config.grid_initialization,
+        params.grid_initialization,
         key,
         batch_size=1,
         initial_pair_idx=initial_pair_idx,
@@ -181,7 +173,6 @@ def _create_initial_state(
     target_mask: jnp.ndarray,
     selected_pair_idx: jnp.ndarray,
     episode_mode: int,
-    config: JaxArcConfig,
     key: PRNGKey,
 ) -> State:
     """Create initial state - focused helper function.
@@ -247,19 +238,6 @@ def _create_initial_state(
 
 
 from jaxarc.types import EnvParams, TimeStep
-from jaxarc.configs.main_config import JaxArcConfig
-from jaxarc.configs.environment_config import EnvironmentConfig
-
-def _build_config_from_params(params: EnvParams) -> JaxArcConfig:
-    """Construct a minimal JaxArcConfig from EnvParams for legacy API reuse."""
-    env_cfg = EnvironmentConfig(max_episode_steps=int(params.max_episode_steps))
-    return JaxArcConfig(
-        environment=env_cfg,
-        dataset=params.dataset,
-        action=params.action,
-        reward=params.reward,
-        grid_initialization=params.grid_initialization,
-    )
 
 
 
@@ -274,7 +252,7 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
     - Computes a pair index based on episode_mode and task-specific pair counts.
     - Builds the initial TimeStep purely in JAX.
     """
-    cfg = _build_config_from_params(params)
+    # Using EnvParams directly; no JaxArcConfig build
 
     # Split key for independent sampling
     key_id, key_pair, key_init = jax.random.split(key, 3)
@@ -324,11 +302,11 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
 
     # Initialize grids/masks using dataset and initialization settings
     initial_grid, target_grid, initial_mask, target_mask, input_grid, input_mask = _initialize_grids(
-        key=key_init,
-        config=cfg,
         task_data=task_data,
         selected_pair_idx=selected_pair_idx,
         episode_mode=int(params.episode_mode),
+        params=params,
+        key=key_init,
         initial_pair_idx=None,
     )
 
@@ -343,12 +321,11 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
         target_mask=target_mask,
         selected_pair_idx=selected_pair_idx,
         episode_mode=int(params.episode_mode),
-        config=cfg,
         key=key_init,
     )
 
     # Create initial observation
-    observation = create_observation(state, cfg)
+    observation = create_observation(state, params)
 
     return TimeStep(
         step_type=jnp.asarray(0, dtype=jnp.int32),   # FIRST
@@ -361,23 +338,22 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
 @eqx.filter_jit
 def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
     """New functional step(params, timestep, action) -> TimeStep."""
-    cfg = _build_config_from_params(params)
     state = timestep.state
     # Process action and update state using internal helpers (no legacy arc_step)
-    processed_state, validated_action = _process_action(state, action, cfg)
-    final_state = _update_state(state, processed_state, validated_action, cfg)
+    processed_state, validated_action = _process_action(state, action, params)
+    final_state = _update_state(state, processed_state, validated_action)
     # Compute reward and termination signal (submit-aware)
     is_submit_step = (validated_action.operation == jnp.asarray(34, dtype=jnp.int32))
     reward = _calculate_reward(
         state,
         final_state,
-        cfg,
+        params,
         is_submit_step=is_submit_step,
         episode_mode=int(params.episode_mode),
     )
     done = is_submit_step
     # Build observation
-    obs = create_observation(final_state, cfg)
+    obs = create_observation(final_state, params)
     # Truncation: step limit check
     truncated = final_state.step_count >= jnp.asarray(params.max_episode_steps)
     terminated = jnp.logical_or(done, truncated)
@@ -405,7 +381,7 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
 def _process_action(
     state: State,
     action: StructuredAction | dict[str, Any],
-    config: JaxArcConfig,
+    params: EnvParams,
 ) -> tuple[State, StructuredAction]:
     """Process action and return updated state.
 
@@ -500,14 +476,14 @@ def _process_action(
 
     # Apply dynamic action space validation and filtering if enabled
     if (
-        hasattr(config.action, "dynamic_action_filtering")
-        and config.action.dynamic_action_filtering
+        hasattr(params.action, "dynamic_action_filtering")
+        and params.action.dynamic_action_filtering
     ):
         controller = ActionSpaceController()
 
         # Filter invalid operation according to policy
         operation = controller.filter_invalid_operation_jax(
-            operation, state, config.action
+            operation, state, params.action
         )
 
         # Update validated action with filtered operation
@@ -544,7 +520,6 @@ def _update_state(
     _old_state: State,
     new_state: State,
     action: StructuredAction,
-    config: JaxArcConfig,
 ) -> State:
     """Update state with action history and step count - focused helper function.
 
@@ -565,7 +540,7 @@ def _update_state(
     Examples:
         ```python
         # Update state after action processing
-        updated_state = _update_state(old_state, new_state, action, config)
+        updated_state = _update_state(old_state, new_state, action)
         ```
 
     Note:
@@ -585,7 +560,7 @@ def _update_state(
 
 @eqx.filter_jit
 def validate_action_jax(
-    action: StructuredAction, state: State, _config: ConfigType
+    action: StructuredAction, state: State, _unused: Any
 ) -> jax.Array:
     """JAX-friendly validation returning a boolean predicate.
 

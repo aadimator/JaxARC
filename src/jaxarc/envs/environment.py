@@ -9,16 +9,16 @@ This module intentionally keeps only a small, JAX-friendly environment delegate
 Design changes:
 - Removed the abstract Environment base class to avoid unnecessary indirection.
 - Moved auto-reset wrappers to the wrapper module (`jaxarc.envs.wrapper`).
-- Kept only convenience methods that are useful for agents (num_actions, observation_shape).
+- Kept only convenience methods that are useful for agents (observation_shape).
 
 Typical usage:
     from jaxarc.envs.environment import Environment
     from jaxarc.types import EnvParams
-    from jaxarc.configs.main_config import JaxArcConfig
-    from jaxarc.types import JaxArcTask
     import jax
 
-    params = EnvParams.from_config(config, task_data, episode_mode=0, pair_idx=0)
+    # Build EnvParams from a project config and a pre-stacked task buffer (not shown)
+    params = EnvParams.from_config(config, buffer=buffer, episode_mode=0)
+
     env = Environment()
 
     key = jax.random.PRNGKey(0)
@@ -37,8 +37,7 @@ from typing import Any, Dict
 import jax
 
 from jaxarc.configs.main_config import JaxArcConfig
-from jaxarc.types import EnvParams, JaxArcTask, TimeStep
-from jaxarc.utils.jax_types import NUM_OPERATIONS
+from jaxarc.types import EnvParams, TimeStep
 
 from .actions import StructuredAction
 from .functional import reset as functional_reset
@@ -51,7 +50,7 @@ class Environment:
 
     - default_params: builds EnvParams from config + task_data
     - reset/step: directly call functional.reset/functional.step
-    - num_actions/observation_shape: convenience helpers
+    - observation_shape: convenience helper
     """
 
     # -------------------------------------------------------------------------
@@ -62,25 +61,18 @@ class Environment:
         self,
         *,
         config: JaxArcConfig,
-        task_data: JaxArcTask,
+        buffer: Any,
         episode_mode: int = 0,
-        pair_idx: int = 0,
+        subset_indices: Any | None = None,
     ) -> EnvParams:
         return EnvParams.from_config(
             config=config,
-            task_data=task_data,
             episode_mode=episode_mode,
-            pair_idx=pair_idx,
+            buffer=buffer,
+            subset_indices=subset_indices,
         )
 
-    def num_actions(self, params: EnvParams) -> int:
-        """
-        Return the number of discrete operations available.
 
-        For ARC, the action set is a selection plus an operation id in [0, NUM_OPERATIONS).
-        Returning NUM_OPERATIONS is a useful default for discrete policies over operations.
-        """
-        return int(NUM_OPERATIONS)
 
     def observation_shape(self, params: EnvParams) -> tuple[int, int]:
         """

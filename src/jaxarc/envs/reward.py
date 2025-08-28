@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import jax.numpy as jnp
 
-from jaxarc.configs import JaxArcConfig
+from jaxarc.types import EnvParams
 from jaxarc.state import State
 from jaxarc.utils.jax_types import RewardValue
 
@@ -17,7 +17,7 @@ from jaxarc.utils.jax_types import RewardValue
 def _calculate_reward(
     old_state: State,
     new_state: State,
-    config: JaxArcConfig,
+    params: EnvParams,
     *,
     is_submit_step: jnp.ndarray | None = None,
     episode_mode: int | None = None,
@@ -42,7 +42,7 @@ def _calculate_reward(
     Returns:
         JAX scalar array containing the calculated reward
     """
-    reward_cfg = config.reward
+    reward_cfg = params.reward
 
     # Resolve optional flags with safe defaults
     submit_flag = (
