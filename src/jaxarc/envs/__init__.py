@@ -35,8 +35,6 @@ from .actions import (
 
 # Functional API
 from .functional import (
-    arc_reset,
-    arc_step,
     reset,
     step,
 )
@@ -74,8 +72,6 @@ __all__ = [
     "PointAction",
     "Space",
     "StructuredAction",
-    "arc_reset",
-    "arc_step",
     "reset",
     "step",
     "bbox_handler",

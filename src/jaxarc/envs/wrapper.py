@@ -27,11 +27,11 @@ from jaxarc.envs.actions import (
 )
 from jaxarc.envs.functional import (
     StepInfo,  # re-exported structure
-    _arc_step_unsafe,
-    arc_reset,
-    arc_step,
-    batch_reset,
+    reset as functional_reset,
+    step as functional_step,
 )
+from jaxarc.types import EnvParams, TimeStep
+from jaxarc.envs.observation import create_observation
 from jaxarc.state import ArcEnvState
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.jax_types import (
@@ -114,15 +114,9 @@ class ArcEnv:
     # Internal helpers
     # ---------------------------------------------------------------------
     def _set_step_impl(self, unsafe: bool) -> None:
-        self._use_unsafe = unsafe
-        self._single_step_fn = _arc_step_unsafe if unsafe else arc_step
-        # Vectorized version (outer vmap). Underlying step is already filter_jit'ed.
-        if self.num_envs > 1:
-            self._batched_step_fn = jax.vmap(
-                self._single_step_fn, in_axes=(0, 0, None), out_axes=(0, 0, 0, 0, 0)
-            )
-        else:
-            self._batched_step_fn = None
+        # New API uses functional_step; no internal switching needed.
+        self._use_unsafe = False
+        self._batched_step_fn = None
 
     def switch_step_impl(self, use_unsafe: bool) -> None:
         """Switch between safe and unsafe step implementation at runtime."""
@@ -174,14 +168,14 @@ class ArcEnv:
             if use_key is None:
                 msg = "Key required when key management disabled."
                 raise ValueError(msg)
-            state, obs = arc_reset(
-                use_key,
+            params = EnvParams.from_config(
                 self.config,
                 td,
                 episode_mode=episode_mode,
-                initial_pair_idx=initial_pair_idx,
+                pair_idx=(initial_pair_idx or 0),
             )
-            return state, obs
+            ts = functional_reset(params, use_key)
+            return ts.state, ts.observation
         # Batch mode
         if key is not None:
             keys = jax.random.split(key, self.num_envs)
@@ -190,7 +184,16 @@ class ArcEnv:
         if keys is None:
             msg = "Key required for batch reset when key management disabled."
             raise ValueError(msg)
-        states, obs = batch_reset(keys, self.config, td)
+        params = EnvParams.from_config(
+            self.config,
+            td,
+            episode_mode=episode_mode,
+            pair_idx=(initial_pair_idx or 0),
+        )
+        def _do_reset(k):
+            ts = functional_reset(params, k)
+            return ts.state, ts.observation
+        states, obs = jax.vmap(_do_reset)(keys)
         return states, obs
 
     def step(
@@ -204,31 +207,92 @@ class ArcEnv:
         `done=True` for the terminal transition (Gymnax style).
         """
         if self.num_envs == 1:
-            new_state, obs, reward, done, info = self._single_step_fn(
-                state, action, self.config
+            # Build params and a minimal TimeStep from current state to use new API
+            if self._task_data is None:
+                raise ValueError("task_data must be provided to use step()")
+            params = EnvParams.from_config(
+                self.config,
+                self._task_data,
+                episode_mode=int(state.episode_mode),
+                pair_idx=int(state.current_example_idx),
             )
+            obs0 = create_observation(state, self.config)
+            timestep = TimeStep(
+                step_type=jnp.asarray(1, dtype=jnp.int32),
+                reward=jnp.asarray(0.0, dtype=jnp.float32),
+                discount=jnp.asarray(1.0, dtype=jnp.float32),
+                observation=obs0,
+                state=state,
+            )
+            ts2 = functional_step(params, timestep, action)
+            done = ts2.step_type == jnp.asarray(2, dtype=jnp.int32)
+            info = StepInfo(
+                similarity=ts2.state.similarity_score,
+                similarity_improvement=ts2.state.similarity_score - state.similarity_score,
+                operation_type=getattr(action, "operation", jnp.asarray(-1, dtype=jnp.int32)),
+                step_count=ts2.state.step_count,
+                episode_done=done,
+                episode_mode=ts2.state.episode_mode,
+                current_pair_index=ts2.state.current_example_idx,
+                available_demo_pairs=jnp.sum(ts2.state.available_demo_pairs),
+                available_test_pairs=jnp.sum(ts2.state.available_test_pairs),
+                action_history_length=ts2.state.get_action_history_length(),
+                success=ts2.state.similarity_score >= 1.0,
+            )
+            new_state, obs, reward = ts2.state, ts2.observation, ts2.reward
             if self._auto_reset and bool(done):
                 # Perform reset with fresh key (internal or error if not managed)
                 reset_key = self._next_key() if self._manage_keys else None
                 if reset_key is None:
                     # If user disabled management they must handle reset externally
                     return new_state, obs, reward, done, info
-                reset_state, reset_obs = arc_reset(
-                    reset_key,
+                params_reset = EnvParams.from_config(
                     self.config,
                     self._task_data,
-                    episode_mode=state.episode_mode,
+                    episode_mode=int(state.episode_mode),
+                    pair_idx=0,
                 )
+                ts_reset = functional_reset(params_reset, reset_key)
+                reset_state, reset_obs = ts_reset.state, ts_reset.observation
                 # Replace state & obs but preserve done for this step's signal
                 return reset_state, reset_obs, reward, done, info
             return new_state, obs, reward, done, info
         # Batch mode
-        if self._batched_step_fn is None:
-            msg = "Batched step function not initialized."
-            raise RuntimeError(msg)
-        new_states, obs, rewards, dones, infos = self._batched_step_fn(
-            state, action, self.config
-        )
+        def _do_step(st, act):
+            if self._task_data is None:
+                raise ValueError("task_data must be provided to use step()")
+            params = EnvParams.from_config(
+                self.config,
+                self._task_data,
+                episode_mode=int(st.episode_mode),
+                pair_idx=int(st.current_example_idx),
+            )
+            obs0 = create_observation(st, self.config)
+            ts = TimeStep(
+                step_type=jnp.asarray(1, dtype=jnp.int32),
+                reward=jnp.asarray(0.0, dtype=jnp.float32),
+                discount=jnp.asarray(1.0, dtype=jnp.float32),
+                observation=obs0,
+                state=st,
+            )
+            ts2 = functional_step(params, ts, act)
+            done = ts2.step_type == jnp.asarray(2, dtype=jnp.int32)
+            info = StepInfo(
+                similarity=ts2.state.similarity_score,
+                similarity_improvement=ts2.state.similarity_score - st.similarity_score,
+                operation_type=getattr(act, "operation", jnp.asarray(-1, dtype=jnp.int32)),
+                step_count=ts2.state.step_count,
+                episode_done=done,
+                episode_mode=ts2.state.episode_mode,
+                current_pair_index=ts2.state.current_example_idx,
+                available_demo_pairs=jnp.sum(ts2.state.available_demo_pairs),
+                available_test_pairs=jnp.sum(ts2.state.available_test_pairs),
+                action_history_length=ts2.state.get_action_history_length(),
+                success=ts2.state.similarity_score >= 1.0,
+            )
+            return ts2.state, ts2.observation, ts2.reward, done, info
+
+        new_states, obs, rewards, dones, infos = jax.vmap(_do_step)(state, action)
         if self._auto_reset and self._manage_keys:
 
             def do_resets(carry):
@@ -237,10 +301,11 @@ class ArcEnv:
 
                 def full_reset(_st, k):  # _st unused; kept for vmap in_axes signature
                     # Use training mode constant to avoid traced Python branching inside arc_reset
-                    rs, ro = arc_reset(
-                        k, self.config, self._task_data, episode_mode=EPISODE_MODE_TRAIN
+                    params_rs = EnvParams.from_config(
+                        self.config, self._task_data, episode_mode=EPISODE_MODE_TRAIN, pair_idx=0
                     )
-                    return rs, ro
+                    ts_rs = functional_reset(params_rs, k)
+                    return ts_rs.state, ts_rs.observation
 
                 rs_states, rs_obs = jax.vmap(full_reset, in_axes=(0, 0))(ns, keys)
 
@@ -330,8 +395,25 @@ class ArcEnv:
         mask = jnp.zeros((h, w), dtype=jnp.bool_)
         mask = mask.at[0, 0].set(True)
         mask_action = create_mask_action(0, mask)
+        if self._task_data is None:
+            raise ValueError("task_data must be provided to warmup()")
+        params = EnvParams.from_config(
+            self.config,
+            self._task_data,
+            episode_mode=EPISODE_MODE_TRAIN,
+            pair_idx=0,
+        )
         for act in (point, bbox, mask_action):
-            state, *_ = self._single_step_fn(state, act, self.config)
+            obs0 = create_observation(state, self.config)
+            timestep = TimeStep(
+                step_type=jnp.asarray(1, dtype=jnp.int32),
+                reward=jnp.asarray(0.0, dtype=jnp.float32),
+                discount=jnp.asarray(1.0, dtype=jnp.float32),
+                observation=obs0,
+                state=state,
+            )
+            ts2 = functional_step(params, timestep, act)
+            state = ts2.state
         return state
 
     def get_num_envs(self) -> int:
