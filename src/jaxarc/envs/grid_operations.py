@@ -47,7 +47,7 @@ from ..utils.jax_types import (
 from ..utils.validation import validate_state_consistency
 
 if TYPE_CHECKING:
-    from ..state import ArcEnvState
+    from ..state import State
 
 # Central operation names mapping
 OPERATION_NAMES = {
@@ -276,8 +276,8 @@ def apply_within_bounds(
 
 @eqx.filter_jit
 def fill_color(
-    state: ArcEnvState, selection: SelectionArray, color: ColorValue
-) -> ArcEnvState:
+    state: State, selection: SelectionArray, color: ColorValue
+) -> State:
     """Fill selected region with specified color."""
 
     new_grid = apply_within_bounds(state.working_grid, selection, color)
@@ -343,8 +343,8 @@ def simple_flood_fill(
 
 @eqx.filter_jit
 def flood_fill_color(
-    state: ArcEnvState, selection: SelectionArray, color: ColorValue
-) -> ArcEnvState:
+    state: State, selection: SelectionArray, color: ColorValue
+) -> State:
     """Flood fill from selected region with specified color."""
     new_grid = simple_flood_fill(state.working_grid, selection, color)
     return update_working_grid(state, new_grid)
@@ -355,8 +355,8 @@ def flood_fill_color(
 
 @eqx.filter_jit
 def move_object(
-    state: ArcEnvState, selection: SelectionArray, direction: int
-) -> ArcEnvState:
+    state: State, selection: SelectionArray, direction: int
+) -> State:
     """Move selected object in specified direction (0=up, 1=down, 2=left, 3=right)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -397,8 +397,8 @@ def move_object(
 
 @eqx.filter_jit
 def rotate_object(
-    state: ArcEnvState, selection: SelectionArray, angle: int
-) -> ArcEnvState:
+    state: State, selection: SelectionArray, angle: int
+) -> State:
     """Rotate selected region (0=90° clockwise, 1=90° counterclockwise)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -452,8 +452,8 @@ def rotate_object(
 
 @eqx.filter_jit
 def flip_object(
-    state: ArcEnvState, selection: SelectionArray, axis: int
-) -> ArcEnvState:
+    state: State, selection: SelectionArray, axis: int
+) -> State:
     """Flip selected region (0=horizontal, 1=vertical)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -485,14 +485,14 @@ def flip_object(
 
 
 @eqx.filter_jit
-def copy_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
+def copy_to_clipboard(state: State, selection: SelectionArray) -> State:
     """Copy selected region to clipboard."""
     new_clipboard = jnp.where(selection, state.working_grid, 0)
     return update_multiple_fields(state, clipboard=new_clipboard)
 
 
 @eqx.filter_jit
-def paste_from_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
+def paste_from_clipboard(state: State, selection: SelectionArray) -> State:
     """Paste clipboard content to selected region."""
     # Find the bounding boxes of clipboard content and selection
     clipboard_mask = state.clipboard != 0
@@ -560,7 +560,7 @@ def paste_from_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEn
 
 
 @eqx.filter_jit
-def cut_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
+def cut_to_clipboard(state: State, selection: SelectionArray) -> State:
     """Cut selected region to clipboard (copy + clear)."""
     # Copy to clipboard
     new_clipboard = jnp.where(selection, state.working_grid, 0)
@@ -576,7 +576,7 @@ def cut_to_clipboard(state: ArcEnvState, selection: SelectionArray) -> ArcEnvSta
 
 
 @eqx.filter_jit
-def clear_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
+def clear_grid(state: State, selection: SelectionArray) -> State:
     """Clear the entire grid or selected region."""
     has_selection = jnp.sum(selection) > 0
 
@@ -591,11 +591,9 @@ def clear_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
 
 
 @eqx.filter_jit
-def copy_input_grid(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvState:
-    """Copy input grid to current grid."""
-    input_grid = state.task_data.input_grids_examples[state.current_example_idx]
-    # Copy input grid to working grid shape
-    new_working_grid = _copy_grid_to_target_shape(input_grid, state.working_grid)
+def copy_input_grid(state: State, _selection: SelectionArray) -> State:
+    """Copy original input_grid into working_grid, respecting current canvas shape."""
+    new_working_grid = _copy_grid_to_target_shape(state.input_grid, state.working_grid)
     return update_working_grid(state, new_working_grid)
 
 
@@ -640,7 +638,7 @@ def _get_bottom_right_from_selection(selection: SelectionArray) -> tuple[int, in
 
 
 @eqx.filter_jit
-def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
+def resize_grid(state: State, selection: SelectionArray) -> State:
     """Resize grid active area using bottom-rightmost selected cell to define new dimensions.
 
     The resizing always originates from the top-left (0,0) corner:
@@ -699,7 +697,7 @@ def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
 
 
 @eqx.filter_jit
-def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvState:
+def submit_solution(state: State, _selection: SelectionArray) -> State:
     """Submit current grid as solution."""
 
     return state
@@ -709,7 +707,7 @@ def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvSta
 
 
 @eqx.filter_jit
-def execute_grid_operation(state: ArcEnvState, operation: OperationId) -> ArcEnvState:
+def execute_grid_operation(state: State, operation: OperationId) -> State:
     """Execute grid operation based on operation ID."""
     # Validate grid operation before execution
     validated_state = validate_state_consistency(state)

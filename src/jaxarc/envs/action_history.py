@@ -52,7 +52,7 @@ from jaxtyping import Array, Bool, Int
 
 from jaxarc.configs.history_config import HistoryConfig
 
-from ..state import ArcEnvState
+from ..state import State
 from ..utils.jax_types import (
     NUM_OPERATIONS,
     ActionSequence,
@@ -889,13 +889,13 @@ class ActionHistoryTracker:
 
     def add_action(
         self,
-        state: ArcEnvState,
+        state: State,
         action: dict,
         config: HistoryConfig,
         selection_format: str = "mask",
         max_grid_height: int = 30,
         max_grid_width: int = 30,
-    ) -> ArcEnvState:
+    ) -> State:
         """Add action to history with configuration-aware optimal storage.
 
         This method adds a new action to the history buffer using an optimized storage
@@ -980,7 +980,7 @@ class ActionHistoryTracker:
         )
 
     def get_action_sequence(
-        self, state: ArcEnvState, start_idx: int = 0, end_idx: Optional[int] = None
+        self, state: State, start_idx: int = 0, end_idx: Optional[int] = None
     ) -> ActionSequence:
         """Extract action sequence from history with proper indexing.
 
@@ -1024,7 +1024,7 @@ class ActionHistoryTracker:
         # More sophisticated slicing can be added later if needed
         return masked_history
 
-    def clear_history(self, state: ArcEnvState) -> ArcEnvState:
+    def clear_history(self, state: State) -> State:
         """Clear action history for new episode.
 
         This method resets the action history buffer, preparing it for a new
@@ -1085,7 +1085,7 @@ class ActionHistoryTracker:
             array_data, selection_format, max_grid_height, max_grid_width
         )
 
-    def get_action_count(self, state: ArcEnvState) -> HistoryLength:
+    def get_action_count(self, state: State) -> HistoryLength:
         """Get the current number of actions in history.
 
         Args:
@@ -1096,7 +1096,7 @@ class ActionHistoryTracker:
         """
         return state.action_history_length
 
-    def is_history_full(self, state: ArcEnvState) -> Bool[Array, ""]:
+    def is_history_full(self, state: State) -> Bool[Array, ""]:
         """Check if the history buffer is full.
 
         Args:
@@ -1107,7 +1107,7 @@ class ActionHistoryTracker:
         """
         return state.action_history_length >= state.action_history.shape[0]
 
-    def get_history_capacity(self, state: ArcEnvState) -> int:
+    def get_history_capacity(self, state: State) -> int:
         """Get the maximum capacity of the history buffer.
 
         Args:
@@ -1118,7 +1118,7 @@ class ActionHistoryTracker:
         """
         return state.action_history.shape[0]
 
-    def get_recent_actions(self, state: ArcEnvState, count: int = 10) -> ActionSequence:
+    def get_recent_actions(self, state: State, count: int = 10) -> ActionSequence:
         """Get the most recent N actions from history.
 
         Convenience method for getting recent actions without manual indexing.
@@ -1133,7 +1133,7 @@ class ActionHistoryTracker:
         return self.get_action_sequence(state, start_idx=-count)
 
     def get_actions_for_pair(
-        self, state: ArcEnvState, pair_index: int
+        self, state: State, pair_index: int
     ) -> ActionSequence:
         """Get all actions taken on a specific demonstration/test pair.
 
@@ -1164,7 +1164,7 @@ class ActionHistoryTracker:
         # Return filtered actions
         return full_history[mask]
 
-    def get_history_summary(self, state: ArcEnvState) -> dict:
+    def get_history_summary(self, state: State) -> dict:
         """Get a summary of the current action history.
 
         This method provides useful statistics and information about
@@ -1234,11 +1234,11 @@ def create_action_history_tracker_for_config(config) -> ActionHistoryTracker:
 
 
 def add_action_to_state(
-    state: ArcEnvState,
+    state: State,
     action: dict,
     config,
     history_config: Optional[HistoryConfig] = None,
-) -> ArcEnvState:
+) -> State:
     """Convenience function to add action to state with proper configuration.
 
     This function automatically extracts the necessary configuration parameters

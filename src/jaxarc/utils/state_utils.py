@@ -12,7 +12,7 @@ from typing import Callable, Dict, Tuple
 import equinox as eqx
 import jax.numpy as jnp
 
-from ..state import ArcEnvState
+from ..state import State
 from .jax_types import (
     NUM_OPERATIONS,
     GridArray,
@@ -23,11 +23,11 @@ from .pytree import update_multiple_fields
 
 
 def apply_grid_operation(
-    state: ArcEnvState,
+    state: State,
     operation_fn: Callable[[GridArray], GridArray],
     update_similarity: bool = True,
     update_step_count: bool = True,
-) -> ArcEnvState:
+) -> State:
     """Apply a grid operation with automatic state updates."""
     from ..envs.grid_operations import compute_grid_similarity
 
@@ -51,23 +51,23 @@ def apply_grid_operation(
 
 @eqx.filter_jit
 def jit_apply_grid_operation(
-    state: ArcEnvState, operation_fn: Callable[[GridArray], GridArray]
-) -> ArcEnvState:
+    state: State, operation_fn: Callable[[GridArray], GridArray]
+) -> State:
     """JIT-compiled version of apply_grid_operation for performance."""
     return apply_grid_operation(state, operation_fn)
 
 
-def update_working_grid(state: ArcEnvState, new_grid: GridArray) -> ArcEnvState:
+def update_working_grid(state: State, new_grid: GridArray) -> State:
     """Update the working grid using optimized PyTree surgery."""
     return eqx.tree_at(lambda s: s.working_grid, state, new_grid)
 
 
-def update_selection(state: ArcEnvState, new_selection: SelectionArray) -> ArcEnvState:
+def update_selection(state: State, new_selection: SelectionArray) -> State:
     """Update the selection mask using optimized PyTree surgery."""
     return eqx.tree_at(lambda s: s.selected, state, new_selection)
 
 
-def increment_step_count(state: ArcEnvState) -> ArcEnvState:
+def increment_step_count(state: State) -> State:
     """Increment the step count efficiently."""
     return eqx.tree_at(lambda s: s.step_count, state, state.step_count + 1)
 
@@ -76,17 +76,17 @@ def increment_step_count(state: ArcEnvState) -> ArcEnvState:
 # Episode termination is represented via TimeStep.step_type; state carries no done flag.
 
 
-def update_similarity_score(state: ArcEnvState, score: SimilarityScore) -> ArcEnvState:
+def update_similarity_score(state: State, score: SimilarityScore) -> State:
     """Update the similarity score efficiently."""
     return eqx.tree_at(lambda s: s.similarity_score, state, score)
 
 
 def create_state_template(
     grid_shape: Tuple[int, int],
-) -> ArcEnvState:
+) -> State:
     """Create a template ArcEnvState aligned with simplified state layout."""
     height, width = grid_shape
-    return ArcEnvState(
+    return State(
         working_grid=jnp.zeros((height, width), dtype=jnp.int32),
         working_grid_mask=jnp.ones((height, width), dtype=jnp.bool_),
         target_grid=jnp.zeros((height, width), dtype=jnp.int32),
@@ -100,7 +100,7 @@ def create_state_template(
     )
 
 
-def extract_grid_components(state: ArcEnvState) -> Dict[str, GridArray]:
+def extract_grid_components(state: State) -> Dict[str, GridArray]:
     """Extract all grid components from the state for analysis."""
     return {
         "working_grid": state.working_grid,
@@ -113,7 +113,7 @@ def extract_grid_components(state: ArcEnvState) -> Dict[str, GridArray]:
 
 
 def update_grid_components(
-    state: ArcEnvState, grid_updates: Dict[str, GridArray]
-) -> ArcEnvState:
+    state: State, grid_updates: Dict[str, GridArray]
+) -> State:
     """Update multiple grid components efficiently."""
     return update_multiple_fields(state, **grid_updates)

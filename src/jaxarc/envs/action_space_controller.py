@@ -23,7 +23,7 @@ import jax.numpy as jnp
 
 from jaxarc.configs import ActionConfig
 
-from ..state import ArcEnvState
+from ..state import State
 from ..utils.jax_types import NUM_OPERATIONS, OperationMask
 
 
@@ -31,7 +31,7 @@ class ActionSpaceController:
     """Controller for ARC operation availability (0-34)."""
 
     def get_allowed_operations(
-        self, state: ArcEnvState, config: ActionConfig
+        self, state: State, config: ActionConfig
     ) -> OperationMask:
         if getattr(config, "allowed_operations", None) is not None:
             base = jnp.zeros(NUM_OPERATIONS, dtype=bool)
@@ -45,7 +45,7 @@ class ActionSpaceController:
         return base
 
     def validate_operation(
-        self, operation_id: int, state: ArcEnvState, config: ActionConfig
+        self, operation_id: int, state: State, config: ActionConfig
     ) -> tuple[bool, str | None]:
         if not (0 <= operation_id < NUM_OPERATIONS):
             return (
@@ -58,7 +58,7 @@ class ActionSpaceController:
         return True, None
 
     def validate_operation_jax(
-        self, operation_id: jnp.ndarray, state: ArcEnvState, config: ActionConfig
+        self, operation_id: jnp.ndarray, state: State, config: ActionConfig
     ) -> jnp.ndarray:
         mask = self.get_allowed_operations(state, config)
         in_range = (operation_id >= 0) & (operation_id < NUM_OPERATIONS)
@@ -78,7 +78,7 @@ class ActionSpaceController:
         return jnp.where(jnp.any(mask), idx, jnp.array(0, dtype=jnp.int32))
 
     def filter_invalid_operation(
-        self, operation_id: int | jnp.ndarray, state: ArcEnvState, config: ActionConfig
+        self, operation_id: int | jnp.ndarray, state: State, config: ActionConfig
     ) -> int | jnp.ndarray:
         if isinstance(operation_id, int):
             arr = jnp.array(operation_id, dtype=jnp.int32)
@@ -105,7 +105,7 @@ class ActionSpaceController:
     filter_invalid_operation_jax = filter_invalid_operation
 
     def handle_invalid_operation_jax(
-        self, operation_id: jnp.ndarray, state: ArcEnvState, config: ActionConfig
+        self, operation_id: jnp.ndarray, state: State, config: ActionConfig
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
         valid = self.validate_operation_jax(operation_id, state, config)
         filtered = self.filter_invalid_operation(operation_id, state, config)
@@ -114,7 +114,7 @@ class ActionSpaceController:
     def get_validation_penalty_jax(
         self,
         operation_id: jnp.ndarray,
-        state: ArcEnvState,
+        state: State,
         config: ActionConfig,
         penalty_value: float = -1.0,
     ) -> jnp.ndarray:
@@ -126,7 +126,7 @@ class ActionSpaceController:
     def apply_operation_mask_jax(
         self,
         action_logits: jnp.ndarray,
-        state: ArcEnvState,
+        state: State,
         config: ActionConfig,
         mask_value: float = -jnp.inf,
     ) -> jnp.ndarray:
@@ -135,14 +135,14 @@ class ActionSpaceController:
         return jnp.where(bmask, action_logits, mask_value)
 
     def get_valid_operations_indices_jax(
-        self, state: ArcEnvState, config: ActionConfig
+        self, state: State, config: ActionConfig
     ) -> jnp.ndarray:
         mask = self.get_allowed_operations(state, config)
         ids = jnp.arange(NUM_OPERATIONS, dtype=jnp.int32)
         return jnp.where(mask, ids, jnp.array(-1, dtype=jnp.int32))
 
     def sample_valid_operation_jax(
-        self, key: jnp.ndarray, state: ArcEnvState, config: ActionConfig
+        self, key: jnp.ndarray, state: State, config: ActionConfig
     ) -> jnp.ndarray:
         mask = self.get_allowed_operations(state, config)
         probs = jnp.where(mask, 1.0, 0.0)
@@ -155,7 +155,7 @@ class ActionSpaceController:
     def get_next_valid_operation(
         self,
         operation_id: int,
-        state: ArcEnvState,
+        state: State,
         config: ActionConfig,
         direction: str = "forward",
     ) -> int:
@@ -171,7 +171,7 @@ class ActionSpaceController:
         return int(choice)
 
     def batch_validate_operations_jax(
-        self, operation_ids: jnp.ndarray, state: ArcEnvState, config: ActionConfig
+        self, operation_ids: jnp.ndarray, state: State, config: ActionConfig
     ) -> jnp.ndarray:
         return jax.vmap(lambda op: self.validate_operation_jax(op, state, config))(
             operation_ids
@@ -180,7 +180,7 @@ class ActionSpaceController:
     def create_operation_filter_mask_jax(
         self,
         operation_logits: jnp.ndarray,
-        state: ArcEnvState,
+        state: State,
         config: ActionConfig,
         temperature: float = 1.0,
     ) -> jnp.ndarray:
@@ -191,7 +191,7 @@ class ActionSpaceController:
         return jax.nn.softmax(scaled, axis=-1)
 
     def create_action_mask_for_agent(
-        self, state: ArcEnvState, config: ActionConfig
+        self, state: State, config: ActionConfig
     ) -> dict:
         mask = self.get_allowed_operations(state, config)
         categories = {

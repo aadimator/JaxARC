@@ -18,7 +18,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 from jaxtyping import PyTree
 
-from ..state import ArcEnvState
+from ..state import State
 
 # Type variables for generic functions
 T = TypeVar("T", bound=eqx.Module)
@@ -155,7 +155,7 @@ def tree_size_info(tree: PyTree) -> Dict[str, Tuple[Any, int]]:
     return size_info
 
 
-def filter_arrays_from_state(state: ArcEnvState) -> Tuple[PyTree, PyTree]:
+def filter_arrays_from_state(state: State) -> Tuple[PyTree, PyTree]:
     """Filter arrays and non-arrays from state for serialization.
 
     This function separates array and non-array components of the state,
@@ -163,7 +163,7 @@ def filter_arrays_from_state(state: ArcEnvState) -> Tuple[PyTree, PyTree]:
     arrays and metadata differently.
 
     Args:
-        state: ArcEnvState to filter
+        state: State to filter
 
     Returns:
         Tuple of (arrays, non_arrays) PyTrees

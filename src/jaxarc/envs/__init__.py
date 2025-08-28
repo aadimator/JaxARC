@@ -9,7 +9,7 @@ environments with both functional and class-based APIs.
 from __future__ import annotations
 
 # State definition (centralized)
-from ..state import ArcEnvState
+from ..state import State
 # Core types for new functional API
 from ..types import EnvParams, TimeStep
 
@@ -62,7 +62,7 @@ __all__ = [
     "OPERATION_NAMES",
     "ActionSpaceController",
     "ArcEnv",
-    "ArcEnvState",
+    "State",
     "EnvParams",
     "TimeStep",
     "BaseAction",
