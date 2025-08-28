@@ -144,9 +144,10 @@ class State(eqx.Module, Generic[EnvCarryT]):
 # Type aliases for convenience
 BaseState = State[None]  # No carry
 ArcState = BaseState     # Our standard simplified state
+ArcEnvState = ArcState   # Backward name bound to simplified State
 
 
-class ArcEnvState(eqx.Module):
+class _LegacyArcEnvState(eqx.Module):
     """ARC environment state with Equinox Module for better JAX integration.
 
     This is the canonical definition of ArcEnvState using Equinox Module for automatic

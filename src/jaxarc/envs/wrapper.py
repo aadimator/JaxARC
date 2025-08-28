@@ -231,12 +231,6 @@ class ArcEnv:
                 similarity_improvement=ts2.state.similarity_score - state.similarity_score,
                 operation_type=getattr(action, "operation", jnp.asarray(-1, dtype=jnp.int32)),
                 step_count=ts2.state.step_count,
-                episode_done=done,
-                episode_mode=ts2.state.episode_mode,
-                current_pair_index=ts2.state.current_example_idx,
-                available_demo_pairs=jnp.sum(ts2.state.available_demo_pairs),
-                available_test_pairs=jnp.sum(ts2.state.available_test_pairs),
-                action_history_length=ts2.state.get_action_history_length(),
                 success=ts2.state.similarity_score >= 1.0,
             )
             new_state, obs, reward = ts2.state, ts2.observation, ts2.reward
@@ -282,12 +276,6 @@ class ArcEnv:
                 similarity_improvement=ts2.state.similarity_score - st.similarity_score,
                 operation_type=getattr(act, "operation", jnp.asarray(-1, dtype=jnp.int32)),
                 step_count=ts2.state.step_count,
-                episode_done=done,
-                episode_mode=ts2.state.episode_mode,
-                current_pair_index=ts2.state.current_example_idx,
-                available_demo_pairs=jnp.sum(ts2.state.available_demo_pairs),
-                available_test_pairs=jnp.sum(ts2.state.available_test_pairs),
-                action_history_length=ts2.state.get_action_history_length(),
                 success=ts2.state.similarity_score >= 1.0,
             )
             return ts2.state, ts2.observation, ts2.reward, done, info
