@@ -116,7 +116,4 @@ class DmEnvAutoResetWrapper(Wrapper):
         return ts
 
 
-AutoResetMode = Optional[Literal[False, "gym", "dm"]]
-
-
 __all__ = ["DmEnvAutoResetWrapper", "GymAutoResetWrapper", "Wrapper"]

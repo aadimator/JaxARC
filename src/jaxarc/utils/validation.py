@@ -9,7 +9,7 @@ individual values within JAX transformations.
 from __future__ import annotations
 
 import os
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 import equinox as eqx
 import jax
@@ -17,7 +17,9 @@ import jax.numpy as jnp
 from loguru import logger
 
 from jaxarc.configs import JaxArcConfig
-from ..envs.actions import StructuredAction
+if TYPE_CHECKING:
+    if TYPE_CHECKING:
+        from ..envs.actions import StructuredAction
 
 from ..state import State
 
@@ -59,7 +61,7 @@ def configure_debugging(
 
 
 @eqx.filter_jit
-def validate_action(action: StructuredAction, config: JaxArcConfig) -> StructuredAction:
+def validate_action(action: "StructuredAction", config: JaxArcConfig) -> "StructuredAction":
     """Validate a structured action with runtime error checking."""
     max_operations = 42
     action = eqx.error_if(
@@ -75,8 +77,8 @@ def validate_action(action: StructuredAction, config: JaxArcConfig) -> Structure
 
 
 def validate_batch_actions(
-    actions: StructuredAction, config: JaxArcConfig, batch_size: int
-) -> StructuredAction:
+    actions: "StructuredAction", config: JaxArcConfig, batch_size: int
+) -> "StructuredAction":
     """Validate a batch of structured actions with clear error messages."""
     try:
         validate_fn = lambda action: validate_action(action, config)
