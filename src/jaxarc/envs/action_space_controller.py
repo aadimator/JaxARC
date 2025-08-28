@@ -33,15 +33,15 @@ class ActionSpaceController:
     def get_allowed_operations(
         self, state: State, config: ActionConfig
     ) -> OperationMask:
-        if getattr(config, "allowed_operations", None) is not None:
-            base = jnp.zeros(NUM_OPERATIONS, dtype=bool)
-            for op in config.allowed_operations:
-                if 0 <= op < NUM_OPERATIONS:
-                    base = base.at[op].set(True)
+        allowed_ops = getattr(config, "allowed_operations", None)
+        if isinstance(allowed_ops, tuple) and len(allowed_ops) > 0:
+            idx = jnp.asarray(allowed_ops, dtype=jnp.int32)
+            idx = jnp.clip(idx, 0, NUM_OPERATIONS - 1)
+            base = jnp.zeros((NUM_OPERATIONS,), dtype=jnp.bool_).at[idx].set(True)
         else:
-            base = jnp.ones(NUM_OPERATIONS, dtype=bool)
+            base = jnp.ones((NUM_OPERATIONS,), dtype=jnp.bool_)
         if hasattr(state, "allowed_operations_mask"):
-            base = base & state.allowed_operations_mask
+            base = jnp.logical_and(base, state.allowed_operations_mask)
         return base
 
     def validate_operation(
@@ -102,14 +102,32 @@ class ActionSpaceController:
             out = jnp.where(valid, arr, repl)
         return int(out) if single else out
 
-    filter_invalid_operation_jax = filter_invalid_operation
+    def filter_invalid_operation_jax(
+        self, operation_id: jnp.ndarray, state: State, config: ActionConfig
+    ) -> jnp.ndarray:
+        arr = operation_id.astype(jnp.int32)
+        mask = self.get_allowed_operations(state, config)
+        valid = self.validate_operation_jax(arr, state, config)
+        policy = getattr(config, "invalid_operation_policy", "clip")
+        clipped = jnp.clip(arr, 0, NUM_OPERATIONS - 1)
+        if policy in ("clip", "penalize"):
+            repl = self._find_nearest_valid_operation(clipped, mask)
+            out = jnp.where(valid, arr, repl)
+        elif policy == "reject":
+            out = jnp.where(valid, arr, jnp.array(-1, dtype=jnp.int32))
+        elif policy == "passthrough":
+            out = arr
+        else:
+            repl = self._find_nearest_valid_operation(clipped, mask)
+            out = jnp.where(valid, arr, repl)
+        return out
 
     def handle_invalid_operation_jax(
         self, operation_id: jnp.ndarray, state: State, config: ActionConfig
     ) -> tuple[jnp.ndarray, jnp.ndarray]:
         valid = self.validate_operation_jax(operation_id, state, config)
-        filtered = self.filter_invalid_operation(operation_id, state, config)
-        return filtered, ~valid
+        filtered = self.filter_invalid_operation_jax(operation_id, state, config)
+        return filtered, jnp.logical_not(valid)
 
     def get_validation_penalty_jax(
         self,
@@ -217,7 +235,6 @@ class ActionSpaceController:
             "has_restrictions": int(jnp.sum(mask)) < NUM_OPERATIONS,
             "category_breakdown": breakdown,
             "context_info": {
-                "episode_mode": "train" if bool(state.is_training_mode()) else "test",
                 "step_count": int(state.step_count),
             },
             "validation_policy": getattr(config, "invalid_operation_policy", "clip"),

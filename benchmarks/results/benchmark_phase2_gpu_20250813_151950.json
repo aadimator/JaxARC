@@ -19,8 +19,7 @@
     "max_grid_width": 30,
     "max_train_pairs": 3,
     "selection_format": "point",
-    "logging_enabled": false,
-    "history_enabled": false
+    "logging_enabled": false
   },
   "benchmark_params": {
     "single_steps": 1000,

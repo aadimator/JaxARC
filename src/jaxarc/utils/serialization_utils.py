@@ -121,24 +121,16 @@ def serialize_arc_state(state: State) -> dict[str, Any]:
             # Core grid data
             "working_grid": serialize_jax_array(state.working_grid),
             "working_grid_mask": serialize_jax_array(state.working_grid_mask),
+            "input_grid": serialize_jax_array(state.input_grid),
+            "input_grid_mask": serialize_jax_array(state.input_grid_mask),
             "target_grid": serialize_jax_array(state.target_grid),
             "target_grid_mask": serialize_jax_array(state.target_grid_mask),
-            # Episode management
+            # Episode progress
             "step_count": int(state.step_count),
-            "episode_done": bool(state.episode_done),
-            "current_example_idx": int(state.current_example_idx),
             # Grid operations
             "selected": serialize_jax_array(state.selected),
             "clipboard": serialize_jax_array(state.clipboard),
             "similarity_score": float(state.similarity_score),
-            # Enhanced functionality fields
-            "episode_mode": int(state.episode_mode),
-            "available_demo_pairs": serialize_jax_array(state.available_demo_pairs),
-            "available_test_pairs": serialize_jax_array(state.available_test_pairs),
-            "demo_completion_status": serialize_jax_array(state.demo_completion_status),
-            "test_completion_status": serialize_jax_array(state.test_completion_status),
-            "action_history": serialize_jax_array(state.action_history),
-            "action_history_length": int(state.action_history_length),
             "allowed_operations_mask": serialize_jax_array(
                 state.allowed_operations_mask
             ),

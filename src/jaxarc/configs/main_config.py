@@ -12,7 +12,7 @@ from .action_config import ActionConfig
 from .dataset_config import DatasetConfig
 from .environment_config import EnvironmentConfig
 from .grid_initialization_config import GridInitializationConfig
-from .history_config import HistoryConfig
+
 from .logging_config import LoggingConfig
 from .reward_config import RewardConfig
 from .storage_config import StorageConfig
@@ -36,7 +36,7 @@ class JaxArcConfig(eqx.Module):
     storage: StorageConfig
     logging: LoggingConfig
     wandb: WandbConfig
-    history: HistoryConfig
+
 
     def __init__(
         self,
@@ -49,7 +49,7 @@ class JaxArcConfig(eqx.Module):
         storage: StorageConfig | None = None,
         logging: LoggingConfig | None = None,
         wandb: WandbConfig | None = None,
-        history: HistoryConfig | None = None,
+
     ):
         self.environment = environment or EnvironmentConfig()
         self.dataset = dataset or DatasetConfig()
@@ -62,7 +62,7 @@ class JaxArcConfig(eqx.Module):
         self.storage = storage or StorageConfig()
         self.logging = logging or LoggingConfig()
         self.wandb = wandb or WandbConfig.from_hydra(DictConfig({}))
-        self.history = history or HistoryConfig()
+
 
     def __check_init__(self):
         try:
@@ -84,7 +84,7 @@ class JaxArcConfig(eqx.Module):
         all_errors.extend(self.storage.validate())
         all_errors.extend(self.logging.validate())
         all_errors.extend(self.wandb.validate())
-        # HistoryConfig validates in its constructor
+
 
         cross_validation_errors = self._validate_cross_config_consistency()
         all_errors.extend(cross_validation_errors)
@@ -296,9 +296,7 @@ class JaxArcConfig(eqx.Module):
             wandb_cfg = WandbConfig.from_hydra(
                 hydra_config.get("wandb", DictConfig({}))
             )
-            history_cfg = HistoryConfig.from_hydra(
-                hydra_config.get("history", DictConfig({}))
-            )
+
 
             return cls(
                 environment=environment_cfg,
@@ -310,7 +308,7 @@ class JaxArcConfig(eqx.Module):
                 storage=storage_cfg,
                 logging=logging_cfg,
                 wandb=wandb_cfg,
-                history=history_cfg,
+
             )
         except Exception as e:
             if isinstance(e, ConfigValidationError):
