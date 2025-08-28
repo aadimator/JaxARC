@@ -34,7 +34,6 @@ import jax.numpy as jnp
 from jaxarc.utils.grid_utils import compute_grid_similarity
 from jaxarc.utils.pytree import update_multiple_fields
 from jaxarc.utils.state_utils import (
-    set_episode_done,
     update_similarity_score,
     update_working_grid,
 )
@@ -703,7 +702,7 @@ def resize_grid(state: ArcEnvState, selection: SelectionArray) -> ArcEnvState:
 def submit_solution(state: ArcEnvState, _selection: SelectionArray) -> ArcEnvState:
     """Submit current grid as solution."""
 
-    return set_episode_done(state, True)
+    return state
 
 
 # --- Main Operation Execution ---

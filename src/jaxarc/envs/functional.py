@@ -23,14 +23,13 @@ from ..types import JaxArcTask
 from ..utils.jax_types import (
     NUM_OPERATIONS,
     PRNGKey,
-    get_action_record_fields,
 )
 from ..utils.state_utils import (
     increment_step_count,
     update_selection,
 )
 
-from .action_history import ActionHistoryTracker, HistoryConfig
+
 from .action_space_controller import ActionSpaceController
 from .actions import (
     BboxAction,
@@ -51,18 +50,15 @@ from .reward import _calculate_reward
 
 # JAX-compatible step info structure - replaces dict for performance.
 class StepInfo(eqx.Module):
-    """Step info as an Equinox Module for PyTree compatibility."""
+    """Step info as an Equinox Module for PyTree compatibility.
+
+    Simplified to include only fields available in the minimal state model.
+    """
 
     similarity: jax.Array
     similarity_improvement: jax.Array
     operation_type: jax.Array
     step_count: jax.Array
-    episode_done: jax.Array
-    episode_mode: jax.Array
-    current_pair_index: jax.Array
-    available_demo_pairs: jax.Array
-    available_test_pairs: jax.Array
-    action_history_length: jax.Array
     success: jax.Array
 
 
@@ -166,6 +162,7 @@ def _create_initial_state(
     selected_pair_idx: jnp.ndarray,
     episode_mode: int,
     config: JaxArcConfig,
+    key: PRNGKey,
 ) -> ArcEnvState:
     """Create initial state - focused helper function.
 
@@ -207,58 +204,23 @@ def _create_initial_state(
         initial_grid, initial_mask, target_grid, target_mask
     )
 
-    # Initialize grids based on episode mode using JAX-compatible operations
-    # Get available pairs and completion status for enhanced functionality
-    available_demo_pairs = task_data.get_available_demo_pairs()
-    available_test_pairs = task_data.get_available_test_pairs()
-    demo_completion_status = jnp.zeros_like(available_demo_pairs)
-    test_completion_status = jnp.zeros_like(available_test_pairs)
 
-    # Initialize action history with dynamic sizing based on configuration
-    max_history_length = getattr(config, "max_history_length", 1000)
-    num_operations = NUM_OPERATIONS
-
-    # Calculate optimal action record fields based on selection format and dataset
-    action_record_fields = get_action_record_fields(
-        config.action.selection_format,
-        config.dataset.max_grid_height,
-        config.dataset.max_grid_width,
-    )
-
-    # Initialize action history storage with proper dimensions
-    action_history = jnp.zeros(
-        (max_history_length, action_record_fields), dtype=jnp.float32
-    )
-    action_history_length = jnp.array(0, dtype=jnp.int32)
-    action_history_write_pos = jnp.array(0, dtype=jnp.int32)
 
     # Initialize allowed operations mask (all operations allowed by default)
-    allowed_operations_mask = jnp.ones(num_operations, dtype=jnp.bool_)
+    allowed_operations_mask = jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_)
 
-    # Create enhanced initial state with all new fields
+    # Create initial state with simplified fields
     return ArcEnvState(
-        # Core ARC state (unchanged)
-        task_data=task_data,
         working_grid=initial_grid,
         working_grid_mask=initial_mask,
         target_grid=target_grid,
-        target_grid_mask=initial_mask,  # Same mask as working grid
-        step_count=jnp.array(0, dtype=jnp.int32),
-        episode_done=jnp.array(False),
-        current_example_idx=selected_pair_idx,
+        target_grid_mask=target_mask,
         selected=jnp.zeros_like(initial_grid, dtype=jnp.bool_),
         clipboard=jnp.zeros_like(initial_grid, dtype=jnp.int32),
-        similarity_score=initial_similarity,
-        # Enhanced functionality fields
-        episode_mode=episode_mode,
-        available_demo_pairs=available_demo_pairs,
-        available_test_pairs=available_test_pairs,
-        demo_completion_status=demo_completion_status,
-        test_completion_status=test_completion_status,
-        action_history=action_history,
-        action_history_length=action_history_length,
-        action_history_write_pos=action_history_write_pos,
+        step_count=jnp.array(0, dtype=jnp.int32),
         allowed_operations_mask=allowed_operations_mask,
+        similarity_score=initial_similarity,
+        key=key,
     )
 
 
@@ -305,6 +267,7 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
         selected_pair_idx=selected_pair_idx,
         episode_mode=int(params.episode_mode),
         config=cfg,
+        key=key,
     )
 
     # Create initial observation
@@ -530,44 +493,8 @@ def _update_state(
         Always increments step count and handles other required state updates.
     """
 
-    # Add action history tracking for each step with memory optimization
-    # Use JAX-compatible conditional for history tracking
-    def add_to_history(state):
-        """Add action to history if enabled."""
-        # Create history config from main config or use defaults
-        history_config = HistoryConfig(
-            enabled=getattr(config.history, "enabled", True),
-            max_history_length=getattr(config.history, "max_history_length", 1000),
-            store_selection_data=getattr(config.history, "store_selection_data", True),
-            compress_repeated_actions=getattr(
-                config.history, "compress_repeated_actions", True
-            ),
-        )
-
-        # Add action to history
-        tracker = ActionHistoryTracker()
-        return tracker.add_action(
-            state,
-            action,
-            history_config,
-            config.action.selection_format,
-            config.dataset.max_grid_height,
-            config.dataset.max_grid_width,
-        )
-
-    # Check if history is enabled and apply conditionally
-    history_enabled = hasattr(config, "history") and getattr(
-        config.history, "enabled", True
-    )
-    updated_state = jax.lax.cond(
-        history_enabled,
-        add_to_history,
-        lambda s: s,  # No-op if history disabled
-        new_state,
-    )
-
-    # Update step count using PyTree utilities
-    return increment_step_count(updated_state)
+    # Update step count using PyTree utilities (no action history integration)
+    return increment_step_count(new_state)
 
 
 

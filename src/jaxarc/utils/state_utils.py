@@ -13,9 +13,7 @@ import equinox as eqx
 import jax.numpy as jnp
 
 from ..state import ArcEnvState
-from ..types import JaxArcTask
 from .jax_types import (
-    MAX_HISTORY_LENGTH,
     NUM_OPERATIONS,
     GridArray,
     SelectionArray,
@@ -74,9 +72,8 @@ def increment_step_count(state: ArcEnvState) -> ArcEnvState:
     return eqx.tree_at(lambda s: s.step_count, state, state.step_count + 1)
 
 
-def set_episode_done(state: ArcEnvState, done: bool = True) -> ArcEnvState:
-    """Set the episode_done flag efficiently."""
-    return eqx.tree_at(lambda s: s.episode_done, state, jnp.array(done))
+# set_episode_done has been removed in the simplified state model.
+# Episode termination is represented via TimeStep.step_type; state carries no done flag.
 
 
 def update_similarity_score(state: ArcEnvState, score: SimilarityScore) -> ArcEnvState:
@@ -86,60 +83,20 @@ def update_similarity_score(state: ArcEnvState, score: SimilarityScore) -> ArcEn
 
 def create_state_template(
     grid_shape: Tuple[int, int],
-    max_train_pairs: int = 10,
-    max_test_pairs: int = 4,
-    action_history_fields: int = 6,
 ) -> ArcEnvState:
-    """Create a template ArcEnvState with correct shapes for deserialization."""
+    """Create a template ArcEnvState aligned with simplified state layout."""
     height, width = grid_shape
-    dummy_task = JaxArcTask(
-        input_grids_examples=jnp.zeros(
-            (max_train_pairs, height, width), dtype=jnp.int32
-        ),
-        input_masks_examples=jnp.zeros(
-            (max_train_pairs, height, width), dtype=jnp.bool_
-        ),
-        output_grids_examples=jnp.zeros(
-            (max_train_pairs, height, width), dtype=jnp.int32
-        ),
-        output_masks_examples=jnp.zeros(
-            (max_train_pairs, height, width), dtype=jnp.bool_
-        ),
-        test_input_grids=jnp.zeros((max_test_pairs, height, width), dtype=jnp.int32),
-        test_input_masks=jnp.zeros((max_test_pairs, height, width), dtype=jnp.bool_),
-        true_test_output_grids=jnp.zeros(
-            (max_test_pairs, height, width), dtype=jnp.int32
-        ),
-        true_test_output_masks=jnp.zeros(
-            (max_test_pairs, height, width), dtype=jnp.bool_
-        ),
-        num_train_pairs=max_train_pairs,
-        num_test_pairs=max_test_pairs,
-        task_index=jnp.array(0, dtype=jnp.int32),
-    )
     return ArcEnvState(
-        task_data=dummy_task,
         working_grid=jnp.zeros((height, width), dtype=jnp.int32),
         working_grid_mask=jnp.ones((height, width), dtype=jnp.bool_),
         target_grid=jnp.zeros((height, width), dtype=jnp.int32),
         target_grid_mask=jnp.ones((height, width), dtype=jnp.bool_),
-        step_count=jnp.array(0, dtype=jnp.int32),
-        episode_done=jnp.array(False),
-        current_example_idx=jnp.array(0, dtype=jnp.int32),
         selected=jnp.zeros((height, width), dtype=jnp.bool_),
         clipboard=jnp.zeros((height, width), dtype=jnp.int32),
-        similarity_score=jnp.array(0.0, dtype=jnp.float32),
-        episode_mode=jnp.array(0, dtype=jnp.int32),
-        available_demo_pairs=jnp.ones(max_train_pairs, dtype=jnp.bool_),
-        available_test_pairs=jnp.ones(max_test_pairs, dtype=jnp.bool_),
-        demo_completion_status=jnp.zeros(max_train_pairs, dtype=jnp.bool_),
-        test_completion_status=jnp.zeros(max_test_pairs, dtype=jnp.bool_),
-        action_history=jnp.zeros(
-            (MAX_HISTORY_LENGTH, action_history_fields), dtype=jnp.float32
-        ),
-        action_history_length=jnp.array(0, dtype=jnp.int32),
-        action_history_write_pos=jnp.array(0, dtype=jnp.int32),
+        step_count=jnp.array(0, dtype=jnp.int32),
         allowed_operations_mask=jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_),
+        similarity_score=jnp.array(0.0, dtype=jnp.float32),
+        key=jnp.array([0, 0], dtype=jnp.int32),
     )
 
 
