@@ -105,6 +105,9 @@ class ArcEnv:
             if seed is None:
                 seed = 0
             self._key_manager = _KeyManager(jax.random.PRNGKey(seed))
+        # Track current episode parameters in the wrapper
+        self._episode_mode = EPISODE_MODE_TRAIN
+        self._pair_idx = 0
 
         # Select step implementation
         self._use_unsafe = use_unsafe_step
@@ -168,11 +171,13 @@ class ArcEnv:
             if use_key is None:
                 msg = "Key required when key management disabled."
                 raise ValueError(msg)
+            self._episode_mode = episode_mode
+            self._pair_idx = (initial_pair_idx or 0)
             params = EnvParams.from_config(
                 self.config,
                 td,
-                episode_mode=episode_mode,
-                pair_idx=(initial_pair_idx or 0),
+                episode_mode=self._episode_mode,
+                pair_idx=self._pair_idx,
             )
             ts = functional_reset(params, use_key)
             return ts.state, ts.observation
@@ -184,11 +189,13 @@ class ArcEnv:
         if keys is None:
             msg = "Key required for batch reset when key management disabled."
             raise ValueError(msg)
+        self._episode_mode = episode_mode
+        self._pair_idx = (initial_pair_idx or 0)
         params = EnvParams.from_config(
             self.config,
             td,
-            episode_mode=episode_mode,
-            pair_idx=(initial_pair_idx or 0),
+            episode_mode=self._episode_mode,
+            pair_idx=self._pair_idx,
         )
         def _do_reset(k):
             ts = functional_reset(params, k)
@@ -213,8 +220,8 @@ class ArcEnv:
             params = EnvParams.from_config(
                 self.config,
                 self._task_data,
-                episode_mode=int(state.episode_mode),
-                pair_idx=int(state.current_example_idx),
+                episode_mode=self._episode_mode,
+                pair_idx=self._pair_idx,
             )
             obs0 = create_observation(state, self.config)
             timestep = TimeStep(
@@ -243,7 +250,7 @@ class ArcEnv:
                 params_reset = EnvParams.from_config(
                     self.config,
                     self._task_data,
-                    episode_mode=int(state.episode_mode),
+                    episode_mode=self._episode_mode,
                     pair_idx=0,
                 )
                 ts_reset = functional_reset(params_reset, reset_key)
@@ -258,8 +265,8 @@ class ArcEnv:
             params = EnvParams.from_config(
                 self.config,
                 self._task_data,
-                episode_mode=int(st.episode_mode),
-                pair_idx=int(st.current_example_idx),
+                episode_mode=self._episode_mode,
+                pair_idx=self._pair_idx,
             )
             obs0 = create_observation(st, self.config)
             ts = TimeStep(

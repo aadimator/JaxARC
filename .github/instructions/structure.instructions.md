@@ -18,7 +18,7 @@ src/jaxarc/                    # Main package
 │   ├── dataset_config.py    # Dataset-specific configurations
 │   ├── environment_config.py # Environment behavior configurations
 │   ├── reward_config.py     # Reward function configurations
-│   ├── history_config.py    # Action history configurations
+
 │   ├── logging_config.py    # Logging configurations
 │   ├── visualization_config.py # Visualization configurations
 │   ├── wandb_config.py      # WandB experiment tracking
@@ -27,7 +27,7 @@ src/jaxarc/                    # Main package
 │   ├── config.yaml          # Main configuration with defaults
 │   ├── action/              # Action format configurations
 │   ├── dataset/             # Dataset-specific configurations
-│   ├── history/             # Action history configurations
+
 │   └── reward/              # Reward function configurations
 ├── envs/                     # Environment implementations
 │   ├── __init__.py          # Environment exports and functional API
@@ -77,10 +77,7 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 │   ├── concept_arc.yaml    # ConceptARC dataset
 │   └── mini_arc.yaml       # Mini-ARC dataset for testing
 ├── history/                  # Action history configurations
-│   ├── disabled.yaml       # No action history
-│   ├── minimal.yaml        # Basic action tracking
-│   ├── standard.yaml       # Standard history tracking
-│   └── research.yaml       # Full research-level tracking
+
 └── reward/                   # Reward function configurations
     ├── training.yaml        # Training-optimized rewards
     └── evaluation.yaml      # Evaluation-focused rewards

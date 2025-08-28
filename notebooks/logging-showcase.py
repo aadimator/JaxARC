@@ -81,7 +81,6 @@ def run_logging_showcase(config_overrides: list[str]):
     base_overrides = [
         "dataset=mini_arc",
         "action=full",  # Use all actions to see variety in logs
-        "history=standard",
         "environment.debug_level=verbose",  # Standard debug level
         # Enable all logging and visualization features
         "logging.log_operations=true",

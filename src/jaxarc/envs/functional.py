@@ -312,9 +312,16 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
     # Process action and update state using internal helpers (no legacy arc_step)
     processed_state, validated_action = _process_action(state, action, cfg)
     final_state = _update_state(processed_state, validated_action, cfg)
-    # Compute reward and termination signal
-    reward = _calculate_reward(state, final_state, cfg)
-    done = (validated_action.operation == jnp.asarray(34, dtype=jnp.int32))
+    # Compute reward and termination signal (submit-aware)
+    is_submit_step = (validated_action.operation == jnp.asarray(34, dtype=jnp.int32))
+    reward = _calculate_reward(
+        state,
+        final_state,
+        cfg,
+        is_submit_step=is_submit_step,
+        episode_mode=int(params.episode_mode),
+    )
+    done = is_submit_step
     # Build observation
     obs = create_observation(final_state, cfg)
     # Truncation: step limit check

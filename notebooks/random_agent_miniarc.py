@@ -42,7 +42,6 @@ def setup_configuration() -> JaxArcConfig:
         "logging.log_operations=false",
         "logging.log_rewards=false",
         "visualization.enabled=false",
-        "history.enabled=false",  # Ensure history is off for max performance
     ]
     hydra_config = get_config(overrides=config_overrides)
 

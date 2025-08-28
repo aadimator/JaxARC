@@ -206,84 +206,18 @@ NUM_OPERATIONS = 35  # Number of ARC operations (0-34)
 
 # Enhanced functionality constants
 # Note: MAX_PAIRS removed - now dataset/config dependent
-MAX_HISTORY_LENGTH = 1000  # Default maximum action history length
-MAX_SELECTION_SIZE = MAX_GRID_SIZE * MAX_GRID_SIZE  # Maximum flattened selection size
 MAX_GRID_SIZE_SQUARED = MAX_GRID_SIZE * MAX_GRID_SIZE  # For flattened grid operations
 # Dynamic ACTION_RECORD_FIELDS calculation based on configuration
 # This replaces the previous fixed constant approach
 
 
-def get_selection_data_size(
-    selection_format: str,
-    max_grid_height: int = MAX_GRID_SIZE,
-    max_grid_width: int = MAX_GRID_SIZE,
-) -> int:
-    """Calculate selection data size based on format and dataset configuration.
-
-    This function determines the optimal size for storing selection data in action history
-    based on the selection format and dataset constraints. This is much more efficient
-    than using a fixed MAX_SELECTION_SIZE for all cases.
-
-    Args:
-        selection_format: Selection format ("point", "bbox", "mask")
-        max_grid_height: Maximum grid height for the dataset
-        max_grid_width: Maximum grid width for the dataset
-
-    Returns:
-        Number of elements needed to store selection data
-
-    Examples:
-        # MiniARC with point selection: only 2 elements needed
-        size = get_selection_data_size("point", 5, 5)  # Returns 2
-
-        # Full ARC with bbox selection: only 4 elements needed
-        size = get_selection_data_size("bbox", 30, 30)  # Returns 4
-
-        # MiniARC with mask selection: 25 elements (5x5)
-        size = get_selection_data_size("mask", 5, 5)  # Returns 25
-
-        # Full ARC with mask selection: 900 elements (30x30)
-        size = get_selection_data_size("mask", 30, 30)  # Returns 900
-    """
-    if selection_format == "point":
-        return 2  # [row, col]
-    if selection_format == "bbox":
-        return 4  # [r1, c1, r2, c2]
-    if selection_format == "mask":
-        return max_grid_height * max_grid_width  # flattened mask
-    raise ValueError(f"Unknown selection format: {selection_format}")
 
 
-def get_action_record_fields(
-    selection_format: str,
-    max_grid_height: int = MAX_GRID_SIZE,
-    max_grid_width: int = MAX_GRID_SIZE,
-) -> int:
-    """Calculate total action record fields based on configuration.
-
-    Args:
-        selection_format: Selection format ("point", "bbox", "mask")
-        max_grid_height: Maximum grid height for the dataset
-        max_grid_width: Maximum grid width for the dataset
-
-    Returns:
-        Total number of fields in action record
-
-    Examples:
-        # MiniARC with point selection: 2 + 4 = 6 fields
-        fields = get_action_record_fields("point", 5, 5)  # Returns 6
-
-        # Full ARC with mask selection: 900 + 4 = 904 fields
-        fields = get_action_record_fields("mask", 30, 30)  # Returns 904
-    """
-    selection_size = get_selection_data_size(
-        selection_format, max_grid_height, max_grid_width
-    )
-    return selection_size + 4  # +4 for: operation_id, timestamp, pair_index, valid
 
 
-# Backward compatibility: default ACTION_RECORD_FIELDS for mask format with max grid size
-ACTION_RECORD_FIELDS = get_action_record_fields("mask", MAX_GRID_SIZE, MAX_GRID_SIZE)
+
+
+
 
 # Default maximums for different datasets (can be overridden)
 DEFAULT_MAX_TRAIN_PAIRS = 10  # Conservative default, can be increased for augmentation
@@ -301,9 +235,6 @@ NumColors: TypeAlias = int
 NumOperations: TypeAlias = int
 MaxTrainPairs: TypeAlias = int
 MaxTestPairs: TypeAlias = int
-MaxHistoryLength: TypeAlias = int
-MaxSelectionSize: TypeAlias = int
-ActionRecordFields: TypeAlias = int
 
 # =============================================================================
 # Enhanced ARC Step Logic Types
@@ -330,29 +261,17 @@ TestCompletionStatus: TypeAlias = Bool[Array, "max_test_pairs"]
 """Boolean mask tracking completion status of test pairs.
 Size matches available test pairs for consistency."""
 
-# Action history types
-HistoryLength: TypeAlias = Int[Array, ""]
-"""Scalar integer representing current length of action history."""
+
 
 OperationMask: TypeAlias = Bool[Array, "num_operations"]
 """Boolean mask indicating which operations are currently allowed.
 Uses num_operations dimension for dynamic action space control."""
 
-# Action history storage types
-SelectionData: TypeAlias = Float[Array, "max_selection_size"]
-"""Flattened selection data for action history storage.
-Accommodates point (2), bbox (4), or flattened mask data with padding."""
 
-ActionSequence: TypeAlias = Int[Array, "sequence_length action_fields"]
-"""Sequence of actions with fixed dimensions for JAX compatibility."""
 
-# Action record structure for history tracking
-# Note: ActionHistory will be defined as a structured array type
-# Each record contains: selection_data, operation_id, timestamp, pair_index, valid flag
-ActionHistory: TypeAlias = Float[Array, "max_history_length action_record_fields"]
-"""Fixed-size action history storage with structured records.
-Each record contains selection data, operation ID, timestamp, pair index, and validity flag.
-Uses static shape with padding for JAX compatibility."""
+
+
+
 
 # =============================================================================
 # Enhanced Action Space Types

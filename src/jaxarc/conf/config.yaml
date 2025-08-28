@@ -3,7 +3,6 @@ defaults:
   - dataset: arc_agi_2 # Which dataset to use
   - reward: training # Which reward configuration to use (standard/training/evaluation)
   - action: standard # Which action configuration to use (standard/full/raw)
-  - history: standard # Which action history to use (standard/minimal/research/disabled)
 
 environment:
   max_episode_steps: 150

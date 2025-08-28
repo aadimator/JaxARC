@@ -9,14 +9,14 @@ from jaxarc.configs.action_config import ActionConfig
 from jaxarc.configs.dataset_config import DatasetConfig
 from jaxarc.configs.environment_config import EnvironmentConfig
 from jaxarc.configs.grid_initialization_config import GridInitializationConfig
-from jaxarc.configs.history_config import HistoryConfig
+
 from jaxarc.configs.logging_config import LoggingConfig
 from jaxarc.configs.reward_config import RewardConfig
 from jaxarc.configs.storage_config import StorageConfig
 from jaxarc.configs.visualization_config import VisualizationConfig
 from jaxarc.configs.wandb_config import WandbConfig
-from jaxarc.envs import ArcEnv, arc_reset, arc_step, create_point_action
-from jaxarc.envs.functional import _arc_step_unsafe
+from jaxarc.envs import ArcEnv, create_point_action
+
 from jaxarc.types import JaxArcTask
 
 
@@ -31,7 +31,7 @@ def minimal_config() -> JaxArcConfig:
         storage=StorageConfig(),
         logging=LoggingConfig(),
         wandb=WandbConfig.from_hydra({}),
-        history=HistoryConfig(),
+
     )
 
 
@@ -91,7 +91,7 @@ def test_auto_reset_single():
         storage=cfg.storage,
         logging=cfg.logging,
         wandb=cfg.wandb,
-        history=cfg.history,
+
     )
     env = ArcEnv(cfg, task_data=task, num_envs=1, manage_keys=True, seed=0)
     state, obs = env.reset(jax.random.PRNGKey(1))
@@ -120,15 +120,3 @@ def test_batch_env_reset_and_step():
     chex.assert_shape(rewards, (4,))
     chex.assert_shape(dones, (4,))
     chex.assert_equal_shape([new_obs, obs])
-
-
-def test_safe_vs_unsafe_parity_single():
-    cfg = minimal_config()
-    task = dummy_task(cfg)
-    key = jax.random.PRNGKey(5)
-    state_safe, _ = arc_reset(key, cfg, task)
-    # Use same state reference for both calls (stateless step wrt input immutability)
-    action = create_point_action(0, 0, 0)
-    _, _, reward_safe, _, _ = arc_step(state_safe, action, cfg)
-    _, _, reward_unsafe, _, _ = _arc_step_unsafe(state_safe, action, cfg)
-    assert jnp.allclose(reward_safe, reward_unsafe)
