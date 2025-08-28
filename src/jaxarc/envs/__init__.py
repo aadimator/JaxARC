@@ -3,7 +3,7 @@ JaxARC environments module.
 
 This module provides reinforcement learning environments for solving
 ARC (Abstraction and Reasoning Corpus) tasks using JAX-compatible
-environments with both functional and class-based APIs.
+environments with both functional and simple environment APIs.
 """
 
 from __future__ import annotations
@@ -54,14 +54,20 @@ from .grid_operations import (
     is_valid_operation_id,
 )
 
+# Simple environment interface and wrappers (Xland-Minigrid pattern)
+from .environment import Environment
+from .wrapper import Wrapper, GymAutoResetWrapper, DmEnvAutoResetWrapper
+
 # Action and observation spaces
 from .spaces import MultiBinary, Space
-from .wrapper import ArcEnv
 
 __all__ = [
     "OPERATION_NAMES",
     "ActionSpaceController",
-    "ArcEnv",
+    "Environment",
+    "GymAutoResetWrapper",
+    "DmEnvAutoResetWrapper",
+    "Wrapper",
     "State",
     "EnvParams",
     "TimeStep",
