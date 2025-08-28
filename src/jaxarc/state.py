@@ -71,6 +71,81 @@ from .utils.jax_types import (
 from .utils.task_manager import extract_task_id_from_index
 
 
+from typing import TypeVar, Generic
+from .utils.jax_types import PRNGKey
+
+EnvCarryT = TypeVar("EnvCarryT")
+
+
+class State(eqx.Module, Generic[EnvCarryT]):
+    """Environment state with optional carry following Xland-Minigrid pattern.
+
+    Contains only truly dynamic variables that change during episodes.
+    Static configuration moved to EnvParams.
+    """
+
+    # Core dynamic grid state
+    working_grid: GridArray  # Current grid being modified
+    working_grid_mask: MaskArray  # Valid cells mask
+    target_grid: GridArray  # Goal grid for current example
+    target_grid_mask: MaskArray  # Valid cells mask for target grid
+
+    # Grid operations state
+    selected: SelectionArray  # Selection mask for operations
+    clipboard: GridArray  # For copy/paste operations
+
+    # Episode progress tracking
+    step_count: StepCount  # Current step number
+
+    # Dynamic control state
+    allowed_operations_mask: OperationMask  # Dynamic operation filtering
+
+    # Optional similarity tracking (can be computed on demand)
+    similarity_score: SimilarityScore | None = None
+
+    # PRNG key for environment randomness (auto-reset compatibility)
+    key: PRNGKey
+
+    # Optional carry for extensions (proper Xland-Minigrid pattern)
+    carry: EnvCarryT | None = None
+
+    def __check_init__(self) -> None:
+        """Validate dynamic state structure."""
+        if not hasattr(self.working_grid, "shape"):
+            return
+
+        try:
+            import chex
+
+            # Validate grid shapes and types
+            chex.assert_rank(self.working_grid, 2)
+            chex.assert_rank(self.working_grid_mask, 2)
+            chex.assert_rank(self.target_grid, 2)
+            chex.assert_rank(self.target_grid_mask, 2)
+            chex.assert_rank(self.selected, 2)
+            chex.assert_rank(self.clipboard, 2)
+            chex.assert_rank(self.allowed_operations_mask, 1)
+
+            # Check consistent shapes
+            chex.assert_shape(self.working_grid_mask, self.working_grid.shape)
+            chex.assert_shape(self.target_grid, self.working_grid.shape)
+            chex.assert_shape(self.target_grid_mask, self.working_grid.shape)
+            chex.assert_shape(self.selected, self.working_grid.shape)
+            chex.assert_shape(self.clipboard, self.working_grid.shape)
+
+            # Validate scalars
+            chex.assert_type(self.step_count, jnp.integer)
+
+        except (AttributeError, TypeError):
+            # Gracefully skip during tracing
+            pass
+
+
+# Type aliases for convenience
+BaseState = State[None]  # No carry
+ArcState = BaseState     # Our standard simplified state
+
+
 class ArcEnvState(eqx.Module):
     """ARC environment state with Equinox Module for better JAX integration.
 

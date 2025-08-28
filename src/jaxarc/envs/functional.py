@@ -266,7 +266,67 @@ def _create_initial_state(
     )
 
 
+from jaxarc.types import EnvParams, TimeStep
+from jaxarc.configs.main_config import JaxArcConfig
+from jaxarc.configs.environment_config import EnvironmentConfig
+
+def _build_config_from_params(params: EnvParams) -> JaxArcConfig:
+    """Construct a minimal JaxArcConfig from EnvParams for legacy API reuse."""
+    env_cfg = EnvironmentConfig(max_episode_steps=int(params.max_episode_steps))
+    return JaxArcConfig(
+        environment=env_cfg,
+        dataset=params.dataset,
+        action=params.action,
+        reward=params.reward,
+        grid_initialization=params.grid_initialization,
+    )
+
 @eqx.filter_jit
+def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
+    """New functional reset(params, key) -> TimeStep following Xland pattern."""
+    cfg = _build_config_from_params(params)
+    state, obs = arc_reset(
+        key,
+        cfg,
+        params.task_data,
+        episode_mode=int(params.episode_mode),
+        initial_pair_idx=int(params.pair_idx),
+    )
+    return TimeStep(
+        step_type=jnp.asarray(0, dtype=jnp.int32),   # FIRST
+        reward=jnp.asarray(0.0, dtype=jnp.float32),
+        discount=jnp.asarray(1.0, dtype=jnp.float32),
+        observation=obs,
+        state=state,
+    )
+
+@eqx.filter_jit
+def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
+    """New functional step(params, timestep, action) -> TimeStep."""
+    cfg = _build_config_from_params(params)
+    state = timestep.state
+    new_state, obs, reward, done, _info = arc_step(state, action, cfg)
+    # Truncation: step limit check
+    truncated = new_state.step_count >= jnp.asarray(params.max_episode_steps)
+    terminated = jnp.logical_or(done, truncated)
+    step_type = jnp.where(
+        terminated,
+        jnp.asarray(2, dtype=jnp.int32),  # LAST
+        jnp.asarray(1, dtype=jnp.int32),  # MID
+    )
+    discount = jnp.where(
+        terminated,
+        jnp.asarray(0.0, dtype=jnp.float32),
+        jnp.asarray(1.0, dtype=jnp.float32),
+    )
+    return TimeStep(
+        step_type=step_type,
+        reward=reward,
+        discount=discount,
+        observation=obs,
+        state=new_state,
+    )
+
 def arc_reset(
     key: PRNGKey,
     config: ConfigType,
