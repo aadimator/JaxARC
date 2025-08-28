@@ -45,6 +45,7 @@ from .grid_initialization import initialize_working_grids
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 from .observation import create_observation
 from .reward import _calculate_reward
+from .actions import create_point_action, create_bbox_action
 
 
 
@@ -260,27 +261,80 @@ def _build_config_from_params(params: EnvParams) -> JaxArcConfig:
         grid_initialization=params.grid_initialization,
     )
 
+
+
+
+
 @eqx.filter_jit
 def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
-    """New functional reset(params, key) -> TimeStep following Xland pattern.
+    """Pure JAX reset that samples from a JAX-native stacked task buffer.
 
-    Builds the initial state directly from EnvParams without delegating to legacy arc_reset.
+    Behavior:
+    - Samples a task index from params.buffer (optionally through params.subset_indices).
+    - Computes a pair index based on episode_mode and task-specific pair counts.
+    - Builds the initial TimeStep purely in JAX.
     """
     cfg = _build_config_from_params(params)
 
+    # Split key for independent sampling
+    key_id, key_pair, key_init = jax.random.split(key, 3)
+
+    # Resolve candidate task indices
+    has_subset = params.subset_indices is not None
+    if has_subset:
+        indices = params.subset_indices
+        num = indices.shape[0]
+        subset_index = jax.random.randint(key_id, (), 0, num)
+        task_idx = indices[subset_index]
+    else:
+        # Derive total tasks N from leading dimension of a canonical field
+        N = params.buffer.input_grids_examples.shape[0]
+        task_idx = jax.random.randint(key_id, (), 0, N)
+
+    # Gather a single task's arrays from the stacked buffer
+    single = jax.tree_util.tree_map(lambda x: x[task_idx], params.buffer)
+
+    # Compute pair count based on episode mode (0=train, 1=test)
+    episode_mode = jnp.asarray(params.episode_mode, dtype=jnp.int32)
+    train_pairs = jnp.asarray(single.num_train_pairs, dtype=jnp.int32)
+    test_pairs = jnp.asarray(single.num_test_pairs, dtype=jnp.int32)
+    max_pairs = jnp.where(episode_mode == jnp.asarray(0, dtype=jnp.int32), train_pairs, test_pairs)
+    safe_max = jnp.maximum(max_pairs, jnp.asarray(1, dtype=jnp.int32))
+
+    # Sample pair index safely; clamp to 0 when max_pairs == 0
+    sampled_pair = jax.random.randint(key_pair, (), 0, safe_max)
+    pair_idx = jnp.where(max_pairs > 0, sampled_pair, jnp.asarray(0, dtype=jnp.int32))
+    selected_pair_idx = jnp.asarray(pair_idx, dtype=jnp.int32)
+
+    # Build a lightweight JaxArcTask for downstream initialization
+    # Note: counts are set to 0 as they are not used by _initialize_grids/_create_initial_state
+    task_data = JaxArcTask(
+        input_grids_examples=single.input_grids_examples,
+        input_masks_examples=single.input_masks_examples,
+        output_grids_examples=single.output_grids_examples,
+        output_masks_examples=single.output_masks_examples,
+        num_train_pairs=0,
+        test_input_grids=single.test_input_grids,
+        test_input_masks=single.test_input_masks,
+        true_test_output_grids=single.true_test_output_grids,
+        true_test_output_masks=single.true_test_output_masks,
+        num_test_pairs=0,
+        task_index=jnp.asarray(0, dtype=jnp.int32),
+    )
+
     # Initialize grids/masks using dataset and initialization settings
     initial_grid, target_grid, initial_mask, target_mask, input_grid, input_mask = _initialize_grids(
-        key=key,
+        key=key_init,
         config=cfg,
-        task_data=params.task_data,
+        task_data=task_data,
+        selected_pair_idx=selected_pair_idx,
         episode_mode=int(params.episode_mode),
-        initial_pair_idx=int(params.pair_idx),
+        initial_pair_idx=None,
     )
 
     # Build initial state with dynamic fields initialized
-    selected_pair_idx = jnp.asarray(int(params.pair_idx), dtype=jnp.int32)
     state = _create_initial_state(
-        task_data=params.task_data,
+        task_data=task_data,
         initial_grid=initial_grid,
         target_grid=target_grid,
         initial_mask=initial_mask,
@@ -290,7 +344,7 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
         selected_pair_idx=selected_pair_idx,
         episode_mode=int(params.episode_mode),
         config=cfg,
-        key=key,
+        key=key_init,
     )
 
     # Create initial observation
@@ -311,7 +365,7 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
     state = timestep.state
     # Process action and update state using internal helpers (no legacy arc_step)
     processed_state, validated_action = _process_action(state, action, cfg)
-    final_state = _update_state(processed_state, validated_action, cfg)
+    final_state = _update_state(state, processed_state, validated_action, cfg)
     # Compute reward and termination signal (submit-aware)
     is_submit_step = (validated_action.operation == jnp.asarray(34, dtype=jnp.int32))
     reward = _calculate_reward(
@@ -389,7 +443,7 @@ def _process_action(
         Automatically validates action parameters and clips to valid ranges.
     """
     # Get grid shape for validation
-    grid_shape = state.working_grid.shape
+    grid_shape = (state.working_grid.shape[0], state.working_grid.shape[1])
 
     # Convert dictionary action to structured action if needed
     if isinstance(action, dict):
@@ -458,21 +512,17 @@ def _process_action(
 
         # Update validated action with filtered operation
         if isinstance(validated_action, PointAction):
-            validated_action = PointAction(
-                operation=operation, row=validated_action.row, col=validated_action.col
-            )
+            validated_action = create_point_action(operation, validated_action.row, validated_action.col)
         elif isinstance(validated_action, BboxAction):
-            validated_action = BboxAction(
-                operation=operation,
-                r1=validated_action.r1,
-                c1=validated_action.c1,
-                r2=validated_action.r2,
-                c2=validated_action.c2,
+            validated_action = create_bbox_action(
+                operation,
+                validated_action.r1,
+                validated_action.c1,
+                validated_action.r2,
+                validated_action.c2,
             )
         elif isinstance(validated_action, MaskAction):
-            validated_action = MaskAction(
-                operation=operation, selection=validated_action.selection
-            )
+            validated_action = create_mask_action(operation, validated_action.selection)
 
     # Only grid operations remain (0-34). Execute directly.
     if isinstance(validated_action, PointAction):

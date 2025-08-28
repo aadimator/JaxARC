@@ -45,6 +45,10 @@ class EnvParams(eqx.Module):
 
     This is NOT a rename of JaxArcConfig. JaxArcConfig contains framework concerns
     (logging, visualization, storage) that don't belong in environment parameters.
+
+    EnvParams now carries a JAX-native task buffer for JIT/vmap-compatible reset().
+    The buffer is a stacked pytree of JAX arrays (batched JaxArcTask fields) and
+    optional subset indices define a view into the buffer.
     """
 
     # Core configurations (references, not duplicated fields)
@@ -56,46 +60,50 @@ class EnvParams(eqx.Module):
     # Episode-specific settings
     max_episode_steps: int
 
-    # Task specification
-    task_data: "JaxArcTask"
+    # JAX-native task buffer (batched pytree of arrays) and optional indices view
+    buffer: Any = None
+    subset_indices: Any = None
+
+    # Episode control
     episode_mode: int = 0  # 0=train, 1=test
-    pair_idx: int = 0      # Which pair to use
 
     def __check_init__(self) -> None:
         # Basic validations
         assert isinstance(self.max_episode_steps, int) and self.max_episode_steps > 0
         assert self.episode_mode in (0, 1)
-        assert isinstance(self.pair_idx, int) and self.pair_idx >= 0
 
-        # Validate pair_idx against available pairs
-        if self.episode_mode == 0:
-            # train mode
-            assert self.pair_idx < int(self.task_data.num_train_pairs)
-        else:
-            # test mode
-            assert self.pair_idx < int(self.task_data.num_test_pairs)
+        # Require a task buffer for JIT-compatible reset
+        assert self.buffer is not None, (
+            "EnvParams.buffer must be provided for JIT-compatible reset"
+        )
 
     @classmethod
     def from_config(
         cls,
         config: JaxArcConfig,
-        task_data: "JaxArcTask",
+        *,
         episode_mode: int = 0,
-        pair_idx: int = 0,
+        buffer: Any = None,
+        subset_indices: Any = None,
     ) -> "EnvParams":
         """
         Extract environment parameters from the unified JaxArcConfig.
+
+        Args:
+            config: Full project configuration
+            episode_mode: 0=train, 1=test
+            buffer: Batched pytree of JAX arrays (stacked JaxArcTask fields)
+            subset_indices: Optional indices defining a subview into the buffer
         """
-        # EnvironmentConfig is kept in the framework config; we only take what we need
         return cls(
             dataset=config.dataset,
             action=config.action,
             reward=config.reward,
             grid_initialization=config.grid_initialization,
             max_episode_steps=int(config.environment.max_episode_steps),
-            task_data=task_data,
+            buffer=buffer,
+            subset_indices=subset_indices,
             episode_mode=int(episode_mode),
-            pair_idx=int(pair_idx),
         )
 
 
