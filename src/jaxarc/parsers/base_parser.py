@@ -114,7 +114,7 @@ class ArcDataParserBase(ABC):
             # Hydra configuration
             hydra_config = DictConfig(
                 {
-                    "dataset_path": "data/raw/MiniARC",
+                    "dataset_path": "data/MiniARC",
                     "max_grid_height": 5,
                     "max_grid_width": 5,
                     # ... other fields

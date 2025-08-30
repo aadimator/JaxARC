@@ -3,7 +3,7 @@
 
 # Dataset Information
 dataset_name: "ARC-AGI-1"
-dataset_path: "data/raw/ARC-AGI-1"
+dataset_path: "data/ARC-AGI-1"
 dataset_repo: "https://github.com/fchollet/ARC-AGI"
 task_split: "train"
 shuffle_tasks: true

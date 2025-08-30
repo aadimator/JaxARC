@@ -3,7 +3,7 @@
 
 # Dataset Information
 dataset_name: "MiniARC"
-dataset_path: "data/raw/MiniARC"
+dataset_path: "data/MiniARC"
 dataset_repo: "https://github.com/KSB21ST/MINI-ARC"
 task_split: "train"
 shuffle_tasks: true
