@@ -3,7 +3,7 @@
 
 # Dataset Information
 dataset_name: "ConceptARC"
-dataset_path: "data/raw/ConceptARC"
+dataset_path: "data/ConceptARC"
 dataset_repo: "https://github.com/victorvikram/ConceptARC"
 task_split: "train"
 shuffle_tasks: true

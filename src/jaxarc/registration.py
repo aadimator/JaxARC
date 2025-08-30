@@ -433,12 +433,26 @@ class EnvRegistry:
         except Exception:
             pass
 
-        # Best-effort dataset normalization
+        # Best-effort dataset normalization (name and path)
         try:
             ds: DatasetConfig = getattr(cfg, "dataset")
             # Update dataset_name to normalized value (e.g., "MiniARC", "ConceptARC", "ARC-AGI-1", "ARC-AGI-2")
             _, _, normalized_name = EnvRegistry._resolve_dataset_meta(dataset_key)
             ds.dataset_name = normalized_name
+
+            # If dataset_path is empty or points to a directory for a different dataset,
+            # reset it to the default ./data/{normalized_name}.
+            current_path = getattr(ds, "dataset_path", "") or ""
+            try:
+                leaf = Path(current_path).name if current_path else ""
+            except Exception:
+                leaf = ""
+
+            if (not current_path) or (leaf.lower() != normalized_name.lower()):
+                default_dir = str(here() / "data" / normalized_name)
+                import equinox as eqx  # local import to avoid top-level dependency cycles
+                ds = eqx.tree_at(lambda d: d.dataset_path, ds, default_dir)
+
             setattr(cfg, "dataset", ds)
         except Exception:
             pass
@@ -548,27 +562,56 @@ class EnvRegistry:
 
         _, downloader_method, normalized_name = EnvRegistry._resolve_dataset_meta(dataset_key)
 
-        # If path is missing or does not exist
+        # If an existing path points to a directory whose leaf name does not match
+        # the expected dataset directory, treat it as a mismatch and ignore it.
+        try:
+            if path and path.name.lower() != normalized_name.lower():
+                logger.info(
+                    f"Configured dataset_path '{path}' does not match expected dataset '{normalized_name}'. "
+                    "Resetting to default dataset directory."
+                )
+                path = None
+        except Exception:
+            pass
+
+        # If path is missing or does not exist, attempt to download (when allowed)
         if not path or not path.exists():
             msg = f"Dataset path is missing or not found for '{normalized_name}'"
             if not auto_download or not downloader_method:
                 logger.warning(msg + " - set auto_download=True to attempt download.")
                 raise ValueError("Dataset not available on disk and auto_download is disabled.")
-            # Attempt download into config.dataset.dataset_path (create default if empty)
+            # Attempt download into a normalized dataset directory under ./data/{normalized_name}
             try:
                 # Decide target directory:
-                # - If dataset_path provided, use it
-                # - Otherwise, set a default under ./data/{normalized_name} and persist it to config immutably
+                # - Use existing dataset_path only if it already targets the correct dataset directory
+                # - Otherwise, set a default under ./data/{normalized_name} and persist it immutably
+                use_existing = False
                 if dataset_path:
+                    try:
+                        use_existing = Path(dataset_path).name.lower() == normalized_name.lower()
+                    except Exception:
+                        use_existing = False
+
+                if use_existing:
                     target_dir = here(dataset_path)
                 else:
                     default_dir = here() / "data" / normalized_name
                     target_dir = default_dir
-                    # immutably set dataset_path and dataset_name
+                    # immutably set dataset_path and dataset_name to normalized defaults
                     import equinox as eqx  # local import to avoid top-level dependency cycles
                     ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(default_dir))
                     ds = eqx.tree_at(lambda d: d.dataset_name, ds, normalized_name)
                     config = eqx.tree_at(lambda c: c.dataset, config, ds)
+
+                # If the target directory already exists, do NOT re-download or remove it.
+                if target_dir.exists():
+                    import equinox as eqx  # local import to avoid top-level dependency cycles
+                    ds = getattr(config, "dataset")
+                    ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(target_dir))
+                    ds = eqx.tree_at(lambda d: d.dataset_name, ds, normalized_name)
+                    config = eqx.tree_at(lambda c: c.dataset, config, ds)
+                    logger.info(f"Dataset '{normalized_name}' already exists at: {target_dir}")
+                    return config
 
                 # Ensure parent directories exist
                 target_dir.parent.mkdir(parents=True, exist_ok=True)
