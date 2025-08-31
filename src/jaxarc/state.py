@@ -16,7 +16,7 @@ Key properties:
 
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -29,6 +29,8 @@ from jaxarc.utils.jax_types import (
     SelectionArray,
     SimilarityScore,
     StepCount,
+    TaskIndex,
+    PairIndex,
 )
 
 
@@ -66,6 +68,10 @@ class State(eqx.Module, Generic[EnvCarryT]):
     # PRNG key for environment randomness (auto-reset compatibility)
     key: PRNGKey
 
+    # Task/pair tracking (link into EnvParams.buffer)
+    task_idx: TaskIndex                # Index into EnvParams.buffer identifying active task
+    pair_idx: PairIndex                # Index of current demonstration/test pair within task
+
     # Optional carry for extensions (proper XLand-Minigrid pattern)
     carry: EnvCarryT | None = None
 
@@ -99,7 +105,14 @@ class State(eqx.Module, Generic[EnvCarryT]):
             chex.assert_shape(self.clipboard, self.working_grid.shape)
 
             # Validate scalars/types
+            chex.assert_shape(self.step_count, ())
             chex.assert_type(self.step_count, jnp.integer)
+
+            # Task/pair indices should be scalar integer arrays
+            chex.assert_shape(self.task_idx, ())
+            chex.assert_type(self.task_idx, jnp.int32)
+            chex.assert_shape(self.pair_idx, ())
+            chex.assert_type(self.pair_idx, jnp.int32)
 
         except (AttributeError, TypeError):
             # Gracefully skip during tracing

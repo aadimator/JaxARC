@@ -65,6 +65,9 @@ class SVGHandler:
         # Track current episode for file management
         self.current_episode_num: int | None = None
         self.current_run_started = False
+        # Cache of current task pair counts (host-side metadata extracted at task start).
+        # Format: {"train": int | None, "test": int | None}
+        self.current_task_pairs: dict | None = None
 
         logger.debug("SVGHandler initialized")
 
@@ -114,34 +117,130 @@ class SVGHandler:
             return
 
         try:
-            episode_num = task_data.get("episode_num", 0)
+            episode_num = task_data.get("episode_num", None)
             task_object = task_data.get("task_object")
             show_test = task_data.get("show_test", True)
 
-            # Ensure episode is started
-            if self.current_episode_num != episode_num:
+            # Only start episode when the caller explicitly provided an episode number.
+            # This avoids creating an empty `episode_0000` directory when no episode
+            # number is known at task start (we prefer to defer to the first step).
+            if episode_num is not None and self.current_episode_num != episode_num:
                 self.start_episode(episode_num)
 
+            # Cache task pair counts and id for step visualizations (best-effort).
+            # Prefer values supplied in task_data (from build_task_metadata_from_params)
+            # and fall back to attributes on the parsed task_object when available.
+            try:
+                def _to_int_safe(v):
+                    try:
+                        if v is None:
+                            return None
+                        if hasattr(v, "item"):
+                            return int(v.item())
+                        return int(v)
+                    except Exception:
+                        return None
+
+                # Prefer explicit counts attached to task_data when available
+                num_train = task_data.get("num_train_pairs", None)
+                num_test = task_data.get("num_test_pairs", None)
+
+                # Fallback to attributes or dict keys on task_object if task_data did not provide them
+                if num_train is None and task_object is not None:
+                    # Support both object-like and dict-like task_object shapes
+                    if isinstance(task_object, dict):
+                        # accept several common key names used by parsers/structures
+                        num_train = task_object.get("num_train_pairs", task_object.get("num_train", None))
+                    else:
+                        num_train = getattr(task_object, "num_train_pairs", getattr(task_object, "num_train", None))
+                if num_test is None and task_object is not None:
+                    if isinstance(task_object, dict):
+                        num_test = task_object.get("num_test_pairs", task_object.get("num_test", None))
+                    else:
+                        num_test = getattr(task_object, "num_test_pairs", getattr(task_object, "num_test", None))
+
+                self.current_task_pairs = {
+                    "train": _to_int_safe(num_train),
+                    "test": _to_int_safe(num_test),
+                }
+
+                # Prefer explicit task_id provided in task_data; otherwise try task_object in multiple forms
+                tid = task_data.get("task_id", None)
+                if tid is None and task_object is not None:
+                    try:
+                        if isinstance(task_object, dict):
+                            # common id fields used by different parsers
+                            tid = task_object.get("task_id", task_object.get("id", task_object.get("task_index", None)))
+                        elif hasattr(task_object, "get_task_id"):
+                            tid = task_object.get_task_id()
+                        else:
+                            # fallback to attribute-style access
+                            tid = getattr(task_object, "task_id", getattr(task_object, "task_index", None))
+                    except Exception:
+                        tid = None
+                self.current_task_id = tid
+            except Exception:
+                # Best-effort caching; do not let failures stop visualization
+                self.current_task_pairs = None
+                self.current_task_id = None
+
             if task_object is None:
-                logger.warning("No task object provided for task visualization")
+                # No parsed task object available — generate a minimal SVG overview using
+                # available metadata (task_id and pair counts) so users still get a useful
+                # visualization artifact.
+                try:
+                    # Resolve best-effort task id and pair counts from cached values or task_data
+                    task_id_str = None
+                    if getattr(self, "current_task_id", None) is not None:
+                        task_id_str = str(self.current_task_id)
+                    else:
+                        task_id_str = str(task_data.get("task_id", "unknown"))
+
+                    train_ct = None
+                    test_ct = None
+                    if self.current_task_pairs is not None:
+                        train_ct = self.current_task_pairs.get("train")
+                        test_ct = self.current_task_pairs.get("test")
+                    else:
+                        train_ct = task_data.get("num_train_pairs", None)
+                        test_ct = task_data.get("num_test_pairs", None)
+
+                    # Determine a safe target directory: prefer current episode dir, then run dir
+                    target_dir = self.episode_manager.current_episode_dir or self.episode_manager.current_run_dir
+                    if target_dir is None:
+                        # Fallback: use base run path from episode manager info
+                        info = self.episode_manager.get_current_run_info()
+                        run_dir = info.get("run_dir")
+                        target_dir = Path(run_dir) if run_dir else Path("outputs")
+
+                    # Ensure directory exists and write a simple SVG summary
+                    out_path = target_dir / "task_overview.svg"
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    train_str = str(train_ct) if train_ct is not None else "?"
+                    test_str = str(test_ct) if test_ct is not None else "?"
+
+                    svg_str = f'''<svg xmlns="http://www.w3.org/2000/svg" width="500" height="120">
+  <rect width="100%" height="100%" fill="white"/>
+  <text x="20" y="28" font-size="18" font-family="Arial" fill="#222">Task Overview</text>
+  <text x="20" y="54" font-size="14" font-family="Arial" fill="#111">Task ID: {task_id_str}</text>
+  <text x="20" y="80" font-size="12" font-family="Arial" fill="#111">Train pairs: {train_str}  Test pairs: {test_str}</text>
+</svg>'''
+
+                    with out_path.open("w", encoding="utf-8") as f:
+                        f.write(svg_str)
+
+                    logger.debug(f"Saved minimal task overview SVG to {out_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save minimal task overview SVG: {e}")
                 return
 
-            # Generate task SVG using existing function with configurable test display
-            svg_drawing = draw_parsed_task_data_svg(
-                task_object,
-                width=30.0,
-                height=20.0,
-                include_test=show_test,  # Configurable test example display
-            )
-
-            # Save task SVG
-            task_path = self.episode_manager.current_episode_dir / "task_overview.svg"
-            task_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with Path.open(task_path, "w", encoding="utf-8") as f:
-                f.write(svg_drawing.as_svg())
-
-            logger.debug(f"Saved task overview SVG to {task_path}")
+            # Defer rendering until we adapt dict-like task objects below.
+            # The adapted rendering (which handles dicts by providing attribute access
+            # and small adapters) happens later in this function.
+            # No direct call to draw_parsed_task_data_svg here to avoid attempting to
+            # access attributes on dicts (which caused "'dict' object has no attribute 'num_train_pairs'").
+            pass
 
         except Exception as e:
             logger.error(f"Failed to generate task SVG: {e}")
@@ -164,20 +263,89 @@ class SVGHandler:
 
         try:
             step_num = step_data.get("step_num", 0)
-            episode_num = step_data.get("episode_num")
+            # Normalize step_num to a plain Python int using shared helper
+            try:
+                # Local import to avoid top-level cycles; falls back gracefully if helper is unavailable.
+                from ..logging.logging_utils import to_python_int
+            except Exception:
+                to_python_int = None
+            try:
+                if to_python_int is not None:
+                    tmp = to_python_int(step_num)
+                    step_num = int(tmp) if tmp is not None else 0
+                else:
+                    step_num = int(step_num) if step_num is not None else 0
+            except Exception:
+                step_num = 0
 
-            # Ensure episode is started
+            episode_num = step_data.get("episode_num")
+            # Normalize episode_num using shared helper (may be None)
+            try:
+                if to_python_int is not None:
+                    ep_tmp = to_python_int(episode_num)
+                    episode_num = int(ep_tmp) if ep_tmp is not None else None
+                else:
+                    episode_num = int(episode_num) if episode_num is not None else None
+            except Exception:
+                episode_num = None
+
+            # Ensure episode is started. Prefer an existing episode that already has
+            # a task_overview.svg in the current run directory when episode_num is not provided.
             if episode_num is not None and self.current_episode_num != episode_num:
+                # If caller provided an explicit episode number, use it.
                 self.start_episode(episode_num)
-            elif self.current_episode_num is None:
-                # Default to episode 0 if not specified
-                self.start_episode(0)
+            else:
+                # Caller did not provide an episode number. Try to find an existing
+                # episode directory in the current run that already contains a task_overview.svg.
+                # This keeps step SVGs grouped with the task overview when available.
+                try:
+                    run_dir = self.episode_manager.current_run_dir
+                    found_ep = None
+                    if run_dir is not None and run_dir.exists():
+                        for item in run_dir.iterdir():
+                            if item.is_dir():
+                                task_svg = item / "task_overview.svg"
+                                if task_svg.exists():
+                                    # Expect directories named like 'episode_0000'
+                                    name = item.name
+                                    if name.startswith("episode_"):
+                                        try:
+                                            found_ep = int(name.replace("episode_", ""))
+                                            break
+                                        except Exception:
+                                            # ignore directories that don't parse
+                                            continue
+                    if found_ep is not None:
+                        if self.current_episode_num != found_ep:
+                            self.start_episode(found_ep)
+                    else:
+                        # No existing episode with a task_overview found:
+                        # If we already have a current episode active, keep using it;
+                        # otherwise create a default episode 0 so there is a place to write.
+                        if self.current_episode_num is None:
+                            self.start_episode(0)
+                except Exception as e:
+                    logger.debug(f"Episode selection for SVG failed: {e}")
 
             # Extract required data
             before_state = step_data.get("before_state")
             after_state = step_data.get("after_state")
             action = step_data.get("action")
             reward = step_data.get("reward", 0.0)
+            # Normalize reward to a host float using shared helper (handles JAX/numpy scalars)
+            try:
+                from ..logging.logging_utils import to_python_float
+            except Exception:
+                to_python_float = None
+            try:
+                if to_python_float is not None:
+                    rtmp = to_python_float(reward)
+                    reward = float(rtmp) if rtmp is not None else 0.0
+                else:
+                    reward = float(reward)
+            except Exception:
+                reward = 0.0
+
             info = step_data.get("info", {})
 
             if before_state is None or after_state is None or action is None:
@@ -201,14 +369,291 @@ class SVGHandler:
             operation_id = self._extract_operation_id(action)
             operation_name = get_operation_display_name(operation_id, action)
 
-            # Extract additional context
+            # Extract additional context (best-effort; prefer step_data, fallback to state)
             task_id = step_data.get("task_id", "")
-            task_pair_index = step_data.get("task_pair_index", 0)
-            total_task_pairs = step_data.get("total_task_pairs", 1)
+            # Accept several possible keys for the pair index; prefer explicit one
+            task_pair_index = step_data.get("task_pair_index", None)
+            if task_pair_index is None:
+                task_pair_index = step_data.get("task_pair_idx", None)
+
+            # Prefer pre-selected scalar total if available (built by logging_utils).
+            # Fallback to legacy `total_task_pairs` container (may be dict or scalar).
+            total_task_pairs = step_data.get("total_task_pairs_selected", None)
+            if total_task_pairs is None:
+                total_task_pairs = step_data.get("total_task_pairs", None)
+
+            # If still missing, try to use the cached task pair counts from task start
+            # which were populated by `log_task_start` (host-side, best-effort).
+            if total_task_pairs is None and self.current_task_pairs is not None:
+                # Try to detect episode_mode from step_data or info; default to train (0)
+                ep_mode = step_data.get("episode_mode", None)
+                try:
+                    if ep_mode is None and isinstance(info, dict):
+                        ep_mode = info.get("episode_mode", None)
+                    if ep_mode is not None:
+                        # coerce numeric-like
+                        if hasattr(ep_mode, "item"):
+                            ep_mode_val = int(ep_mode.item())
+                        else:
+                            ep_mode_val = int(ep_mode)
+                    else:
+                        ep_mode_val = 0
+                except Exception:
+                    ep_mode_val = 0
+
+                try:
+                    total_task_pairs = (
+                        self.current_task_pairs.get("test")
+                        if ep_mode_val == 1
+                        else self.current_task_pairs.get("train")
+                    )
+                except Exception:
+                    total_task_pairs = None
+
+            # Fallbacks: if step_data didn't include them, try the before/after state
+            try:
+                # Prefer pair index from step_data, otherwise from state.
+                # Normalize to int with safe fallbacks.
+                if task_pair_index is None:
+                    if hasattr(before_state, "pair_idx"):
+                        try:
+                            task_pair_index = int(before_state.pair_idx.item())
+                        except Exception:
+                            try:
+                                task_pair_index = int(before_state.pair_idx)
+                            except Exception:
+                                task_pair_index = 0
+                    else:
+                        task_pair_index = 0
+                else:
+                    # If provided in step_data, coerce to int
+                    try:
+                        if hasattr(task_pair_index, "item"):
+                            task_pair_index = int(task_pair_index.item())
+                        else:
+                            task_pair_index = int(task_pair_index)
+                    except Exception:
+                        task_pair_index = 0
+
+                # If no explicit task_id, attempt to resolve from state.task_idx
+                if not task_id:
+                    if hasattr(before_state, "task_idx"):
+                        try:
+                            # Try to resolve a human-readable id via task manager.
+                            # If extractor returns None, fall back to global manager lookup.
+                            from jaxarc.utils.task_manager import extract_task_id_from_index, get_task_id_globally
+
+                            tid = extract_task_id_from_index(before_state.task_idx)
+                            if tid is not None:
+                                task_id = tid
+                            else:
+                                # Fallback: convert index to int and query the global manager.
+                                try:
+                                    if hasattr(before_state.task_idx, "item"):
+                                        idx_val = int(before_state.task_idx.item())
+                                    else:
+                                        idx_val = int(before_state.task_idx)
+                                    gid = get_task_id_globally(idx_val)
+                                    task_id = gid if gid is not None else ""
+                                except Exception:
+                                    task_id = ""
+                        except Exception:
+                            # Final fallback: leave task_id empty instead of fabricating numeric labels
+                            task_id = ""
+
+                # Normalize total_task_pairs into a plain integer (best-effort).
+                # Handle dicts produced by older helpers, numpy/JAX scalars, or missing metadata.
+                raw_total = total_task_pairs if total_task_pairs is not None else step_data.get("total_task_pairs", None)
+
+                try:
+                    # If the payload supplied a dict-like container, pick a sensible key.
+                    if isinstance(raw_total, dict):
+                        candidate = raw_total.get("train") or raw_total.get("test") or raw_total.get("all")
+                        total_task_pairs = candidate
+                    else:
+                        total_task_pairs = raw_total
+
+                    # If still missing and we have cached task pair counts from task start, prefer that.
+                    if total_task_pairs is None and self.current_task_pairs is not None:
+                        # Prefer train unless episode mode indicates test
+                        ep_mode = step_data.get("episode_mode", None)
+                        if ep_mode is None and isinstance(info, dict):
+                            ep_mode = info.get("episode_mode", None)
+                        try:
+                            if ep_mode is not None:
+                                m = int(ep_mode.item()) if hasattr(ep_mode, "item") else int(ep_mode)
+                            else:
+                                m = 0
+                        except Exception:
+                            m = 0
+                        total_task_pairs = (
+                            self.current_task_pairs.get("test") if m == 1 else self.current_task_pairs.get("train")
+                        )
+
+                    # Additional fallback: if still missing, try to extract from params.buffer using logging helper.
+                    if total_task_pairs is None:
+                        try:
+                            params_obj = step_data.get("params", None)
+                            # Prefer a task_idx provided in the payload, otherwise try state.
+                            payload_task_idx = step_data.get("task_idx", None)
+                            if payload_task_idx is None:
+                                # Try to extract from before_state / after_state if possible
+                                if hasattr(before_state, "task_idx"):
+                                    payload_task_idx = getattr(before_state, "task_idx")
+                                elif hasattr(after_state, "task_idx"):
+                                    payload_task_idx = getattr(after_state, "task_idx")
+                            if params_obj is not None and payload_task_idx is not None:
+                                # Import the helper lazily to avoid top-level cycles
+                                from jaxarc.utils.logging.logging_utils import build_task_metadata_from_params
+                                tmeta = build_task_metadata_from_params(params_obj, payload_task_idx)
+                                # Pick based on episode_mode on params if available, otherwise prefer train
+                                try:
+                                    p_mode = getattr(params_obj, "episode_mode", None)
+                                    if p_mode is not None:
+                                        p_val = int(p_mode.item()) if hasattr(p_mode, "item") else int(p_mode)
+                                    else:
+                                        p_val = 0
+                                except Exception:
+                                    p_val = 0
+                                if p_val == 1:
+                                    total_task_pairs = tmeta.get("num_test_pairs")
+                                else:
+                                    total_task_pairs = tmeta.get("num_train_pairs")
+                                # If still None pick any available count
+                                if total_task_pairs is None:
+                                    total_task_pairs = tmeta.get("num_train_pairs") or tmeta.get("num_test_pairs")
+                        except Exception:
+                            # ignore failures here and continue to final fallback
+                            total_task_pairs = None
+
+                    # Final fallback to 1 when nothing sensible is found
+                    if total_task_pairs is None:
+                        total_task_pairs = 1
+
+                    # Convert numpy/jax scalars or other numeric-like values to int
+                    if hasattr(total_task_pairs, "item"):
+                        total_task_pairs = int(total_task_pairs.item())
+                    else:
+                        total_task_pairs = int(total_task_pairs)
+                except Exception:
+                    total_task_pairs = 1
+
+                # Ensure task_pair_index is a Python int (zero-based) where possible,
+                # falling back to 0. Try state fields if step_data did not include it.
+                try:
+                    if task_pair_index is None:
+                        if hasattr(before_state, "pair_idx"):
+                            try:
+                                task_pair_index = int(before_state.pair_idx.item())
+                            except Exception:
+                                task_pair_index = int(before_state.pair_idx)
+                        elif hasattr(after_state, "pair_idx"):
+                            try:
+                                task_pair_index = int(after_state.pair_idx.item())
+                            except Exception:
+                                task_pair_index = int(after_state.pair_idx)
+                        else:
+                            task_pair_index = 0
+                    else:
+                        # Coerce provided value to int when possible
+                        try:
+                            if hasattr(task_pair_index, "item"):
+                                task_pair_index = int(task_pair_index.item())
+                            else:
+                                task_pair_index = int(task_pair_index)
+                        except Exception:
+                            task_pair_index = 0
+                except Exception:
+                    task_pair_index = 0
+
+                # Task pair indices in state are zero-based; visualizers display +1.
+                # Keep task_pair_index zero-based internally but ensure it's a valid int.
+                try:
+                    task_pair_index = int(task_pair_index)
+                except Exception:
+                    task_pair_index = 0
+
+                task_id = task_id or ""
+                total_task_pairs = int(total_task_pairs or 1)
+                logger.debug(f"SVGHandler.log_step: step={step_num} computed_pair_index={task_pair_index} total_pairs={total_task_pairs}")
+
+            except Exception:
+                # Do not allow logging enrichment to raise - fall back to safe defaults
+                task_id = task_id or ""
+                task_pair_index = int(task_pair_index or 0)
+                total_task_pairs = int(total_task_pairs or 1)
+                logger.debug(f"SVGHandler.log_step (fallback): step={step_num} computed_pair_index={task_pair_index} total_pairs={total_task_pairs}")
 
             # Filter info dictionary to only include known visualization keys
             # This makes SVGHandler ignore unknown keys gracefully
             filtered_info = self._filter_info_for_visualization(info)
+
+            # Enrich filtered_info with commonly-expected metrics so older visualizations still display them.
+            try:
+                # Initialize enrichment placeholders
+                sim = None
+                sim_imp = None
+                step_ct = None
+                curr_pair = None
+
+                if isinstance(info, dict):
+                    # New format may nest metrics under 'metrics'
+                    metrics = info.get("metrics") if "metrics" in info else None
+                    if metrics is not None and isinstance(metrics, dict):
+                        sim = metrics.get("similarity", None)
+                        sim_imp = metrics.get("similarity_improvement", None)
+                    else:
+                        sim = info.get("similarity", None)
+                        sim_imp = info.get("similarity_improvement", None)
+
+                    # Common step/pair keys (try multiple aliases)
+                    step_ct = info.get("step_count", info.get("step", None))
+                    curr_pair = info.get("current_pair_index", info.get("pair_idx", info.get("task_pair_index", None)))
+                else:
+                    # object-like info (StepInfo or similar)
+                    try:
+                        metrics = getattr(info, "metrics", None)
+                        if metrics is not None:
+                            # metrics might be a dict-like or object
+                            if isinstance(metrics, dict):
+                                sim = metrics.get("similarity", getattr(info, "similarity", None))
+                                sim_imp = metrics.get("similarity_improvement", getattr(info, "similarity_improvement", None))
+                            else:
+                                sim = getattr(metrics, "similarity", getattr(info, "similarity", None))
+                                sim_imp = getattr(metrics, "similarity_improvement", getattr(info, "similarity_improvement", None))
+                        else:
+                            sim = getattr(info, "similarity", None)
+                            sim_imp = getattr(info, "similarity_improvement", None)
+                    except Exception:
+                        sim = getattr(info, "similarity", None)
+                        sim_imp = getattr(info, "similarity_improvement", None)
+
+                    step_ct = getattr(info, "step_count", getattr(info, "step", None))
+                    curr_pair = getattr(info, "current_pair_index", getattr(info, "pair_idx", getattr(info, "task_pair_index", None)))
+
+                # Coerce and attach to filtered_info with safe fallbacks
+                try:
+                    filtered_info["similarity"] = float(sim) if sim is not None else None
+                except Exception:
+                    filtered_info["similarity"] = None
+
+                try:
+                    filtered_info["similarity_improvement"] = float(sim_imp) if sim_imp is not None else None
+                except Exception:
+                    filtered_info["similarity_improvement"] = None
+
+                try:
+                    filtered_info["step_count"] = int(step_ct) if step_ct is not None else None
+                except Exception:
+                    filtered_info["step_count"] = None
+
+                try:
+                    filtered_info["current_pair_index"] = int(curr_pair) if curr_pair is not None else None
+                except Exception:
+                    filtered_info["current_pair_index"] = None
+            except Exception:
+                # Best-effort enrichment; do not fail visualization if enrichment fails
+                pass
 
             # Generate SVG content
             svg_content = draw_rl_step_svg_enhanced(

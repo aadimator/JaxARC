@@ -160,22 +160,40 @@ class WandbHandler:
             ):
                 metrics.update(step_data["info"]["metrics"])
 
-            # Add standard step metrics
-            if "reward" in step_data:
-                metrics["reward"] = step_data["reward"]
-            if "step_num" in step_data:
-                metrics["step"] = step_data["step_num"]
+            # Use shared coercion helper for scalar-like values so wandb receives plain Python scalars
+            from ..logging.logging_utils import to_python_scalar, to_python_float, to_python_int
 
-            # Add any other scalar metrics from the top level (excluding step_num since we use 'step')
+            # Add standard step metrics (coerced)
+            if "reward" in step_data:
+                r_val = to_python_scalar(step_data["reward"])
+                if isinstance(r_val, (int, float, bool)):
+                    # store as numeric float (bools converted to 0/1)
+                    metrics["reward"] = float(r_val) if not isinstance(r_val, bool) else float(int(r_val))
+                else:
+                    # fallback: keep original value
+                    metrics["reward"] = step_data["reward"]
+
+            if "step_num" in step_data:
+                s_val = to_python_scalar(step_data["step_num"])
+                if isinstance(s_val, (int, bool)):
+                    metrics["step"] = int(s_val)
+                elif isinstance(s_val, float):
+                    metrics["step"] = int(s_val)
+                else:
+                    # fallback: keep provided value
+                    metrics["step"] = step_data["step_num"]
+
+            # Add any other scalar-like top-level metrics (excluding large objects)
             for key, value in step_data.items():
-                if key not in [
-                    "info",
-                    "before_state",
-                    "after_state",
-                    "action",
-                    "step_num",
-                ] and isinstance(value, (int, float)):
-                    metrics[key] = value
+                if key in {"info", "before_state", "after_state", "action", "step_num"}:
+                    continue
+                v = to_python_scalar(value)
+                if isinstance(v, (int, float, bool)):
+                    metrics[key] = float(v) if not isinstance(v, bool) else float(int(v))
+                else:
+                    # If it wasn't coercible but was already a simple numeric type, record it
+                    if isinstance(value, (int, float, bool)):
+                        metrics[key] = float(value) if not isinstance(value, bool) else float(int(value))
 
             # Simple wandb.log() call - let wandb handle retries and errors
             # Always attempt log if we collected any metrics
@@ -254,19 +272,14 @@ class WandbHandler:
         try:
             # Normalize scalar-like values to Python floats for WandB
             normalized: dict[str, float] = {}
+            # Use shared coercion helper to normalize scalar-like metric values.
+            from ..logging.logging_utils import to_python_scalar
+
             for key, value in metrics.items():
-                v = value
-                # Convert JAX/NumPy scalars
-                if hasattr(v, "shape") and v.shape == ():
-                    v = v.item() if hasattr(v, "item") else v
-                if hasattr(v, "item"):
-                    with suppress(Exception):
-                        v = v.item()
+                v = to_python_scalar(value)
                 # Only keep scalar-like values
                 if isinstance(v, (bool, int, float)):
-                    normalized[key] = (
-                        float(v) if not isinstance(v, bool) else float(int(v))
-                    )
+                    normalized[key] = float(v) if not isinstance(v, bool) else float(int(v))
 
             # Ensure gradient norm is available under a common name if present
             if "gradient_norm" in normalized and "grad_norm" not in normalized:

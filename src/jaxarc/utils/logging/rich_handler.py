@@ -10,6 +10,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+# Use shared scalar coercion helpers so all handlers normalize JAX/NumPy scalars
+# in a consistent manner.
+from ..logging.logging_utils import to_python_scalar, to_python_float
+
 from ..visualization.rich_display import (
     visualize_grid_rich,
     visualize_parsed_task_data_rich,
@@ -127,6 +131,15 @@ class RichHandler:
     def _display_step_info(self, step_data: dict[str, Any]) -> None:
         step_num = step_data.get("step_num", 0)
         reward = step_data.get("reward", 0.0)
+        # Normalize reward to a host float when possible (handles JAX / numpy scalars)
+        try:
+            r_val = to_python_float(reward)
+            reward = float(r_val) if r_val is not None else float(reward)
+        except Exception:
+            try:
+                reward = float(reward)
+            except Exception:
+                reward = 0.0
         info = step_data.get("info")
         self.console.print(f"\n[bold blue]Step {step_num}[/bold blue]")
         reward_color = "green" if reward > 0 else "red" if reward < 0 else "yellow"
@@ -163,26 +176,26 @@ class RichHandler:
                 for key in ("success", "similarity_improvement", "similarity"):
                     if hasattr(info, key):
                         v = getattr(info, key)
-                        # Convert JAX array to Python scalar if necessary
-                        if hasattr(v, "item"):
-                            v = v.item()
-                        if isinstance(v, (int, float, bool)):
-                            self.console.print(
-                                f"  {key}: {v:.3f}"
-                                if isinstance(v, float)
-                                else f"  {key}: {v}"
-                            )
+                        # Use centralized coercion helper for consistency
+                        v_parsed = to_python_scalar(v)
+                        if isinstance(v_parsed, float):
+                            self.console.print(f"  {key}: {v_parsed:.3f}")
+                        elif isinstance(v_parsed, (int, bool)):
+                            self.console.print(f"  {key}: {v_parsed}")
                         else:
-                            self.console.print(f"  {key}: {v}")
+                            self.console.print(f"  {key}: {v_parsed}")
             # Fallback for dictionary-based info
             elif isinstance(info, dict):
                 if "metrics" in info and isinstance(info["metrics"], dict):
                     self.console.print("[bold]Metrics:[/bold]")
                     for k, v in info["metrics"].items():
-                        if isinstance(v, (int, float)):
-                            self.console.print(f"  {k}: {v:.3f}")
+                        v_parsed = to_python_scalar(v)
+                        if isinstance(v_parsed, float):
+                            self.console.print(f"  {k}: {v_parsed:.3f}")
+                        elif isinstance(v_parsed, (int, bool)):
+                            self.console.print(f"  {k}: {v_parsed}")
                         else:
-                            self.console.print(f"  {k}: {v}")
+                            self.console.print(f"  {k}: {v_parsed}")
 
         action = step_data.get("action")
         if action is not None:
