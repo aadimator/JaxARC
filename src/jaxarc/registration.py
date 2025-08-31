@@ -555,7 +555,7 @@ class EnvRegistry:
         try:
             ds = getattr(config, "dataset")
             dataset_path = getattr(ds, "dataset_path", "")
-            path = Path(dataset_path) if dataset_path else None
+            path = here(dataset_path) if dataset_path else None
         except Exception as e:
             logger.warning(f"Unable to access dataset configuration: {e}")
             return config
