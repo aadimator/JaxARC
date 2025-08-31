@@ -39,13 +39,13 @@ from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
 from jaxarc.envs.actions import StructuredAction, create_point_action
-from jaxarc.envs.wrapper import ArcEnv
-from jaxarc.parsers import MiniArcParser
-from jaxarc.state import ArcEnvState
+from jaxarc.state import State
+from jaxarc.types import TimeStep
 from jaxarc.utils.config import get_config
 from jaxarc.utils.logging import ExperimentLogger
+from jaxarc.registration import make
 from jaxarc.utils.serialization_utils import serialize_log_step
-
+from jaxarc.utils.logging.logging_utils import build_step_logging_payload, build_task_metadata_from_params, build_episode_summary_payload
 
 # --- 1. Agent Definition (Pure Functional Style) ---
 class AgentState(NamedTuple):
@@ -55,7 +55,7 @@ class AgentState(NamedTuple):
 
 
 def random_agent_policy(
-    state: ArcEnvState, key: jax.Array, config: JaxArcConfig
+    state: State, key: jax.Array, config: JaxArcConfig
 ) -> StructuredAction:
     """A pure function representing the policy of a random agent."""
     del state  # Unused for a random agent
@@ -119,29 +119,17 @@ def run_logging_showcase(config_overrides: list[str]):
 
     # --- Dataset and Environment Setup ---
     logger.info("Loading dataset and creating environment...")
-    parser = MiniArcParser(config.dataset)
-    # Use a fixed task for reproducibility of the showcase
-    task_id = parser.get_available_task_ids()[0]
-    task = parser.get_task_by_id(task_id)
-
-    env = ArcEnv(config, task_data=task, seed=42)
-    key = jax.random.PRNGKey(42)
+    env, env_params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", config=config)
+    key = jax.random.PRNGKey(1)
 
     # --- Run a Single Episode ---
     logger.info("Starting episode run...")
     start_time = time.time()
-    state, obs = env.reset(key)
+    timestep: TimeStep = env.reset(env_params, key=key)
 
     # Log task start
-    exp_logger.log_task_start(
-        {
-            "task_id": task_id,
-            "task_object": task,
-            "episode_num": 0,
-            "num_train_pairs": task.num_train_pairs,
-            "num_test_pairs": task.num_test_pairs,
-        }
-    )
+    metadata = build_task_metadata_from_params(env_params, timestep.state.task_idx)
+    exp_logger.log_task_start(metadata)
 
     done = False
     step_count = 0
@@ -150,30 +138,66 @@ def run_logging_showcase(config_overrides: list[str]):
 
     while not done:
         key, action_key = jax.random.split(key)
-        action = random_agent_policy(state, action_key, config)
+        action = random_agent_policy(timestep.state, action_key, config)
 
-        prev_state = state
-        state, obs, reward, done, info = env.step(state, action)
-        total_reward += reward
+        prev_state = timestep.state
+        timestep = env.step(env_params, timestep, action)
+        total_reward += timestep.reward
         step_count += 1
 
         # Prepare data for logging
-        step_data_for_log = {
-            "step_num": step_count,
-            "episode_num": 0,
-            "before_state": prev_state,
-            "after_state": state,
-            "action": action,
-            "reward": reward,
-            "info": info,
-            "task_id": task_id,
-            "task_pair_index": state.current_example_idx,
-            "total_task_pairs": state.task_data.num_train_pairs,
-        }
+        # Convert the (possibly JAX) step_count scalar to a host Python int where possible.
+        try:
+            step_num_val = int(timestep.state.step_count.item())
+        except Exception:
+            try:
+                step_num_val = int(timestep.state.step_count)
+            except Exception:
+                step_num_val = None
+
+        step_data_for_log = build_step_logging_payload(
+            before_state=prev_state,
+            after_state=timestep.state,
+            action=action,
+            reward=timestep.reward,
+            info={},
+            step_num=step_num_val,
+            episode_num=42,
+            params=env_params,  # optional; provide to include total_task_pairs
+            include_task_meta=True,
+            include_grids=False,  # don't attach full grids in this demo
+        )
+        # step_data_for_log = {
+        #     "step_num": step_count,
+        #     "episode_num": 0,
+        #     "before_state": prev_state,
+        #     "after_state": state,
+        #     "action": action,
+        #     "reward": reward,
+        #     "info": info,
+        #     "task_id": task_id,
+        #     "task_pair_index": state.current_example_idx,
+        #     "total_task_pairs": state.task_data.num_train_pairs,
+        # }
         episode_steps_data.append(step_data_for_log)
 
         # Log the step
         exp_logger.log_step(step_data_for_log)
+
+        # Update termination flag from the timestep (best-effort host-side conversion).
+        try:
+            # Prefer the TimeStep helper if available
+            done = bool(timestep.last())
+        except Exception:
+            try:
+                # Fallback: inspect step_type scalar (2 indicates LAST)
+                st = getattr(timestep, "step_type", None)
+                try:
+                    done = bool(int(st.item() == 2))
+                except Exception:
+                    done = bool(int(st == 2))
+            except Exception:
+                done = False
 
         # Stop if the episode is done
         if done:
@@ -183,22 +207,18 @@ def run_logging_showcase(config_overrides: list[str]):
     logger.info(f"Episode finished in {end_time - start_time:.2f} seconds.")
 
     # --- Log Episode Summary ---
-    summary_data = {
-        "episode_num": 0,
-        "total_steps": step_count,
-        "total_reward": total_reward,
-        "final_similarity": state.similarity_score,
-        "success": state.similarity_score >= 1.0,
-        "reward_progression": [step["reward"] for step in episode_steps_data],
-        "similarity_progression": [
-            step["after_state"].similarity_score for step in episode_steps_data
-        ],
-        "task_id": task_id,
-        "step_data": [
-            serialize_log_step(s) for s in episode_steps_data
-        ],  # For SVG summary
-    }
-    exp_logger.log_episode_summary(summary_data)
+    # Build a consistent episode summary payload using the logging utilities.
+    try:
+        summary_payload = build_episode_summary_payload(
+            episode_num=0,
+            step_data=episode_steps_data,
+            total_reward=total_reward,
+            params=env_params,
+            include_serialized_steps=True,
+        )
+        exp_logger.log_episode_summary(summary_payload)
+    except Exception as e:
+        logger.warning(f"Failed to build or log episode summary: {e}")
 
     # --- Clean Shutdown ---
     exp_logger.close()

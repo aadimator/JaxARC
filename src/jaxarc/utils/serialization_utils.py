@@ -117,7 +117,7 @@ def serialize_arc_state(state: State) -> dict[str, Any]:
         Dictionary with serialized state data
     """
     try:
-        return {
+        out = {
             # Core grid data
             "working_grid": serialize_jax_array(state.working_grid),
             "working_grid_mask": serialize_jax_array(state.working_grid_mask),
@@ -135,6 +135,27 @@ def serialize_arc_state(state: State) -> dict[str, Any]:
                 state.allowed_operations_mask
             ),
         }
+
+        # Task/pair tracking (if present on the state)
+        try:
+            if hasattr(state, "task_idx"):
+                out["task_idx"] = int(state.task_idx)
+            if hasattr(state, "pair_idx"):
+                out["pair_idx"] = int(state.pair_idx)
+        except Exception:
+            # best-effort extraction; ignore failures
+            pass
+
+        # Try to include human-readable task id when possible
+        try:
+            if hasattr(state, "task_idx"):
+                task_id = extract_task_id_from_index(state.task_idx)
+                out["task_id"] = task_id or f"task_{int(state.task_idx.item())}"
+        except Exception:
+            # Not critical; skip on failure
+            pass
+
+        return out
     except Exception as e:
         logger.warning(f"Failed to serialize State: {e}")
         return {}
@@ -239,18 +260,37 @@ def serialize_log_state(state: Any) -> dict[str, Any]:
                     array_value = getattr(state, field_name)
                     serialized_arrays[field_name] = serialize_jax_array(array_value)
 
-        # Extract task information using existing utilities
+        # Extract task information using the new task_idx/pair_idx fields when available
         task_info = {}
-        if hasattr(state, "task_data") and hasattr(state.task_data, "task_index"):
+        # Prefer explicit scalar fields on the state (task_idx / pair_idx)
+        if hasattr(state, "task_idx"):
             try:
-                # Use the canonical extract_task_id_from_index that takes JAX arrays
+                task_info["task_index"] = int(state.task_idx)
+                # Try to resolve human-readable task id
+                try:
+                    task_id = extract_task_id_from_index(state.task_idx)
+                    task_info["task_id"] = task_id or f"task_{int(state.task_idx.item())}"
+                except Exception:
+                    task_info["task_id"] = f"task_{int(state.task_idx.item())}"
+            except Exception as e:
+                logger.debug(f"Could not read state.task_idx: {e}")
+                task_info["task_index"] = -1
+
+        # Pair index (if present)
+        if hasattr(state, "pair_idx"):
+            try:
+                task_info["pair_idx"] = int(state.pair_idx)
+            except Exception:
+                task_info["pair_idx"] = -1
+
+        # Backwards compatibility: fall back to legacy state.task_data when present
+        if not task_info and hasattr(state, "task_data") and hasattr(state.task_data, "task_index"):
+            try:
                 task_id = extract_task_id_from_index(state.task_data.task_index)
-                task_info["task_id"] = (
-                    task_id or f"task_{int(state.task_data.task_index.item())}"
-                )
+                task_info["task_id"] = task_id or f"task_{int(state.task_data.task_index.item())}"
                 task_info["task_index"] = int(state.task_data.task_index.item())
             except Exception as e:
-                logger.debug(f"Could not extract task info: {e}")
+                logger.debug(f"Could not extract legacy task info: {e}")
                 task_info["task_index"] = -1
 
         # Combine serialized data
@@ -261,7 +301,8 @@ def serialize_log_state(state: Any) -> dict[str, Any]:
             "step_count": getattr(state, "step_count", 0),
             "episode_done": getattr(state, "episode_done", False),
             "similarity_score": getattr(state, "similarity_score", 0.0),
-            "current_example_idx": getattr(state, "current_example_idx", 0),
+            # Prefer pair_idx if available for current example index
+            "current_example_idx": int(getattr(state, "pair_idx", getattr(state, "current_example_idx", 0))),
         }
 
     except Exception as e:

@@ -174,6 +174,8 @@ def _create_initial_state(
     selected_pair_idx: jnp.ndarray,
     episode_mode: int,
     key: PRNGKey,
+    task_idx: jnp.ndarray,
+    pair_idx: jnp.ndarray,
 ) -> State:
     """Create initial state - focused helper function.
 
@@ -188,27 +190,14 @@ def _create_initial_state(
         initial_mask: Boolean mask for valid grid cells
         selected_pair_idx: Index of the currently selected pair
         episode_mode: Episode mode (0=train, 1=test)
-        config: Environment configuration for state initialization parameters
+        key: PRNG key for randomness during state initialization
+        task_idx: Scalar task index into EnvParams.buffer identifying active task
+        pair_idx: Scalar pair index within the selected task
 
     Returns:
         State: Complete initial environment state with all fields properly
-                    initialized including action history, completion tracking,
-                    and operation masks.
-
-    Examples:
-        ```python
-        # Create initial state for training
-        state = _create_initial_state(task, grid, target, mask, target_mask, idx, 0, config)
-
-        # Create initial state for testing
-        state = _create_initial_state(
-            task, grid, masked_target, mask, empty_mask, idx, 1, config
-        )
-        ```
-
-    Note:
-        Initializes enhanced features like action history storage, completion
-        status tracking, and dynamic operation control for full functionality.
+               initialized including action history, completion tracking,
+               and operation masks.
     """
     # Calculate initial similarity (will be 0.0 in test mode due to masked target)
     initial_similarity = compute_grid_similarity(
@@ -220,6 +209,7 @@ def _create_initial_state(
     # Initialize allowed operations mask (all operations allowed by default)
     allowed_operations_mask = jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_)
 
+    # Create initial state with simplified fields and task/pair tracking
     # Create initial state with simplified fields
     return State(
         working_grid=initial_grid,
@@ -231,6 +221,8 @@ def _create_initial_state(
         selected=jnp.zeros_like(initial_grid, dtype=jnp.bool_),
         clipboard=jnp.zeros_like(initial_grid, dtype=jnp.int32),
         step_count=jnp.array(0, dtype=jnp.int32),
+        task_idx=task_idx,
+        pair_idx=pair_idx,
         allowed_operations_mask=allowed_operations_mask,
         similarity_score=jnp.asarray(initial_similarity, dtype=jnp.float32),
         key=key,
@@ -291,13 +283,13 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
         input_masks_examples=single.input_masks_examples,
         output_grids_examples=single.output_grids_examples,
         output_masks_examples=single.output_masks_examples,
-        num_train_pairs=0,
+        num_train_pairs=single.num_train_pairs,
         test_input_grids=single.test_input_grids,
         test_input_masks=single.test_input_masks,
         true_test_output_grids=single.true_test_output_grids,
         true_test_output_masks=single.true_test_output_masks,
-        num_test_pairs=0,
-        task_index=jnp.asarray(0, dtype=jnp.int32),
+        num_test_pairs=single.num_test_pairs,
+        task_index=single.task_index,
     )
 
     # Initialize grids/masks using dataset and initialization settings
@@ -310,6 +302,7 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
         initial_pair_idx=None,
     )
 
+    # Build initial state with dynamic fields initialized (include task/pair tracking)
     # Build initial state with dynamic fields initialized
     state = _create_initial_state(
         task_data=task_data,
@@ -322,6 +315,8 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
         selected_pair_idx=selected_pair_idx,
         episode_mode=int(params.episode_mode),
         key=key_init,
+        task_idx=task_idx,
+        pair_idx=pair_idx,
     )
 
     # Create initial observation

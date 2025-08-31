@@ -7,9 +7,10 @@ objects, using the core PyTree utilities where possible.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Tuple, Any
 
 import equinox as eqx
+import jax
 import jax.numpy as jnp
 
 from ..state import State
@@ -84,19 +85,82 @@ def update_similarity_score(state: State, score: SimilarityScore) -> State:
 def create_state_template(
     grid_shape: Tuple[int, int],
 ) -> State:
-    """Create a template ArcEnvState aligned with simplified state layout."""
+    """Create a template ArcEnvState aligned with simplified state layout.
+
+    This template now populates the explicit `input_grid`/`input_grid_mask`
+    fields as well as `task_idx`/`pair_idx` so that created states match the
+    updated `State` signature.
+    """
     height, width = grid_shape
     return State(
+        # Core grids
         working_grid=jnp.zeros((height, width), dtype=jnp.int32),
         working_grid_mask=jnp.ones((height, width), dtype=jnp.bool_),
+        # Provide sensible defaults for input/target (same shape as working grid)
+        input_grid=jnp.zeros((height, width), dtype=jnp.int32),
+        input_grid_mask=jnp.ones((height, width), dtype=jnp.bool_),
         target_grid=jnp.zeros((height, width), dtype=jnp.int32),
         target_grid_mask=jnp.ones((height, width), dtype=jnp.bool_),
+        # Grid operation helpers
         selected=jnp.zeros((height, width), dtype=jnp.bool_),
         clipboard=jnp.zeros((height, width), dtype=jnp.int32),
+        # Episode progress and tracking
         step_count=jnp.array(0, dtype=jnp.int32),
+        # Task/pair tracking (defaults: unknown task, pair 0)
+        task_idx=jnp.array(-1, dtype=jnp.int32),
+        pair_idx=jnp.array(0, dtype=jnp.int32),
+        # Dynamic action mask and scoring
         allowed_operations_mask=jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_),
         similarity_score=jnp.array(0.0, dtype=jnp.float32),
+        # PRNG key placeholder
         key=jnp.array([0, 0], dtype=jnp.int32),
+    )
+
+
+# -------------------------------------------------------------------------
+# Helpers for extracting task / pair data from an EnvParams buffer
+# -------------------------------------------------------------------------
+
+
+
+def get_pair_from_task(
+    task_data: Any, pair_idx: jnp.ndarray, episode_mode: int
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Extract input and target grids (and their masks) for the given pair index.
+
+    Supports both train (demo) and test modes. In test mode the returned target is
+    masked (background) consistent with evaluation behavior.
+
+    Args:
+        task_data: A JaxArcTask-like pytree (with fields for train/test arrays).
+        pair_idx: Scalar JAX integer selecting the pair within the task.
+        episode_mode: 0 for training (use demo outputs), 1 for test (mask target).
+
+    Returns:
+        (input_grid, input_mask, target_grid, target_mask)
+    """
+    # Train-mode accessors
+    def train_pair():
+        input_grid = task_data.input_grids_examples[pair_idx]
+        input_mask = task_data.input_masks_examples[pair_idx]
+        target_grid = task_data.output_grids_examples[pair_idx]
+        target_mask = task_data.output_masks_examples[pair_idx]
+        return input_grid, input_mask, target_grid, target_mask
+
+    # Test-mode accessors
+    def test_pair():
+        input_grid = task_data.test_input_grids[pair_idx]
+        input_mask = task_data.test_input_masks[pair_idx]
+        # Masked target: fill with background and zero mask
+        background = getattr(task_data, "background_color", 0)
+        target_grid = jnp.full_like(input_grid, background)
+        target_mask = jnp.zeros_like(input_mask)
+        return input_grid, input_mask, target_grid, target_mask
+
+    return jax.lax.cond(
+        jnp.asarray(episode_mode, dtype=jnp.int32) == jnp.asarray(0, dtype=jnp.int32),
+        train_pair,
+        test_pair,
     )
 
 

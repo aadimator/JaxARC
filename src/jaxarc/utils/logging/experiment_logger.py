@@ -1,9 +1,9 @@
 """Central logging coordinator for JaxARC experiments.
 
 This module provides the ExperimentLogger class, which serves as the central
-coordinator for all logging operations in JaxARC. It manages a set of focused
-handlers for different logging concerns (file, SVG, console, wandb) and provides
-error isolation between handlers.
+coordinator for all logging operations in JaxARC. It manages a set of handlers
+for different logging concerns (file, SVG, console, wandb) and provides error
+isolation between handlers.
 
 The ExperimentLogger follows the design principles:
 - Single entry point for all logging operations
@@ -18,8 +18,14 @@ from __future__ import annotations
 from typing import Any
 
 from loguru import logger
-
 from jaxarc.configs import JaxArcConfig
+from jaxarc.utils.task_manager import extract_task_id_from_index, get_task_id_globally
+import re
+from jaxarc.utils.logging.logging_utils import (
+    build_task_metadata_from_params,
+    to_python_int,
+    to_python_scalar,
+)
 
 
 class ExperimentLogger:
@@ -36,40 +42,6 @@ class ExperimentLogger:
     Attributes:
         config: JaxARC configuration object
         handlers: Dictionary of active handler instances
-
-    Examples:
-        ```python
-        from jaxarc.utils.logging import ExperimentLogger
-        from jaxarc.configs import JaxArcConfig
-
-        # Initialize logger with configuration
-        config = JaxArcConfig(...)
-        logger = ExperimentLogger(config)
-
-        # Log step data
-        step_data = {
-            "step_num": 1,
-            "before_state": state,
-            "after_state": new_state,
-            "action": action,
-            "reward": 0.5,
-            "info": {"metrics": {"similarity": 0.8}},
-        }
-        logger.log_step(step_data)
-
-        # Log episode summary
-        summary_data = {
-            "episode_num": 1,
-            "total_steps": 50,
-            "total_reward": 10.0,
-            "final_similarity": 0.95,
-            "success": True,
-        }
-        logger.log_episode_summary(summary_data)
-
-        # Clean shutdown
-        logger.close()
-        ```
     """
 
     def __init__(self, config: JaxArcConfig):
@@ -81,6 +53,13 @@ class ExperimentLogger:
         self.config = config
         self.handlers = self._initialize_handlers()
         self._episode_counter = 0  # Sequential episode counter for batched logging
+        # Preferred episode number (filled by log_task_start or left None). When set,
+        # steps missing an explicit episode_num will be logged into this episode.
+        self._preferred_episode_num: int | None = None
+        # Pending task start payload saved when caller asks to log task start but
+        # doesn't yet provide an episode_num. This will be flushed when the first
+        # step with an episode_num arrives.
+        self._pending_task_start: dict[str, Any] | None = None
 
         logger.info(f"ExperimentLogger initialized with {len(self.handlers)} handlers")
 
@@ -93,7 +72,7 @@ class ExperimentLogger:
         Returns:
             Dictionary mapping handler names to handler instances
         """
-        handlers = {}
+        handlers: dict[str, Any] = {}
 
         # Get debug level from environment config
         debug_level = "off"
@@ -153,11 +132,7 @@ class ExperimentLogger:
 
         Returns:
             FileHandler instance
-
-        Raises:
-            ImportError: If FileHandler cannot be imported
         """
-        # Import here to avoid circular imports and allow graceful fallback
         from .file_handler import FileHandler
 
         return FileHandler(self.config)
@@ -167,11 +142,7 @@ class ExperimentLogger:
 
         Returns:
             SVGHandler instance
-
-        Raises:
-            ImportError: If SVGHandler cannot be imported
         """
-        # Import here to avoid circular imports and allow graceful fallback
         from .svg_handler import SVGHandler
 
         return SVGHandler(self.config)
@@ -181,11 +152,7 @@ class ExperimentLogger:
 
         Returns:
             RichHandler instance
-
-        Raises:
-            ImportError: If RichHandler cannot be imported
         """
-        # Import here to avoid circular imports and allow graceful fallback
         from .rich_handler import RichHandler
 
         return RichHandler(self.config)
@@ -195,11 +162,7 @@ class ExperimentLogger:
 
         Returns:
             WandbHandler instance
-
-        Raises:
-            ImportError: If WandbHandler cannot be imported
         """
-        # Import here to avoid circular imports and allow graceful fallback
         from .wandb_handler import WandbHandler
 
         return WandbHandler(self.config.wandb)
@@ -220,10 +183,182 @@ class ExperimentLogger:
                 - reward: Reward received
                 - info: Additional information including metrics
         """
+        # Best-effort enrichment of step_data with task/pair context to support
+        # visualization and logging handlers that expect task metadata.
+        before_state = step_data.get("before_state")
+        after_state = step_data.get("after_state")
+
+        task_idx = None
+        pair_idx = None
+        task_id = None
+        total_task_pairs = None
+
+        def _as_int(x):
+            # Delegate scalar coercion to shared helper that handles numpy/jax scalars.
+            # Keeps the original semantics but centralizes coercion logic.
+            try:
+                return to_python_int(x)
+            except Exception:
+                return None
+
+        try:
+            # Prefer before_state for stable attribution, fall back to after_state
+            if before_state is not None and hasattr(before_state, "task_idx"):
+                task_idx = before_state.task_idx
+            elif after_state is not None and hasattr(after_state, "task_idx"):
+                task_idx = after_state.task_idx
+
+            if before_state is not None and hasattr(before_state, "pair_idx"):
+                pair_idx = before_state.pair_idx
+            elif after_state is not None and hasattr(after_state, "pair_idx"):
+                pair_idx = after_state.pair_idx
+
+            # Resolve a human-readable task id if possible.
+            # Try the canonical extractor first; if that fails, fall back to the
+            # global task manager using a plain Python int index.
+            if task_idx is not None:
+                try:
+                    # Prefer the array-aware extractor which may return the original string id.
+                    task_id = extract_task_id_from_index(task_idx)
+                except Exception:
+                    task_id = None
+
+                # If extractor returned None, try the global manager using a python int index.
+                if task_id is None:
+                    try:
+                        iid = _as_int(task_idx)
+                        if iid is not None:
+                            task_id = get_task_id_globally(iid)
+                        else:
+                            task_id = None
+                    except Exception:
+                        task_id = None
+
+            # Do not attempt to extract params or inspect params.buffer here.
+            # The caller must provide any task-level metadata in step_data.
+            total_task_pairs = None
+        except Exception:
+            # Best-effort only; do not allow logging enrichment to raise
+            task_idx = task_idx  # no-op to clarify we intentionally ignore errors
+
+        # Build enhanced step_data passed to handlers (preserve original keys)
+        enhanced_step_data = dict(step_data)
+
+        # Handle payload task id vs resolved task id with simplified rules:
+        # - If the caller provided an explicit task_id that is non-synthetic, prefer it.
+        # - If caller provided a synthetic label like "task_<n>", prefer a resolved task_id
+        #   from state/manager when available; otherwise keep the synthetic label.
+        # - If caller did not provide a task_id, use the resolved task_id when available.
+        payload_task_id = step_data.get("task_id", None)
+        resolved_task_id = task_id  # best-effort resolved from state above
+
+        try:
+            is_synthetic = False
+            if isinstance(payload_task_id, str):
+                # Simple synthetic pattern check: task_<digits>
+                if re.match(r"^task_\d+$", payload_task_id):
+                    is_synthetic = True
+
+            final_task_id = None
+            if payload_task_id is not None:
+                # If payload provided a non-synthetic id, prefer it
+                if isinstance(payload_task_id, str) and not is_synthetic:
+                    final_task_id = payload_task_id
+                else:
+                    # payload is synthetic or not a string; prefer resolved id if we have one
+                    final_task_id = resolved_task_id or payload_task_id
+            else:
+                # No payload task id provided; use resolved id if available, otherwise None
+                final_task_id = resolved_task_id
+
+            enhanced_step_data["task_id"] = final_task_id
+        except Exception:
+            # Be defensive: ensure we always set the key even on error
+            enhanced_step_data["task_id"] = step_data.get("task_id", None)
+
+        try:
+            # Accept several possible payload keys for pair index, prefer explicit ones.
+            if "task_pair_index" in step_data:
+                enhanced_step_data["task_pair_index"] = to_python_int(
+                    step_data.get("task_pair_index")
+                )
+            elif "task_pair_idx" in step_data:
+                enhanced_step_data["task_pair_index"] = to_python_int(
+                    step_data.get("task_pair_idx")
+                )
+            else:
+                enhanced_step_data["task_pair_index"] = (
+                    to_python_int(pair_idx) if pair_idx is not None else None
+                )
+
+            # Prefer the pre-selected scalar total when available; otherwise fall back
+            # to any legacy container or the computed best-effort value.
+            enhanced_step_data["total_task_pairs"] = step_data.get(
+                "total_task_pairs", total_task_pairs
+            )
+            # Also allow an explicit scalar chosen by the payload builder.
+            # Coerce if it's a scalar-like value, otherwise leave dicts unchanged.
+            raw_selected = step_data.get("total_task_pairs_selected", None)
+            enhanced_step_data["total_task_pairs_selected"] = (
+                to_python_int(raw_selected)
+                if raw_selected is not None
+                else None
+            )
+
+        except Exception:
+            # If enrichment fails, preserve original step_data keys as-is
+            pass
+
+        # Normalize provided episode_num when present; otherwise apply preferred episode
+        # from a prior `log_task_start` call. This ensures steps and task visuals land
+        # in the same episode directory and that episode numbers are host Python ints.
+        try:
+            # Prefer a previously-declared preferred episode number (from log_task_start)
+            # so steps and task visuals are placed consistently in the same episode
+            # directory. If no preferred episode is set, fall back to the step-provided
+            # episode_num when available.
+            pref = getattr(self, "_preferred_episode_num", None)
+            if pref is not None:
+                enhanced_step_data["episode_num"] = int(pref)
+            elif "episode_num" in step_data and step_data.get("episode_num") is not None:
+                coerced = to_python_int(step_data.get("episode_num"))
+                if coerced is not None:
+                    enhanced_step_data["episode_num"] = int(coerced)
+        except Exception:
+            # Be defensive: leave payload unchanged on error
+            pass
+
+        # If we have a pending task_start that we deferred earlier because there was
+        # no episode_num, flush it now that we know which episode to place the task overview in.
+        try:
+            pending = getattr(self, "_pending_task_start", None)
+            ep_for_pending = enhanced_step_data.get("episode_num", None)
+            if pending is not None and ep_for_pending is not None:
+                try:
+                    pending_payload = dict(pending)
+                    # Attach resolved episode number
+                    pending_payload["episode_num"] = int(ep_for_pending)
+                    # Ensure handlers receive any params present on the step payload if not already set
+                    if "params" not in pending_payload and "params" in enhanced_step_data:
+                        pending_payload["params"] = enhanced_step_data.get("params")
+                    for handler_name, handler in self.handlers.items():
+                        try:
+                            if hasattr(handler, "log_task_start"):
+                                handler.log_task_start(pending_payload)
+                        except Exception as e:
+                            logger.warning(f"Handler {handler_name} failed in deferred log_task_start: {e}")
+                finally:
+                    # Clear the pending payload after attempting flush (best-effort)
+                    self._pending_task_start = None
+        except Exception:
+            # Never allow pending flush to raise and disrupt step logging
+            logger.debug("Deferred task start flush failed; continuing")
+
         for handler_name, handler in self.handlers.items():
             try:
                 if hasattr(handler, "log_step"):
-                    handler.log_step(step_data)
+                    # Pass enriched data so visualization handlers can render useful context
+                    handler.log_step(enhanced_step_data)
             except Exception as e:
                 # Log error but continue with other handlers
                 logger.warning(f"Handler {handler_name} failed in log_step: {e}")
@@ -245,8 +380,26 @@ class ExperimentLogger:
                 - task_stats: Additional task statistics
             show_test: Whether to show test examples in visualizations (default: True)
         """
-        # Add show_test parameter to task_data for handlers
-        enhanced_task_data = {**task_data, "show_test": show_test}
+        # Compute episode number preference for task visuals.
+        # Historically many callers expect a simple `episode_0000` when they only call
+        # log_task_start(metadata) without an explicit episode number. Defaulting to 0
+        # in that case produces better, predictable outputs (a single run/episode dir).
+        raw_ep = task_data.get("episode_num", None)
+        if raw_ep is not None:
+            ep_num = to_python_int(raw_ep)
+        else:
+            # Default to episode 0 when caller didn't supply an episode number.
+            ep_num = 0
+
+        # Remember the preferred episode so subsequent steps that omit episode_num
+        # will be logged into the same episode directory.
+        try:
+            self._preferred_episode_num = to_python_int(ep_num)
+        except Exception:
+            self._preferred_episode_num = None
+
+        # Add show_test and explicit episode_num (might be None) so handlers behave consistently.
+        enhanced_task_data = {**task_data, "show_test": show_test, "episode_num": ep_num}
 
         for handler_name, handler in self.handlers.items():
             try:
@@ -266,7 +419,7 @@ class ExperimentLogger:
         Args:
             summary_data: Dictionary containing episode summary with keys:
                 - episode_num: Episode number
-                - total_steps: Total steps in episode
+                - total_steps: Total number of steps
                 - total_reward: Total reward accumulated
                 - final_similarity: Final similarity score
                 - success: Whether episode was successful
@@ -332,15 +485,8 @@ class ExperimentLogger:
         ``log_evaluation_summary``; handlers lacking the method are skipped
         gracefully.
 
-                Args:
-                        eval_data: Dictionary containing evaluation summary. Recommended keys:
-                                - task_id: Identifier of the evaluated task (if single task)
-                                - success_rate: Float success rate across evaluation episodes
-                                - average_episode_length: Mean episode length
-                                - num_timeouts: Number of timed-out episodes
-                                - test_results: List of per-episode / per-pair result dicts. Each
-                                    dict may optionally contain a 'trajectory' key with a list of
-                                    step tuples e.g. (before_state, action, after_state, info).
+        Args:
+            eval_data: Dictionary containing evaluation summary.
         """
         for handler_name, handler in self.handlers.items():
             try:
