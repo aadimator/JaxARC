@@ -20,9 +20,8 @@ from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
 from jaxarc.envs.actions import StructuredAction, create_bbox_action
-from jaxarc.envs.wrapper import ArcEnv
-from jaxarc.parsers import MiniArcParser
-from jaxarc.types import JaxArcTask
+from jaxarc.registration import make
+from jaxarc.types import TimeStep
 from jaxarc.utils.config import get_config
 
 console = Console()
@@ -101,7 +100,8 @@ def random_agent_policy(
 # ---
 def make_train(
     config: JaxArcConfig,
-    task: JaxArcTask,
+    env,
+    env_params,
     num_envs: int,
     num_steps: int,
     num_updates: int,
@@ -109,9 +109,16 @@ def make_train(
     """
     A factory function that creates the single, JIT-compiled training function.
     This is the core of the PureJaxRL pattern.
+
+    Notes:
+    - The new registration-based API returns an (env, env_params) pair and the
+      environment's core methods follow the TimeStep-based signature:
+        timestep = env.reset(env_params, key)
+        timestep = env.step(env_params, timestep, action)
+    - We accept `env` and `env_params` here so the training factory simply closes
+      over them and remains JIT-friendly.
     """
-    # The environment is instantiated once here and "closed over" by the train function.
-    env = ArcEnv(config, num_envs=num_envs, task_data=task)
+    # The environment and env_params are provided by the caller and closed over.
 
     def train(key: jax.Array):
         """
@@ -126,10 +133,16 @@ def make_train(
 
         # Initialize the environments
         key, reset_key = jr.split(key)
-        env_state, obs = env.reset(reset_key)
-
+        # New TimeStep-based API: reset returns a TimeStep object that embeds state+obs.
+        # Support multiple parallel envs by vmapping reset when num_envs > 1.
+        if num_envs > 1:
+            reset_keys = jr.split(reset_key, num_envs)
+            timesteps = jax.vmap(env.reset, in_axes=(None, 0))(env_params, reset_keys)
+        else:
+            timesteps = env.reset(env_params, reset_key)
         # The `runner_state` is the collection of all states that change over the training loop.
-        runner_state = (agent_params, env_state, obs, key)
+        # We pack the whole TimeStep rather than separate env_state/obs tuples.
+        runner_state = (agent_params, timesteps, key)
 
         # --- 2. THE TRAINING LOOP (as a scan) ---
         def _update_step(runner_state, _):
@@ -137,39 +150,40 @@ def make_train(
             This function represents one update step of the RL algorithm (e.g., one PPO update).
             It contains the environment rollout and the agent learning step.
             """
-            agent_params, env_state, obs, key = runner_state
+            agent_params, timestep, key = runner_state
 
             # A. THE ROLLOUT PHASE
             def _env_step_body(carry, _):
-                prev_env_state, prev_obs, key = carry
+                prev_timestep, key = carry
                 key, action_key = jr.split(key)
 
-                # Get actions from the agent's policy
+                # Get actions from the agent's policy using the timestep.observation
                 actions = random_agent_policy(
-                    agent_params, prev_obs, action_key, config
+                    agent_params, prev_timestep.observation, action_key, config
                 )
 
-                # Step the environments
-                next_env_state, next_obs, rewards, dones, infos = env.step(
-                    prev_env_state, actions
-                )
+                # Step the environment using the TimeStep-based API (vectorized when requested)
+                if num_envs > 1:
+                    next_timestep = jax.vmap(env.step, in_axes=(None, 0, 0))(env_params, prev_timestep, actions)
+                else:
+                    next_timestep = env.step(env_params, prev_timestep, actions)
 
                 # In a real agent, you would store the full transition for learning.
                 # For this random agent, we only care about the reward.
-                return (next_env_state, next_obs, key), rewards
+                return (next_timestep, key), next_timestep.reward
 
             # Run the rollout for a fixed number of steps using lax.scan
             key, rollout_key = jr.split(key)
-            (final_env_state, final_obs, _), collected_rewards = jax.lax.scan(
-                _env_step_body, (env_state, obs, rollout_key), None, length=num_steps
+            (final_timestep, _), collected_rewards = jax.lax.scan(
+                _env_step_body, (timestep, rollout_key), None, length=num_steps
             )
 
             # B. THE AGENT UPDATE PHASE
             # In a real agent, you would use the `collected_transitions` to calculate the loss
             # and update the agent_params. For a random agent, this is a no-op.
 
-            # Pack the state for the next update iteration
-            new_runner_state = (agent_params, final_env_state, final_obs, key)
+            # Pack the state for the next update iteration (keep the final TimeStep)
+            new_runner_state = (agent_params, final_timestep, key)
 
             # Return metrics from this update step
             metrics = {"mean_reward": jnp.mean(collected_rewards)}
@@ -200,9 +214,14 @@ def main():
     config = setup_configuration()
 
     # --- Dataset Loading ---
-    parser = MiniArcParser(config.dataset)
-    task_id = parser.get_available_task_ids()[0]
-    task = parser.get_task_by_id(task_id)
+    # Use the registration-based factory to construct an env and env_params for the chosen task.
+    # Let the parser/registry handle buffering and EnvParams construction.
+    # Pick a single available Mini task via the registry helper.
+    from jaxarc.registration import available_task_ids
+
+    available_ids = available_task_ids("Mini", config=config, auto_download=False)
+    task_id = available_ids[0]
+    env, env_params = make(f"Mini-{task_id}", config=config)
 
     console.rule("[bold yellow]JaxARC High-Performance Demo (PureJaxRL Style)")
     console.print(
@@ -217,7 +236,8 @@ def main():
     )
 
     # --- Create and Compile the Training Function ---
-    train_fn = make_train(config, task, num_envs, num_steps, num_updates)
+    # Pass the constructed env and env_params into the training factory.
+    train_fn = make_train(config, env, env_params, num_envs, num_steps, num_updates)
 
     # --- WARMUP (First call triggers JIT compilation) ---
     logger.info("Starting JIT compilation (this may take a moment)...")
