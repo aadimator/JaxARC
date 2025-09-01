@@ -39,13 +39,18 @@ from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
 from jaxarc.envs.actions import StructuredAction, create_point_action
+from jaxarc.registration import make
 from jaxarc.state import State
 from jaxarc.types import TimeStep
 from jaxarc.utils.config import get_config
 from jaxarc.utils.logging import ExperimentLogger
-from jaxarc.registration import make
+from jaxarc.utils.logging.logging_utils import (
+    build_episode_summary_payload,
+    build_step_logging_payload,
+    extract_task_for_logging,
+)
 from jaxarc.utils.serialization_utils import serialize_log_step
-from jaxarc.utils.logging.logging_utils import build_step_logging_payload, build_task_metadata_from_params, build_episode_summary_payload
+
 
 # --- 1. Agent Definition (Pure Functional Style) ---
 class AgentState(NamedTuple):
@@ -127,8 +132,8 @@ def run_logging_showcase(config_overrides: list[str]):
     start_time = time.time()
     timestep: TimeStep = env.reset(env_params, key=key)
 
-    # Log task start
-    metadata = build_task_metadata_from_params(env_params, timestep.state.task_idx)
+    # Extract complete task data for logging
+    metadata = extract_task_for_logging(env_params, state=timestep.state)
     exp_logger.log_task_start(metadata)
 
     done = False

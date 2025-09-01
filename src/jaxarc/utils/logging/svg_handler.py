@@ -117,7 +117,7 @@ class SVGHandler:
             return
 
         try:
-            episode_num = task_data.get("episode_num", None)
+            episode_num = task_data.get("episode_num")
             task_object = task_data.get("task_object")
             show_test = task_data.get("show_test", True)
 
@@ -131,6 +131,7 @@ class SVGHandler:
             # Prefer values supplied in task_data (from build_task_metadata_from_params)
             # and fall back to attributes on the parsed task_object when available.
             try:
+
                 def _to_int_safe(v):
                     try:
                         if v is None:
@@ -142,22 +143,34 @@ class SVGHandler:
                         return None
 
                 # Prefer explicit counts attached to task_data when available
-                num_train = task_data.get("num_train_pairs", None)
-                num_test = task_data.get("num_test_pairs", None)
+                num_train = task_data.get("num_train_pairs")
+                num_test = task_data.get("num_test_pairs")
 
                 # Fallback to attributes or dict keys on task_object if task_data did not provide them
                 if num_train is None and task_object is not None:
                     # Support both object-like and dict-like task_object shapes
                     if isinstance(task_object, dict):
                         # accept several common key names used by parsers/structures
-                        num_train = task_object.get("num_train_pairs", task_object.get("num_train", None))
+                        num_train = task_object.get(
+                            "num_train_pairs", task_object.get("num_train", None)
+                        )
                     else:
-                        num_train = getattr(task_object, "num_train_pairs", getattr(task_object, "num_train", None))
+                        num_train = getattr(
+                            task_object,
+                            "num_train_pairs",
+                            getattr(task_object, "num_train", None),
+                        )
                 if num_test is None and task_object is not None:
                     if isinstance(task_object, dict):
-                        num_test = task_object.get("num_test_pairs", task_object.get("num_test", None))
+                        num_test = task_object.get(
+                            "num_test_pairs", task_object.get("num_test", None)
+                        )
                     else:
-                        num_test = getattr(task_object, "num_test_pairs", getattr(task_object, "num_test", None))
+                        num_test = getattr(
+                            task_object,
+                            "num_test_pairs",
+                            getattr(task_object, "num_test", None),
+                        )
 
                 self.current_task_pairs = {
                     "train": _to_int_safe(num_train),
@@ -165,17 +178,26 @@ class SVGHandler:
                 }
 
                 # Prefer explicit task_id provided in task_data; otherwise try task_object in multiple forms
-                tid = task_data.get("task_id", None)
+                tid = task_data.get("task_id")
                 if tid is None and task_object is not None:
                     try:
                         if isinstance(task_object, dict):
                             # common id fields used by different parsers
-                            tid = task_object.get("task_id", task_object.get("id", task_object.get("task_index", None)))
+                            tid = task_object.get(
+                                "task_id",
+                                task_object.get(
+                                    "id", task_object.get("task_index", None)
+                                ),
+                            )
                         elif hasattr(task_object, "get_task_id"):
                             tid = task_object.get_task_id()
                         else:
                             # fallback to attribute-style access
-                            tid = getattr(task_object, "task_id", getattr(task_object, "task_index", None))
+                            tid = getattr(
+                                task_object,
+                                "task_id",
+                                getattr(task_object, "task_index", None),
+                            )
                     except Exception:
                         tid = None
                 self.current_task_id = tid
@@ -202,11 +224,14 @@ class SVGHandler:
                         train_ct = self.current_task_pairs.get("train")
                         test_ct = self.current_task_pairs.get("test")
                     else:
-                        train_ct = task_data.get("num_train_pairs", None)
-                        test_ct = task_data.get("num_test_pairs", None)
+                        train_ct = task_data.get("num_train_pairs")
+                        test_ct = task_data.get("num_test_pairs")
 
                     # Determine a safe target directory: prefer current episode dir, then run dir
-                    target_dir = self.episode_manager.current_episode_dir or self.episode_manager.current_run_dir
+                    target_dir = (
+                        self.episode_manager.current_episode_dir
+                        or self.episode_manager.current_run_dir
+                    )
                     if target_dir is None:
                         # Fallback: use base run path from episode manager info
                         info = self.episode_manager.get_current_run_info()
@@ -220,12 +245,12 @@ class SVGHandler:
                     train_str = str(train_ct) if train_ct is not None else "?"
                     test_str = str(test_ct) if test_ct is not None else "?"
 
-                    svg_str = f'''<svg xmlns="http://www.w3.org/2000/svg" width="500" height="120">
+                    svg_str = f"""<svg xmlns="http://www.w3.org/2000/svg" width="500" height="120">
   <rect width="100%" height="100%" fill="white"/>
   <text x="20" y="28" font-size="18" font-family="Arial" fill="#222">Task Overview</text>
   <text x="20" y="54" font-size="14" font-family="Arial" fill="#111">Task ID: {task_id_str}</text>
   <text x="20" y="80" font-size="12" font-family="Arial" fill="#111">Train pairs: {train_str}  Test pairs: {test_str}</text>
-</svg>'''
+</svg>"""
 
                     with out_path.open("w", encoding="utf-8") as f:
                         f.write(svg_str)
@@ -235,12 +260,36 @@ class SVGHandler:
                     logger.error(f"Failed to save minimal task overview SVG: {e}")
                 return
 
-            # Defer rendering until we adapt dict-like task objects below.
-            # The adapted rendering (which handles dicts by providing attribute access
-            # and small adapters) happens later in this function.
-            # No direct call to draw_parsed_task_data_svg here to avoid attempting to
-            # access attributes on dicts (which caused "'dict' object has no attribute 'num_train_pairs'").
-            pass
+            # Generate task SVG visualization directly with JaxArcTask
+            try:
+                # Determine target directory for the SVG
+                target_dir = (
+                    self.episode_manager.current_episode_dir
+                    or self.episode_manager.current_run_dir
+                )
+                if target_dir is None:
+                    # Fallback: use base run path from episode manager info
+                    info = self.episode_manager.get_current_run_info()
+                    run_dir = info.get("run_dir")
+                    target_dir = Path(run_dir) if run_dir else Path("outputs")
+
+                # Ensure directory exists
+                target_dir = Path(target_dir)
+                target_dir.mkdir(parents=True, exist_ok=True)
+
+                # Generate the SVG using the task visualization function with the real JaxArcTask
+                svg_drawing = draw_parsed_task_data_svg(
+                    task_object, width=30.0, height=20.0, include_test=show_test
+                )
+
+                # Save the SVG to file
+                svg_path = target_dir / "task_overview.svg"
+                svg_drawing.save_svg(str(svg_path))
+
+                logger.debug(f"Saved task overview SVG to {svg_path}")
+
+            except Exception as e:
+                logger.error(f"Failed to generate task SVG: {e}")
 
         except Exception as e:
             logger.error(f"Failed to generate task SVG: {e}")
@@ -289,43 +338,14 @@ class SVGHandler:
             except Exception:
                 episode_num = None
 
-            # Ensure episode is started. Prefer an existing episode that already has
-            # a task_overview.svg in the current run directory when episode_num is not provided.
+            # Ensure episode is started with simplified logic
             if episode_num is not None and self.current_episode_num != episode_num:
                 # If caller provided an explicit episode number, use it.
                 self.start_episode(episode_num)
-            else:
-                # Caller did not provide an episode number. Try to find an existing
-                # episode directory in the current run that already contains a task_overview.svg.
-                # This keeps step SVGs grouped with the task overview when available.
-                try:
-                    run_dir = self.episode_manager.current_run_dir
-                    found_ep = None
-                    if run_dir is not None and run_dir.exists():
-                        for item in run_dir.iterdir():
-                            if item.is_dir():
-                                task_svg = item / "task_overview.svg"
-                                if task_svg.exists():
-                                    # Expect directories named like 'episode_0000'
-                                    name = item.name
-                                    if name.startswith("episode_"):
-                                        try:
-                                            found_ep = int(name.replace("episode_", ""))
-                                            break
-                                        except Exception:
-                                            # ignore directories that don't parse
-                                            continue
-                    if found_ep is not None:
-                        if self.current_episode_num != found_ep:
-                            self.start_episode(found_ep)
-                    else:
-                        # No existing episode with a task_overview found:
-                        # If we already have a current episode active, keep using it;
-                        # otherwise create a default episode 0 so there is a place to write.
-                        if self.current_episode_num is None:
-                            self.start_episode(0)
-                except Exception as e:
-                    logger.debug(f"Episode selection for SVG failed: {e}")
+            elif self.current_episode_num is None:
+                # No current episode, start episode 0 as default
+                self.start_episode(0)
+            # Otherwise, continue with current episode
 
             # Extract required data
             before_state = step_data.get("before_state")
@@ -372,21 +392,21 @@ class SVGHandler:
             # Extract additional context (best-effort; prefer step_data, fallback to state)
             task_id = step_data.get("task_id", "")
             # Accept several possible keys for the pair index; prefer explicit one
-            task_pair_index = step_data.get("task_pair_index", None)
+            task_pair_index = step_data.get("task_pair_index")
             if task_pair_index is None:
-                task_pair_index = step_data.get("task_pair_idx", None)
+                task_pair_index = step_data.get("task_pair_idx")
 
             # Prefer pre-selected scalar total if available (built by logging_utils).
             # Fallback to legacy `total_task_pairs` container (may be dict or scalar).
-            total_task_pairs = step_data.get("total_task_pairs_selected", None)
+            total_task_pairs = step_data.get("total_task_pairs_selected")
             if total_task_pairs is None:
-                total_task_pairs = step_data.get("total_task_pairs", None)
+                total_task_pairs = step_data.get("total_task_pairs")
 
             # If still missing, try to use the cached task pair counts from task start
             # which were populated by `log_task_start` (host-side, best-effort).
             if total_task_pairs is None and self.current_task_pairs is not None:
                 # Try to detect episode_mode from step_data or info; default to train (0)
-                ep_mode = step_data.get("episode_mode", None)
+                ep_mode = step_data.get("episode_mode")
                 try:
                     if ep_mode is None and isinstance(info, dict):
                         ep_mode = info.get("episode_mode", None)
@@ -441,7 +461,10 @@ class SVGHandler:
                         try:
                             # Try to resolve a human-readable id via task manager.
                             # If extractor returns None, fall back to global manager lookup.
-                            from jaxarc.utils.task_manager import extract_task_id_from_index, get_task_id_globally
+                            from jaxarc.utils.task_manager import (
+                                extract_task_id_from_index,
+                                get_task_id_globally,
+                            )
 
                             tid = extract_task_id_from_index(before_state.task_idx)
                             if tid is not None:
@@ -463,12 +486,20 @@ class SVGHandler:
 
                 # Normalize total_task_pairs into a plain integer (best-effort).
                 # Handle dicts produced by older helpers, numpy/JAX scalars, or missing metadata.
-                raw_total = total_task_pairs if total_task_pairs is not None else step_data.get("total_task_pairs", None)
+                raw_total = (
+                    total_task_pairs
+                    if total_task_pairs is not None
+                    else step_data.get("total_task_pairs")
+                )
 
                 try:
                     # If the payload supplied a dict-like container, pick a sensible key.
                     if isinstance(raw_total, dict):
-                        candidate = raw_total.get("train") or raw_total.get("test") or raw_total.get("all")
+                        candidate = (
+                            raw_total.get("train")
+                            or raw_total.get("test")
+                            or raw_total.get("all")
+                        )
                         total_task_pairs = candidate
                     else:
                         total_task_pairs = raw_total
@@ -476,41 +507,56 @@ class SVGHandler:
                     # If still missing and we have cached task pair counts from task start, prefer that.
                     if total_task_pairs is None and self.current_task_pairs is not None:
                         # Prefer train unless episode mode indicates test
-                        ep_mode = step_data.get("episode_mode", None)
+                        ep_mode = step_data.get("episode_mode")
                         if ep_mode is None and isinstance(info, dict):
                             ep_mode = info.get("episode_mode", None)
                         try:
                             if ep_mode is not None:
-                                m = int(ep_mode.item()) if hasattr(ep_mode, "item") else int(ep_mode)
+                                m = (
+                                    int(ep_mode.item())
+                                    if hasattr(ep_mode, "item")
+                                    else int(ep_mode)
+                                )
                             else:
                                 m = 0
                         except Exception:
                             m = 0
                         total_task_pairs = (
-                            self.current_task_pairs.get("test") if m == 1 else self.current_task_pairs.get("train")
+                            self.current_task_pairs.get("test")
+                            if m == 1
+                            else self.current_task_pairs.get("train")
                         )
 
                     # Additional fallback: if still missing, try to extract from params.buffer using logging helper.
                     if total_task_pairs is None:
                         try:
-                            params_obj = step_data.get("params", None)
+                            params_obj = step_data.get("params")
                             # Prefer a task_idx provided in the payload, otherwise try state.
-                            payload_task_idx = step_data.get("task_idx", None)
+                            payload_task_idx = step_data.get("task_idx")
                             if payload_task_idx is None:
                                 # Try to extract from before_state / after_state if possible
                                 if hasattr(before_state, "task_idx"):
-                                    payload_task_idx = getattr(before_state, "task_idx")
+                                    payload_task_idx = before_state.task_idx
                                 elif hasattr(after_state, "task_idx"):
-                                    payload_task_idx = getattr(after_state, "task_idx")
+                                    payload_task_idx = after_state.task_idx
                             if params_obj is not None and payload_task_idx is not None:
                                 # Import the helper lazily to avoid top-level cycles
-                                from jaxarc.utils.logging.logging_utils import build_task_metadata_from_params
-                                tmeta = build_task_metadata_from_params(params_obj, payload_task_idx)
+                                from jaxarc.utils.logging.logging_utils import (
+                                    build_task_metadata_from_params,
+                                )
+
+                                tmeta = build_task_metadata_from_params(
+                                    params_obj, payload_task_idx
+                                )
                                 # Pick based on episode_mode on params if available, otherwise prefer train
                                 try:
                                     p_mode = getattr(params_obj, "episode_mode", None)
                                     if p_mode is not None:
-                                        p_val = int(p_mode.item()) if hasattr(p_mode, "item") else int(p_mode)
+                                        p_val = (
+                                            int(p_mode.item())
+                                            if hasattr(p_mode, "item")
+                                            else int(p_mode)
+                                        )
                                     else:
                                         p_val = 0
                                 except Exception:
@@ -521,7 +567,9 @@ class SVGHandler:
                                     total_task_pairs = tmeta.get("num_train_pairs")
                                 # If still None pick any available count
                                 if total_task_pairs is None:
-                                    total_task_pairs = tmeta.get("num_train_pairs") or tmeta.get("num_test_pairs")
+                                    total_task_pairs = tmeta.get(
+                                        "num_train_pairs"
+                                    ) or tmeta.get("num_test_pairs")
                         except Exception:
                             # ignore failures here and continue to final fallback
                             total_task_pairs = None
@@ -575,14 +623,18 @@ class SVGHandler:
 
                 task_id = task_id or ""
                 total_task_pairs = int(total_task_pairs or 1)
-                logger.debug(f"SVGHandler.log_step: step={step_num} computed_pair_index={task_pair_index} total_pairs={total_task_pairs}")
+                logger.debug(
+                    f"SVGHandler.log_step: step={step_num} computed_pair_index={task_pair_index} total_pairs={total_task_pairs}"
+                )
 
             except Exception:
                 # Do not allow logging enrichment to raise - fall back to safe defaults
                 task_id = task_id or ""
                 task_pair_index = int(task_pair_index or 0)
                 total_task_pairs = int(total_task_pairs or 1)
-                logger.debug(f"SVGHandler.log_step (fallback): step={step_num} computed_pair_index={task_pair_index} total_pairs={total_task_pairs}")
+                logger.debug(
+                    f"SVGHandler.log_step (fallback): step={step_num} computed_pair_index={task_pair_index} total_pairs={total_task_pairs}"
+                )
 
             # Filter info dictionary to only include known visualization keys
             # This makes SVGHandler ignore unknown keys gracefully
@@ -608,7 +660,10 @@ class SVGHandler:
 
                     # Common step/pair keys (try multiple aliases)
                     step_ct = info.get("step_count", info.get("step", None))
-                    curr_pair = info.get("current_pair_index", info.get("pair_idx", info.get("task_pair_index", None)))
+                    curr_pair = info.get(
+                        "current_pair_index",
+                        info.get("pair_idx", info.get("task_pair_index", None)),
+                    )
                 else:
                     # object-like info (StepInfo or similar)
                     try:
@@ -616,11 +671,24 @@ class SVGHandler:
                         if metrics is not None:
                             # metrics might be a dict-like or object
                             if isinstance(metrics, dict):
-                                sim = metrics.get("similarity", getattr(info, "similarity", None))
-                                sim_imp = metrics.get("similarity_improvement", getattr(info, "similarity_improvement", None))
+                                sim = metrics.get(
+                                    "similarity", getattr(info, "similarity", None)
+                                )
+                                sim_imp = metrics.get(
+                                    "similarity_improvement",
+                                    getattr(info, "similarity_improvement", None),
+                                )
                             else:
-                                sim = getattr(metrics, "similarity", getattr(info, "similarity", None))
-                                sim_imp = getattr(metrics, "similarity_improvement", getattr(info, "similarity_improvement", None))
+                                sim = getattr(
+                                    metrics,
+                                    "similarity",
+                                    getattr(info, "similarity", None),
+                                )
+                                sim_imp = getattr(
+                                    metrics,
+                                    "similarity_improvement",
+                                    getattr(info, "similarity_improvement", None),
+                                )
                         else:
                             sim = getattr(info, "similarity", None)
                             sim_imp = getattr(info, "similarity_improvement", None)
@@ -629,26 +697,40 @@ class SVGHandler:
                         sim_imp = getattr(info, "similarity_improvement", None)
 
                     step_ct = getattr(info, "step_count", getattr(info, "step", None))
-                    curr_pair = getattr(info, "current_pair_index", getattr(info, "pair_idx", getattr(info, "task_pair_index", None)))
+                    curr_pair = getattr(
+                        info,
+                        "current_pair_index",
+                        getattr(
+                            info, "pair_idx", getattr(info, "task_pair_index", None)
+                        ),
+                    )
 
                 # Coerce and attach to filtered_info with safe fallbacks
                 try:
-                    filtered_info["similarity"] = float(sim) if sim is not None else None
+                    filtered_info["similarity"] = (
+                        float(sim) if sim is not None else None
+                    )
                 except Exception:
                     filtered_info["similarity"] = None
 
                 try:
-                    filtered_info["similarity_improvement"] = float(sim_imp) if sim_imp is not None else None
+                    filtered_info["similarity_improvement"] = (
+                        float(sim_imp) if sim_imp is not None else None
+                    )
                 except Exception:
                     filtered_info["similarity_improvement"] = None
 
                 try:
-                    filtered_info["step_count"] = int(step_ct) if step_ct is not None else None
+                    filtered_info["step_count"] = (
+                        int(step_ct) if step_ct is not None else None
+                    )
                 except Exception:
                     filtered_info["step_count"] = None
 
                 try:
-                    filtered_info["current_pair_index"] = int(curr_pair) if curr_pair is not None else None
+                    filtered_info["current_pair_index"] = (
+                        int(curr_pair) if curr_pair is not None else None
+                    )
                 except Exception:
                     filtered_info["current_pair_index"] = None
             except Exception:

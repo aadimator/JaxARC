@@ -15,17 +15,16 @@ The ExperimentLogger follows the design principles:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from loguru import logger
+
 from jaxarc.configs import JaxArcConfig
-from jaxarc.utils.task_manager import extract_task_id_from_index, get_task_id_globally
-import re
 from jaxarc.utils.logging.logging_utils import (
-    build_task_metadata_from_params,
     to_python_int,
-    to_python_scalar,
 )
+from jaxarc.utils.task_manager import extract_task_id_from_index, get_task_id_globally
 
 
 class ExperimentLogger:
@@ -249,7 +248,7 @@ class ExperimentLogger:
         # - If caller provided a synthetic label like "task_<n>", prefer a resolved task_id
         #   from state/manager when available; otherwise keep the synthetic label.
         # - If caller did not provide a task_id, use the resolved task_id when available.
-        payload_task_id = step_data.get("task_id", None)
+        payload_task_id = step_data.get("task_id")
         resolved_task_id = task_id  # best-effort resolved from state above
 
         try:
@@ -274,7 +273,7 @@ class ExperimentLogger:
             enhanced_step_data["task_id"] = final_task_id
         except Exception:
             # Be defensive: ensure we always set the key even on error
-            enhanced_step_data["task_id"] = step_data.get("task_id", None)
+            enhanced_step_data["task_id"] = step_data.get("task_id")
 
         try:
             # Accept several possible payload keys for pair index, prefer explicit ones.
@@ -298,11 +297,9 @@ class ExperimentLogger:
             )
             # Also allow an explicit scalar chosen by the payload builder.
             # Coerce if it's a scalar-like value, otherwise leave dicts unchanged.
-            raw_selected = step_data.get("total_task_pairs_selected", None)
+            raw_selected = step_data.get("total_task_pairs_selected")
             enhanced_step_data["total_task_pairs_selected"] = (
-                to_python_int(raw_selected)
-                if raw_selected is not None
-                else None
+                to_python_int(raw_selected) if raw_selected is not None else None
             )
 
         except Exception:
@@ -320,7 +317,9 @@ class ExperimentLogger:
             pref = getattr(self, "_preferred_episode_num", None)
             if pref is not None:
                 enhanced_step_data["episode_num"] = int(pref)
-            elif "episode_num" in step_data and step_data.get("episode_num") is not None:
+            elif (
+                "episode_num" in step_data and step_data.get("episode_num") is not None
+            ):
                 coerced = to_python_int(step_data.get("episode_num"))
                 if coerced is not None:
                     enhanced_step_data["episode_num"] = int(coerced)
@@ -332,21 +331,26 @@ class ExperimentLogger:
         # no episode_num, flush it now that we know which episode to place the task overview in.
         try:
             pending = getattr(self, "_pending_task_start", None)
-            ep_for_pending = enhanced_step_data.get("episode_num", None)
+            ep_for_pending = enhanced_step_data.get("episode_num")
             if pending is not None and ep_for_pending is not None:
                 try:
                     pending_payload = dict(pending)
                     # Attach resolved episode number
                     pending_payload["episode_num"] = int(ep_for_pending)
                     # Ensure handlers receive any params present on the step payload if not already set
-                    if "params" not in pending_payload and "params" in enhanced_step_data:
+                    if (
+                        "params" not in pending_payload
+                        and "params" in enhanced_step_data
+                    ):
                         pending_payload["params"] = enhanced_step_data.get("params")
                     for handler_name, handler in self.handlers.items():
                         try:
                             if hasattr(handler, "log_task_start"):
                                 handler.log_task_start(pending_payload)
                         except Exception as e:
-                            logger.warning(f"Handler {handler_name} failed in deferred log_task_start: {e}")
+                            logger.warning(
+                                f"Handler {handler_name} failed in deferred log_task_start: {e}"
+                            )
                 finally:
                     # Clear the pending payload after attempting flush (best-effort)
                     self._pending_task_start = None
@@ -384,7 +388,7 @@ class ExperimentLogger:
         # Historically many callers expect a simple `episode_0000` when they only call
         # log_task_start(metadata) without an explicit episode number. Defaulting to 0
         # in that case produces better, predictable outputs (a single run/episode dir).
-        raw_ep = task_data.get("episode_num", None)
+        raw_ep = task_data.get("episode_num")
         if raw_ep is not None:
             ep_num = to_python_int(raw_ep)
         else:
@@ -399,7 +403,11 @@ class ExperimentLogger:
             self._preferred_episode_num = None
 
         # Add show_test and explicit episode_num (might be None) so handlers behave consistently.
-        enhanced_task_data = {**task_data, "show_test": show_test, "episode_num": ep_num}
+        enhanced_task_data = {
+            **task_data,
+            "show_test": show_test,
+            "episode_num": ep_num,
+        }
 
         for handler_name, handler in self.handlers.items():
             try:
