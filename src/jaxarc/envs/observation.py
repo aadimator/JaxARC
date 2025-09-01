@@ -22,15 +22,6 @@ def _get_observation(state: State, _unused: Any) -> ObservationArray:
     return state.working_grid
 
 
-
-
-
-
-
-
-
-
-
 def create_observation(state: State, params: EnvParams) -> ObservationArray:
     """Create agent observation using EnvParams-based API.
 

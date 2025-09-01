@@ -24,7 +24,6 @@ from jaxarc.configs.action_config import ActionConfig
 from jaxarc.configs.dataset_config import DatasetConfig
 from jaxarc.configs.environment_config import EnvironmentConfig
 from jaxarc.configs.grid_initialization_config import GridInitializationConfig
-
 from jaxarc.configs.logging_config import LoggingConfig
 from jaxarc.configs.reward_config import RewardConfig
 from jaxarc.configs.storage_config import StorageConfig
@@ -71,7 +70,6 @@ def create_minimal_config() -> JaxArcConfig:
         storage=StorageConfig(),
         logging=LoggingConfig(log_operations=False, log_level="ERROR"),
         wandb=WandbConfig.from_hydra({}),
-
     )
 
 

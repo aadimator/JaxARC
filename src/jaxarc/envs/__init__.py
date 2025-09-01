@@ -10,6 +10,7 @@ from __future__ import annotations
 
 # State definition (centralized)
 from ..state import State
+
 # Core types for new functional API
 from ..types import EnvParams, TimeStep
 
@@ -33,6 +34,9 @@ from .actions import (
     point_handler,
 )
 
+# Simple environment interface and wrappers (Xland-Minigrid pattern)
+from .environment import Environment
+
 # Functional API
 from .functional import (
     reset,
@@ -54,32 +58,27 @@ from .grid_operations import (
     is_valid_operation_id,
 )
 
-# Simple environment interface and wrappers (Xland-Minigrid pattern)
-from .environment import Environment
-from .wrapper import Wrapper, GymAutoResetWrapper, DmEnvAutoResetWrapper
-
 # Action and observation spaces
 from .spaces import MultiBinary, Space
+from .wrapper import DmEnvAutoResetWrapper, GymAutoResetWrapper, Wrapper
 
 __all__ = [
     "OPERATION_NAMES",
     "ActionSpaceController",
-    "Environment",
-    "GymAutoResetWrapper",
-    "DmEnvAutoResetWrapper",
-    "Wrapper",
-    "State",
-    "EnvParams",
-    "TimeStep",
     "BaseAction",
     "BboxAction",
+    "DmEnvAutoResetWrapper",
+    "EnvParams",
+    "Environment",
+    "GymAutoResetWrapper",
     "MaskAction",
     "MultiBinary",
     "PointAction",
     "Space",
+    "State",
     "StructuredAction",
-    "reset",
-    "step",
+    "TimeStep",
+    "Wrapper",
     "bbox_handler",
     "create_bbox_action",
     "create_mask_action",
@@ -95,4 +94,6 @@ __all__ = [
     "is_valid_operation_id",
     "mask_handler",
     "point_handler",
+    "reset",
+    "step",
 ]

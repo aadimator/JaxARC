@@ -16,27 +16,26 @@ import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Bool
 
+# Import configuration types for EnvParams
+from jaxarc.configs.action_config import ActionConfig
+from jaxarc.configs.dataset_config import DatasetConfig
+from jaxarc.configs.grid_initialization_config import GridInitializationConfig
+from jaxarc.configs.main_config import JaxArcConfig
+from jaxarc.configs.reward_config import RewardConfig
+
 # Import JAXTyping definitions
 from jaxarc.utils.jax_types import (
     ContinuousSelectionArray,
     GridArray,
     MaskArray,
+    ObservationArray,
     OperationId,
     TaskIndex,
     TaskInputGrids,
     TaskInputMasks,
     TaskOutputGrids,
     TaskOutputMasks,
-    ObservationArray,
 )
-
-# Import configuration types for EnvParams
-from jaxarc.configs.action_config import ActionConfig
-from jaxarc.configs.dataset_config import DatasetConfig
-
-from jaxarc.configs.grid_initialization_config import GridInitializationConfig
-from jaxarc.configs.main_config import JaxArcConfig
-from jaxarc.configs.reward_config import RewardConfig
 
 
 class EnvParams(eqx.Module):
@@ -85,7 +84,7 @@ class EnvParams(eqx.Module):
         episode_mode: int = 0,
         buffer: Any = None,
         subset_indices: Any = None,
-    ) -> "EnvParams":
+    ) -> EnvParams:
         """
         Extract environment parameters from the unified JaxArcConfig.
 
@@ -357,7 +356,7 @@ class JaxArcTask(eqx.Module):
     # Enhanced Utility Methods for State Management
     # =========================================================================
 
-    def get_available_demo_pairs(self) -> Bool[Array, "..."]:
+    def get_available_demo_pairs(self) -> Bool[Array, ...]:
         """Get mask of available training pairs.
 
         Returns:
@@ -366,7 +365,7 @@ class JaxArcTask(eqx.Module):
         """
         return jnp.arange(self.input_grids_examples.shape[0]) < self.num_train_pairs
 
-    def get_available_test_pairs(self) -> Bool[Array, "..."]:
+    def get_available_test_pairs(self) -> Bool[Array, ...]:
         """Get mask of available test pairs.
 
         Returns:

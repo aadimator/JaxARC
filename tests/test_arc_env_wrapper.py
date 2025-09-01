@@ -9,14 +9,12 @@ from jaxarc.configs.action_config import ActionConfig
 from jaxarc.configs.dataset_config import DatasetConfig
 from jaxarc.configs.environment_config import EnvironmentConfig
 from jaxarc.configs.grid_initialization_config import GridInitializationConfig
-
 from jaxarc.configs.logging_config import LoggingConfig
 from jaxarc.configs.reward_config import RewardConfig
 from jaxarc.configs.storage_config import StorageConfig
 from jaxarc.configs.visualization_config import VisualizationConfig
 from jaxarc.configs.wandb_config import WandbConfig
 from jaxarc.envs import ArcEnv, create_point_action
-
 from jaxarc.types import JaxArcTask
 
 
@@ -31,7 +29,6 @@ def minimal_config() -> JaxArcConfig:
         storage=StorageConfig(),
         logging=LoggingConfig(),
         wandb=WandbConfig.from_hydra({}),
-
     )
 
 
@@ -91,7 +88,6 @@ def test_auto_reset_single():
         storage=cfg.storage,
         logging=cfg.logging,
         wandb=cfg.wandb,
-
     )
     env = ArcEnv(cfg, task_data=task, num_envs=1, manage_keys=True, seed=0)
     state, obs = env.reset(jax.random.PRNGKey(1))

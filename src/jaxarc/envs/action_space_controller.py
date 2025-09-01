@@ -208,9 +208,7 @@ class ActionSpaceController:
         scaled = masked / temperature
         return jax.nn.softmax(scaled, axis=-1)
 
-    def create_action_mask_for_agent(
-        self, state: State, config: ActionConfig
-    ) -> dict:
+    def create_action_mask_for_agent(self, state: State, config: ActionConfig) -> dict:
         mask = self.get_allowed_operations(state, config)
         categories = {
             "fill": list(range(10)),

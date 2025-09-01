@@ -275,9 +275,7 @@ def apply_within_bounds(
 
 
 @eqx.filter_jit
-def fill_color(
-    state: State, selection: SelectionArray, color: ColorValue
-) -> State:
+def fill_color(state: State, selection: SelectionArray, color: ColorValue) -> State:
     """Fill selected region with specified color."""
 
     new_grid = apply_within_bounds(state.working_grid, selection, color)
@@ -354,9 +352,7 @@ def flood_fill_color(
 
 
 @eqx.filter_jit
-def move_object(
-    state: State, selection: SelectionArray, direction: int
-) -> State:
+def move_object(state: State, selection: SelectionArray, direction: int) -> State:
     """Move selected object in specified direction (0=up, 1=down, 2=left, 3=right)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -396,9 +392,7 @@ def move_object(
 
 
 @eqx.filter_jit
-def rotate_object(
-    state: State, selection: SelectionArray, angle: int
-) -> State:
+def rotate_object(state: State, selection: SelectionArray, angle: int) -> State:
     """Rotate selected region (0=90° clockwise, 1=90° counterclockwise)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0
@@ -451,9 +445,7 @@ def rotate_object(
 
 
 @eqx.filter_jit
-def flip_object(
-    state: State, selection: SelectionArray, axis: int
-) -> State:
+def flip_object(state: State, selection: SelectionArray, axis: int) -> State:
     """Flip selected region (0=horizontal, 1=vertical)."""
     # If no selection, auto-select the entire working grid
     has_selection = jnp.sum(selection) > 0

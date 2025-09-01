@@ -211,14 +211,6 @@ MAX_GRID_SIZE_SQUARED = MAX_GRID_SIZE * MAX_GRID_SIZE  # For flattened grid oper
 # This replaces the previous fixed constant approach
 
 
-
-
-
-
-
-
-
-
 # Default maximums for different datasets (can be overridden)
 DEFAULT_MAX_TRAIN_PAIRS = 10  # Conservative default, can be increased for augmentation
 DEFAULT_MAX_TEST_PAIRS = 4  # Reasonable default for most datasets
@@ -262,15 +254,9 @@ TestCompletionStatus: TypeAlias = Bool[Array, "max_test_pairs"]
 Size matches available test pairs for consistency."""
 
 
-
 OperationMask: TypeAlias = Bool[Array, "num_operations"]
 """Boolean mask indicating which operations are currently allowed.
 Uses num_operations dimension for dynamic action space control."""
-
-
-
-
-
 
 
 # =============================================================================

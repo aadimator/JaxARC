@@ -42,11 +42,10 @@ from .configs import JaxArcConfig
 
 # Core environment and state
 # Functional API
-
 from .state import State
 
 # Core types
-from .types import ARCAction, Grid, JaxArcTask, TaskPair, EnvParams, TimeStep
+from .types import ARCAction, EnvParams, Grid, JaxArcTask, TaskPair, TimeStep
 
 __all__ = [
     # Core types
@@ -62,6 +61,4 @@ __all__ = [
     # Version
     "__version__",
     # Functional API
-
-
 ]

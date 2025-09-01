@@ -7,14 +7,11 @@ using EnvParams (static environment parameters) decoupled from framework configs
 
 from __future__ import annotations
 
-
 from typing import Any
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-
-
 
 from jaxarc.utils.jax_types import EPISODE_MODE_TRAIN
 
@@ -28,8 +25,6 @@ from ..utils.state_utils import (
     increment_step_count,
     update_selection,
 )
-
-
 from .action_space_controller import ActionSpaceController
 from .actions import (
     BboxAction,
@@ -37,7 +32,9 @@ from .actions import (
     PointAction,
     StructuredAction,
     bbox_handler,
+    create_bbox_action,
     create_mask_action,
+    create_point_action,
     mask_handler,
     point_handler,
 )
@@ -45,8 +42,6 @@ from .grid_initialization import initialize_working_grids
 from .grid_operations import compute_grid_similarity, execute_grid_operation
 from .observation import create_observation
 from .reward import _calculate_reward
-from .actions import create_point_action, create_bbox_action
-
 
 
 # JAX-compatible step info structure - replaces dict for performance.
@@ -63,9 +58,6 @@ class StepInfo(eqx.Module):
     success: jax.Array
 
 
-
-
-
 def _initialize_grids(
     task_data: JaxArcTask,
     selected_pair_idx: jnp.ndarray,
@@ -73,7 +65,9 @@ def _initialize_grids(
     params: EnvParams,
     key: PRNGKey,
     initial_pair_idx: int | None = None,
-) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[
+    jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray
+]:
     """Initialize grids with diverse initialization strategies - enhanced helper function.
 
     This enhanced helper function sets up the initial, target, and mask grids based on the
@@ -160,7 +154,14 @@ def _initialize_grids(
         episode_mode == EPISODE_MODE_TRAIN, get_train_input, get_test_input
     )
 
-    return initial_grid, target_grid, initial_mask, target_mask, raw_input_grid, raw_input_mask
+    return (
+        initial_grid,
+        target_grid,
+        initial_mask,
+        target_mask,
+        raw_input_grid,
+        raw_input_mask,
+    )
 
 
 def _create_initial_state(
@@ -204,8 +205,6 @@ def _create_initial_state(
         initial_grid, initial_mask, target_grid, target_mask
     )
 
-
-
     # Initialize allowed operations mask (all operations allowed by default)
     allowed_operations_mask = jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_)
 
@@ -230,9 +229,6 @@ def _create_initial_state(
 
 
 from jaxarc.types import EnvParams, TimeStep
-
-
-
 
 
 @eqx.filter_jit
@@ -268,7 +264,9 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
     episode_mode = jnp.asarray(params.episode_mode, dtype=jnp.int32)
     train_pairs = jnp.asarray(single.num_train_pairs, dtype=jnp.int32)
     test_pairs = jnp.asarray(single.num_test_pairs, dtype=jnp.int32)
-    max_pairs = jnp.where(episode_mode == jnp.asarray(0, dtype=jnp.int32), train_pairs, test_pairs)
+    max_pairs = jnp.where(
+        episode_mode == jnp.asarray(0, dtype=jnp.int32), train_pairs, test_pairs
+    )
     safe_max = jnp.maximum(max_pairs, jnp.asarray(1, dtype=jnp.int32))
 
     # Sample pair index safely; clamp to 0 when max_pairs == 0
@@ -293,13 +291,15 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
     )
 
     # Initialize grids/masks using dataset and initialization settings
-    initial_grid, target_grid, initial_mask, target_mask, input_grid, input_mask = _initialize_grids(
-        task_data=task_data,
-        selected_pair_idx=selected_pair_idx,
-        episode_mode=int(params.episode_mode),
-        params=params,
-        key=key_init,
-        initial_pair_idx=None,
+    initial_grid, target_grid, initial_mask, target_mask, input_grid, input_mask = (
+        _initialize_grids(
+            task_data=task_data,
+            selected_pair_idx=selected_pair_idx,
+            episode_mode=int(params.episode_mode),
+            params=params,
+            key=key_init,
+            initial_pair_idx=None,
+        )
     )
 
     # Build initial state with dynamic fields initialized (include task/pair tracking)
@@ -323,12 +323,13 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
     observation = create_observation(state, params)
 
     return TimeStep(
-        step_type=jnp.asarray(0, dtype=jnp.int32),   # FIRST
+        step_type=jnp.asarray(0, dtype=jnp.int32),  # FIRST
         reward=jnp.asarray(0.0, dtype=jnp.float32),
         discount=jnp.asarray(1.0, dtype=jnp.float32),
         observation=observation,
         state=state,
     )
+
 
 @eqx.filter_jit
 def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
@@ -338,7 +339,7 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
     processed_state, validated_action = _process_action(state, action, params)
     final_state = _update_state(state, processed_state, validated_action)
     # Compute reward and termination signal (submit-aware)
-    is_submit_step = (validated_action.operation == jnp.asarray(34, dtype=jnp.int32))
+    is_submit_step = validated_action.operation == jnp.asarray(34, dtype=jnp.int32)
     reward = _calculate_reward(
         state,
         final_state,
@@ -369,8 +370,6 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
         observation=obs,
         state=final_state,
     )
-
-
 
 
 def _process_action(
@@ -483,7 +482,9 @@ def _process_action(
 
         # Update validated action with filtered operation
         if isinstance(validated_action, PointAction):
-            validated_action = create_point_action(operation, validated_action.row, validated_action.col)
+            validated_action = create_point_action(
+                operation, validated_action.row, validated_action.col
+            )
         elif isinstance(validated_action, BboxAction):
             validated_action = create_bbox_action(
                 operation,
@@ -545,12 +546,6 @@ def _update_state(
 
     # Update step count using PyTree utilities (no action history integration)
     return increment_step_count(new_state)
-
-
-
-
-
-
 
 
 @eqx.filter_jit

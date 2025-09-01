@@ -7,7 +7,7 @@ objects, using the core PyTree utilities where possible.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Tuple, Any
+from typing import Any, Callable, Dict, Tuple
 
 import equinox as eqx
 import jax
@@ -122,7 +122,6 @@ def create_state_template(
 # -------------------------------------------------------------------------
 
 
-
 def get_pair_from_task(
     task_data: Any, pair_idx: jnp.ndarray, episode_mode: int
 ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -139,6 +138,7 @@ def get_pair_from_task(
     Returns:
         (input_grid, input_mask, target_grid, target_mask)
     """
+
     # Train-mode accessors
     def train_pair():
         input_grid = task_data.input_grids_examples[pair_idx]
@@ -176,8 +176,6 @@ def extract_grid_components(state: State) -> Dict[str, GridArray]:
     }
 
 
-def update_grid_components(
-    state: State, grid_updates: Dict[str, GridArray]
-) -> State:
+def update_grid_components(state: State, grid_updates: Dict[str, GridArray]) -> State:
     """Update multiple grid components efficiently."""
     return update_multiple_fields(state, **grid_updates)
