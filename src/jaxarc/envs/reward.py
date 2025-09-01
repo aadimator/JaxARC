@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import jax.numpy as jnp
 
-from jaxarc.types import EnvParams
 from jaxarc.state import State
+from jaxarc.types import EnvParams
 from jaxarc.utils.jax_types import RewardValue
 
 
@@ -45,9 +45,7 @@ def _calculate_reward(
     reward_cfg = params.reward
 
     # Resolve optional flags with safe defaults
-    submit_flag = (
-        is_submit_step if is_submit_step is not None else jnp.asarray(False)
-    )
+    submit_flag = is_submit_step if is_submit_step is not None else jnp.asarray(False)
     is_training = (
         jnp.asarray(True) if episode_mode is None else jnp.asarray(episode_mode == 0)
     )
@@ -80,9 +78,15 @@ def _calculate_reward(
 
     # 2) Mode-specific totals (training includes similarity shaping)
     training_reward = (
-        similarity_reward + step_penalty + success_bonus + efficiency_bonus + submission_penalty
+        similarity_reward
+        + step_penalty
+        + success_bonus
+        + efficiency_bonus
+        + submission_penalty
     )
-    evaluation_reward = step_penalty + success_bonus + efficiency_bonus + submission_penalty
+    evaluation_reward = (
+        step_penalty + success_bonus + efficiency_bonus + submission_penalty
+    )
 
     # 3) Select by mode
     return jnp.where(is_training, training_reward, evaluation_reward)

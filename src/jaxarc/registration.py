@@ -27,24 +27,26 @@ Notes:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import importlib
-import equinox as eqx
+from dataclasses import dataclass, field
 from pathlib import Path
-from pyprojroot import here
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
+
 from loguru import logger
+from pyprojroot import here
+
 from jaxarc.utils import DatasetDownloader, DatasetDownloadError
 from jaxarc.utils.buffer import stack_task_list
-
 
 # -----------------------------------------------------------------------------
 # Data structures
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class EnvSpec:
     """Environment specification for registration."""
+
     id: str
     env_entry: str = "jaxarc.envs:Environment"
     max_episode_steps: int = 100
@@ -54,6 +56,7 @@ class EnvSpec:
 # -----------------------------------------------------------------------------
 # Registry implementation
 # -----------------------------------------------------------------------------
+
 
 class EnvRegistry:
     """Global environment registry with gym-like semantics."""
@@ -85,7 +88,9 @@ class EnvRegistry:
             kwargs=dict(kwargs),
         )
 
-    def register_subset(self, dataset_key: str, name: str, task_ids: list[str] | tuple[str, ...]) -> None:
+    def register_subset(
+        self, dataset_key: str, name: str, task_ids: list[str] | tuple[str, ...]
+    ) -> None:
         """Register a named subset (e.g., 'Mini-easy') that maps to specific task IDs.
 
         Args:
@@ -97,7 +102,9 @@ class EnvRegistry:
         sel = name.strip().lower()
         if not sel:
             raise ValueError("Subset name must be non-empty")
-        ids_tuple: tuple[str, ...] = tuple(task_ids) if not isinstance(task_ids, tuple) else task_ids
+        ids_tuple: tuple[str, ...] = (
+            tuple(task_ids) if not isinstance(task_ids, tuple) else task_ids
+        )
         if key not in self._subsets:
             self._subsets[key] = {}
         self._subsets[key][sel] = ids_tuple
@@ -111,7 +118,12 @@ class EnvRegistry:
         """Return the task IDs registered for a named subset (e.g., 'Mini', 'easy')."""
         return self._get_named_subset_ids(dataset_key, name)
 
-    def available_task_ids(self, dataset_key: str, config: Optional[Any] = None, auto_download: bool = False) -> list[str]:
+    def available_task_ids(
+        self,
+        dataset_key: str,
+        config: Optional[Any] = None,
+        auto_download: bool = False,
+    ) -> list[str]:
         """Return all available task IDs for a dataset key after ensuring dataset availability."""
         spec_key = self._canonical_spec_key(dataset_key)
         if spec_key not in self._specs:
@@ -124,7 +136,11 @@ class EnvRegistry:
         parser_entry, _, _ = self._resolve_dataset_meta(spec_key)
         parser_obj = self._import_from_entry_point(parser_entry)
         parser = parser_obj(cfg.dataset) if self._is_class(parser_obj) else parser_obj
-        return parser.get_available_task_ids() if hasattr(parser, "get_available_task_ids") else []
+        return (
+            parser.get_available_task_ids()
+            if hasattr(parser, "get_available_task_ids")
+            else []
+        )
 
     def make(self, id: str, **kwargs: Any) -> Tuple[Any, Any]:
         """Create an environment instance and parameters for a registered spec.
@@ -155,7 +171,9 @@ class EnvRegistry:
             return env, kwargs["params"]
 
         # Prepare config and dataset availability
-        config = self._prepare_config(kwargs.get("config"), spec.max_episode_steps, dataset_key)
+        config = self._prepare_config(
+            kwargs.get("config"), spec.max_episode_steps, dataset_key
+        )
         auto_download = bool(kwargs.get("auto_download", False))
 
         # Parse selector (may be empty)
@@ -170,14 +188,20 @@ class EnvRegistry:
         # Instantiate the dataset parser from dataset key
         parser_entry, _, _ = self._resolve_dataset_meta(dataset_key)
         parser_obj = self._import_from_entry_point(parser_entry)
-        parser = parser_obj(config.dataset) if self._is_class(parser_obj) else parser_obj
+        parser = (
+            parser_obj(config.dataset) if self._is_class(parser_obj) else parser_obj
+        )
 
         # Resolve episode mode (0=train, 1=eval)
         episode_mode = self._resolve_episode_mode(kwargs.get("episode_mode"), selector)
 
         # Helper: get all ids and concept groups if available
         def _available_ids(p):
-            return p.get_available_task_ids() if hasattr(p, "get_available_task_ids") else []
+            return (
+                p.get_available_task_ids()
+                if hasattr(p, "get_available_task_ids")
+                else []
+            )
 
         def _concept_groups(p):
             return p.get_concept_groups() if hasattr(p, "get_concept_groups") else []
@@ -188,7 +212,16 @@ class EnvRegistry:
         sel_l = selector.lower()
 
         # Standard synonyms for full sets
-        is_full = sel_l in ("", "all", "train", "training", "eval", "evaluation", "test", "corpus")
+        is_full = sel_l in (
+            "",
+            "all",
+            "train",
+            "training",
+            "eval",
+            "evaluation",
+            "test",
+            "corpus",
+        )
 
         # First priority: check for a registered named subset like 'Mini-easy'
         named_ids = ()
@@ -210,7 +243,9 @@ class EnvRegistry:
                     if selector in avail:
                         ids = [selector]
                     else:
-                        raise ValueError(f"Unknown Concept selector '{selector}'. Not a concept group or task id.")
+                        raise ValueError(
+                            f"Unknown Concept selector '{selector}'. Not a concept group or task id."
+                        )
         elif key_l in ("mini", "miniarc", "mini-arc"):
             if is_full:
                 ids = _available_ids(parser)
@@ -219,8 +254,19 @@ class EnvRegistry:
                 if selector in avail:
                     ids = [selector]
                 else:
-                    raise ValueError(f"Unknown Mini selector '{selector}'. Provide 'all' or a valid task id.")
-        elif key_l in ("agi1", "arc-agi-1", "agi-1", "agi_1", "agi2", "arc-agi-2", "agi-2", "agi_2"):
+                    raise ValueError(
+                        f"Unknown Mini selector '{selector}'. Provide 'all' or a valid task id."
+                    )
+        elif key_l in (
+            "agi1",
+            "arc-agi-1",
+            "agi-1",
+            "agi_1",
+            "agi2",
+            "arc-agi-2",
+            "agi-2",
+            "agi_2",
+        ):
             # For split-like selectors, task_split was already adjusted; use all ids
             if is_full:
                 ids = _available_ids(parser)
@@ -232,20 +278,32 @@ class EnvRegistry:
                 else:
                     # Try opposite split
                     try:
-                        ds = getattr(config, "dataset")
+                        ds = config.dataset
                         current_split = getattr(ds, "task_split", "train")
-                        opposite = "evaluation" if current_split in ("train", "training") else "train"
-                        setattr(ds, "task_split", opposite)
-                        setattr(config, "dataset", ds)
-                        parser2 = parser_obj(config.dataset) if self._is_class(parser_obj) else parser_obj
+                        opposite = (
+                            "evaluation"
+                            if current_split in ("train", "training")
+                            else "train"
+                        )
+                        ds.task_split = opposite
+                        config.dataset = ds
+                        parser2 = (
+                            parser_obj(config.dataset)
+                            if self._is_class(parser_obj)
+                            else parser_obj
+                        )
                         avail2 = _available_ids(parser2)
                         if selector in avail2:
                             parser = parser2
                             ids = [selector]
                         else:
-                            raise ValueError(f"Task id '{selector}' not found in either split for {dataset_key}.")
+                            raise ValueError(
+                                f"Task id '{selector}' not found in either split for {dataset_key}."
+                            )
                     except Exception as e:
-                        raise ValueError(f"Failed to resolve AGI task selector '{selector}': {e}") from e
+                        raise ValueError(
+                            f"Failed to resolve AGI task selector '{selector}': {e}"
+                        ) from e
         else:
             # Generic fallback
             avail = _available_ids(parser)
@@ -254,7 +312,9 @@ class EnvRegistry:
             elif selector in avail:
                 ids = [selector]
             else:
-                raise ValueError(f"Unknown dataset key '{dataset_key}' or selector '{selector}'")
+                raise ValueError(
+                    f"Unknown dataset key '{dataset_key}' or selector '{selector}'"
+                )
 
         if not ids:
             raise ValueError("No tasks resolved for the given selector.")
@@ -265,6 +325,7 @@ class EnvRegistry:
 
         # Create EnvParams with buffer
         from jaxarc.types import EnvParams as _EnvParams
+
         params = _EnvParams.from_config(
             config=config,
             buffer=buf,
@@ -330,7 +391,14 @@ class EnvRegistry:
         subsets = self._subsets.get(key, {})
         return subsets.get(selector.lower(), tuple())
 
-    def _get_tasks_for_ids(self, parser: Any, parser_entry_obj: Any, config: Any, dataset_key: str, ids: list[str]) -> list[Any]:
+    def _get_tasks_for_ids(
+        self,
+        parser: Any,
+        parser_entry_obj: Any,
+        config: Any,
+        dataset_key: str,
+        ids: list[str],
+    ) -> list[Any]:
         """Load tasks by ID using the current parser. For AGI datasets, missing IDs are looked up in the opposite split."""
         tasks: list[Any] = []
         missing: list[str] = []
@@ -343,14 +411,29 @@ class EnvRegistry:
             return tasks
 
         key_l = dataset_key.lower()
-        if key_l in ("agi1", "arc-agi-1", "agi-1", "agi_1", "agi2", "arc-agi-2", "agi-2", "agi_2"):
+        if key_l in (
+            "agi1",
+            "arc-agi-1",
+            "agi-1",
+            "agi_1",
+            "agi2",
+            "arc-agi-2",
+            "agi-2",
+            "agi_2",
+        ):
             try:
-                ds = getattr(config, "dataset")
+                ds = config.dataset
                 current_split = getattr(ds, "task_split", "train")
-                opposite = "evaluation" if current_split in ("train", "training") else "train"
-                setattr(ds, "task_split", opposite)
-                setattr(config, "dataset", ds)
-                parser2 = parser_entry_obj(config.dataset) if self._is_class(parser_entry_obj) else parser_entry_obj
+                opposite = (
+                    "evaluation" if current_split in ("train", "training") else "train"
+                )
+                ds.task_split = opposite
+                config.dataset = ds
+                parser2 = (
+                    parser_entry_obj(config.dataset)
+                    if self._is_class(parser_entry_obj)
+                    else parser_entry_obj
+                )
                 still_missing: list[str] = []
                 for tid in list(missing):
                     try:
@@ -363,13 +446,16 @@ class EnvRegistry:
                 pass
 
         if missing:
-            raise ValueError(f"Some task ids were not found for dataset '{dataset_key}': {missing}")
+            raise ValueError(
+                f"Some task ids were not found for dataset '{dataset_key}': {missing}"
+            )
         return tasks
 
     @staticmethod
     def _is_class(obj: Any) -> bool:
         try:
             import inspect
+
             return inspect.isclass(obj)
         except Exception:
             return False
@@ -406,7 +492,9 @@ class EnvRegistry:
             raise ValueError(f"Failed to import '{entry_point}': {e}") from e
 
     @staticmethod
-    def _prepare_config(config: Optional[Any], max_episode_steps: int, dataset_key: str) -> Any:
+    def _prepare_config(
+        config: Optional[Any], max_episode_steps: int, dataset_key: str
+    ) -> Any:
         """Prepare a JaxArcConfig, applying overrides when possible.
 
         - If no config provided, instantiate a default JaxArcConfig.
@@ -415,10 +503,10 @@ class EnvRegistry:
         """
         # Import locally to avoid hard dependency at module import time
         try:
+            from jaxarc.configs.dataset_config import DatasetConfig
+            from jaxarc.configs.environment_config import EnvironmentConfig
             from jaxarc.configs.main_config import JaxArcConfig
             from jaxarc.utils.config import get_config
-            from jaxarc.configs.environment_config import EnvironmentConfig
-            from jaxarc.configs.dataset_config import DatasetConfig
         except Exception as e:
             raise ValueError(
                 "Could not import configuration types. Ensure configurations "
@@ -429,13 +517,13 @@ class EnvRegistry:
 
         # Enforce max_episode_steps
         try:
-            setattr(cfg, "environment", EnvironmentConfig(max_episode_steps=max_episode_steps))
+            cfg.environment = EnvironmentConfig(max_episode_steps=max_episode_steps)
         except Exception:
             pass
 
         # Best-effort dataset normalization (name and path)
         try:
-            ds: DatasetConfig = getattr(cfg, "dataset")
+            ds: DatasetConfig = cfg.dataset
             # Update dataset_name to normalized value (e.g., "MiniARC", "ConceptARC", "ARC-AGI-1", "ARC-AGI-2")
             _, _, normalized_name = EnvRegistry._resolve_dataset_meta(dataset_key)
             ds.dataset_name = normalized_name
@@ -451,16 +539,19 @@ class EnvRegistry:
             if (not current_path) or (leaf.lower() != normalized_name.lower()):
                 default_dir = str(here() / "data" / normalized_name)
                 import equinox as eqx  # local import to avoid top-level dependency cycles
+
                 ds = eqx.tree_at(lambda d: d.dataset_path, ds, default_dir)
 
-            setattr(cfg, "dataset", ds)
+            cfg.dataset = ds
         except Exception:
             pass
 
         return cfg
 
     @staticmethod
-    def _resolve_episode_mode(episode_mode: Optional[int], selector: Optional[str]) -> int:
+    def _resolve_episode_mode(
+        episode_mode: Optional[int], selector: Optional[str]
+    ) -> int:
         """Resolve episode mode using explicit value or selector token (train/eval)."""
         if episode_mode is not None:
             return int(episode_mode)
@@ -480,7 +571,11 @@ class EnvRegistry:
         if key in ("mini", "miniarc", "mini-arc"):
             return ("jaxarc.parsers:MiniArcParser", "download_miniarc", "MiniARC")
         if key in ("concept", "conceptarc", "concept-arc"):
-            return ("jaxarc.parsers:ConceptArcParser", "download_conceptarc", "ConceptARC")
+            return (
+                "jaxarc.parsers:ConceptArcParser",
+                "download_conceptarc",
+                "ConceptARC",
+            )
         if key in ("agi1", "arc-agi-1", "agi-1", "agi_1"):
             return ("jaxarc.parsers:ArcAgiParser", "download_arc_agi_1", "ARC-AGI-1")
         if key in ("agi2", "arc-agi-2", "agi-2", "agi_2"):
@@ -488,23 +583,36 @@ class EnvRegistry:
         # Fallback assumes dataset_key is already normalized and no downloader available
         return ("jaxarc.parsers:ArcAgiParser", "", dataset_key)
 
-    def _maybe_adjust_task_split(self, config: Any, dataset_key: str, selector: Optional[str]) -> None:
+    def _maybe_adjust_task_split(
+        self, config: Any, dataset_key: str, selector: Optional[str]
+    ) -> None:
         """Adjust config.dataset.task_split based on selector for AGI datasets."""
         try:
-            ds = getattr(config, "dataset")
+            ds = config.dataset
             sel = (selector or "").lower()
-            if dataset_key.lower() in ("agi1", "arc-agi-1", "agi-1", "agi_1", "agi2", "arc-agi-2", "agi-2", "agi_2"):
+            if dataset_key.lower() in (
+                "agi1",
+                "arc-agi-1",
+                "agi-1",
+                "agi_1",
+                "agi2",
+                "arc-agi-2",
+                "agi-2",
+                "agi_2",
+            ):
                 if sel in ("train", "training"):
-                    setattr(ds, "task_split", "train")
+                    ds.task_split = "train"
                 elif sel in ("eval", "evaluation", "test", "corpus"):
-                    setattr(ds, "task_split", "evaluation")
-                setattr(config, "dataset", ds)
+                    ds.task_split = "evaluation"
+                config.dataset = ds
         except Exception:
             # Best-effort only
             pass
 
     @staticmethod
-    def _infer_subset_ids(parser: Any, dataset_key: str, selector: str) -> tuple[str, ...]:
+    def _infer_subset_ids(
+        parser: Any, dataset_key: str, selector: str
+    ) -> tuple[str, ...]:
         """Infer a tuple of task IDs for standard named subsets.
 
         Supports:
@@ -518,9 +626,19 @@ class EnvRegistry:
 
             # ConceptARC named subsets
             if key in ("concept", "conceptarc", "concept-arc"):
-                if sel in ("train", "training", "eval", "evaluation", "test", "corpus", "all"):
+                if sel in (
+                    "train",
+                    "training",
+                    "eval",
+                    "evaluation",
+                    "test",
+                    "corpus",
+                    "all",
+                ):
                     return tuple(parser.get_available_task_ids())
-                if hasattr(parser, "get_concept_groups") and hasattr(parser, "get_tasks_in_concept"):
+                if hasattr(parser, "get_concept_groups") and hasattr(
+                    parser, "get_tasks_in_concept"
+                ):
                     concepts = set(parser.get_concept_groups())
                     if selector in concepts:
                         return tuple(parser.get_tasks_in_concept(selector))
@@ -528,12 +646,29 @@ class EnvRegistry:
 
             # MiniARC subsets: treat train/eval/all as "all tasks"
             if key in ("mini", "miniarc", "mini-arc"):
-                if sel in ("train", "training", "eval", "evaluation", "test", "corpus", "all"):
+                if sel in (
+                    "train",
+                    "training",
+                    "eval",
+                    "evaluation",
+                    "test",
+                    "corpus",
+                    "all",
+                ):
                     return tuple(parser.get_available_task_ids())
                 return tuple()
 
             # AGI subsets: use current parser split's available IDs
-            if key in ("agi1", "arc-agi-1", "agi-1", "agi_1", "agi2", "arc-agi-2", "agi-2", "agi_2"):
+            if key in (
+                "agi1",
+                "arc-agi-1",
+                "agi-1",
+                "agi_1",
+                "agi2",
+                "arc-agi-2",
+                "agi-2",
+                "agi_2",
+            ):
                 if sel in ("train", "training", "eval", "evaluation", "test", "corpus"):
                     return tuple(parser.get_available_task_ids())
                 return tuple()
@@ -548,19 +683,23 @@ class EnvRegistry:
             return tuple()
 
     @staticmethod
-    def _ensure_dataset_available(config: Any, dataset_key: str, auto_download: bool) -> Any:
+    def _ensure_dataset_available(
+        config: Any, dataset_key: str, auto_download: bool
+    ) -> Any:
         """Ensure dataset exists at config.dataset.dataset_path. Optionally download if missing.
         Functional: returns (potentially) updated config without in-place mutation.
         """
         try:
-            ds = getattr(config, "dataset")
+            ds = config.dataset
             dataset_path = getattr(ds, "dataset_path", "")
             path = here(dataset_path) if dataset_path else None
         except Exception as e:
             logger.warning(f"Unable to access dataset configuration: {e}")
             return config
 
-        _, downloader_method, normalized_name = EnvRegistry._resolve_dataset_meta(dataset_key)
+        _, downloader_method, normalized_name = EnvRegistry._resolve_dataset_meta(
+            dataset_key
+        )
 
         # If an existing path points to a directory whose leaf name does not match
         # the expected dataset directory, treat it as a mismatch and ignore it.
@@ -579,7 +718,9 @@ class EnvRegistry:
             msg = f"Dataset path is missing or not found for '{normalized_name}'"
             if not auto_download or not downloader_method:
                 logger.warning(msg + " - set auto_download=True to attempt download.")
-                raise ValueError("Dataset not available on disk and auto_download is disabled.")
+                raise ValueError(
+                    "Dataset not available on disk and auto_download is disabled."
+                )
             # Attempt download into a normalized dataset directory under ./data/{normalized_name}
             try:
                 # Decide target directory:
@@ -588,7 +729,9 @@ class EnvRegistry:
                 use_existing = False
                 if dataset_path:
                     try:
-                        use_existing = Path(dataset_path).name.lower() == normalized_name.lower()
+                        use_existing = (
+                            Path(dataset_path).name.lower() == normalized_name.lower()
+                        )
                     except Exception:
                         use_existing = False
 
@@ -599,6 +742,7 @@ class EnvRegistry:
                     target_dir = default_dir
                     # immutably set dataset_path and dataset_name to normalized defaults
                     import equinox as eqx  # local import to avoid top-level dependency cycles
+
                     ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(default_dir))
                     ds = eqx.tree_at(lambda d: d.dataset_name, ds, normalized_name)
                     config = eqx.tree_at(lambda c: c.dataset, config, ds)
@@ -606,11 +750,14 @@ class EnvRegistry:
                 # If the target directory already exists, do NOT re-download or remove it.
                 if target_dir.exists():
                     import equinox as eqx  # local import to avoid top-level dependency cycles
-                    ds = getattr(config, "dataset")
+
+                    ds = config.dataset
                     ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(target_dir))
                     ds = eqx.tree_at(lambda d: d.dataset_name, ds, normalized_name)
                     config = eqx.tree_at(lambda c: c.dataset, config, ds)
-                    logger.info(f"Dataset '{normalized_name}' already exists at: {target_dir}")
+                    logger.info(
+                        f"Dataset '{normalized_name}' already exists at: {target_dir}"
+                    )
                     return config
 
                 # Ensure parent directories exist
@@ -623,7 +770,8 @@ class EnvRegistry:
 
                 # Update dataset_path and dataset_name to reflect the final target location (immutably)
                 import equinox as eqx  # local import to avoid top-level dependency cycles
-                ds = getattr(config, "dataset")
+
+                ds = config.dataset
                 ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(target_dir))
                 ds = eqx.tree_at(lambda d: d.dataset_name, ds, normalized_name)
                 config = eqx.tree_at(lambda c: c.dataset, config, ds)
@@ -633,6 +781,7 @@ class EnvRegistry:
                 raise
 
         return config
+
 
 # -----------------------------------------------------------------------------
 # Module-level singleton API
@@ -670,17 +819,27 @@ def make(id: str, **kwargs: Any) -> Tuple[Any, Any]:
     """
     return _registry.make(id, **kwargs)
 
-def register_subset(dataset_key: str, name: str, task_ids: list[str] | tuple[str, ...]) -> None:
+
+def register_subset(
+    dataset_key: str, name: str, task_ids: list[str] | tuple[str, ...]
+) -> None:
     """Register a named subset for a dataset key, enabling IDs like 'Mini-easy'."""
     _registry.register_subset(dataset_key, name, task_ids)
 
-def available_task_ids(dataset_key: str, config: Optional[Any] = None, auto_download: bool = False) -> list[str]:
+
+def available_task_ids(
+    dataset_key: str, config: Optional[Any] = None, auto_download: bool = False
+) -> list[str]:
     """List available task IDs for the given dataset key (after ensuring availability)."""
-    return _registry.available_task_ids(dataset_key, config=config, auto_download=auto_download)
+    return _registry.available_task_ids(
+        dataset_key, config=config, auto_download=auto_download
+    )
+
 
 def available_named_subsets(dataset_key: str) -> tuple[str, ...]:
     """List names of registered named subsets for a dataset key (e.g., ('easy', 'hard'))."""
     return _registry.available_named_subsets(dataset_key)
+
 
 def subset_task_ids(dataset_key: str, name: str) -> tuple[str, ...]:
     """Return the task IDs registered under the named subset for the dataset."""

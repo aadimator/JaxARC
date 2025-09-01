@@ -16,7 +16,7 @@ Key properties:
 
 from __future__ import annotations
 
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 import equinox as eqx
 import jax.numpy as jnp
@@ -25,14 +25,13 @@ from jaxarc.utils.jax_types import (
     GridArray,
     MaskArray,
     OperationMask,
+    PairIndex,
     PRNGKey,
     SelectionArray,
     SimilarityScore,
     StepCount,
     TaskIndex,
-    PairIndex,
 )
-
 
 EnvCarryT = TypeVar("EnvCarryT")
 
@@ -45,19 +44,19 @@ class State(eqx.Module, Generic[EnvCarryT]):
     """
 
     # Core dynamic grid state
-    working_grid: GridArray            # Current grid being modified
-    working_grid_mask: MaskArray       # Valid cells mask
-    input_grid: GridArray              # Original input grid for current pair
-    input_grid_mask: MaskArray         # Valid cells mask for input grid
-    target_grid: GridArray             # Goal grid for current example
-    target_grid_mask: MaskArray        # Valid cells mask for target grid
+    working_grid: GridArray  # Current grid being modified
+    working_grid_mask: MaskArray  # Valid cells mask
+    input_grid: GridArray  # Original input grid for current pair
+    input_grid_mask: MaskArray  # Valid cells mask for input grid
+    target_grid: GridArray  # Goal grid for current example
+    target_grid_mask: MaskArray  # Valid cells mask for target grid
 
     # Grid operations state
-    selected: SelectionArray           # Selection mask for operations
-    clipboard: GridArray               # For copy/paste operations
+    selected: SelectionArray  # Selection mask for operations
+    clipboard: GridArray  # For copy/paste operations
 
     # Episode progress tracking
-    step_count: StepCount              # Current step number
+    step_count: StepCount  # Current step number
 
     # Dynamic control state
     allowed_operations_mask: OperationMask  # Dynamic operation filtering
@@ -69,8 +68,8 @@ class State(eqx.Module, Generic[EnvCarryT]):
     key: PRNGKey
 
     # Task/pair tracking (link into EnvParams.buffer)
-    task_idx: TaskIndex                # Index into EnvParams.buffer identifying active task
-    pair_idx: PairIndex                # Index of current demonstration/test pair within task
+    task_idx: TaskIndex  # Index into EnvParams.buffer identifying active task
+    pair_idx: PairIndex  # Index of current demonstration/test pair within task
 
     # Optional carry for extensions (proper XLand-Minigrid pattern)
     carry: EnvCarryT | None = None
@@ -120,5 +119,5 @@ class State(eqx.Module, Generic[EnvCarryT]):
 
 
 # Type aliases for convenience
-BaseState = State[None]   # No carry
-ArcState = BaseState      # Our standard simplified state
+BaseState = State[None]  # No carry
+ArcState = BaseState  # Our standard simplified state

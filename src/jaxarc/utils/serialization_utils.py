@@ -269,7 +269,9 @@ def serialize_log_state(state: Any) -> dict[str, Any]:
                 # Try to resolve human-readable task id
                 try:
                     task_id = extract_task_id_from_index(state.task_idx)
-                    task_info["task_id"] = task_id or f"task_{int(state.task_idx.item())}"
+                    task_info["task_id"] = (
+                        task_id or f"task_{int(state.task_idx.item())}"
+                    )
                 except Exception:
                     task_info["task_id"] = f"task_{int(state.task_idx.item())}"
             except Exception as e:
@@ -284,10 +286,16 @@ def serialize_log_state(state: Any) -> dict[str, Any]:
                 task_info["pair_idx"] = -1
 
         # Backwards compatibility: fall back to legacy state.task_data when present
-        if not task_info and hasattr(state, "task_data") and hasattr(state.task_data, "task_index"):
+        if (
+            not task_info
+            and hasattr(state, "task_data")
+            and hasattr(state.task_data, "task_index")
+        ):
             try:
                 task_id = extract_task_id_from_index(state.task_data.task_index)
-                task_info["task_id"] = task_id or f"task_{int(state.task_data.task_index.item())}"
+                task_info["task_id"] = (
+                    task_id or f"task_{int(state.task_data.task_index.item())}"
+                )
                 task_info["task_index"] = int(state.task_data.task_index.item())
             except Exception as e:
                 logger.debug(f"Could not extract legacy task info: {e}")
@@ -302,7 +310,9 @@ def serialize_log_state(state: Any) -> dict[str, Any]:
             "episode_done": getattr(state, "episode_done", False),
             "similarity_score": getattr(state, "similarity_score", 0.0),
             # Prefer pair_idx if available for current example index
-            "current_example_idx": int(getattr(state, "pair_idx", getattr(state, "current_example_idx", 0))),
+            "current_example_idx": int(
+                getattr(state, "pair_idx", getattr(state, "current_example_idx", 0))
+            ),
         }
 
     except Exception as e:

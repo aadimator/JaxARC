@@ -21,7 +21,6 @@ from rich.panel import Panel
 from jaxarc.configs import JaxArcConfig
 from jaxarc.envs.actions import StructuredAction, create_bbox_action
 from jaxarc.registration import make
-from jaxarc.types import TimeStep
 from jaxarc.utils.config import get_config
 
 console = Console()
@@ -164,7 +163,9 @@ def make_train(
 
                 # Step the environment using the TimeStep-based API (vectorized when requested)
                 if num_envs > 1:
-                    next_timestep = jax.vmap(env.step, in_axes=(None, 0, 0))(env_params, prev_timestep, actions)
+                    next_timestep = jax.vmap(env.step, in_axes=(None, 0, 0))(
+                        env_params, prev_timestep, actions
+                    )
                 else:
                     next_timestep = env.step(env_params, prev_timestep, actions)
 

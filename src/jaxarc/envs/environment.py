@@ -72,8 +72,6 @@ class Environment:
             subset_indices=subset_indices,
         )
 
-
-
     def observation_shape(self, params: EnvParams) -> tuple[int, int]:
         """
         Return the shape of observations for convenience.

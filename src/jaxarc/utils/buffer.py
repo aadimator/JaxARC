@@ -40,9 +40,9 @@ Example:
 
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 
@@ -105,6 +105,7 @@ def gather_task(buffer: Any, idx: jnp.ndarray) -> Any:
         A single-task pytree with the leading batch dimension removed from all
         array leaves. Scalar (0-dim) leaves are returned unchanged.
     """
+
     def _gather(x):
         # Handle JAX arrays and NumPy-like with shape attribute
         if hasattr(x, "ndim") and x.ndim > 0:
@@ -131,7 +132,7 @@ def buffer_size(buffer: Any) -> int:
     """
     # Prefer a canonical field if present
     try:
-        candidate = getattr(buffer, "input_grids_examples")
+        candidate = buffer.input_grids_examples
         if hasattr(candidate, "shape") and len(candidate.shape) > 0:
             return int(candidate.shape[0])
     except Exception:
@@ -139,14 +140,16 @@ def buffer_size(buffer: Any) -> int:
 
     # Fallback: scan leaves to find the first array with ndim > 0
     for leaf in jax.tree_util.tree_leaves(buffer):
-        if hasattr(leaf, "shape") and len(getattr(leaf, "shape")) > 0:
+        if hasattr(leaf, "shape") and len(leaf.shape) > 0:
             return int(leaf.shape[0])
 
-    raise ValueError("buffer_size: could not infer leading batch size from buffer leaves")
+    raise ValueError(
+        "buffer_size: could not infer leading batch size from buffer leaves"
+    )
 
 
 __all__ = [
-    "stack_task_list",
-    "gather_task",
     "buffer_size",
+    "gather_task",
+    "stack_task_list",
 ]

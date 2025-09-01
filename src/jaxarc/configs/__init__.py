@@ -11,7 +11,6 @@ from .action_config import ActionConfig
 from .dataset_config import DatasetConfig
 from .environment_config import EnvironmentConfig
 from .grid_initialization_config import GridInitializationConfig
-
 from .logging_config import LoggingConfig
 from .main_config import JaxArcConfig
 from .reward_config import RewardConfig
@@ -24,7 +23,6 @@ __all__ = [
     "DatasetConfig",
     "EnvironmentConfig",
     "GridInitializationConfig",
-
     "JaxArcConfig",
     "LoggingConfig",
     "RewardConfig",

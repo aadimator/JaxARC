@@ -32,10 +32,17 @@ import jax
 import jax.numpy as jnp
 
 from jaxarc.configs.main_config import JaxArcConfig
-from jaxarc.utils.config import get_config
-from jaxarc.envs import create_point_action, reset as env_reset, step as env_step
-from jaxarc.registration import make, register_subset, available_named_subsets, subset_task_ids
+from jaxarc.envs import create_point_action
+from jaxarc.envs import reset as env_reset
+from jaxarc.envs import step as env_step
+from jaxarc.registration import (
+    available_named_subsets,
+    make,
+    register_subset,
+    subset_task_ids,
+)
 from jaxarc.utils.buffer import buffer_size
+from jaxarc.utils.config import get_config
 
 
 def run_demo(id_str: str) -> None:
@@ -61,7 +68,9 @@ def run_demo(id_str: str) -> None:
     # Minimal reset/step: submit immediately
     key = jax.random.PRNGKey(0)
     ts0 = env_reset(params, key)
-    action = create_point_action(operation=jnp.int32(34), row=jnp.int32(0), col=jnp.int32(0))  # SUBMIT
+    action = create_point_action(
+        operation=jnp.int32(34), row=jnp.int32(0), col=jnp.int32(0)
+    )  # SUBMIT
     ts1 = env_step(params, ts0, action)
 
     print("timestep0.step_type:", int(ts0.step_type))  # 0 = FIRST
@@ -72,17 +81,20 @@ def run_demo(id_str: str) -> None:
 
 def main() -> None:
     # Register and demonstrate a named subset for MiniARC
-    register_subset("Mini", "easy", [
-      "Most_Common_color_l6ab0lf3xztbyxsu3p",
-      "Simple_Color_Fill__l6af3wjj3htf3r242ir",
-      "Simple_Unique_Box_l6adthlbktjkouruq0j",
-      "Simple_Box_Moving_l6aapas5si5cuue2txa",
-      "define_boundary_l6aeugn2pfna6pvwdt"
-    ])
+    register_subset(
+        "Mini",
+        "easy",
+        [
+            "Most_Common_color_l6ab0lf3xztbyxsu3p",
+            "Simple_Color_Fill__l6af3wjj3htf3r242ir",
+            "Simple_Unique_Box_l6adthlbktjkouruq0j",
+            "Simple_Box_Moving_l6aapas5si5cuue2txa",
+            "define_boundary_l6aeugn2pfna6pvwdt",
+        ],
+    )
     run_demo("Mini-easy")
     print("Available named subsets for MiniARC:", available_named_subsets("Mini"))
     print("Available task IDs:", subset_task_ids("Mini", "easy"))
-
 
     # MiniARC: all tasks
     # run_demo("Mini-all")
