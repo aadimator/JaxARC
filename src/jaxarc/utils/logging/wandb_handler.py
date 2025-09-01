@@ -11,8 +11,9 @@ import os
 from contextlib import suppress
 from typing import Any
 
-import wandb
 from loguru import logger
+
+import wandb
 
 
 class WandbHandler:
@@ -161,23 +162,27 @@ class WandbHandler:
                 metrics.update(step_data["info"]["metrics"])
 
             # Use shared coercion helper for scalar-like values so wandb receives plain Python scalars
-            from ..logging.logging_utils import to_python_scalar, to_python_float, to_python_int
+            from ..logging.logging_utils import (
+                to_python_scalar,
+            )
 
             # Add standard step metrics (coerced)
             if "reward" in step_data:
                 r_val = to_python_scalar(step_data["reward"])
                 if isinstance(r_val, (int, float, bool)):
                     # store as numeric float (bools converted to 0/1)
-                    metrics["reward"] = float(r_val) if not isinstance(r_val, bool) else float(int(r_val))
+                    metrics["reward"] = (
+                        float(r_val)
+                        if not isinstance(r_val, bool)
+                        else float(int(r_val))
+                    )
                 else:
                     # fallback: keep original value
                     metrics["reward"] = step_data["reward"]
 
             if "step_num" in step_data:
                 s_val = to_python_scalar(step_data["step_num"])
-                if isinstance(s_val, (int, bool)):
-                    metrics["step"] = int(s_val)
-                elif isinstance(s_val, float):
+                if isinstance(s_val, (int, bool)) or isinstance(s_val, float):
                     metrics["step"] = int(s_val)
                 else:
                     # fallback: keep provided value
@@ -189,11 +194,16 @@ class WandbHandler:
                     continue
                 v = to_python_scalar(value)
                 if isinstance(v, (int, float, bool)):
-                    metrics[key] = float(v) if not isinstance(v, bool) else float(int(v))
-                else:
-                    # If it wasn't coercible but was already a simple numeric type, record it
-                    if isinstance(value, (int, float, bool)):
-                        metrics[key] = float(value) if not isinstance(value, bool) else float(int(value))
+                    metrics[key] = (
+                        float(v) if not isinstance(v, bool) else float(int(v))
+                    )
+                # If it wasn't coercible but was already a simple numeric type, record it
+                elif isinstance(value, (int, float, bool)):
+                    metrics[key] = (
+                        float(value)
+                        if not isinstance(value, bool)
+                        else float(int(value))
+                    )
 
             # Simple wandb.log() call - let wandb handle retries and errors
             # Always attempt log if we collected any metrics
@@ -279,7 +289,9 @@ class WandbHandler:
                 v = to_python_scalar(value)
                 # Only keep scalar-like values
                 if isinstance(v, (bool, int, float)):
-                    normalized[key] = float(v) if not isinstance(v, bool) else float(int(v))
+                    normalized[key] = (
+                        float(v) if not isinstance(v, bool) else float(int(v))
+                    )
 
             # Ensure gradient norm is available under a common name if present
             if "gradient_norm" in normalized and "grad_norm" not in normalized:

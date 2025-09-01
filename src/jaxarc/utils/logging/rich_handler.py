@@ -12,8 +12,7 @@ from rich.text import Text
 
 # Use shared scalar coercion helpers so all handlers normalize JAX/NumPy scalars
 # in a consistent manner.
-from ..logging.logging_utils import to_python_scalar, to_python_float
-
+from ..logging.logging_utils import to_python_float, to_python_scalar
 from ..visualization.rich_display import (
     visualize_grid_rich,
     visualize_parsed_task_data_rich,
