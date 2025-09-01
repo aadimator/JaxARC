@@ -45,11 +45,10 @@ from jaxarc.types import TimeStep
 from jaxarc.utils.config import get_config
 from jaxarc.utils.logging import ExperimentLogger
 from jaxarc.utils.logging.logging_utils import (
-    build_episode_summary_payload,
-    build_step_logging_payload,
-    extract_task_for_logging,
+    create_episode_summary,
+    create_step_log,
+    create_start_log,
 )
-from jaxarc.utils.serialization_utils import serialize_log_step
 
 
 # --- 1. Agent Definition (Pure Functional Style) ---
@@ -127,103 +126,97 @@ def run_logging_showcase(config_overrides: list[str]):
     env, env_params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", config=config)
     key = jax.random.PRNGKey(1)
 
-    # --- Run a Single Episode ---
-    logger.info("Starting episode run...")
-    start_time = time.time()
-    timestep: TimeStep = env.reset(env_params, key=key)
+    # --- Run Multiple Episodes ---
+    logger.info("Starting 5-episode run...")
 
-    # Extract complete task data for logging
-    metadata = extract_task_for_logging(env_params, state=timestep.state)
-    exp_logger.log_task_start(metadata)
+    for episode_num in range(5):
+        logger.info(f"Starting episode {episode_num}...")
+        start_time = time.time()
+        timestep: TimeStep = env.reset(env_params, key=key)
 
-    done = False
-    step_count = 0
-    total_reward = 0.0
-    episode_steps_data = []
-
-    while not done:
-        key, action_key = jax.random.split(key)
-        action = random_agent_policy(timestep.state, action_key, config)
-
-        prev_state = timestep.state
-        timestep = env.step(env_params, timestep, action)
-        total_reward += timestep.reward
-        step_count += 1
-
-        # Prepare data for logging
-        # Convert the (possibly JAX) step_count scalar to a host Python int where possible.
-        try:
-            step_num_val = int(timestep.state.step_count.item())
-        except Exception:
-            try:
-                step_num_val = int(timestep.state.step_count)
-            except Exception:
-                step_num_val = None
-
-        step_data_for_log = build_step_logging_payload(
-            before_state=prev_state,
-            after_state=timestep.state,
-            action=action,
-            reward=timestep.reward,
-            info={},
-            step_num=step_num_val,
-            episode_num=42,
-            params=env_params,  # optional; provide to include total_task_pairs
-            include_task_meta=True,
-            include_grids=False,  # don't attach full grids in this demo
+        # Start episode logging with proper episode tracking
+        metadata = create_start_log(
+          params=env_params,
+          state=timestep.state,
+          episode_num=episode_num,
         )
-        # step_data_for_log = {
-        #     "step_num": step_count,
-        #     "episode_num": 0,
-        #     "before_state": prev_state,
-        #     "after_state": state,
-        #     "action": action,
-        #     "reward": reward,
-        #     "info": info,
-        #     "task_id": task_id,
-        #     "task_pair_index": state.current_example_idx,
-        #     "total_task_pairs": state.task_data.num_train_pairs,
-        # }
-        episode_steps_data.append(step_data_for_log)
 
-        # Log the step
-        exp_logger.log_step(step_data_for_log)
+        exp_logger.log_task_start(metadata)
 
-        # Update termination flag from the timestep (best-effort host-side conversion).
-        try:
-            # Prefer the TimeStep helper if available
-            done = bool(timestep.last())
-        except Exception:
+        done = False
+        step_count = 0
+        total_reward = 0.0
+        episode_steps_data = []
+
+        while not done:
+            key, action_key = jax.random.split(key)
+            action = random_agent_policy(timestep.state, action_key, config)
+
+            prev_state = timestep.state
+            timestep = env.step(env_params, timestep, action)
+            total_reward += timestep.reward
+            step_count += 1
+
+            # Prepare data for logging
+            # Convert the (possibly JAX) step_count scalar to a host Python int where possible.
             try:
-                # Fallback: inspect step_type scalar (2 indicates LAST)
-                st = getattr(timestep, "step_type", None)
+                step_num_val = int(timestep.state.step_count.item())
+            except Exception:
                 try:
-                    done = bool(int(st.item() == 2))
+                    step_num_val = int(timestep.state.step_count)
                 except Exception:
-                    done = bool(int(st == 2))
+                    step_num_val = None
+
+            step_data_for_log = create_step_log(
+                timestep=timestep,
+                action=action,
+                step_num=step_num_val,
+                episode_num=episode_num,
+                prev_state=prev_state,
+                env_params=env_params,
+            )
+
+            episode_steps_data.append(step_data_for_log)
+
+            # Log the step
+            exp_logger.log_step(step_data_for_log)
+
+            # Update termination flag from the timestep (best-effort host-side conversion).
+            try:
+                # Prefer the TimeStep helper if available
+                done = bool(timestep.last())
             except Exception:
-                done = False
+                try:
+                    # Fallback: inspect step_type scalar (2 indicates LAST)
+                    st = getattr(timestep, "step_type", None)
+                    try:
+                        done = bool(int(st.item() == 2))
+                    except Exception:
+                        done = bool(int(st == 2))
+                except Exception:
+                    done = False
 
-        # Stop if the episode is done
-        if done:
-            break
+            # Stop if the episode is done
+            if done:
+                break
 
-    end_time = time.time()
-    logger.info(f"Episode finished in {end_time - start_time:.2f} seconds.")
+        end_time = time.time()
+        logger.info(f"Episode {episode_num} finished in {end_time - start_time:.2f} seconds.")
 
-    # --- Log Episode Summary ---
-    # Build a consistent episode summary payload using the logging utilities.
-    try:
-        summary_payload = build_episode_summary_payload(
-            episode_num=0,
-            step_data=episode_steps_data,
-            total_reward=total_reward,
-            params=env_params,
-            include_serialized_steps=True,
-        )
-        exp_logger.log_episode_summary(summary_payload)
-    except Exception as e:
-        logger.warning(f"Failed to build or log episode summary: {e}")
+        # --- Log Episode Summary ---
+        # Build a consistent episode summary payload using the logging utilities.
+        try:
+            summary_payload = create_episode_summary(
+                episode_num=episode_num,
+                step_logs=episode_steps_data,
+                env_params=env_params,
+            )
+            exp_logger.log_episode_summary(summary_payload)
+        except Exception as e:
+            logger.warning(f"Failed to build or log episode summary: {e}")
+
+        # Generate new key for next episode
+        key = jax.random.split(key)[0]
 
     # --- Clean Shutdown ---
     exp_logger.close()
@@ -233,16 +226,16 @@ def run_logging_showcase(config_overrides: list[str]):
     console.rule("[bold yellow]Logging Showcase Complete[/bold yellow]")
     console.print(
         Panel(
-            f"The logging showcase has finished.\n\n"
+            f"The logging showcase has finished running [bold]5 episodes[/bold].\n\n"
             f"Check the console output above to see the [bold cyan]RichHandler[/bold cyan] in action.\n\n"
             f"Detailed logs and visualizations have been saved to:\n"
             f"[green]{output_path.resolve()}[/green]\n\n"
             f"Inside you will find:\n"
             f"  - [bold]logs/[/bold] (from [bold cyan]FileHandler[/bold cyan]):\n"
-            f"    - `episode_0000_...json`: Detailed step-by-step data.\n"
-            f"    - `episode_0000_...pkl`: Pickled version for easy reloading.\n"
+            f"    - `episode_0000_...json` through `episode_0004_...json`: Detailed step-by-step data.\n"
+            f"    - `episode_0000_...pkl` through `episode_0004_...pkl`: Pickled versions for easy reloading.\n"
             f"  - [bold]visualizations/[/bold] (from [bold cyan]SVGHandler[/bold cyan]):\n"
-            f"    - `episode_0000/`: Directory for this episode.\n"
+            f"    - `episode_0000/` through `episode_0004/`: Directories for each episode.\n"
             f"      - `task_overview.svg`: Visualization of the ARC task.\n"
             f"      - `step_...svg`: A separate SVG for each step.\n"
             f"      - `summary.svg`: A final summary visualization.\n\n"
