@@ -127,9 +127,10 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 
 ### Action System Design
 
-- **Mask-Based Actions**: Primary focus on mask-based action format
-- **Validation Pipeline**: Actions validated and transformed through consistent
-  pipeline
+- **Mask-Based Core**: All actions ultimately processed as `MaskAction` objects
+- **Action Wrappers**: `PointActionWrapper` and `BboxActionWrapper` convert other formats to masks
+- **Clean Separation**: Core environment only knows about masks, wrappers handle format conversion
+- **Extensible Design**: New action formats can be added as wrappers without changing core
 - **Grid Operations**: Comprehensive set of grid transformation operations
 - **Action Space Controller**: Dynamic action space management and filtering
 
@@ -146,8 +147,8 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 
 ```python
 # Core configuration and types
-from jaxarc import JaxArcConfig
-from jaxarc.types import Grid, JaxArcTask, ARCAction, EnvParams, TimeStep
+from jaxarc import JaxArcConfig, MaskAction, create_mask_action
+from jaxarc.types import Grid, JaxArcTask, EnvParams, TimeStep
 
 # Environment creation using registration system
 from jaxarc.registration import make, available_task_ids
@@ -155,8 +156,8 @@ from jaxarc.registration import make, available_task_ids
 # Environment classes and functional API
 from jaxarc.envs import Environment, reset, step
 
-# Action creation utilities
-from jaxarc.envs import create_mask_action
+# Action wrappers for other formats (convert to mask internally)
+from jaxarc.envs.action_wrappers import PointActionWrapper, BboxActionWrapper
 
 # Parsers for data loading
 from jaxarc.parsers import ArcAgiParser
@@ -174,12 +175,13 @@ from jaxarc.utils.config import get_config
    Equinox validation
 3. **Environment Execution**: Pure functions in `envs/functional.py` with
    immutable `State`
-4. **Action Processing**: Action handlers transform inputs to grid operations
-5. **State Management**: Centralized `State` with PyTree utilities for
+4. **Action Processing**: All actions converted to `MaskAction` format, then processed by mask handler
+5. **Action Wrappers**: `PointActionWrapper`/`BboxActionWrapper` convert other formats to masks
+6. **State Management**: Centralized `State` with PyTree utilities for
    updates
-6. **Visualization**: `utils/visualization/` for debugging with JAX debug
+7. **Visualization**: `utils/visualization/` for debugging with JAX debug
    callbacks
-7. **Testing**: Comprehensive test suite with `chex` assertions for JAX
+8. **Testing**: Comprehensive test suite with `chex` assertions for JAX
    compatibility
 
 ## Development Workflow
