@@ -46,8 +46,8 @@ from jaxarc.utils.config import get_config
 from jaxarc.utils.logging import ExperimentLogger
 from jaxarc.utils.logging.logging_utils import (
     create_episode_summary,
-    create_step_log,
     create_start_log,
+    create_step_log,
 )
 
 
@@ -58,9 +58,7 @@ class AgentState(NamedTuple):
     key: jax.Array
 
 
-def random_agent_policy(
-    state: State, key: jax.Array, config: JaxArcConfig
-) -> tuple:
+def random_agent_policy(state: State, key: jax.Array, config: JaxArcConfig) -> tuple:
     """A pure function representing the policy of a random agent."""
     del state  # Unused for a random agent
     h, w = config.dataset.max_grid_height, config.dataset.max_grid_width
@@ -137,9 +135,9 @@ def run_logging_showcase(config_overrides: list[str]):
 
         # Start episode logging with proper episode tracking
         metadata = create_start_log(
-          params=env_params,
-          state=timestep.state,
-          episode_num=episode_num,
+            params=env_params,
+            state=timestep.state,
+            episode_num=episode_num,
         )
 
         exp_logger.log_task_start(metadata)
@@ -202,7 +200,9 @@ def run_logging_showcase(config_overrides: list[str]):
                 break
 
         end_time = time.time()
-        logger.info(f"Episode {episode_num} finished in {end_time - start_time:.2f} seconds.")
+        logger.info(
+            f"Episode {episode_num} finished in {end_time - start_time:.2f} seconds."
+        )
 
         # --- Log Episode Summary ---
         # Build a consistent episode summary payload using the logging utilities.

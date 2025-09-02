@@ -27,21 +27,25 @@ from ..state import State
 # Core types for new functional API
 from ..types import EnvParams, TimeStep
 
-# Action space controller
-from .action_space_controller import ActionSpaceController
 
-# Action handlers
-from .actions import (
-    MaskAction,
-    create_mask_action,
-    mask_handler,
-)
 
 # Action wrappers
 from .action_wrappers import (
     BboxActionWrapper,
     PointActionWrapper,
 )
+
+# Complete action system (combined actions + filtering)
+from .actions import (
+    MaskAction,
+    create_mask_action,
+    mask_handler,
+    filter_invalid_operation,
+    get_allowed_operations,
+    validate_operation,
+)
+
+
 
 # Simple environment interface and wrappers (Xland-Minigrid pattern)
 from .environment import Environment
@@ -73,7 +77,6 @@ from .wrapper import DmEnvAutoResetWrapper, GymAutoResetWrapper, Wrapper
 
 __all__ = [
     "OPERATION_NAMES",
-    "ActionSpaceController",
     "BboxActionWrapper",
     "DmEnvAutoResetWrapper",
     "EnvParams",
@@ -85,8 +88,12 @@ __all__ = [
     "Space",
     "State",
     "TimeStep",
-    "Wrapper",
     "create_mask_action",
+    "filter_invalid_operation",
+    "get_allowed_operations",
+    "mask_handler",
+    "validate_operation",
+    "Wrapper",
     "execute_grid_operation",
     "get_all_operation_ids",
     "get_operation_category",
@@ -98,4 +105,5 @@ __all__ = [
     "mask_handler",
     "reset",
     "step",
+    "validate_operation",
 ]

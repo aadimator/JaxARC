@@ -1,16 +1,12 @@
 """
-Action handlers for JaxARC environments.
+Action system for JaxARC environments.
 
-This module provides mask-based actions for the core JaxARC environment.
-The core environment exclusively handles mask-based actions, with other action
-formats handled by wrapper classes that transform to mask format.
+This module provides the complete action system following KISS principle:
+- MaskAction class for representing actions
+- Action creation and processing utilities
+- Operation validation and filtering utilities
 
-Key Features:
-- Mask-only action format for core environment simplicity
-- JIT-compiled mask handler for maximum performance
-- Static shapes throughout (output masks match grid dimensions)
-- Automatic coordinate clipping and validation
-- Working grid mask constraint enforcement
+Combined from simplified actions.py and action_filtering.py for better organization.
 """
 
 from __future__ import annotations
@@ -18,45 +14,27 @@ from __future__ import annotations
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from loguru import logger
 
-from ..utils.jax_types import (
+from jaxarc.configs.action_config import ActionConfig
+from jaxarc.state import State
+from jaxarc.utils.jax_types import (
+    NUM_OPERATIONS,
     MaskArray,
-    OperationId,
+    OperationMask,
     SelectionArray,
 )
-from ..utils.validation import assert_shape_matches
 
 
 class MaskAction(eqx.Module):
-    """Mask-based action using arbitrary selection.
-
-    This action type allows arbitrary selection patterns using a boolean
-    mask that directly specifies which cells are selected. This is the
-    canonical action format for the core JaxARC environment.
+    """Simple mask-based action.
 
     Attributes:
         operation: ARC operation ID (0-34)
-        action_type: Type identifier (always 2 for MaskAction)
         selection: Boolean mask indicating selected cells
     """
 
     operation: jnp.int32
-    action_type: jnp.int32  # Always 2 for MaskAction
     selection: SelectionArray
-
-    def to_selection_mask(self, grid_shape: tuple[int, int]) -> SelectionArray:
-        """Return the selection mask directly.
-
-        Args:
-            grid_shape: Shape of the grid (height, width) - used for validation
-
-        Returns:
-            The selection mask (assumed to already match grid_shape)
-        """
-        # For simplicity, assume the mask already has the correct shape
-        # This is reasonable since masks are typically created with the correct shape
-        return self.selection
 
     def validate(
         self, grid_shape: tuple[int, int], max_operations: int = 35
@@ -76,64 +54,129 @@ class MaskAction(eqx.Module):
         # Return with validated operation (assume selection is already correct shape)
         return MaskAction(
             operation=valid_operation,
-            action_type=jnp.array(2, dtype=jnp.int32),
             selection=self.selection,
         )
 
 
 def create_mask_action(operation, selection: SelectionArray) -> MaskAction:
-    """Create a mask action with the given parameters.
-
-    This function supports both single and batched inputs. When batched inputs
-    are provided, all fields will have the same batch dimension.
+    """Create a mask action.
 
     Args:
-        operation: ARC operation ID (0-34). Can be int or JAX array.
+        operation: ARC operation ID (0-34)
         selection: Boolean mask indicating selected cells
 
     Returns:
-        MaskAction instance with consistent batch dimensions
+        MaskAction instance
     """
-    # Convert operation to JAX array
-    operation_array = jnp.array(operation, dtype=jnp.int32)
-
-    # Create action_type with the same shape as operation
-    # For mask actions, action_type is always 2
-    if operation_array.shape == ():
-        # Scalar case
-        action_type_array = jnp.array(2, dtype=jnp.int32)
-    else:
-        # Batched case - create array of 2s with same shape as operation
-        action_type_array = jnp.full_like(operation_array, 2, dtype=jnp.int32)
-
     return MaskAction(
-        operation=operation_array,
-        action_type=action_type_array,
+        operation=jnp.array(operation, dtype=jnp.int32),
         selection=selection,
     )
 
 
 @jax.jit
 def mask_handler(action: MaskAction, working_grid_mask: MaskArray) -> SelectionArray:
-    """Convert mask action to selection mask.
-
-    This is the core action handler for the JaxARC environment. All actions
-    are ultimately converted to this mask format for processing.
+    """Process mask action to create selection mask.
 
     Args:
-        action: MaskAction with operation and selection fields
+        action: MaskAction with operation and selection
         working_grid_mask: Boolean mask defining valid grid area
 
     Returns:
-        Boolean mask with same shape as working_grid_mask with selection applied
+        Boolean selection mask constrained to working grid area
     """
-    expected_shape = working_grid_mask.shape
-    validated_selection = assert_shape_matches(
-        action.selection, expected_shape, "mask_selection"
-    )
+    # Ensure selection is boolean and constrain to working grid
+    selection = action.selection.astype(jnp.bool_)
+    return selection & working_grid_mask
 
-    # Get the selection mask from the action
-    mask = validated_selection.astype(jnp.bool_)
 
-    # Constrain to working grid area
-    return mask & working_grid_mask
+def get_allowed_operations(state: State, config: ActionConfig) -> OperationMask:
+    """Get mask of allowed operations based on config and state.
+
+    Args:
+        state: Current environment state
+        config: Action configuration
+
+    Returns:
+        Boolean mask indicating which operations are allowed
+    """
+    allowed_ops = getattr(config, "allowed_operations", None)
+    if isinstance(allowed_ops, tuple) and len(allowed_ops) > 0:
+        idx = jnp.asarray(allowed_ops, dtype=jnp.int32)
+        idx = jnp.clip(idx, 0, NUM_OPERATIONS - 1)
+        base = jnp.zeros((NUM_OPERATIONS,), dtype=jnp.bool_).at[idx].set(True)
+    else:
+        base = jnp.ones((NUM_OPERATIONS,), dtype=jnp.bool_)
+
+    if hasattr(state, "allowed_operations_mask"):
+        base = jnp.logical_and(base, state.allowed_operations_mask)
+
+    return base
+
+
+def validate_operation(operation_id: jnp.ndarray, state: State, config: ActionConfig) -> jnp.ndarray:
+    """Validate if operation ID is in range and allowed by current mask.
+
+    Args:
+        operation_id: Operation ID to validate
+        state: Current environment state
+        config: Action configuration
+
+    Returns:
+        Boolean indicating if operation is valid
+    """
+    mask = get_allowed_operations(state, config)
+    in_range = (operation_id >= 0) & (operation_id < NUM_OPERATIONS)
+    safe = jnp.clip(operation_id, 0, NUM_OPERATIONS - 1)
+    return in_range & mask[safe]
+
+
+def _find_nearest_valid_operation(op_id: jnp.ndarray, mask: OperationMask) -> jnp.ndarray:
+    """Find nearest valid operation ID based on allowed operations mask.
+
+    Args:
+        op_id: Target operation ID
+        mask: Boolean mask of allowed operations
+
+    Returns:
+        Nearest valid operation ID, or 0 if none available
+    """
+    ids = jnp.arange(NUM_OPERATIONS)
+    dists = jnp.abs(ids - op_id)
+    dists = jnp.where(mask, dists, jnp.inf)
+    idx = jnp.argmin(dists)
+    return jnp.where(jnp.any(mask), idx, jnp.array(0, dtype=jnp.int32))
+
+
+def filter_invalid_operation(
+    operation_id: jnp.ndarray, state: State, config: ActionConfig
+) -> jnp.ndarray:
+    """Filter invalid operation according to configured policy.
+
+    Args:
+        operation_id: Operation ID to filter
+        state: Current environment state
+        config: Action configuration with invalid_operation_policy
+
+    Returns:
+        Filtered operation ID based on policy
+    """
+    arr = operation_id.astype(jnp.int32)
+    mask = get_allowed_operations(state, config)
+    valid = validate_operation(arr, state, config)
+    policy = getattr(config, "invalid_operation_policy", "clip")
+    clipped = jnp.clip(arr, 0, NUM_OPERATIONS - 1)
+
+    if policy in ("clip", "penalize"):
+        repl = _find_nearest_valid_operation(clipped, mask)
+        out = jnp.where(valid, arr, repl)
+    elif policy == "reject":
+        out = jnp.where(valid, arr, jnp.array(-1, dtype=jnp.int32))
+    elif policy == "passthrough":
+        out = arr
+    else:
+        # Default to clip behavior for unknown policies
+        repl = _find_nearest_valid_operation(clipped, mask)
+        out = jnp.where(valid, arr, repl)
+
+    return out

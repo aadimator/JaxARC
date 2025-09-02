@@ -3,8 +3,6 @@ Centralized environment state definition using Equinox.
 
 This module defines the simplified, generic `State` used throughout JaxARC.
 Static configuration has been removed from state and moved to EnvParams.
-The legacy ArcEnvState has been fully removed. Use `State` (or the `ArcState`
-alias) instead.
 
 Key properties:
 - Equinox Module for automatic PyTree registration
@@ -116,8 +114,3 @@ class State(eqx.Module, Generic[EnvCarryT]):
         except (AttributeError, TypeError):
             # Gracefully skip during tracing
             pass
-
-
-# Type aliases for convenience
-BaseState = State[None]  # No carry
-ArcState = BaseState  # Our standard simplified state

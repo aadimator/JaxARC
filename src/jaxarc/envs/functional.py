@@ -25,10 +25,10 @@ from ..utils.state_utils import (
     increment_step_count,
     update_selection,
 )
-from .action_space_controller import ActionSpaceController
 from .actions import (
     MaskAction,
     create_mask_action,
+    filter_invalid_operation,
     mask_handler,
 )
 from .grid_initialization import initialize_working_grids
@@ -414,12 +414,8 @@ def _process_action(
         hasattr(params.action, "dynamic_action_filtering")
         and params.action.dynamic_action_filtering
     ):
-        controller = ActionSpaceController()
-
         # Filter invalid operation according to policy
-        operation = controller.filter_invalid_operation_jax(
-            operation, state, params.action
-        )
+        operation = filter_invalid_operation(operation, state, params.action)
 
         # Update validated action with filtered operation
         validated_action = create_mask_action(operation, validated_action.selection)
@@ -469,9 +465,7 @@ def _update_state(
 
 
 @eqx.filter_jit
-def validate_action_jax(
-    action: MaskAction, state: State, _unused: Any
-) -> jax.Array:
+def validate_action_jax(action: MaskAction, state: State, _unused: Any) -> jax.Array:
     """JAX-friendly validation returning a boolean predicate.
 
     This avoids raising inside JIT and can be used with lax.cond.

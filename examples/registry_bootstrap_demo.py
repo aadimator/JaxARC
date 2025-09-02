@@ -32,7 +32,8 @@ import jax
 import jax.numpy as jnp
 
 from jaxarc.configs.main_config import JaxArcConfig
-from jaxarc.envs import PointActionWrapper, reset as env_reset, step as env_step
+from jaxarc.envs import reset as env_reset
+from jaxarc.envs import step as env_step
 from jaxarc.registration import (
     available_named_subsets,
     make,
@@ -71,10 +72,11 @@ def run_demo(id_str: str) -> None:
     # Use tuple-based action format (operation, row, col) - no wrapper needed for functional API
     # We'll create a mask action directly instead
     from jaxarc.envs import create_mask_action
-    import jax.numpy as jnp
 
     # Create a mask action for SUBMIT operation at position (0, 0)
-    mask = jnp.zeros((params.dataset.max_grid_height, params.dataset.max_grid_width), dtype=jnp.bool_)
+    mask = jnp.zeros(
+        (params.dataset.max_grid_height, params.dataset.max_grid_width), dtype=jnp.bool_
+    )
     mask = mask.at[0, 0].set(True)  # Select position (0, 0)
     action = create_mask_action(operation=jnp.int32(34), selection=mask)  # SUBMIT
     ts1 = env_step(params, ts0, action)

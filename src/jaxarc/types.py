@@ -8,8 +8,7 @@ All types are designed to be JAX-compatible with proper validation and JAXTyping
 
 from __future__ import annotations
 
-from enum import IntEnum
-from typing import Any, NewType
+from typing import Any
 
 import chex
 import equinox as eqx
@@ -25,11 +24,9 @@ from jaxarc.configs.reward_config import RewardConfig
 
 # Import JAXTyping definitions
 from jaxarc.utils.jax_types import (
-    ContinuousSelectionArray,
     GridArray,
     MaskArray,
     ObservationArray,
-    OperationId,
     TaskIndex,
     TaskInputGrids,
     TaskInputMasks,
@@ -68,7 +65,8 @@ class EnvParams(eqx.Module):
 
     def __check_init__(self) -> None:
         # Basic validations
-        assert isinstance(self.max_episode_steps, int) and self.max_episode_steps > 0
+        assert isinstance(self.max_episode_steps, int)
+        assert self.max_episode_steps > 0
         assert self.episode_mode in (0, 1)
 
         # Require a task buffer for JIT-compatible reset
@@ -486,28 +484,6 @@ class JaxArcTask(eqx.Module):
         from jaxarc.utils import get_task_id_globally
 
         return get_task_id_globally(int(self.task_index))
-
-
-# Type Aliases for IDs
-AgentID = NewType("AgentID", int)
-
-
-# Enum types for actions
-class PrimitiveType(IntEnum):
-    """Enumeration of primitive operations available in the environment."""
-
-    DRAW_PIXEL = 0
-    DRAW_LINE = 1
-    FLOOD_FILL = 2
-    COPY_PASTE_RECT = 3
-
-
-"""Historical enums (ControlType, ActionCategory) removed after simplifying the action space.
-
-All operations are now treated uniformly (IDs 0-34). Any legacy references to
-ControlType or ActionCategory should be refactored to directly use
-ARCOperationType constants or removed entirely.
-"""
 
 
 # ARC-specific types
