@@ -37,6 +37,12 @@ from .actions import (
     mask_handler,
 )
 
+# Action wrappers
+from .action_wrappers import (
+    BboxActionWrapper,
+    PointActionWrapper,
+)
+
 # Simple environment interface and wrappers (Xland-Minigrid pattern)
 from .environment import Environment
 
@@ -68,12 +74,14 @@ from .wrapper import DmEnvAutoResetWrapper, GymAutoResetWrapper, Wrapper
 __all__ = [
     "OPERATION_NAMES",
     "ActionSpaceController",
+    "BboxActionWrapper",
     "DmEnvAutoResetWrapper",
     "EnvParams",
     "Environment",
     "GymAutoResetWrapper",
     "MaskAction",
     "MultiBinary",
+    "PointActionWrapper",
     "Space",
     "State",
     "TimeStep",

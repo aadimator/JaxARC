@@ -8,10 +8,7 @@ from __future__ import annotations
 
 # Configuration utilities
 from .config import (
-    get_external_path,
-    get_interim_path,
     get_path,
-    get_processed_path,
     get_raw_path,
 )
 
@@ -81,9 +78,6 @@ __all__ = [
     # Configuration utilities
     "get_path",
     "get_raw_path",
-    "get_processed_path",
-    "get_interim_path",
-    "get_external_path",
     # Task management utilities
     "TaskIDManager",
     "get_global_task_manager",
