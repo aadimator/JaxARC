@@ -44,7 +44,7 @@ from ..utils.jax_types import (
     OperationId,
     SelectionArray,
 )
-from ..utils.validation import validate_state_consistency
+from ..utils.state_utils import validate_state_consistency
 
 if TYPE_CHECKING:
     from ..state import State
