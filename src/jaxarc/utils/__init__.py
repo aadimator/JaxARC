@@ -1,7 +1,10 @@
 """JaxARC utilities package.
 
-This package contains utility functions and classes that support the core
+This package contains essential utility functions and classes that support the core
 functionality but are not part of the core environment or parsing logic.
+
+This module has been simplified to only export utilities that are actually used
+throughout the codebase, following the KISS principle.
 """
 
 from __future__ import annotations
@@ -15,34 +18,29 @@ from .config import (
 # Dataset utilities
 from .dataset_manager import DatasetError, DatasetManager
 
-# JAXTyping definitions for easy access
+# Essential JAXTyping definitions
 from .jax_types import (
-    # Flexible types
-    AnyGridArray,
-    AnyMaskArray,
-    AnySelectionArray,
-    BboxActionData,
-    BboxCoords,
-    ColIndex,
-    # Utility types
+    EPISODE_MODE_TEST,
+    EPISODE_MODE_TRAIN,
+    MAX_GRID_SIZE,
+    NUM_COLORS,
+    # Constants
+    NUM_OPERATIONS,
     ColorValue,
-    ContinuousSelectionArray,
-    EpisodeDone,
-    EpisodeIndex,
     # Core grid types (support both single and batched with *batch modifier)
     GridArray,
     GridHeight,
     GridWidth,
-    MaskActionData,
     MaskArray,
-    OperationId,
-    PointActionData,
+    ObservationArray,
     # Action types
-    PointCoords,
+    OperationId,
+    OperationMask,
+    PairIndex,
+    # Utility types
+    PRNGKey,
     RewardValue,
-    RowIndex,
     SelectionArray,
-    # Scoring types (support both single and batched with *batch modifier)
     SimilarityScore,
     # Environment state types
     StepCount,
@@ -86,33 +84,29 @@ __all__ = [
     "extract_task_id_from_index",
     "is_dummy_task_index",
     "TemporaryTaskManager",
-    # JAXTyping exports
+    # Essential JAXTyping exports
     "GridArray",
     "MaskArray",
     "SelectionArray",
-    "ContinuousSelectionArray",
     "TaskInputGrids",
     "TaskOutputGrids",
     "TaskInputMasks",
     "TaskOutputMasks",
-    "PointCoords",
-    "BboxCoords",
     "OperationId",
-    "PointActionData",
-    "BboxActionData",
-    "MaskActionData",
+    "OperationMask",
     "SimilarityScore",
     "RewardValue",
+    "ObservationArray",
     "StepCount",
-    "EpisodeIndex",
     "TaskIndex",
-    "EpisodeDone",
+    "PairIndex",
     "ColorValue",
     "GridHeight",
     "GridWidth",
-    "RowIndex",
-    "ColIndex",
-    "AnyGridArray",
-    "AnyMaskArray",
-    "AnySelectionArray",
+    "PRNGKey",
+    "NUM_OPERATIONS",
+    "NUM_COLORS",
+    "MAX_GRID_SIZE",
+    "EPISODE_MODE_TRAIN",
+    "EPISODE_MODE_TEST",
 ]
