@@ -1245,6 +1245,9 @@ class SVGHandler:
                 op_val = action.operation
             elif isinstance(action, dict) and "operation" in action:
                 op_val = action["operation"]
+            elif isinstance(action, tuple) and len(action) >= 1:
+                # Handle tuple actions from PointActionWrapper: (operation, row, col)
+                op_val = action[0]
             else:
                 logger.warning(
                     f"Could not extract operation from action: {type(action)}"

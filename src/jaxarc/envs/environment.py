@@ -39,7 +39,7 @@ import jax
 from jaxarc.configs.main_config import JaxArcConfig
 from jaxarc.types import EnvParams, TimeStep
 
-from .actions import StructuredAction
+from .actions import MaskAction
 from .functional import reset as functional_reset
 from .functional import step as functional_step
 
@@ -95,7 +95,7 @@ class Environment:
         self,
         params: EnvParams,
         timestep: TimeStep,
-        action: StructuredAction | Dict[str, jax.Array] | Any,
+        action: MaskAction | Dict[str, jax.Array] | Any,
     ) -> TimeStep:
         """
         Step the environment. Must be JAX-compatible and return a single TimeStep.

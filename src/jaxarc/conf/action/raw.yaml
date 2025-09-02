@@ -2,9 +2,6 @@
 # This configuration defines the most basic action space for ARC tasks
 # Only includes: Fill colors (0-9), Resize grid, and Submit actions
 
-# Action Format
-selection_format: "mask" # Use mask + operation format (point, bbox)
-
 # Operation Settings
 max_operations: 42 # Maximum operation ID + 1 (to allow operation 41) - updated for enhanced control operations
 allowed_operations: # Only basic operations using ARCOperationType IDs

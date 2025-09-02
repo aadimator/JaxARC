@@ -18,20 +18,10 @@ from ..types import EnvParams, TimeStep
 from .action_space_controller import ActionSpaceController
 
 # Action handlers
-# Structured actions
 from .actions import (
-    BaseAction,
-    BboxAction,
     MaskAction,
-    PointAction,
-    StructuredAction,
-    bbox_handler,
-    create_bbox_action,
     create_mask_action,
-    create_point_action,
-    get_action_handler,
     mask_handler,
-    point_handler,
 )
 
 # Simple environment interface and wrappers (Xland-Minigrid pattern)
@@ -65,26 +55,18 @@ from .wrapper import DmEnvAutoResetWrapper, GymAutoResetWrapper, Wrapper
 __all__ = [
     "OPERATION_NAMES",
     "ActionSpaceController",
-    "BaseAction",
-    "BboxAction",
     "DmEnvAutoResetWrapper",
     "EnvParams",
     "Environment",
     "GymAutoResetWrapper",
     "MaskAction",
     "MultiBinary",
-    "PointAction",
     "Space",
     "State",
-    "StructuredAction",
     "TimeStep",
     "Wrapper",
-    "bbox_handler",
-    "create_bbox_action",
     "create_mask_action",
-    "create_point_action",
     "execute_grid_operation",
-    "get_action_handler",
     "get_all_operation_ids",
     "get_operation_category",
     "get_operation_display_text",
@@ -93,7 +75,6 @@ __all__ = [
     "initialize_working_grids",
     "is_valid_operation_id",
     "mask_handler",
-    "point_handler",
     "reset",
     "step",
 ]

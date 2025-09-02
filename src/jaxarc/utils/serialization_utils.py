@@ -58,25 +58,8 @@ def serialize_action(action: dict[str, Any] | Any) -> dict[str, Any]:
             if hasattr(action, "operation"):
                 serialized["operation"] = serialize_jax_array(action.operation)
 
-            # Handle different action types
-            if hasattr(action, "row") and hasattr(action, "col"):
-                # PointAction
-                serialized["action_type"] = "point"
-                serialized["row"] = serialize_jax_array(action.row)
-                serialized["col"] = serialize_jax_array(action.col)
-            elif (
-                hasattr(action, "r1")
-                and hasattr(action, "c1")
-                and hasattr(action, "r2")
-                and hasattr(action, "c2")
-            ):
-                # BboxAction
-                serialized["action_type"] = "bbox"
-                serialized["r1"] = serialize_jax_array(action.r1)
-                serialized["c1"] = serialize_jax_array(action.c1)
-                serialized["r2"] = serialize_jax_array(action.r2)
-                serialized["c2"] = serialize_jax_array(action.c2)
-            elif hasattr(action, "selection"):
+            # Handle MaskAction only
+            if hasattr(action, "selection"):
                 # MaskAction
                 serialized["action_type"] = "mask"
                 serialized["selection"] = serialize_jax_array(action.selection)

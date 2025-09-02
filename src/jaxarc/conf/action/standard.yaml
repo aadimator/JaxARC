@@ -3,9 +3,6 @@
 # Includes fill colors, flood fill, clipboard, and grid operations
 # Excludes object-based operations (no movement, flip, rotate, etc.)
 
-# Action Format
-selection_format: "mask" # Use mask + operation format (others: point, bbox)
-
 # Operation Settings
 max_operations: 42 # Maximum operation ID + 1 (to allow operation 41) - updated for enhanced control operations
 allowed_operations: # Standard operations using ARCOperationType IDs

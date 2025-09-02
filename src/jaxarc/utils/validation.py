@@ -20,7 +20,7 @@ from jaxarc.configs import JaxArcConfig
 
 if TYPE_CHECKING:
     if TYPE_CHECKING:
-        from ..envs.actions import StructuredAction
+        from ..envs.actions import MaskAction
 
 from ..state import State
 
@@ -62,7 +62,7 @@ def configure_debugging(
 
 
 @eqx.filter_jit
-def validate_action(action: StructuredAction, config: JaxArcConfig) -> StructuredAction:
+def validate_action(action: MaskAction, config: JaxArcConfig) -> MaskAction:
     """Validate a structured action with runtime error checking."""
     max_operations = 42
     action = eqx.error_if(
@@ -78,8 +78,8 @@ def validate_action(action: StructuredAction, config: JaxArcConfig) -> Structure
 
 
 def validate_batch_actions(
-    actions: StructuredAction, config: JaxArcConfig, batch_size: int
-) -> StructuredAction:
+    actions: MaskAction, config: JaxArcConfig, batch_size: int
+) -> MaskAction:
     """Validate a batch of structured actions with clear error messages."""
     try:
         validate_fn = lambda action: validate_action(action, config)
