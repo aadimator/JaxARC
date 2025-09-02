@@ -136,14 +136,6 @@ class JaxArcConfig(eqx.Module):
                 "Many operations available but few episode steps - may not explore action space effectively"
             )
 
-        if (
-            self.action.selection_format == "mask"
-            and self.environment.max_episode_steps < 30
-        ):
-            warnings.append(
-                "Mask selection with short episodes may not provide enough time for complex selections"
-            )
-
     def _validate_reward_consistency(self, warnings: list[str]) -> None:
         if (
             self.reward.reward_on_submit_only

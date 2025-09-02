@@ -1,148 +1,154 @@
 """
-Grid utility functions for JAX-compatible grid operations.
+Consolidated grid utility functions for JAX-compatible grid operations.
 
-This module provides utility functions for grid manipulation and processing
-in the JaxARC environment.
+This module provides all essential grid manipulation and processing functions
+for the JaxARC environment, combining parsing utilities with grid operations
+in a simplified, KISS-compliant design.
 """
 
 from __future__ import annotations
 
-import chex
 import jax
 import jax.numpy as jnp
+from loguru import logger
 
 from .jax_types import (
-    BoundingBox,
-    ColorValue,
     GridArray,
-    GridHeight,
-    GridWidth,
     MaskArray,
-    PaddingValue,
     SelectionArray,
     SimilarityScore,
 )
 
+# =============================================================================
+# Core Padding Functions (Consolidated)
+# =============================================================================
 
-def pad_to_max_dims(
-    grid: GridArray,
-    max_height: GridHeight,
-    max_width: GridWidth,
-    fill_value: PaddingValue = 0,
-) -> GridArray:
-    """
-    Pad a grid to maximum dimensions.
 
-    **WARNING**: This function is NOT fully JIT-compatible when max_height/max_width
-    are dynamic values. For JIT compatibility, ensure max_height and max_width are
-    concrete (compile-time known) values.
+def pad_grid_to_size(
+    grid: jnp.ndarray, target_height: int, target_width: int, fill_value: int = 0
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """Pad a grid to target dimensions and create a validity mask.
 
     Args:
-        grid: Input grid to pad
-        max_height: Maximum height to pad to (should be concrete for JIT)
-        max_width: Maximum width to pad to (should be concrete for JIT)
+        grid: Input grid as JAX array of shape (height, width)
+        target_height: Target height after padding
+        target_width: Target width after padding
         fill_value: Value to use for padding (default: 0)
 
     Returns:
-        Grid padded to max dimensions
+        Tuple of (padded_grid, mask) where:
+        - padded_grid: Grid padded to (target_height, target_width)
+        - mask: Boolean mask indicating valid (non-padded) regions
+
+    Raises:
+        ValueError: If grid dimensions exceed target dimensions
     """
-    current_h, current_w = grid.shape
+    current_height, current_width = grid.shape
 
-    # Calculate padding needed using JAX operations
-    pad_h = jnp.maximum(0, max_height - current_h)
-    pad_w = jnp.maximum(0, max_width - current_w)
+    if current_height > target_height or current_width > target_width:
+        msg = (
+            f"Grid dimensions ({current_height}x{current_width}) exceed "
+            f"target dimensions ({target_height}x{target_width})"
+        )
+        raise ValueError(msg)
 
-    # Pad with fill_value to max dimensions
-    # Note: This will fail with JIT if pad_h/pad_w are not concrete values
-    return jnp.pad(
-        grid, ((0, pad_h), (0, pad_w)), mode="constant", constant_values=fill_value
+    # Calculate padding amounts
+    pad_height = target_height - current_height
+    pad_width = target_width - current_width
+
+    # Pad the grid
+    padded_grid = jnp.pad(
+        grid,
+        ((0, pad_height), (0, pad_width)),
+        mode="constant",
+        constant_values=fill_value,
     )
 
+    # Create validity mask (True for original data, False for padding)
+    mask = jnp.pad(
+        jnp.ones_like(grid, dtype=jnp.bool_),
+        ((0, pad_height), (0, pad_width)),
+        mode="constant",
+        constant_values=False,
+    )
 
-def get_grid_bounds(grid: GridArray, background_value: ColorValue = 0) -> BoundingBox:
-    """
-    Get the bounding box of non-background content in a grid.
+    return padded_grid, mask
 
-    JAX-compatible function that works with JIT compilation.
+
+def pad_array_sequence(
+    arrays: list[jnp.ndarray],
+    target_length: int,
+    target_height: int,
+    target_width: int,
+    fill_value: int = 0,
+) -> tuple[jnp.ndarray, jnp.ndarray]:
+    """Pad a sequence of grids to uniform dimensions.
 
     Args:
-        grid: Input grid
-        background_value: Value considered as background (default: 0)
+        arrays: List of JAX arrays, each of shape (height, width)
+        target_length: Target number of arrays (will pad with empty grids)
+        target_height: Target height for each grid
+        target_width: Target width for each grid
+        fill_value: Value to use for padding
 
     Returns:
-        Tuple of (min_row, max_row, min_col, max_col) bounds
+        Tuple of (padded_arrays, masks) where:
+        - padded_arrays: Array of shape (target_length, target_height, target_width)
+        - masks: Boolean mask array of same shape indicating valid regions
+
+    Raises:
+        ValueError: If any array dimensions exceed target dimensions
+        ValueError: If number of arrays exceeds target_length
     """
-    # Find non-background positions
-    non_bg_mask = grid != background_value
+    if len(arrays) > target_length:
+        msg = (
+            f"Number of arrays ({len(arrays)}) exceeds target length ({target_length})"
+        )
+        raise ValueError(msg)
 
-    # Create index arrays
-    row_indices = jnp.arange(grid.shape[0])
-    col_indices = jnp.arange(grid.shape[1])
+    padded_grids = []
+    masks = []
 
-    # Find rows and columns with non-background content
-    has_content_rows = jnp.any(non_bg_mask, axis=1)
-    has_content_cols = jnp.any(non_bg_mask, axis=0)
+    # Process existing arrays
+    for i, array in enumerate(arrays):
+        try:
+            padded_grid, mask = pad_grid_to_size(
+                array, target_height, target_width, fill_value
+            )
+            padded_grids.append(padded_grid)
+            masks.append(mask)
+        except ValueError as e:
+            logger.error(f"Error padding array {i}: {e}")
+            raise
 
-    # Use JAX-compatible operations to find bounds
-    min_row = jnp.where(
-        jnp.any(has_content_rows),
-        jnp.min(jnp.where(has_content_rows, row_indices, grid.shape[0])),
-        0,
-    )
-    max_row = jnp.where(
-        jnp.any(has_content_rows),
-        jnp.max(jnp.where(has_content_rows, row_indices, -1)),
-        0,
-    )
-    min_col = jnp.where(
-        jnp.any(has_content_cols),
-        jnp.min(jnp.where(has_content_cols, col_indices, grid.shape[1])),
-        0,
-    )
-    max_col = jnp.where(
-        jnp.any(has_content_cols),
-        jnp.max(jnp.where(has_content_cols, col_indices, -1)),
-        0,
-    )
+    # Add empty arrays for remaining slots
+    empty_slots = target_length - len(arrays)
+    if empty_slots > 0:
+        empty_grid = jnp.full(
+            (target_height, target_width),
+            fill_value,
+            dtype=arrays[0].dtype if arrays else jnp.int32,
+        )
+        empty_mask = jnp.zeros((target_height, target_width), dtype=jnp.bool_)
 
-    return min_row, max_row, min_col, max_col
+        for _ in range(empty_slots):
+            padded_grids.append(empty_grid)
+            masks.append(empty_mask)
+
+    # Stack into final arrays
+    final_arrays = jnp.stack(padded_grids, axis=0)
+    final_masks = jnp.stack(masks, axis=0)
+
+    return final_arrays, final_masks
 
 
-def crop_grid_to_content(
-    grid: GridArray, background_value: ColorValue = 0
-) -> GridArray:
-    """
-    Crop a grid to its content bounds (remove background padding).
-
-    JAX-compatible function that works with JIT compilation.
-
-    **Important**: This function returns a dynamically-sized array which may not
-    be compatible with all JAX transformations that require static shapes.
-
-    Args:
-        grid: Input grid to crop
-        background_value: Value considered as background (default: 0)
-
-    Returns:
-        Cropped grid containing only the content area
-    """
-    min_row, max_row, min_col, max_col = get_grid_bounds(grid, background_value)
-
-    # Calculate crop dimensions using JAX-compatible operations
-    crop_height = jnp.maximum(1, max_row - min_row + 1)
-    crop_width = jnp.maximum(1, max_col - min_col + 1)
-
-    # Use dynamic slice to extract the content area
-    cropped_grid = jax.lax.dynamic_slice(
-        grid, (min_row, min_col), (crop_height, crop_width)
-    )
-
-    return cropped_grid
+# =============================================================================
+# Shape and Mask Utilities
+# =============================================================================
 
 
 def get_actual_grid_shape_from_mask(mask: MaskArray) -> tuple[int, int]:
-    """
-    Get the actual shape of a grid based on its validity mask.
+    """Get the actual shape of a grid based on its validity mask.
 
     JAX-compatible function that works with JIT compilation.
 
@@ -154,15 +160,6 @@ def get_actual_grid_shape_from_mask(mask: MaskArray) -> tuple[int, int]:
 
     Returns:
         Tuple of (height, width) representing the actual grid dimensions
-
-    Examples:
-        ```python
-        # For a 5x5 actual grid with a 30x30 mask
-        mask = jnp.zeros((30, 30), dtype=bool)
-        mask = mask.at[:5, :5].set(True)
-        actual_height, actual_width = get_actual_grid_shape_from_mask(mask)
-        # Returns (5, 5) instead of (30, 30)
-        ```
     """
     # Find which rows and columns have any valid cells
     valid_rows = jnp.any(mask, axis=1)
@@ -173,7 +170,6 @@ def get_actual_grid_shape_from_mask(mask: MaskArray) -> tuple[int, int]:
     col_indices = jnp.arange(mask.shape[1])
 
     # Find the maximum valid indices using JAX-compatible operations
-    # Use jnp.where to handle the case where no valid cells exist
     max_row_idx = jnp.where(
         jnp.any(valid_rows), jnp.max(jnp.where(valid_rows, row_indices, -1)), -1
     )
@@ -182,49 +178,10 @@ def get_actual_grid_shape_from_mask(mask: MaskArray) -> tuple[int, int]:
     )
 
     # The actual dimensions are the maximum valid indices + 1
-    # Use jnp.maximum to ensure non-negative values
     actual_height = jnp.maximum(0, max_row_idx + 1)
     actual_width = jnp.maximum(0, max_col_idx + 1)
 
     return (actual_height, actual_width)
-
-
-def crop_grid_to_mask(grid: GridArray, mask: chex.Array) -> GridArray:
-    """
-    Non-JIT version for visualization and debugging.
-
-    **WARNING**: This function is NOT JIT-compatible because it returns
-    dynamically-sized arrays. Use only for visualization, debugging, or
-    non-JIT contexts.
-
-    Args:
-        grid: Input grid to crop (may be padded)
-        mask: Boolean mask indicating valid cells
-
-    Returns:
-        GridArray containing only the actual grid content (variable size)
-
-    Examples:
-        ```python
-        # For visualization/debugging (non-JIT):
-        padded_grid = jnp.zeros((30, 30))
-        mask = jnp.zeros((30, 30), dtype=bool).at[:5, :5].set(True)
-        actual_grid = crop_grid_to_mask_non_jit(padded_grid, mask)
-        # Returns actual 5x5 grid
-        ```
-    """
-    actual_height, actual_width = get_actual_grid_shape_from_mask(mask)
-
-    # Convert to Python ints for slicing (breaks JIT compatibility)
-    h = int(actual_height)
-    w = int(actual_width)
-
-    # Handle empty case
-    if h == 0 or w == 0:
-        return jnp.array([[0]], dtype=grid.dtype)
-
-    # Use regular Python slicing (not JIT compatible)
-    return grid[:h, :w]
 
 
 @jax.jit
@@ -234,13 +191,10 @@ def compute_grid_similarity(
     target_grid: GridArray,
     target_mask: SelectionArray,
 ) -> SimilarityScore:
-    """
-    Compute size-aware similarity between working and target grids.
+    """Compute size-aware similarity between working and target grids.
 
     This function compares grids on a fixed canvas based on the target grid's
-    actual dimensions. Size mismatches are properly penalized:
-    - If working grid is smaller: missing areas count as mismatches
-    - If working grid is larger: only the target-sized area is compared
+    actual dimensions. Size mismatches are properly penalized.
 
     Args:
         working_grid: The current working grid
@@ -265,7 +219,6 @@ def compute_grid_similarity(
         canvas_mask = (rows < target_height) & (cols < target_width)
 
         # Compare grids only where target_mask indicates content should exist
-        # Working grid content is considered within canvas and working mask
         working_content = jnp.where(canvas_mask & working_mask, working_grid, -1)
         target_content = jnp.where(target_mask, target_grid, -1)
 

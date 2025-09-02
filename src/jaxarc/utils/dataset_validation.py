@@ -65,13 +65,6 @@ def _validate_conceptarc_config(config: JaxArcConfig) -> None:
             f"{config.dataset.max_grid_height}x{config.dataset.max_grid_width}"
         )
 
-    # ConceptARC works well with mask-based actions for concept reasoning
-    if config.action.selection_format != "mask":
-        logger.info(
-            f"ConceptARC typically works best with mask-based actions. "
-            f"Current: {config.action.selection_format}"
-        )
-
     # Check dataset name consistency
     if config.dataset.dataset_name != "ConceptARC":
         logger.warning(
@@ -87,13 +80,6 @@ def _validate_miniarc_config(config: JaxArcConfig) -> None:
             f"MiniARC is optimized for 5x5 grids. Current max: "
             f"{config.dataset.max_grid_height}x{config.dataset.max_grid_width}. "
             f"Consider using max_grid_height=5 and max_grid_width=5."
-        )
-
-    # MiniARC works well with point-based actions for small grids
-    if config.action.selection_format == "mask":
-        logger.info(
-            "MiniARC typically works well with point-based actions for 5x5 grids. "
-            "Consider using selection_format='point' for optimal performance."
         )
 
     # Check dataset name consistency
@@ -128,7 +114,6 @@ def get_dataset_recommendations(dataset_name: str) -> dict[str, str]:
             {
                 "dataset.max_grid_height": "30",
                 "dataset.max_grid_width": "30",
-                "action.selection_format": "mask",
                 "dataset.dataset_name": "ConceptARC",
             }
         )
@@ -137,7 +122,6 @@ def get_dataset_recommendations(dataset_name: str) -> dict[str, str]:
             {
                 "dataset.max_grid_height": "5",
                 "dataset.max_grid_width": "5",
-                "action.selection_format": "point",
                 "dataset.dataset_name": "MiniARC",
             }
         )
