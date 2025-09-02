@@ -17,10 +17,13 @@ Usage:
     python examples/action_wrappers_example.py
 """
 
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
-from jaxarc.registration import make
+
 from jaxarc.envs.action_wrappers import BboxActionWrapper, PointActionWrapper
+from jaxarc.registration import make
 from jaxarc.utils.visualization import log_grid_to_console
 
 
@@ -61,20 +64,14 @@ def bbox_wrapper_demo():
     timestep = env.reset(env_params, key)
 
     print("🔹 Initial grid:")
-    log_grid_to_console(
-        timestep.state.working_grid,
-        title="Working Grid"
-    )
+    log_grid_to_console(timestep.state.working_grid, title="Working Grid")
 
     # Execute bbox action: fill rectangle
     bbox_action = (2, 1, 2, 3, 5)  # Green rectangle from (1,2) to (3,5)
     timestep = env.step(env_params, timestep, bbox_action)
 
     print(f"\n🔹 After bbox action {bbox_action}:")
-    log_grid_to_console(
-        timestep.state.working_grid,
-        title="After Rectangle Fill"
-    )
+    log_grid_to_console(timestep.state.working_grid, title="After Rectangle Fill")
 
 
 def point_wrapper_demo():
@@ -89,10 +86,7 @@ def point_wrapper_demo():
     timestep = env.reset(env_params, key)
 
     print("🔹 Initial grid:")
-    log_grid_to_console(
-        timestep.state.working_grid,
-        title="Working Grid"
-    )
+    log_grid_to_console(timestep.state.working_grid, title="Working Grid")
 
     # Execute multiple point actions
     point_actions = [
@@ -104,13 +98,10 @@ def point_wrapper_demo():
 
     for i, action in enumerate(point_actions):
         timestep = env.step(env_params, timestep, action)
-        print(f"   Point action {i+1}: {action}")
+        print(f"   Point action {i + 1}: {action}")
 
     print(f"\n🔹 After {len(point_actions)} point actions:")
-    log_grid_to_console(
-        timestep.state.working_grid,
-        title="After Point Actions"
-    )
+    log_grid_to_console(timestep.state.working_grid, title="After Point Actions")
 
 
 def multiple_actions_demo():
@@ -126,23 +117,20 @@ def multiple_actions_demo():
 
     # Create a pattern with multiple bbox actions
     actions_sequence = [
-        (1, 0, 0, 1, 1),   # Red square in top-left corner
-        (2, 0, 3, 1, 4),   # Green rectangle in top-right
-        (3, 3, 0, 4, 1),   # Blue rectangle in bottom-left
-        (4, 3, 3, 4, 4),   # Yellow square in bottom-right
-        (5, 2, 2, 2, 2),   # Gray point in center
+        (1, 0, 0, 1, 1),  # Red square in top-left corner
+        (2, 0, 3, 1, 4),  # Green rectangle in top-right
+        (3, 3, 0, 4, 1),  # Blue rectangle in bottom-left
+        (4, 3, 3, 4, 4),  # Yellow square in bottom-right
+        (5, 2, 2, 2, 2),  # Gray point in center
     ]
 
     print("🔹 Executing action sequence:")
     for i, action in enumerate(actions_sequence):
         timestep = env.step(env_params, timestep, action)
-        print(f"   Action {i+1}: {action}")
+        print(f"   Action {i + 1}: {action}")
 
     print("\n🔹 Final result:")
-    log_grid_to_console(
-        timestep.state.working_grid,
-        title="Pattern Created"
-    )
+    log_grid_to_console(timestep.state.working_grid, title="Pattern Created")
 
 
 def interface_compatibility_demo():
@@ -157,10 +145,7 @@ def interface_compatibility_demo():
     point_env = PointActionWrapper(env)
 
     # Check all methods exist and work
-    methods_to_test = [
-        'reset', 'step', 'observation_shape',
-        'default_params', 'render'
-    ]
+    methods_to_test = ["reset", "step", "observation_shape", "default_params", "render"]
 
     print("✅ BboxActionWrapper interface:")
     for method in methods_to_test:
@@ -184,7 +169,7 @@ def jax_compatibility_demo():
     print("\n⚡ JAX Compatibility Demo")
     print("=" * 50)
 
-    from jaxarc.envs.action_wrappers import _jit_point_to_mask, _jit_bbox_to_mask
+    from jaxarc.envs.action_wrappers import _jit_bbox_to_mask, _jit_point_to_mask
 
     # Test JIT-compiled transformations
     print("🔹 Testing JIT compilation of action transformations:")
@@ -193,20 +178,20 @@ def jax_compatibility_demo():
     point_action = (15, 2, 3)
     grid_shape = (10, 10)
     mask_action = _jit_point_to_mask(point_action, grid_shape)
-    print(f"   ✓ Point JIT: {point_action} → mask with {jnp.sum(mask_action.selection)} cells")
+    print(
+        f"   ✓ Point JIT: {point_action} → mask with {jnp.sum(mask_action.selection)} cells"
+    )
 
     # Bbox transformation
     bbox_action = (10, 1, 1, 3, 3)
     mask_action = _jit_bbox_to_mask(bbox_action, grid_shape)
-    expected_cells = (3-1+1) * (3-1+1)  # 3x3 = 9 cells
-    print(f"   ✓ Bbox JIT: {bbox_action} → mask with {jnp.sum(mask_action.selection)} cells")
+    expected_cells = (3 - 1 + 1) * (3 - 1 + 1)  # 3x3 = 9 cells
+    print(
+        f"   ✓ Bbox JIT: {bbox_action} → mask with {jnp.sum(mask_action.selection)} cells"
+    )
 
     # Test vmap compatibility (batch processing)
-    batch_point_actions = jnp.array([
-        [15, 0, 0],
-        [10, 1, 1],
-        [5, 2, 2]
-    ])
+    batch_point_actions = jnp.array([[15, 0, 0], [10, 1, 1], [5, 2, 2]])
 
     # Note: For actual vmap usage, you'd need to handle the Environment state properly
     print("   ✓ Action transformations are JAX JIT/vmap/pmap compatible")
@@ -232,7 +217,9 @@ def main():
         print("   • Action wrappers provide simplified action formats")
         print("   • Full Environment interface compatibility")
         print("   • JAX JIT/vmap/pmap support for performance")
-        print("   • Easy to use: env, env_params = make('Mini'); env = BboxActionWrapper(env)")
+        print(
+            "   • Easy to use: env, env_params = make('Mini'); env = BboxActionWrapper(env)"
+        )
         print("\n📖 Action Formats:")
         print("   • PointActionWrapper: (operation, row, col)")
         print("   • BboxActionWrapper: (operation, r1, c1, r2, c2)")
@@ -241,6 +228,7 @@ def main():
     except Exception as e:
         print(f"\n❌ Example failed: {e}")
         import traceback
+
         traceback.print_exc()
 
 

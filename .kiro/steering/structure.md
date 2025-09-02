@@ -106,8 +106,8 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 
 ### Functional Core Design
 
-- **Pure Functions**: Core environment operations (`reset`, `step`) are
-  pure functions
+- **Pure Functions**: Core environment operations (`reset`, `step`) are pure
+  functions
 - **Immutable State**: All state updates return new state objects using
   `equinox.Module`
 - **Explicit Dependencies**: Configuration and PRNG keys passed explicitly
@@ -171,8 +171,7 @@ from jaxarc.utils.config import get_config
 3. **Environment Execution**: Pure functions in `envs/functional.py` with
    immutable `State`
 4. **Action Processing**: Action handlers transform inputs to grid operations
-5. **State Management**: Centralized `State` with PyTree utilities for
-   updates
+5. **State Management**: Centralized `State` with PyTree utilities for updates
 6. **Visualization**: `utils/visualization/` for debugging with JAX debug
    callbacks
 7. **Testing**: Comprehensive test suite with `chex` assertions for JAX

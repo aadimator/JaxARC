@@ -154,7 +154,7 @@ def create_start_log(
     params: EnvParams,
     task_idx: Union[int, Any] = None,
     state: Optional[State] = None,
-    episode_num: Optional[int] = None
+    episode_num: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Extract complete task data for logging from EnvParams buffer.
@@ -466,6 +466,7 @@ def create_episode_summary(
         payload["task_id"] = step_logs[0].get("task_id")
 
     return payload
+
 
 # Expose a small API tuple for convenience
 __all__ = [

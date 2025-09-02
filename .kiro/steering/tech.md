@@ -4,7 +4,8 @@
 
 - **JAX**: Primary framework for high-performance numerical computing with JIT
   compilation
-- **Python 3.13+**: Base language with type hints and modern features (>=3.9 supported)
+- **Python 3.13+**: Base language with type hints and modern features (>=3.9
+  supported)
 - **Equinox**: Primary framework for JAX-compatible modules and PyTree
   registration (preferred over chex.dataclass)
 - **JAXTyping**: Precise type annotations for JAX arrays with shape information
@@ -85,7 +86,7 @@ pixi run python examples/configuration_demo.py   # Configuration system demo
 
 - **Single-Agent Focus**: Current implementation optimized for SARL with
   extensible architecture
-- **Functional API**: Pure functional environment operations (`reset`,
-  `step`) for maximum JAX compatibility
+- **Functional API**: Pure functional environment operations (`reset`, `step`)
+  for maximum JAX compatibility
 - **Future Extensions**: Architecture supports HRL, Meta-RL, Multi-Task RL, and
   MARL extensions

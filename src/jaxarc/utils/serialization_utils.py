@@ -61,11 +61,9 @@ def serialize_action(action: dict[str, Any] | Any) -> dict[str, Any]:
             # Handle MaskAction only
             if hasattr(action, "selection"):
                 # MaskAction
-                serialized["action_type"] = "mask"
                 serialized["selection"] = serialize_jax_array(action.selection)
             else:
                 # Unknown structured action type
-                serialized["action_type"] = "unknown"
                 serialized["raw"] = str(action)
 
             return serialized

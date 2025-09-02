@@ -72,7 +72,7 @@ def reset(env_params: EnvParams, key: PRNGKey) -> TimeStep:
         available_ids = available_task_ids("Mini", config=config, auto_download=True)
         task_id = available_ids[0]
         env, env_params = make(f"Mini-{task_id}", config=config)
-        
+
         key = jax.random.PRNGKey(42)
         timestep = env.reset(env_params, key)
         ```

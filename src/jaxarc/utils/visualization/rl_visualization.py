@@ -357,7 +357,7 @@ def draw_rl_step_svg_enhanced(
             min_r, max_r = min(r1, r2), max(r1, r2)
             min_c, max_c = min(c1, c2), max(c1, c2)
             # Set rectangular region (inclusive bounds)
-            selection_mask[min_r:max_r+1, min_c:max_c+1] = True
+            selection_mask[min_r : max_r + 1, min_c : max_c + 1] = True
     elif isinstance(action, dict):  # Fallback for old dictionary format
         if "selection" in action:
             selection_mask = np.asarray(action["selection"])

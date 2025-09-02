@@ -110,8 +110,8 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 
 ### Functional Core Design
 
-- **Pure Functions**: Core environment operations (`reset`, `step`) are
-  pure functions
+- **Pure Functions**: Core environment operations (`reset`, `step`) are pure
+  functions
 - **Immutable State**: All state updates return new state objects using
   `equinox.Module`
 - **Explicit Dependencies**: Configuration and PRNG keys passed explicitly
@@ -128,9 +128,12 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 ### Action System Design
 
 - **Mask-Based Core**: All actions ultimately processed as `MaskAction` objects
-- **Action Wrappers**: `PointActionWrapper` and `BboxActionWrapper` convert other formats to masks
-- **Clean Separation**: Core environment only knows about masks, wrappers handle format conversion
-- **Extensible Design**: New action formats can be added as wrappers without changing core
+- **Action Wrappers**: `PointActionWrapper` and `BboxActionWrapper` convert
+  other formats to masks
+- **Clean Separation**: Core environment only knows about masks, wrappers handle
+  format conversion
+- **Extensible Design**: New action formats can be added as wrappers without
+  changing core
 - **Grid Operations**: Comprehensive set of grid transformation operations
 - **Action Space Controller**: Dynamic action space management and filtering
 
@@ -175,10 +178,11 @@ from jaxarc.utils.config import get_config
    Equinox validation
 3. **Environment Execution**: Pure functions in `envs/functional.py` with
    immutable `State`
-4. **Action Processing**: All actions converted to `MaskAction` format, then processed by mask handler
-5. **Action Wrappers**: `PointActionWrapper`/`BboxActionWrapper` convert other formats to masks
-6. **State Management**: Centralized `State` with PyTree utilities for
-   updates
+4. **Action Processing**: All actions converted to `MaskAction` format, then
+   processed by mask handler
+5. **Action Wrappers**: `PointActionWrapper`/`BboxActionWrapper` convert other
+   formats to masks
+6. **State Management**: Centralized `State` with PyTree utilities for updates
 7. **Visualization**: `utils/visualization/` for debugging with JAX debug
    callbacks
 8. **Testing**: Comprehensive test suite with `chex` assertions for JAX

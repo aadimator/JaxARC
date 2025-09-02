@@ -20,7 +20,8 @@ potentially Multi-Agent RL (MARL).
 - **Modular Design**: Composable configuration components with Hydra integration
 - **Rich Visualization**: Terminal and SVG grid rendering utilities with JAX
   debug callbacks
-- **Mask-Based Actions**: Comprehensive mask-based action system for grid operations
+- **Mask-Based Actions**: Comprehensive mask-based action system for grid
+  operations
 - **Functional API**: Pure functional environment operations for maximum JAX
   compatibility
 

@@ -98,12 +98,7 @@ def random_agent_policy(
         row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
 
         # Create bbox mask (inclusive bounds)
-        mask = (
-            (row_mesh >= r1)
-            & (row_mesh <= r2)
-            & (col_mesh >= c1)
-            & (col_mesh <= c2)
-        )
+        mask = (row_mesh >= r1) & (row_mesh <= r2) & (col_mesh >= c1) & (col_mesh <= c2)
 
         return create_mask_action(op, mask)
 
