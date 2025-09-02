@@ -10,6 +10,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
+import jax.numpy as jnp
+from loguru import logger
+
 from jaxarc.configs import DatasetConfig
 from jaxarc.types import JaxArcTask
 from jaxarc.utils.jax_types import (
@@ -272,7 +275,6 @@ class ArcDataParserBase(ABC):
         Raises:
             ValueError: If training data is invalid
         """
-        from .utils import convert_grid_to_jax
 
         train_pairs_data = task_content.get("train", [])
 
@@ -288,8 +290,8 @@ class ArcDataParserBase(ABC):
                 msg = f"Training pair {i} missing input or output"
                 raise ValueError(msg)
 
-            input_grid = convert_grid_to_jax(pair["input"])
-            output_grid = convert_grid_to_jax(pair["output"])
+            input_grid = self._convert_grid_to_jax(pair["input"])
+            output_grid = self._convert_grid_to_jax(pair["output"])
 
             # Validate grid dimensions
             self.validate_grid_dimensions(*input_grid.shape)
@@ -322,7 +324,7 @@ class ArcDataParserBase(ABC):
         Returns:
             Dictionary containing padded arrays and masks
         """
-        from .utils import pad_array_sequence
+        from ..utils.grid_utils import pad_array_sequence
 
         # Pad all arrays to maximum dimensions
         padded_train_inputs, train_input_masks = pad_array_sequence(
@@ -377,7 +379,6 @@ class ArcDataParserBase(ABC):
         Raises:
             ValueError: If any color value is outside the valid range
         """
-        import jax.numpy as jnp
 
         # Get unique color values in the grid
         unique_colors = jnp.unique(grid)
@@ -391,6 +392,57 @@ class ArcDataParserBase(ABC):
             except ValueError as e:
                 msg = f"Invalid color in grid: {e}"
                 raise ValueError(msg) from e
+
+    def _validate_arc_grid_data(self, grid_data: list[list[int]]) -> None:
+        """Validate that grid data is in the correct ARC format.
+
+        Args:
+            grid_data: Grid as list of lists of integers
+
+        Raises:
+            ValueError: If grid format is invalid
+        """
+        if not grid_data:
+            raise ValueError("Grid data cannot be empty")
+
+        if not isinstance(grid_data, list):
+            raise ValueError("Grid data must be a list")
+
+        if not all(isinstance(row, list) for row in grid_data):
+            raise ValueError("Grid data must be a list of lists")
+
+        # Check consistent row lengths
+        if grid_data:
+            row_length = len(grid_data[0])
+            if not all(len(row) == row_length for row in grid_data):
+                raise ValueError("All rows in grid must have the same length")
+
+        # Check that all cells are integers in valid range
+        for i, row in enumerate(grid_data):
+            for j, cell in enumerate(row):
+                if not isinstance(cell, int):
+                    raise ValueError(
+                        f"Grid cell at ({i}, {j}) must be an integer, got {type(cell)}"
+                    )
+                if not (0 <= cell <= 9):
+                    raise ValueError(
+                        f"Grid cell at ({i}, {j}) has value {cell}, must be 0-9"
+                    )
+
+    def _convert_grid_to_jax(self, grid_data: list[list[int]]) -> jnp.ndarray:
+        """Convert grid data from list format to JAX array.
+
+        Args:
+            grid_data: Grid as list of lists of integers
+
+        Returns:
+            JAX array of shape (height, width) with int32 dtype
+
+        Raises:
+            ValueError: If grid format is invalid
+        """
+        self._validate_arc_grid_data(grid_data)
+        return jnp.array(grid_data, dtype=jnp.int32)
 
     def _log_parsing_stats(
         self,
@@ -409,7 +461,6 @@ class ArcDataParserBase(ABC):
             test_output_grids: List of test output grids
             task_id: Task identifier
         """
-        from .utils import log_parsing_stats
 
         max_train_dims = max(
             (grid.shape for grid in train_input_grids + train_output_grids),
@@ -424,8 +475,10 @@ class ArcDataParserBase(ABC):
             max(max_train_dims[1], max_test_dims[1]),
         )
 
-        log_parsing_stats(
-            len(train_input_grids), len(test_input_grids), max_dims, task_id
+        task_info = f"Task {task_id}" if task_id else "Task"
+        logger.debug(
+            f"{task_info}: {len(train_input_grids)} train pairs, {len(test_input_grids)} test pairs, "
+            f"max grid size: {max_dims[0]}x{max_dims[1]}"
         )
 
     def _process_test_pairs(self, task_content: dict) -> tuple[list, list]:
@@ -440,9 +493,6 @@ class ArcDataParserBase(ABC):
         Raises:
             ValueError: If test data is invalid
         """
-        import jax.numpy as jnp
-
-        from .utils import convert_grid_to_jax
 
         test_pairs_data = task_content.get("test", [])
 
@@ -458,14 +508,14 @@ class ArcDataParserBase(ABC):
                 msg = f"Test pair {i} missing input"
                 raise ValueError(msg)
 
-            input_grid = convert_grid_to_jax(pair["input"])
+            input_grid = self._convert_grid_to_jax(pair["input"])
             self.validate_grid_dimensions(*input_grid.shape)
             self._validate_grid_colors(input_grid)
             test_input_grids.append(input_grid)
 
             # For test pairs, output might be provided or missing
             if "output" in pair and pair["output"] is not None:
-                output_grid = convert_grid_to_jax(pair["output"])
+                output_grid = self._convert_grid_to_jax(pair["output"])
                 self.validate_grid_dimensions(*output_grid.shape)
                 self._validate_grid_colors(output_grid)
                 test_output_grids.append(output_grid)

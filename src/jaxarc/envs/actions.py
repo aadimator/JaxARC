@@ -114,7 +114,9 @@ def get_allowed_operations(state: State, config: ActionConfig) -> OperationMask:
     return base
 
 
-def validate_operation(operation_id: jnp.ndarray, state: State, config: ActionConfig) -> jnp.ndarray:
+def validate_operation(
+    operation_id: jnp.ndarray, state: State, config: ActionConfig
+) -> jnp.ndarray:
     """Validate if operation ID is in range and allowed by current mask.
 
     Args:
@@ -131,7 +133,9 @@ def validate_operation(operation_id: jnp.ndarray, state: State, config: ActionCo
     return in_range & mask[safe]
 
 
-def _find_nearest_valid_operation(op_id: jnp.ndarray, mask: OperationMask) -> jnp.ndarray:
+def _find_nearest_valid_operation(
+    op_id: jnp.ndarray, mask: OperationMask
+) -> jnp.ndarray:
     """Find nearest valid operation ID based on allowed operations mask.
 
     Args:

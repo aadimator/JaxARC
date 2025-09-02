@@ -33,10 +33,8 @@ from .concept_arc import ConceptArcParser
 from .mini_arc import MiniArcParser
 
 __all__ = [
-    # Base parser
-    "ArcDataParserBase",
-    # Dataset-specific parsers
     "ArcAgiParser",
+    "ArcDataParserBase",
     "ConceptArcParser",
     "MiniArcParser",
 ]

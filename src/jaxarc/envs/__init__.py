@@ -27,8 +27,6 @@ from ..state import State
 # Core types for new functional API
 from ..types import EnvParams, TimeStep
 
-
-
 # Action wrappers
 from .action_wrappers import (
     BboxActionWrapper,
@@ -39,13 +37,11 @@ from .action_wrappers import (
 from .actions import (
     MaskAction,
     create_mask_action,
-    mask_handler,
     filter_invalid_operation,
     get_allowed_operations,
+    mask_handler,
     validate_operation,
 )
-
-
 
 # Simple environment interface and wrappers (Xland-Minigrid pattern)
 from .environment import Environment
@@ -88,14 +84,12 @@ __all__ = [
     "Space",
     "State",
     "TimeStep",
-    "create_mask_action",
-    "filter_invalid_operation",
-    "get_allowed_operations",
-    "mask_handler",
-    "validate_operation",
     "Wrapper",
+    "create_mask_action",
     "execute_grid_operation",
+    "filter_invalid_operation",
     "get_all_operation_ids",
+    "get_allowed_operations",
     "get_operation_category",
     "get_operation_display_text",
     "get_operation_name",
@@ -103,7 +97,9 @@ __all__ = [
     "initialize_working_grids",
     "is_valid_operation_id",
     "mask_handler",
+    "mask_handler",
     "reset",
     "step",
+    "validate_operation",
     "validate_operation",
 ]

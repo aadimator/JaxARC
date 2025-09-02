@@ -62,19 +62,22 @@ def _select_batch_modes(
 ) -> jnp.ndarray:
     """Select initialization modes for batch using weights."""
     # Create weights array and normalize
-    weights = jnp.array([
-        config.demo_weight,
-        config.permutation_weight,
-        config.empty_weight,
-        config.random_weight
-    ], dtype=jnp.float32)
+    weights = jnp.array(
+        [
+            config.demo_weight,
+            config.permutation_weight,
+            config.empty_weight,
+            config.random_weight,
+        ],
+        dtype=jnp.float32,
+    )
 
     # Normalize weights (handle zero sum case)
     weight_sum = jnp.sum(weights)
     weights = jnp.where(
         weight_sum > 1e-8,
         weights / weight_sum,
-        jnp.array([0.25, 0.25, 0.25, 0.25], dtype=jnp.float32)
+        jnp.array([0.25, 0.25, 0.25, 0.25], dtype=jnp.float32),
     )
 
     # Sample mode indices (0=demo, 1=permutation, 2=empty, 3=random)
@@ -246,10 +249,10 @@ def _apply_rotation(grid: GridArray, key: PRNGKey) -> GridArray:
     return jax.lax.switch(
         rotation_choice,
         [
-            lambda: grid,                    # 0° rotation (no change)
-            lambda: jnp.rot90(grid, k=1),   # 90° clockwise
-            lambda: jnp.rot90(grid, k=2),   # 180°
-            lambda: jnp.rot90(grid, k=3),   # 270° clockwise
+            lambda: grid,  # 0° rotation (no change)
+            lambda: jnp.rot90(grid, k=1),  # 90° clockwise
+            lambda: jnp.rot90(grid, k=2),  # 180°
+            lambda: jnp.rot90(grid, k=3),  # 270° clockwise
         ],
     )
 
@@ -295,8 +298,8 @@ def _generate_random_pattern(
     # Select pattern type
     if pattern_type == "dense":
         return _generate_dense_pattern(shape, density, key)
-    else:  # Default to sparse
-        return _generate_sparse_pattern(shape, density, key)
+    # Default to sparse
+    return _generate_sparse_pattern(shape, density, key)
 
 
 def _generate_sparse_pattern(
@@ -326,10 +329,10 @@ def _generate_dense_pattern(
 
     # Add clustering by applying simple convolution
     kernel = jnp.ones((3, 3), dtype=jnp.float32)
-    padded_base = jnp.pad(base_grid.astype(jnp.float32), 1, mode='constant')
+    padded_base = jnp.pad(base_grid.astype(jnp.float32), 1, mode="constant")
 
     # Convolve to find neighboring patterns
-    convolved = jax.scipy.signal.convolve2d(padded_base, kernel, mode='valid')
+    convolved = jax.scipy.signal.convolve2d(padded_base, kernel, mode="valid")
 
     # Create additional pattern where neighbors exist
     neighbor_mask = (convolved > 0) & (base_grid == 0)
