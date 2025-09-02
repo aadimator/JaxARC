@@ -19,7 +19,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.envs.actions import StructuredAction, create_bbox_action
+from jaxarc.envs.actions import MaskAction, create_mask_action
 from jaxarc.registration import make
 from jaxarc.utils.config import get_config
 
@@ -66,7 +66,7 @@ class AgentState(NamedTuple):
 
 def random_agent_policy(
     params: None, obs: jax.Array, key: jax.Array, config: JaxArcConfig
-) -> StructuredAction:
+) -> MaskAction:
     """
     A pure function representing the policy of a random agent.
     This is JIT-compatible and can be used inside the main training loop.
@@ -90,8 +90,25 @@ def random_agent_policy(
     min_r, max_r = jnp.minimum(r1, r2), jnp.maximum(r1, r2)
     min_c, max_c = jnp.minimum(c1, c2), jnp.maximum(c1, c2)
 
-    # vmap the action creation function for efficiency
-    return jax.vmap(create_bbox_action)(ops, min_r, min_c, max_r, max_c)
+    # Create mask actions from bbox coordinates
+    def create_bbox_mask_action(op, r1, c1, r2, c2):
+        # Create coordinate meshes
+        rows = jnp.arange(h)
+        cols = jnp.arange(w)
+        row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
+
+        # Create bbox mask (inclusive bounds)
+        mask = (
+            (row_mesh >= r1)
+            & (row_mesh <= r2)
+            & (col_mesh >= c1)
+            & (col_mesh <= c2)
+        )
+
+        return create_mask_action(op, mask)
+
+    # vmap the mask action creation function for efficiency
+    return jax.vmap(create_bbox_mask_action)(ops, min_r, min_c, max_r, max_c)
 
 
 # ---

@@ -58,9 +58,7 @@ from jaxarc.configs.storage_config import StorageConfig
 from jaxarc.configs.visualization_config import VisualizationConfig
 from jaxarc.configs.wandb_config import WandbConfig
 from jaxarc.envs.actions import (
-    create_bbox_action,
     create_mask_action,
-    create_point_action,
 )
 from jaxarc.envs.functional import (
     _arc_step_unsafe,
@@ -235,13 +233,26 @@ def create_test_actions(grid_shape: tuple[int, int], num_actions: int = 100) -> 
         if action_type == 0:  # Point action
             row = i % height
             col = i % width
-            actions.append(create_point_action(operation, row, col))
+            # Create point mask action
+            mask = jnp.zeros((height, width), dtype=jnp.bool_)
+            mask = mask.at[row, col].set(True)
+            actions.append(create_mask_action(operation, mask))
         elif action_type == 1:  # Bbox action
             r1 = i % (height // 2)
             c1 = i % (width // 2)
             r2 = min(r1 + 5, height - 1)
             c2 = min(c1 + 5, width - 1)
-            actions.append(create_bbox_action(operation, r1, c1, r2, c2))
+            # Create bbox mask action
+            rows = jnp.arange(height)
+            cols = jnp.arange(width)
+            row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
+            mask = (
+                (row_mesh >= r1)
+                & (row_mesh <= r2)
+                & (col_mesh >= c1)
+                & (col_mesh <= c2)
+            )
+            actions.append(create_mask_action(operation, mask))
         else:  # Mask action
             mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
             # Create a small square mask
@@ -254,7 +265,7 @@ def create_test_actions(grid_shape: tuple[int, int], num_actions: int = 100) -> 
 
 
 def _replicate_action_for_batch(action, batch_size: int):
-    """Replicate a single StructuredAction across batch dimension."""
+    """Replicate a single MaskAction across batch dimension."""
     from jax import tree_util
 
     def _b(x):
@@ -293,8 +304,19 @@ def benchmark_single_environment(
     state, obs = arc_reset(key, config, task_data, EPISODE_MODE_TRAIN)
 
     # Create one of each action type for warmup
-    point_action = create_point_action(0, 0, 0)
-    bbox_action = create_bbox_action(0, 0, 0, 1, 1)
+    # Point action (single cell)
+    point_mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
+    point_mask = point_mask.at[0, 0].set(True)
+    point_action = create_mask_action(0, point_mask)
+
+    # Bbox action (rectangular region)
+    rows = jnp.arange(grid_shape[0])
+    cols = jnp.arange(grid_shape[1])
+    row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
+    bbox_mask = (row_mesh >= 0) & (row_mesh <= 1) & (col_mesh >= 0) & (col_mesh <= 1)
+    bbox_action = create_mask_action(0, bbox_mask)
+
+    # General mask action
     mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
     mask_action = create_mask_action(0, mask)
 
@@ -373,8 +395,19 @@ def benchmark_batch_environment(
     states, obs = batch_reset(keys, config, task_data)
 
     # Create one of each action type for batch warmup
-    point_action = create_point_action(0, 0, 0)
-    bbox_action = create_bbox_action(0, 0, 0, 1, 1)
+    # Point action (single cell)
+    point_mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
+    point_mask = point_mask.at[0, 0].set(True)
+    point_action = create_mask_action(0, point_mask)
+
+    # Bbox action (rectangular region)
+    rows = jnp.arange(grid_shape[0])
+    cols = jnp.arange(grid_shape[1])
+    row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
+    bbox_mask = (row_mesh >= 0) & (row_mesh <= 1) & (col_mesh >= 0) & (col_mesh <= 1)
+    bbox_action = create_mask_action(0, bbox_mask)
+
+    # General mask action
     mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
     mask_action = create_mask_action(0, mask)
 

@@ -94,39 +94,3 @@ def get_raw_path(create: bool = False) -> Path:
         Path to raw data directory
     """
     return get_path("data_raw", create=create)
-
-
-def get_processed_path(create: bool = False) -> Path:
-    """Get the processed data path.
-
-    Args:
-        create: Whether to create the directory if it doesn't exist
-
-    Returns:
-        Path to processed data directory
-    """
-    return get_path("data_processed", create=create)
-
-
-def get_interim_path(create: bool = False) -> Path:
-    """Get the interim data path.
-
-    Args:
-        create: Whether to create the directory if it doesn't exist
-
-    Returns:
-        Path to interim data directory
-    """
-    return get_path("data_interim", create=create)
-
-
-def get_external_path(create: bool = False) -> Path:
-    """Get the external data path.
-
-    Args:
-        create: Whether to create the directory if it doesn't exist
-
-    Returns:
-        Path to external data directory
-    """
-    return get_path("data_external", create=create)

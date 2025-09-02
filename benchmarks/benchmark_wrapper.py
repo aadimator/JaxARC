@@ -30,8 +30,8 @@ from jaxarc.configs.storage_config import StorageConfig
 from jaxarc.configs.visualization_config import VisualizationConfig
 from jaxarc.configs.wandb_config import WandbConfig
 from jaxarc.envs.actions import (
-    StructuredAction,
-    create_point_action,
+    MaskAction,
+    create_mask_action,
 )
 from jaxarc.envs.functional import (
     arc_reset,
@@ -133,7 +133,7 @@ def _time_first_call(fn, *args):
 
 def random_agent_policy(
     state: ArcEnvState, key: jax.Array, config: JaxArcConfig
-) -> StructuredAction:
+) -> MaskAction:
     """Shared random policy for both benchmarks."""
     del state  # Unused for random policy
     h, w = config.dataset.max_grid_height, config.dataset.max_grid_width
@@ -141,7 +141,11 @@ def random_agent_policy(
     op = jax.random.randint(k1, (), 0, 35)
     r = jax.random.randint(k2, (), 0, h)
     c = jax.random.randint(k3, (), 0, w)
-    return create_point_action(op, r, c)
+
+    # Create point mask action
+    mask = jnp.zeros((h, w), dtype=jnp.bool_)
+    mask = mask.at[r, c].set(True)
+    return create_mask_action(op, mask)
 
 
 # ---------------------------------------------------------------------------
