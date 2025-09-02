@@ -14,22 +14,22 @@ Key Features:
 Examples:
     ```python
     import jax
-    from jaxarc import ArcEnvironment
-    from jaxarc.configs import JaxArcConfig
+    import jax.numpy as jnp
+    from jaxarc import JaxArcConfig, create_mask_action
+    from jaxarc.registration import make
 
-    # Create environment with unified configuration
-    config = JaxArcConfig()  # Uses defaults
-    env = ArcEnvironment(config)
+    # Create environment
+    config = JaxArcConfig()
+    env, env_params = make("Mini", config=config)
 
     # Reset environment
     key = jax.random.PRNGKey(42)
-    state, obs = env.reset(key)
+    timestep = env.reset(env_params, key)
 
-    # Take a step with structured action
-    from jaxarc.envs import create_bbox_action
-
-    action = create_bbox_action(operation=0, r1=5, c1=5, r2=7, c2=7)
-    state, obs, reward, info = env.step(action)
+    # Create mask action (core action format)
+    mask = jnp.zeros((10, 10), dtype=jnp.bool_).at[5, 5].set(True)
+    action = create_mask_action(operation=15, selection=mask)
+    timestep = env.step(env_params, timestep, action)
     ```
 """
 
@@ -40,25 +40,25 @@ from ._version import version as __version__
 # Unified configuration system
 from .configs import JaxArcConfig
 
+# Action system (mask-based actions are the core format)
+from .envs.actions import MaskAction, create_mask_action
+
 # Core environment and state
 # Functional API
 from .state import State
 
 # Core types
-from .types import ARCAction, EnvParams, Grid, JaxArcTask, TaskPair, TimeStep
+from .types import EnvParams, Grid, JaxArcTask, TaskPair, TimeStep
 
 __all__ = [
-    # Core types
-    "ARCAction",
     "EnvParams",
-    "TimeStep",
-    # Configuration
-    "State",
     "Grid",
     "JaxArcConfig",
     "JaxArcTask",
+    "MaskAction",
+    "State",
     "TaskPair",
-    # Version
+    "TimeStep",
     "__version__",
-    # Functional API
+    "create_mask_action",
 ]

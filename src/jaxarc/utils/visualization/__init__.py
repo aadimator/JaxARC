@@ -19,7 +19,6 @@ Public API:
 
     Utility functions:
         - save_svg_drawing: Save SVG drawings to files
-        - setup_matplotlib_style: Configure matplotlib styling
 
     Constants:
         - ARC_COLOR_PALETTE: Standard ARC color mapping
@@ -43,20 +42,6 @@ from .episode_manager import (
 from .episode_visualization import (
     create_episode_comparison_visualization,
     draw_episode_summary_svg,
-)
-
-# Import JAX integration (simplified)
-from .jax_callbacks import (
-    create_grid_from_arrays,
-    jax_debug_callback,
-    jax_log_grid,
-    log_grid_callback,
-    safe_callback_wrapper,
-)
-
-# Import matplotlib utilities
-from .matplotlib_utils import (
-    setup_matplotlib_style,
 )
 
 # Import Rich display functions
@@ -110,15 +95,11 @@ __all__ = [
     # RL visualization functions
     "draw_rl_step_svg",
     "draw_task_pair_svg",
-    # JAX integration
-    "jax_debug_callback",
-    "jax_log_grid",
     # Core visualization functions
     "log_grid_to_console",
     "save_rl_step_visualization",
     # Utility functions
     "save_svg_drawing",
-    "setup_matplotlib_style",
     "visualize_grid_rich",
     "visualize_parsed_task_data_rich",
     # Task visualization functions

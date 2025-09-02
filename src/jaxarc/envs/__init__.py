@@ -3,7 +3,20 @@ JaxARC environments module.
 
 This module provides reinforcement learning environments for solving
 ARC (Abstraction and Reasoning Corpus) tasks using JAX-compatible
-environments with both functional and simple environment APIs.
+environments with a clean mask-centric action design.
+
+Key Design Principles:
+- **Mask-Based Core**: All actions are ultimately processed as MaskAction objects
+- **Action Wrappers**: PointActionWrapper and BboxActionWrapper convert other formats to masks
+- **Clean Separation**: Core environment only knows about masks, wrappers handle format conversion
+- **Extensible Design**: New action formats can be added as wrappers without changing core logic
+- **JAX Compatibility**: Functional and object-oriented APIs with full JAX transformation support
+
+Architecture:
+- Core environment (`Environment`, functional API) handles only MaskAction objects
+- Action wrappers (`PointActionWrapper`, `BboxActionWrapper`) convert other formats to masks
+- Grid operations and visualization work with the unified mask representation
+- Clean separation of concerns allows easy extension with new action wrapper types
 """
 
 from __future__ import annotations

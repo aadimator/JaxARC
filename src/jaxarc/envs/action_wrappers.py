@@ -1,33 +1,51 @@
 """
 Action wrappers for JaxARC environments.
 
-This module provides wrapper classes that transform user-friendly action formats
-(point and bounding box) into the mask format expected by the core environment.
-The transformations use pure JAX functions for JIT compatibility.
+This module implements the separation of concerns principle for the JaxARC action system:
+- **Core Environment**: Only knows about MaskAction objects (mask-based selections)
+- **Action Wrappers**: Handle conversion from user-friendly formats to masks
+- **Clean Interface**: Wrappers expose the same Environment API, hiding conversion details
+
+Design Principles:
+1. **Single Responsibility**: Each wrapper handles one action format conversion
+2. **Upstream Simplicity**: Core environment logic remains focused on mask processing
+3. **Downstream Flexibility**: Users can choose the most convenient action format
+4. **Extensibility**: New action formats can be added without changing core logic
+5. **JAX Compatibility**: All transformations use pure JAX functions for JIT compilation
 
 Key Features:
 - PointActionWrapper: Converts (operation, row, col) tuples to mask actions
 - BboxActionWrapper: Converts (operation, r1, c1, r2, c2) tuples to mask actions
 - JAX-compatible transformations with JIT compilation
 - Full Environment interface compatibility
-- Clean separation between action format and core environment logic
+- Zero overhead - conversions are JIT-compiled away
 
 Usage:
     ```python
     from jaxarc.registration import make
     from jaxarc.envs.action_wrappers import BboxActionWrapper
 
-    # Create base environment
+    # Create base environment (handles MaskAction only)
     env, env_params = make("Mini")
 
-    # Wrap with action wrapper
+    # Wrap with action wrapper (converts bbox to mask)
     env = BboxActionWrapper(env)
 
     # Use normal environment API with bbox actions
     timestep = env.reset(env_params, key)
     action = (15, 2, 3, 7, 8)  # (operation, r1, c1, r2, c2)
     timestep = env.step(env_params, timestep, action)
+
+    # The wrapper handles the conversion:
+    # bbox (15, 2, 3, 7, 8) -> MaskAction with rectangular mask -> core environment
     ```
+
+Benefits of This Design:
+- **Maintainability**: Core environment stays simple and focused
+- **Testability**: Each wrapper can be tested independently
+- **Performance**: JIT compilation optimizes away conversion overhead
+- **Extensibility**: New wrappers (e.g., CircleActionWrapper) can be added easily
+- **Consistency**: All wrappers follow the same interface pattern
 """
 
 from __future__ import annotations
