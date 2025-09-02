@@ -70,9 +70,8 @@ def get_path(path_type: str, create: bool = False) -> Path:
 
     if path_type not in cfg.paths:
         available_paths = list(cfg.paths.keys())
-        raise KeyError(
-            f"Path type '{path_type}' not found. Available: {available_paths}"
-        )
+        msg = f"Path type '{path_type}' not found. Available: {available_paths}"
+        raise KeyError(msg)
 
     path_str = cfg.paths[path_type]
     path: Path = here(path_str)

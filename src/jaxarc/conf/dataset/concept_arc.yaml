@@ -5,6 +5,8 @@
 dataset_name: "ConceptARC"
 dataset_path: "data/ConceptARC"
 dataset_repo: "https://github.com/victorvikram/ConceptARC"
+parser_entry_point: "jaxarc.parsers:ConceptArcParser"
+expected_subdirs: ["corpus"]
 task_split: "train"
 shuffle_tasks: true
 
