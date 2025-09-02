@@ -13,8 +13,7 @@ from .config import (
 )
 
 # Dataset utilities
-from .dataset_downloader import DatasetDownloader, DatasetDownloadError
-from .dataset_validation import get_dataset_recommendations, validate_dataset_config
+from .dataset_manager import DatasetError, DatasetManager
 
 # JAXTyping definitions for easy access
 from .jax_types import (
@@ -71,10 +70,8 @@ from .task_manager import (
 
 __all__ = [
     # Dataset utilities
-    "DatasetDownloadError",
-    "DatasetDownloader",
-    "validate_dataset_config",
-    "get_dataset_recommendations",
+    "DatasetManager",
+    "DatasetError",
     # Configuration utilities
     "get_path",
     "get_raw_path",

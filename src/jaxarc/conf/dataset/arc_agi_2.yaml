@@ -5,6 +5,8 @@
 dataset_name: "ARC-AGI-2"
 dataset_path: "data/ARC-AGI-2"
 dataset_repo: "https://github.com/arcprize/ARC-AGI-2"
+parser_entry_point: "jaxarc.parsers:ArcAgiParser"
+expected_subdirs: ["data"]
 task_split: "train"
 shuffle_tasks: true
 

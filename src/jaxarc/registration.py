@@ -29,13 +29,11 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from loguru import logger
-from pyprojroot import here
 
-from jaxarc.utils import DatasetDownloader, DatasetDownloadError
+from jaxarc.utils import DatasetError, DatasetManager
 from jaxarc.utils.buffer import stack_task_list
 
 # -----------------------------------------------------------------------------
@@ -133,7 +131,10 @@ class EnvRegistry:
         cfg = self._prepare_config(config, spec.max_episode_steps, spec_key)
         cfg = self._ensure_dataset_available(cfg, spec_key, auto_download)
 
-        parser_entry, _, _ = self._resolve_dataset_meta(spec_key)
+        dataset_config = cfg.dataset
+        parser_entry = getattr(
+            dataset_config, "parser_entry_point", "jaxarc.parsers:ArcAgiParser"
+        )
         parser_obj = self._import_from_entry_point(parser_entry)
         parser = parser_obj(cfg.dataset) if self._is_class(parser_obj) else parser_obj
         return (
@@ -185,8 +186,11 @@ class EnvRegistry:
         # Ensure dataset exists on disk (optionally download)
         config = self._ensure_dataset_available(config, dataset_key, auto_download)
 
-        # Instantiate the dataset parser from dataset key
-        parser_entry, _, _ = self._resolve_dataset_meta(dataset_key)
+        # Instantiate the dataset parser from config
+        dataset_config = config.dataset
+        parser_entry = getattr(
+            dataset_config, "parser_entry_point", "jaxarc.parsers:ArcAgiParser"
+        )
         parser_obj = self._import_from_entry_point(parser_entry)
         parser = (
             parser_obj(config.dataset) if self._is_class(parser_obj) else parser_obj
@@ -503,7 +507,6 @@ class EnvRegistry:
         """
         # Import locally to avoid hard dependency at module import time
         try:
-            from jaxarc.configs.dataset_config import DatasetConfig
             from jaxarc.configs.environment_config import EnvironmentConfig
             from jaxarc.configs.main_config import JaxArcConfig
             from jaxarc.utils.config import get_config
@@ -523,26 +526,8 @@ class EnvRegistry:
 
         # Best-effort dataset normalization (name and path)
         try:
-            ds: DatasetConfig = cfg.dataset
-            # Update dataset_name to normalized value (e.g., "MiniARC", "ConceptARC", "ARC-AGI-1", "ARC-AGI-2")
-            _, _, normalized_name = EnvRegistry._resolve_dataset_meta(dataset_key)
-            ds.dataset_name = normalized_name
-
-            # If dataset_path is empty or points to a directory for a different dataset,
-            # reset it to the default ./data/{normalized_name}.
-            current_path = getattr(ds, "dataset_path", "") or ""
-            try:
-                leaf = Path(current_path).name if current_path else ""
-            except Exception:
-                leaf = ""
-
-            if (not current_path) or (leaf.lower() != normalized_name.lower()):
-                default_dir = str(here() / "data" / normalized_name)
-                import equinox as eqx  # local import to avoid top-level dependency cycles
-
-                ds = eqx.tree_at(lambda d: d.dataset_path, ds, default_dir)
-
-            cfg.dataset = ds
+            # Basic dataset config normalization - let DatasetManager handle specifics
+            pass
         except Exception:
             pass
 
@@ -565,23 +550,38 @@ class EnvRegistry:
         return 0
 
     @staticmethod
-    def _resolve_dataset_meta(dataset_key: str) -> tuple[str, str, str]:
-        """Map dataset key to (parser_entry, downloader_method, normalized_dataset_name)."""
-        key = dataset_key.lower()
-        if key in ("mini", "miniarc", "mini-arc"):
-            return ("jaxarc.parsers:MiniArcParser", "download_miniarc", "MiniARC")
-        if key in ("concept", "conceptarc", "concept-arc"):
-            return (
-                "jaxarc.parsers:ConceptArcParser",
-                "download_conceptarc",
-                "ConceptARC",
-            )
-        if key in ("agi1", "arc-agi-1", "agi-1", "agi_1"):
-            return ("jaxarc.parsers:ArcAgiParser", "download_arc_agi_1", "ARC-AGI-1")
-        if key in ("agi2", "arc-agi-2", "agi-2", "agi_2"):
-            return ("jaxarc.parsers:ArcAgiParser", "download_arc_agi_2", "ARC-AGI-2")
-        # Fallback assumes dataset_key is already normalized and no downloader available
-        return ("jaxarc.parsers:ArcAgiParser", "", dataset_key)
+    def _load_dataset_config(dataset_key: str) -> Any:
+        """Load dataset config from Hydra configs based on dataset key."""
+        try:
+            from hydra import compose, initialize_config_dir
+            from pyprojroot import here
+
+            key_lower = dataset_key.lower()
+            config_name = None
+
+            if key_lower in ("mini", "miniarc", "mini-arc"):
+                config_name = "mini_arc"
+            elif key_lower in ("concept", "conceptarc", "concept-arc"):
+                config_name = "concept_arc"
+            elif key_lower in ("agi1", "arc-agi-1", "agi-1", "agi_1"):
+                config_name = "arc_agi_1"
+            elif key_lower in ("agi2", "arc-agi-2", "agi-2", "agi_2"):
+                config_name = "arc_agi_2"
+            else:
+                raise ValueError(f"Unknown dataset key: {dataset_key}")
+
+            # Load the specific dataset config
+            config_dir = str(here() / "src" / "jaxarc" / "conf")
+            with initialize_config_dir(config_dir=config_dir, version_base=None):
+                cfg = compose(
+                    config_name="config", overrides=[f"dataset={config_name}"]
+                )
+                return cfg.dataset
+
+        except Exception as e:
+            raise ValueError(
+                f"Failed to load dataset config for '{dataset_key}': {e}"
+            ) from e
 
     def _maybe_adjust_task_split(
         self, config: Any, dataset_key: str, selector: Optional[str]
@@ -690,97 +690,48 @@ class EnvRegistry:
         Functional: returns (potentially) updated config without in-place mutation.
         """
         try:
+            # Use DatasetManager for unified dataset management
+            manager = DatasetManager()
+
+            # If no dataset config available, try to load from dataset key
+            if not hasattr(config, "dataset") or not config.dataset.dataset_repo:
+                try:
+                    dataset_config_data = EnvRegistry._load_dataset_config(dataset_key)
+                    # Update config with loaded dataset config
+                    import equinox as eqx
+
+                    from jaxarc.configs.dataset_config import DatasetConfig
+
+                    new_dataset_config = DatasetConfig.from_hydra(dataset_config_data)
+                    config = eqx.tree_at(
+                        lambda c: c.dataset, config, new_dataset_config
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Could not load dataset config for {dataset_key}: {e}"
+                    )
+                    if not auto_download:
+                        raise ValueError(
+                            "Dataset config not available and auto_download is disabled."
+                        ) from e
+
+            # Ensure dataset is available
+            dataset_path = manager.ensure_dataset_available(
+                config, auto_download=auto_download
+            )
+
+            # Update config to reflect the actual dataset path
+            import equinox as eqx
+
             ds = config.dataset
-            dataset_path = getattr(ds, "dataset_path", "")
-            path = here(dataset_path) if dataset_path else None
-        except Exception as e:
-            logger.warning(f"Unable to access dataset configuration: {e}")
+            ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(dataset_path))
+            config = eqx.tree_at(lambda c: c.dataset, config, ds)
+
             return config
 
-        _, downloader_method, normalized_name = EnvRegistry._resolve_dataset_meta(
-            dataset_key
-        )
-
-        # If an existing path points to a directory whose leaf name does not match
-        # the expected dataset directory, treat it as a mismatch and ignore it.
-        try:
-            if path and path.name.lower() != normalized_name.lower():
-                logger.info(
-                    f"Configured dataset_path '{path}' does not match expected dataset '{normalized_name}'. "
-                    "Resetting to default dataset directory."
-                )
-                path = None
-        except Exception:
-            pass
-
-        # If path is missing or does not exist, attempt to download (when allowed)
-        if not path or not path.exists():
-            msg = f"Dataset path is missing or not found for '{normalized_name}'"
-            if not auto_download or not downloader_method:
-                logger.warning(msg + " - set auto_download=True to attempt download.")
-                raise ValueError(
-                    "Dataset not available on disk and auto_download is disabled."
-                )
-            # Attempt download into a normalized dataset directory under ./data/{normalized_name}
-            try:
-                # Decide target directory:
-                # - Use existing dataset_path only if it already targets the correct dataset directory
-                # - Otherwise, set a default under ./data/{normalized_name} and persist it immutably
-                use_existing = False
-                if dataset_path:
-                    try:
-                        use_existing = (
-                            Path(dataset_path).name.lower() == normalized_name.lower()
-                        )
-                    except Exception:
-                        use_existing = False
-
-                if use_existing:
-                    target_dir = here(dataset_path)
-                else:
-                    default_dir = here() / "data" / normalized_name
-                    target_dir = default_dir
-                    # immutably set dataset_path and dataset_name to normalized defaults
-                    import equinox as eqx  # local import to avoid top-level dependency cycles
-
-                    ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(default_dir))
-                    ds = eqx.tree_at(lambda d: d.dataset_name, ds, normalized_name)
-                    config = eqx.tree_at(lambda c: c.dataset, config, ds)
-
-                # If the target directory already exists, do NOT re-download or remove it.
-                if target_dir.exists():
-                    import equinox as eqx  # local import to avoid top-level dependency cycles
-
-                    ds = config.dataset
-                    ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(target_dir))
-                    ds = eqx.tree_at(lambda d: d.dataset_name, ds, normalized_name)
-                    config = eqx.tree_at(lambda c: c.dataset, config, ds)
-                    logger.info(
-                        f"Dataset '{normalized_name}' already exists at: {target_dir}"
-                    )
-                    return config
-
-                # Ensure parent directories exist
-                target_dir.parent.mkdir(parents=True, exist_ok=True)
-
-                # Download into the chosen target directory
-                downloader = DatasetDownloader(output_dir=target_dir.parent)
-                download_fn = getattr(downloader, downloader_method)
-                target_dir = download_fn(target_dir=target_dir)
-
-                # Update dataset_path and dataset_name to reflect the final target location (immutably)
-                import equinox as eqx  # local import to avoid top-level dependency cycles
-
-                ds = config.dataset
-                ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(target_dir))
-                ds = eqx.tree_at(lambda d: d.dataset_name, ds, normalized_name)
-                config = eqx.tree_at(lambda c: c.dataset, config, ds)
-                logger.info(f"Downloaded dataset '{normalized_name}' to: {target_dir}")
-            except DatasetDownloadError as e:
-                logger.error(f"Automatic dataset download failed: {e}")
-                raise
-
-        return config
+        except DatasetError as e:
+            logger.error(f"Dataset management failed: {e}")
+            raise ValueError(f"Dataset not available: {e}") from e
 
 
 # -----------------------------------------------------------------------------
