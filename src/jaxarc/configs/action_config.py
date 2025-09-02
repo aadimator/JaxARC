@@ -19,9 +19,6 @@ class ActionConfig(eqx.Module):
     validation, and operation constraints, including dynamic action space control.
     """
 
-    # Selection format
-    selection_format: str = "mask"
-
     # Operation parameters
     max_operations: int = 35
     allowed_operations: tuple[int, ...] | None = None
@@ -45,7 +42,6 @@ class ActionConfig(eqx.Module):
                 tuple(allowed_operations) if allowed_operations else None
             )
 
-        self.selection_format = kwargs.get("selection_format", "mask")
         self.max_operations = kwargs.get("max_operations", 35)
         self.allowed_operations = allowed_operations
         self.validate_actions = kwargs.get("validate_actions", True)
@@ -62,11 +58,6 @@ class ActionConfig(eqx.Module):
         errors: list[str] = []
 
         try:
-            valid_formats = ("mask", "point", "bbox")
-            validate_string_choice(
-                self.selection_format, "selection_format", valid_formats
-            )
-
             validate_float_range(
                 self.selection_threshold, "selection_threshold", 0.0, 1.0
             )
@@ -140,7 +131,6 @@ class ActionConfig(eqx.Module):
 
         return cls(
             allowed_operations=allowed_ops,
-            selection_format=cfg.get("selection_format", "mask"),
             max_operations=cfg.get("num_operations", 35),
             validate_actions=cfg.get("validate_actions", True),
             allow_invalid_actions=not cfg.get("clip_invalid_actions", True),

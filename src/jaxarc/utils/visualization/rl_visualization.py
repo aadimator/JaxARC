@@ -13,7 +13,7 @@ import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 
-from jaxarc.envs.actions import BboxAction, MaskAction, PointAction
+from jaxarc.envs.actions import MaskAction
 from jaxarc.envs.grid_operations import get_operation_display_text
 
 from .constants import ARC_COLOR_PALETTE
@@ -38,7 +38,7 @@ def get_operation_display_name(
 def draw_rl_step_svg_enhanced(
     before_grid: Grid,
     after_grid: Grid,
-    action: Any,  # Can be PointAction, BboxAction, MaskAction, or dict
+    action: Any,  # Can be MaskAction or dict
     reward: float,
     info: Dict[str, Any],
     step_num: int,
@@ -333,11 +333,31 @@ def draw_rl_step_svg_enhanced(
     selection_mask = None
     if isinstance(action, MaskAction):
         selection_mask = np.asarray(action.selection)
-    elif isinstance(action, (PointAction, BboxAction)):
-        # For Point and Bbox actions, we need to generate the mask
-        grid_data, _ = _extract_grid_data(before_grid)
-        grid_shape = grid_data.shape
-        selection_mask = np.asarray(action.to_selection_mask(grid_shape))
+    elif isinstance(action, tuple) and len(action) >= 3:
+        # Handle tuple actions from action wrappers
+        grid_height, grid_width = before_grid.shape
+        selection_mask = np.zeros((grid_height, grid_width), dtype=bool)
+
+        if len(action) == 3:
+            # PointActionWrapper: (operation, row, col)
+            _, row, col = action[0], action[1], action[2]
+            # Clip coordinates to valid range and set the selected point
+            row = max(0, min(int(row), grid_height - 1))
+            col = max(0, min(int(col), grid_width - 1))
+            selection_mask[row, col] = True
+        elif len(action) == 5:
+            # BboxActionWrapper: (operation, r1, c1, r2, c2)
+            _, r1, c1, r2, c2 = action[0], action[1], action[2], action[3], action[4]
+            # Clip coordinates to valid range
+            r1 = max(0, min(int(r1), grid_height - 1))
+            c1 = max(0, min(int(c1), grid_width - 1))
+            r2 = max(0, min(int(r2), grid_height - 1))
+            c2 = max(0, min(int(c2), grid_width - 1))
+            # Ensure proper ordering (min, max)
+            min_r, max_r = min(r1, r2), max(r1, r2)
+            min_c, max_c = min(c1, c2), max(c1, c2)
+            # Set rectangular region (inclusive bounds)
+            selection_mask[min_r:max_r+1, min_c:max_c+1] = True
     elif isinstance(action, dict):  # Fallback for old dictionary format
         if "selection" in action:
             selection_mask = np.asarray(action["selection"])
@@ -425,7 +445,7 @@ def draw_rl_step_svg_enhanced(
         info_items.append(f"Total Steps: {int(step_count_val)}")
 
     # Add action details
-    # Handle both structured actions and legacy dictionary format for visualization
+    # Handle structured actions, dictionary format, and tuple format for visualization
     if hasattr(action, "operation"):
         op_val = (
             int(action.operation)
@@ -433,7 +453,11 @@ def draw_rl_step_svg_enhanced(
             else action.operation
         )
         info_items.append(f"Operation ID: {op_val}")
-    elif "operation" in action:
+    elif isinstance(action, tuple) and len(action) >= 1:
+        # Handle tuple actions from PointActionWrapper: (operation, row, col)
+        op_val = int(action[0])
+        info_items.append(f"Operation ID: {op_val}")
+    elif isinstance(action, dict) and "operation" in action:
         op_val = (
             int(action["operation"])
             if hasattr(action["operation"], "item")
@@ -537,9 +561,12 @@ def save_rl_step_visualization(
     )
 
     # Extract action components
-    # Note: This handles both structured actions and legacy dictionary format for visualization
+    # Note: This handles structured actions, dictionary format, and tuple format for visualization
     if hasattr(action, "operation"):
         operation_id = int(action.operation)
+    elif isinstance(action, tuple) and len(action) >= 1:
+        # Handle tuple actions from PointActionWrapper: (operation, row, col)
+        operation_id = int(action[0])
     else:
         operation_id = int(action["operation"])  # Legacy format for visualization only
     step_number = int(state.step_count)

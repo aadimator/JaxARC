@@ -52,24 +52,29 @@ inclusion: always
 ### Function Documentation
 
 ````python
-def arc_reset(config: JaxArcConfig, key: PRNGKey) -> ArcEnvState:
+def reset(env_params: EnvParams, key: PRNGKey) -> TimeStep:
     """Reset the ARC environment to initial state.
 
     Args:
-        config: Environment configuration with task and action settings
+        env_params: Environment parameters with task buffer and configuration
         key: JAX PRNG key for reproducible randomization
 
     Returns:
-        Initial environment state with loaded task
+        TimeStep object containing embedded state and observation
 
     Example:
         ```python
         import jax
-        from jaxarc import JaxArcConfig, arc_reset
+        from jaxarc import JaxArcConfig
+        from jaxarc.registration import make, available_task_ids
 
         config = JaxArcConfig()
+        available_ids = available_task_ids("Mini", config=config, auto_download=True)
+        task_id = available_ids[0]
+        env, env_params = make(f"Mini-{task_id}", config=config)
+        
         key = jax.random.PRNGKey(42)
-        state = arc_reset(config, key)
+        timestep = env.reset(env_params, key)
         ```
     """
 ````

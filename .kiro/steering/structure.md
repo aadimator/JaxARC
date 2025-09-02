@@ -4,9 +4,10 @@
 
 ```
 src/jaxarc/                    # Main package
-├── __init__.py               # Package exports (JaxArcConfig, arc_reset, arc_step, __version__)
-├── types.py                  # Core data structures (Grid, JaxArcTask, ARCLEAction)
-├── state.py                  # Centralized ArcEnvState definition using Equinox
+├── __init__.py               # Package exports (JaxArcConfig, State, ARCAction, EnvParams, TimeStep, __version__)
+├── types.py                  # Core data structures (Grid, JaxArcTask, ARCAction, EnvParams, TimeStep)
+├── state.py                  # Centralized State definition using Equinox
+├── registration.py           # Environment registration utilities
 ├── configs/                  # Configuration system (Equinox-based)
 │   ├── __init__.py          # Configuration exports
 │   ├── main_config.py       # JaxArcConfig (unified configuration)
@@ -14,8 +15,9 @@ src/jaxarc/                    # Main package
 │   ├── dataset_config.py    # Dataset-specific configurations
 │   ├── environment_config.py # Environment behavior configurations
 │   ├── reward_config.py     # Reward function configurations
-│   ├── history_config.py    # Action history configurations
+│   ├── grid_initialization_config.py # Grid initialization configurations
 │   ├── logging_config.py    # Logging configurations
+│   ├── storage_config.py    # Storage configurations
 │   ├── visualization_config.py # Visualization configurations
 │   ├── wandb_config.py      # WandB experiment tracking
 │   └── validation.py        # Configuration validation utilities
@@ -23,20 +25,20 @@ src/jaxarc/                    # Main package
 │   ├── config.yaml          # Main configuration with defaults
 │   ├── action/              # Action format configurations
 │   ├── dataset/             # Dataset-specific configurations
-│   ├── history/             # Action history configurations
 │   └── reward/              # Reward function configurations
 ├── envs/                     # Environment implementations
 │   ├── __init__.py          # Environment exports and functional API
-│   ├── functional.py        # Pure functional API (arc_reset, arc_step)
-│   ├── actions.py           # Action handlers (point, bbox, mask)
+│   ├── functional.py        # Pure functional API (reset, step)
+│   ├── environment.py       # Simple environment interface
+│   ├── actions.py           # Action handlers (mask-based)
 │   ├── action_space_controller.py # Action space management
-│   ├── grid_operations.py   # Grid transformation operations (35 ARCLE ops)
+│   ├── action_wrappers.py   # Action wrapper utilities
+│   ├── grid_operations.py   # Grid transformation operations
 │   ├── grid_initialization.py # Grid initialization utilities
 │   ├── observation.py       # Observation space handling
 │   ├── reward.py            # Reward computation
-│   ├── termination.py       # Episode termination logic
 │   ├── spaces.py            # Action and observation spaces
-│   └── wrapper.py           # Environment wrapper (ArcEnv)
+│   └── wrapper.py           # Environment wrappers
 ├── parsers/                  # Task data parsers (ARC dataset loading)
 │   ├── __init__.py          # Parser exports
 │   ├── base_parser.py       # Base parser interface
@@ -46,10 +48,14 @@ src/jaxarc/                    # Main package
 │   └── utils.py             # Parser utilities
 ├── utils/                    # Utility functions
 │   ├── __init__.py          # Utility exports
+│   ├── buffer.py            # Buffer utilities
 │   ├── config.py            # Configuration utilities
+│   ├── dataset_downloader.py # Dataset downloading utilities
+│   ├── dataset_validation.py # Dataset validation utilities
 │   ├── grid_utils.py        # Grid manipulation utilities
 │   ├── jax_types.py         # JAXTyping type definitions
 │   ├── pytree.py            # PyTree manipulation utilities
+│   ├── serialization_utils.py # Serialization utilities
 │   ├── state_utils.py       # State management utilities
 │   ├── task_manager.py      # Task management utilities
 │   ├── validation.py        # Validation utilities
@@ -72,11 +78,6 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 │   ├── arc_agi_2.yaml      # ARC-AGI 2025 dataset
 │   ├── concept_arc.yaml    # ConceptARC dataset
 │   └── mini_arc.yaml       # Mini-ARC dataset for testing
-├── history/                  # Action history configurations
-│   ├── disabled.yaml       # No action history
-│   ├── minimal.yaml        # Basic action tracking
-│   ├── standard.yaml       # Standard history tracking
-│   └── research.yaml       # Full research-level tracking
 └── reward/                   # Reward function configurations
     ├── training.yaml        # Training-optimized rewards
     └── evaluation.yaml      # Evaluation-focused rewards
@@ -105,7 +106,7 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 
 ### Functional Core Design
 
-- **Pure Functions**: Core environment operations (`arc_reset`, `arc_step`) are
+- **Pure Functions**: Core environment operations (`reset`, `step`) are
   pure functions
 - **Immutable State**: All state updates return new state objects using
   `equinox.Module`
@@ -122,12 +123,10 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 
 ### Action System Design
 
-- **Handler Pattern**: Different action formats (point, bbox, mask) use
-  dedicated handlers
+- **Mask-Based Actions**: Primary focus on mask-based action format
 - **Validation Pipeline**: Actions validated and transformed through consistent
   pipeline
-- **ARCLE Operations**: 35 operations (fill, flood fill, movement, rotation,
-  clipboard, etc.)
+- **Grid Operations**: Comprehensive set of grid transformation operations
 - **Action Space Controller**: Dynamic action space management and filtering
 
 ## File Naming Conventions
@@ -142,16 +141,18 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 ## Import Patterns
 
 ```python
-# Core configuration and functional API
-from jaxarc import JaxArcConfig, arc_reset, arc_step
-from jaxarc.types import Grid, JaxArcTask, ARCLEAction
-from jaxarc.state import ArcEnvState
+# Core configuration and types
+from jaxarc import JaxArcConfig
+from jaxarc.types import Grid, JaxArcTask, ARCAction, EnvParams, TimeStep
 
-# Environment wrapper (if needed)
-from jaxarc.envs import ArcEnv
+# Environment creation using registration system
+from jaxarc.registration import make, available_task_ids
+
+# Environment classes and functional API
+from jaxarc.envs import Environment, reset, step
 
 # Action creation utilities
-from jaxarc.envs import create_point_action, create_bbox_action, create_mask_action
+from jaxarc.envs import create_mask_action
 
 # Parsers for data loading
 from jaxarc.parsers import ArcAgiParser
@@ -168,10 +169,9 @@ from jaxarc.utils.config import get_config
 2. **Environment Setup**: `configs/` → `JaxArcConfig` unified configuration with
    Equinox validation
 3. **Environment Execution**: Pure functions in `envs/functional.py` with
-   immutable `ArcEnvState`
+   immutable `State`
 4. **Action Processing**: Action handlers transform inputs to grid operations
-   (35 ARCLE ops)
-5. **State Management**: Centralized `ArcEnvState` with PyTree utilities for
+5. **State Management**: Centralized `State` with PyTree utilities for
    updates
 6. **Visualization**: `utils/visualization/` for debugging with JAX debug
    callbacks

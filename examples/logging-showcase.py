@@ -38,7 +38,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.envs.actions import StructuredAction, create_point_action
+from jaxarc.envs.action_wrappers import PointActionWrapper
 from jaxarc.registration import make
 from jaxarc.state import State
 from jaxarc.types import TimeStep
@@ -60,7 +60,7 @@ class AgentState(NamedTuple):
 
 def random_agent_policy(
     state: State, key: jax.Array, config: JaxArcConfig
-) -> StructuredAction:
+) -> tuple:
     """A pure function representing the policy of a random agent."""
     del state  # Unused for a random agent
     h, w = config.dataset.max_grid_height, config.dataset.max_grid_width
@@ -68,7 +68,7 @@ def random_agent_policy(
     op = jax.random.randint(k1, (), 0, 35)  # All grid operations
     r = jax.random.randint(k2, (), 0, h)
     c = jax.random.randint(k3, (), 0, w)
-    return create_point_action(op, r, c)
+    return (op, r, c)
 
 
 # --- 2. Main Showcase Function ---
@@ -107,7 +107,7 @@ def run_logging_showcase(config_overrides: list[str]):
         Panel(
             f"[bold green]Configuration Loaded[/bold green]\n\n"
             f"Dataset: {config.dataset.dataset_name}\n"
-            f"Action Format: {config.action.selection_format}\n"
+            # f"Action Format: {config.action.selection_format}\n"
             f"Logging Level: {config.logging.log_level}\n"
             f"Visualization Enabled: {config.visualization.enabled}\n"
             f"Output Directory: {config.storage.base_output_dir}/{config.storage.run_name}\n"
@@ -124,6 +124,7 @@ def run_logging_showcase(config_overrides: list[str]):
     # --- Dataset and Environment Setup ---
     logger.info("Loading dataset and creating environment...")
     env, env_params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", config=config)
+    env = PointActionWrapper(env)
     key = jax.random.PRNGKey(1)
 
     # --- Run Multiple Episodes ---

@@ -27,16 +27,9 @@ from ..utils.state_utils import (
 )
 from .action_space_controller import ActionSpaceController
 from .actions import (
-    BboxAction,
     MaskAction,
-    PointAction,
-    StructuredAction,
-    bbox_handler,
-    create_bbox_action,
     create_mask_action,
-    create_point_action,
     mask_handler,
-    point_handler,
 )
 from .grid_initialization import initialize_working_grids
 from .grid_operations import compute_grid_similarity, execute_grid_operation
@@ -374,96 +367,44 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
 
 def _process_action(
     state: State,
-    action: StructuredAction | dict[str, Any],
+    action: MaskAction,
     params: EnvParams,
-) -> tuple[State, StructuredAction]:
-    """Process action and return updated state.
+) -> tuple[State, MaskAction]:
+    """Process mask action and return updated state.
 
-    This function handles the complete action processing pipeline supporting both
-    structured actions and dictionary actions for backward compatibility. It supports
-    both grid operations (0-34) and control operations (35-41) with proper validation
-    and execution.
+    This function handles mask-based actions, which is the canonical action format
+    for the core JaxARC environment. All actions are expected to be MaskAction objects.
 
     Args:
         state: Current environment state before action execution
-        action: Action to execute (StructuredAction or dict with 'operation' and 'selection')
-        config: Environment configuration for action processing settings
+        action: MaskAction to execute with operation and selection mask
+        params: Environment configuration for action processing settings
 
     Returns:
         Tuple containing:
         - new_state: Updated environment state after action execution
-        - validated_action: Validated structured action
+        - validated_action: Validated mask action
 
     Examples:
         ```python
-        # Process structured point action
-        action = PointAction(operation=15, row=5, col=10)
-        new_state, validated_action, is_control = _process_action(state, action, config)
-
-        # Process dictionary action (backward compatibility)
-        action = {"operation": 15, "selection": jnp.array([5, 10])}
-        new_state, validated_action, is_control = _process_action(state, action, config)
+        # Process mask action
+        mask = jnp.zeros((10, 10), dtype=jnp.bool_).at[5, 5].set(True)
+        action = create_mask_action(operation=15, selection=mask)
+        new_state, validated_action = _process_action(state, action, params)
         ```
 
     Raises:
         ValueError: If action format is invalid or operation is out of range
 
     Note:
-        Supports both structured actions and dictionary actions for backward compatibility.
-        Automatically validates action parameters and clips to valid ranges.
+        Core environment only handles mask-based actions. Other action formats
+        should be converted to masks by wrapper classes.
     """
     # Get grid shape for validation
     grid_shape = (state.working_grid.shape[0], state.working_grid.shape[1])
 
-    # Convert dictionary action to structured action if needed
-    if isinstance(action, dict):
-        # Handle dictionary action for backward compatibility
-        operation = action["operation"]
-        selection = action["selection"]
-
-        # Convert to MaskAction (most general format)
-        if selection.ndim == 2:
-            # Already a 2D mask
-            validated_action = create_mask_action(operation, selection)
-        elif selection.ndim == 1 and len(selection) == 2:
-            # Point format [row, col] - convert to mask
-            mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
-            row = jnp.clip(selection[0].astype(jnp.int32), 0, grid_shape[0] - 1)
-            col = jnp.clip(selection[1].astype(jnp.int32), 0, grid_shape[1] - 1)
-            mask = mask.at[row, col].set(True)
-            validated_action = create_mask_action(operation, mask)
-        elif selection.ndim == 1 and len(selection) == 4:
-            # Bbox format [r1, c1, r2, c2] - convert to mask
-            r1, c1, r2, c2 = selection.astype(jnp.int32)
-            r1 = jnp.clip(r1, 0, grid_shape[0] - 1)
-            c1 = jnp.clip(c1, 0, grid_shape[1] - 1)
-            r2 = jnp.clip(r2, 0, grid_shape[0] - 1)
-            c2 = jnp.clip(c2, 0, grid_shape[1] - 1)
-
-            min_r, max_r = jnp.minimum(r1, r2), jnp.maximum(r1, r2)
-            min_c, max_c = jnp.minimum(c1, c2), jnp.maximum(c1, c2)
-
-            rows = jnp.arange(grid_shape[0])
-            cols = jnp.arange(grid_shape[1])
-            row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
-
-            mask = (
-                (row_mesh >= min_r)
-                & (row_mesh <= max_r)
-                & (col_mesh >= min_c)
-                & (col_mesh <= max_c)
-            )
-            validated_action = create_mask_action(operation, mask)
-        elif selection.ndim == 1 and len(selection) == grid_shape[0] * grid_shape[1]:
-            # Flattened mask - reshape to 2D
-            mask = selection.reshape(grid_shape).astype(jnp.bool_)
-            validated_action = create_mask_action(operation, mask)
-        else:
-            msg = f"Unsupported selection format: shape {selection.shape}"
-            raise ValueError(msg)
-    else:
-        # Handle structured action
-        validated_action = action.validate(grid_shape, max_operations=NUM_OPERATIONS)
+    # Validate the mask action
+    validated_action = action.validate(grid_shape, max_operations=NUM_OPERATIONS)
 
     # Extract operation from validated action
     operation = validated_action.operation
@@ -481,31 +422,10 @@ def _process_action(
         )
 
         # Update validated action with filtered operation
-        if isinstance(validated_action, PointAction):
-            validated_action = create_point_action(
-                operation, validated_action.row, validated_action.col
-            )
-        elif isinstance(validated_action, BboxAction):
-            validated_action = create_bbox_action(
-                operation,
-                validated_action.r1,
-                validated_action.c1,
-                validated_action.r2,
-                validated_action.c2,
-            )
-        elif isinstance(validated_action, MaskAction):
-            validated_action = create_mask_action(operation, validated_action.selection)
+        validated_action = create_mask_action(operation, validated_action.selection)
 
-    # Only grid operations remain (0-34). Execute directly.
-    if isinstance(validated_action, PointAction):
-        selection_mask = point_handler(validated_action, state.working_grid_mask)
-    elif isinstance(validated_action, BboxAction):
-        selection_mask = bbox_handler(validated_action, state.working_grid_mask)
-    elif isinstance(validated_action, MaskAction):
-        selection_mask = mask_handler(validated_action, state.working_grid_mask)
-    else:
-        selection_mask = validated_action.to_selection_mask(grid_shape)
-        selection_mask = selection_mask & state.working_grid_mask
+    # Process mask action using mask handler
+    selection_mask = mask_handler(validated_action, state.working_grid_mask)
 
     new_state = update_selection(state, selection_mask)
     new_state = execute_grid_operation(new_state, operation)
@@ -515,7 +435,7 @@ def _process_action(
 def _update_state(
     _old_state: State,
     new_state: State,
-    action: StructuredAction,
+    action: MaskAction,
 ) -> State:
     """Update state with action history and step count - focused helper function.
 
@@ -550,7 +470,7 @@ def _update_state(
 
 @eqx.filter_jit
 def validate_action_jax(
-    action: StructuredAction, state: State, _unused: Any
+    action: MaskAction, state: State, _unused: Any
 ) -> jax.Array:
     """JAX-friendly validation returning a boolean predicate.
 
@@ -565,36 +485,10 @@ def validate_action_jax(
     grid_h: int = state.working_grid.shape[0]
     grid_w: int = state.working_grid.shape[1]
 
-    # Selection-specific checks
-    def _check_point(a):
-        return (a.row >= 0) & (a.row < grid_h) & (a.col >= 0) & (a.col < grid_w)
-
-    def _check_bbox(a):
-        # All coords must be within grid (ordering handled during execution)
-        return (
-            (a.r1 >= 0)
-            & (a.r1 < grid_h)
-            & (a.c1 >= 0)
-            & (a.c1 < grid_w)
-            & (a.r2 >= 0)
-            & (a.r2 < grid_h)
-            & (a.c2 >= 0)
-            & (a.c2 < grid_w)
-        )
-
-    def _check_mask(a):
-        sel_shape = a.selection.shape
-        # Compare static shapes; coerce to boolean scalar array
-        shape_ok = (sel_shape[0] == grid_h) and (sel_shape[1] == grid_w)
-        return jnp.asarray(shape_ok, dtype=jnp.bool_)
-
-    # Since action is an Equinox Module, isinstance checks are static-friendly here
-    selection_valid = jnp.asarray(True, dtype=jnp.bool_)
-    if isinstance(action, PointAction):
-        selection_valid = _check_point(action)
-    elif isinstance(action, BboxAction):
-        selection_valid = _check_bbox(action)
-    elif isinstance(action, MaskAction):
-        selection_valid = _check_mask(action)
+    # Mask validation - check that selection shape matches grid shape
+    sel_shape = action.selection.shape
+    # Compare static shapes; coerce to boolean scalar array
+    shape_ok = (sel_shape[0] == grid_h) and (sel_shape[1] == grid_w)
+    selection_valid = jnp.asarray(shape_ok, dtype=jnp.bool_)
 
     return jnp.asarray(op_valid & selection_valid, dtype=jnp.bool_)
