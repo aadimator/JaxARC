@@ -1,9 +1,4 @@
-"""SVG visualization generation handler for JaxARC logging.
-
-This module provides the SVGHandler class that consolidates SVG generation logic
-from rl_visualization.py and episode_visualization.py into a single handler for
-the simplified logging architecture.
-"""
+"""Simple SVG visualization handler for JaxARC logging."""
 
 from __future__ import annotations
 
@@ -13,13 +8,13 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from loguru import logger
 
-if TYPE_CHECKING:  # pragma: no cover
-    import drawsvg as draw  # type: ignore[import-not-found]
-try:  # Optional dependency for SVG creation at runtime
-    import drawsvg as draw  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - optional dependency path
-    draw = None  # type: ignore[assignment]
-    logger.warning("drawsvg not available - SVG generation degraded")
+if TYPE_CHECKING:
+    import drawsvg as draw
+try:
+    import drawsvg as draw
+except ImportError:
+    draw = None
+    logger.warning("drawsvg not available - SVG generation disabled")
 
 from ...types import Grid
 from ..visualization.episode_manager import EpisodeConfig, EpisodeManager
@@ -33,25 +28,13 @@ from ..visualization.utils import detect_changed_cells
 
 
 class SVGHandler:
-    """SVG visualization generation handler.
-
-    Note: Regular Python class that can freely use file I/O,
-    string manipulation, and SVG generation libraries.
-
-    This handler consolidates SVG generation logic from the visualization
-    modules and provides a clean interface for the ExperimentLogger.
-    """
+    """Simple SVG visualization handler."""
 
     def __init__(self, config: Any):
-        """Initialize SVG handler with configuration.
-
-        Args:
-            config: JaxArcConfig containing visualization and storage settings
-        """
+        """Initialize with configuration."""
         self.config = config
 
-        # Initialize episode manager for file path management
-        # Create episode config from storage config
+        # Setup episode manager
         episode_config = EpisodeConfig(
             base_output_dir=getattr(config.storage, "base_output_dir", "outputs"),
             run_name=getattr(config.storage, "run_name", None),
@@ -59,685 +42,114 @@ class SVGHandler:
             max_storage_gb=getattr(config.storage, "max_storage_gb", 10.0),
             cleanup_policy=getattr(config.storage, "cleanup_policy", "size_based"),
         )
-
         self.episode_manager = EpisodeManager(episode_config)
 
-        # Track current episode for file management
-        self.current_episode_num: int | None = None
+        # Simple state tracking
+        self.current_episode_num = None
         self.current_run_started = False
-        # Cache of current task pair counts (host-side metadata extracted at task start).
-        # Format: {"train": int | None, "test": int | None}
-        self.current_task_pairs: dict | None = None
 
-        logger.debug("SVGHandler initialized")
-
-    def start_run(self, run_name: str | None = None) -> None:
-        """Start a new run for SVG generation.
-
-        Args:
-            run_name: Optional custom run name
-        """
+    def start_run(self, run_name: str = None) -> None:
+        """Start a new run."""
         try:
             self.episode_manager.start_new_run(run_name)
             self.current_run_started = True
-            logger.info(
-                f"SVGHandler started new run: {self.episode_manager.current_run_name}"
-            )
+            logger.info(f"Started SVG run: {self.episode_manager.current_run_name}")
         except Exception as e:
-            logger.error(f"Failed to start SVG run: {e}")
+            logger.error(f"Failed to start run: {e}")
 
     def start_episode(self, episode_num: int) -> None:
-        """Start a new episode for SVG generation.
-
-        Args:
-            episode_num: Episode number
-        """
+        """Start a new episode."""
         try:
             if not self.current_run_started:
                 self.start_run()
 
             self.episode_manager.start_new_episode(episode_num)
             self.current_episode_num = episode_num
-            logger.debug(f"SVGHandler started episode {episode_num}")
+            logger.debug(f"Started episode {episode_num}")
         except Exception as e:
-            logger.error(f"Failed to start SVG episode {episode_num}: {e}")
+            logger.error(f"Failed to start episode {episode_num}: {e}")
 
     def log_task_start(self, task_data: dict[str, Any]) -> None:
-        """Generate and save task visualization at episode start.
-
-        Args:
-            task_data: Dictionary containing task information including:
-                - task_id: Task identifier
-                - task_object: The JaxArcTask object
-                - episode_num: Episode number
-                - show_test: Whether to show test examples (default: True)
-        """
-        # Check if task visualization is enabled
-        if not self._should_generate_task_svg():
+        """Generate task visualization SVG."""
+        if not self._should_generate_svg("task"):
             return
 
         try:
             episode_num = task_data.get("episode_num")
-            task_object = task_data.get("task_object")
-            show_test = task_data.get("show_test", True)
-
-            # Only start episode when the caller explicitly provided an episode number.
-            # This avoids creating an empty `episode_0000` directory when no episode
-            # number is known at task start (we prefer to defer to the first step).
             if episode_num is not None and self.current_episode_num != episode_num:
                 self.start_episode(episode_num)
 
-            # Cache task pair counts and id for step visualizations (best-effort).
-            # Prefer values supplied in task_data (from build_task_metadata_from_params)
-            # and fall back to attributes on the parsed task_object when available.
-            try:
+            task_object = task_data.get("task_object")
+            show_test = task_data.get("show_test", True)
 
-                def _to_int_safe(v):
-                    try:
-                        if v is None:
-                            return None
-                        if hasattr(v, "item"):
-                            return int(v.item())
-                        return int(v)
-                    except Exception:
-                        return None
-
-                # Prefer explicit counts attached to task_data when available
-                num_train = task_data.get("num_train_pairs")
-                num_test = task_data.get("num_test_pairs")
-
-                # Fallback to attributes or dict keys on task_object if task_data did not provide them
-                if num_train is None and task_object is not None:
-                    # Support both object-like and dict-like task_object shapes
-                    if isinstance(task_object, dict):
-                        # accept several common key names used by parsers/structures
-                        num_train = task_object.get(
-                            "num_train_pairs", task_object.get("num_train", None)
-                        )
-                    else:
-                        num_train = getattr(
-                            task_object,
-                            "num_train_pairs",
-                            getattr(task_object, "num_train", None),
-                        )
-                if num_test is None and task_object is not None:
-                    if isinstance(task_object, dict):
-                        num_test = task_object.get(
-                            "num_test_pairs", task_object.get("num_test", None)
-                        )
-                    else:
-                        num_test = getattr(
-                            task_object,
-                            "num_test_pairs",
-                            getattr(task_object, "num_test", None),
-                        )
-
-                self.current_task_pairs = {
-                    "train": _to_int_safe(num_train),
-                    "test": _to_int_safe(num_test),
-                }
-
-                # Prefer explicit task_id provided in task_data; otherwise try task_object in multiple forms
-                tid = task_data.get("task_id")
-                if tid is None and task_object is not None:
-                    try:
-                        if isinstance(task_object, dict):
-                            # common id fields used by different parsers
-                            tid = task_object.get(
-                                "task_id",
-                                task_object.get(
-                                    "id", task_object.get("task_index", None)
-                                ),
-                            )
-                        elif hasattr(task_object, "get_task_id"):
-                            tid = task_object.get_task_id()
-                        else:
-                            # fallback to attribute-style access
-                            tid = getattr(
-                                task_object,
-                                "task_id",
-                                getattr(task_object, "task_index", None),
-                            )
-                    except Exception:
-                        tid = None
-                self.current_task_id = tid
-            except Exception:
-                # Best-effort caching; do not let failures stop visualization
-                self.current_task_pairs = None
-                self.current_task_id = None
+            target_dir = self._get_output_dir()
 
             if task_object is None:
-                # No parsed task object available — generate a minimal SVG overview using
-                # available metadata (task_id and pair counts) so users still get a useful
-                # visualization artifact.
-                try:
-                    # Resolve best-effort task id and pair counts from cached values or task_data
-                    task_id_str = None
-                    if getattr(self, "current_task_id", None) is not None:
-                        task_id_str = str(self.current_task_id)
-                    else:
-                        task_id_str = str(task_data.get("task_id", "unknown"))
-
-                    train_ct = None
-                    test_ct = None
-                    if self.current_task_pairs is not None:
-                        train_ct = self.current_task_pairs.get("train")
-                        test_ct = self.current_task_pairs.get("test")
-                    else:
-                        train_ct = task_data.get("num_train_pairs")
-                        test_ct = task_data.get("num_test_pairs")
-
-                    # Determine a safe target directory: prefer current episode dir, then run dir
-                    target_dir = (
-                        self.episode_manager.current_episode_dir
-                        or self.episode_manager.current_run_dir
-                    )
-                    if target_dir is None:
-                        # Fallback: use base run path from episode manager info
-                        info = self.episode_manager.get_current_run_info()
-                        run_dir = info.get("run_dir")
-                        target_dir = Path(run_dir) if run_dir else Path("outputs")
-
-                    # Ensure directory exists and write a simple SVG summary
-                    out_path = target_dir / "task_overview.svg"
-                    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-                    train_str = str(train_ct) if train_ct is not None else "?"
-                    test_str = str(test_ct) if test_ct is not None else "?"
-
-                    svg_str = f"""<svg xmlns="http://www.w3.org/2000/svg" width="500" height="120">
-  <rect width="100%" height="100%" fill="white"/>
-  <text x="20" y="28" font-size="18" font-family="Arial" fill="#222">Task Overview</text>
-  <text x="20" y="54" font-size="14" font-family="Arial" fill="#111">Task ID: {task_id_str}</text>
-  <text x="20" y="80" font-size="12" font-family="Arial" fill="#111">Train pairs: {train_str}  Test pairs: {test_str}</text>
-</svg>"""
-
-                    with out_path.open("w", encoding="utf-8") as f:
-                        f.write(svg_str)
-
-                    logger.debug(f"Saved minimal task overview SVG to {out_path}")
-                except Exception as e:
-                    logger.error(f"Failed to save minimal task overview SVG: {e}")
+                # Create simple text SVG
+                self._create_simple_task_svg(task_data, target_dir)
                 return
 
-            # Generate task SVG visualization directly with JaxArcTask
-            try:
-                # Determine target directory for the SVG
-                target_dir = (
-                    self.episode_manager.current_episode_dir
-                    or self.episode_manager.current_run_dir
-                )
-                if target_dir is None:
-                    # Fallback: use base run path from episode manager info
-                    info = self.episode_manager.get_current_run_info()
-                    run_dir = info.get("run_dir")
-                    target_dir = Path(run_dir) if run_dir else Path("outputs")
+            # Generate full task SVG
+            svg_drawing = draw_parsed_task_data_svg(
+                task_object, width=30.0, height=20.0, include_test=show_test
+            )
 
-                # Ensure directory exists
-                target_dir = Path(target_dir)
-                target_dir.mkdir(parents=True, exist_ok=True)
-
-                # Generate the SVG using the task visualization function with the real JaxArcTask
-                svg_drawing = draw_parsed_task_data_svg(
-                    task_object, width=30.0, height=20.0, include_test=show_test
-                )
-
-                # Save the SVG to file
-                svg_path = target_dir / "task_overview.svg"
-                svg_drawing.save_svg(str(svg_path))
-
-                logger.debug(f"Saved task overview SVG to {svg_path}")
-
-            except Exception as e:
-                logger.error(f"Failed to generate task SVG: {e}")
+            svg_path = target_dir / "task_overview.svg"
+            svg_drawing.save_svg(str(svg_path))
+            logger.debug(f"Saved task SVG to {svg_path}")
 
         except Exception as e:
             logger.error(f"Failed to generate task SVG: {e}")
 
     def log_step(self, step_data: dict[str, Any]) -> None:
-        """Generate and save step visualization.
-
-        Args:
-            step_data: Dictionary containing step information including:
-                - step_num: Step number
-                - before_state: Environment state before action
-                - after_state: Environment state after action
-                - action: Action taken
-                - reward: Reward received
-                - info: Additional information dictionary
-        """
-        # Check if step visualization is enabled
-        if not self._should_generate_step_svg():
+        """Generate step visualization SVG."""
+        if not self._should_generate_svg("step"):
             return
 
         try:
-            step_num = step_data.get("step_num", 0)
-            # Normalize step_num to a plain Python int using shared helper
-            try:
-                # Local import to avoid top-level cycles; falls back gracefully if helper is unavailable.
-                from ..logging.logging_utils import to_python_int
-            except Exception:
-                to_python_int = None
-            try:
-                if to_python_int is not None:
-                    tmp = to_python_int(step_num)
-                    step_num = int(tmp) if tmp is not None else 0
-                else:
-                    step_num = int(step_num) if step_num is not None else 0
-            except Exception:
-                step_num = 0
-
-            episode_num = step_data.get("episode_num")
-            # Normalize episode_num using shared helper (may be None)
-            try:
-                if to_python_int is not None:
-                    ep_tmp = to_python_int(episode_num)
-                    episode_num = int(ep_tmp) if ep_tmp is not None else None
-                else:
-                    episode_num = int(episode_num) if episode_num is not None else None
-            except Exception:
-                episode_num = None
-
-            # Ensure episode is started with simplified logic
-            if episode_num is not None and self.current_episode_num != episode_num:
-                # If caller provided an explicit episode number, use it.
-                self.start_episode(episode_num)
+            step_num = self._safe_int(step_data.get("step_num", 0))
+            # Handle episode number - distinguish between None and 0
+            episode_num_raw = step_data.get("episode_num")
+            if episode_num_raw is not None:
+                episode_num = self._safe_int(episode_num_raw)
+                if self.current_episode_num != episode_num:
+                    self.start_episode(episode_num)
             elif self.current_episode_num is None:
-                # No current episode, start episode 0 as default
                 self.start_episode(0)
-            # Otherwise, continue with current episode
 
             # Extract required data
             before_state = step_data.get("before_state")
             after_state = step_data.get("after_state")
             action = step_data.get("action")
-            reward = step_data.get("reward", 0.0)
-            # Normalize reward to a host float using shared helper (handles JAX/numpy scalars)
-            try:
-                from ..logging.logging_utils import to_python_float
-            except Exception:
-                to_python_float = None
-            try:
-                if to_python_float is not None:
-                    rtmp = to_python_float(reward)
-                    reward = float(rtmp) if rtmp is not None else 0.0
-                else:
-                    reward = float(reward)
-            except Exception:
-                reward = 0.0
-
+            reward = self._safe_float(step_data.get("reward", 0.0))
             info = step_data.get("info", {})
 
-            if before_state is None or after_state is None or action is None:
-                logger.warning(
-                    f"Missing required data for step {step_num} SVG generation"
-                )
+            if not all([before_state, after_state, action]):
+                logger.warning(f"Missing data for step {step_num} SVG")
                 return
 
-            # Create Grid objects from states
+            # Extract grids
             before_grid = self._extract_grid_from_state(before_state)
             after_grid = self._extract_grid_from_state(after_state)
 
-            if before_grid is None or after_grid is None:
+            if not all([before_grid, after_grid]):
                 logger.warning(f"Could not extract grids for step {step_num}")
                 return
 
-            # Detect changed cells
+            # Prepare visualization data
             changed_cells = detect_changed_cells(before_grid, after_grid)
-
-            # Get operation name
             operation_id = self._extract_operation_id(action)
             operation_name = get_operation_display_name(operation_id, action)
 
-            # Extract additional context (best-effort; prefer step_data, fallback to state)
+            # Extract metadata with simple defaults
             task_id = step_data.get("task_id", "")
-            # Accept several possible keys for the pair index; prefer explicit one
-            task_pair_index = step_data.get("task_pair_index")
-            if task_pair_index is None:
-                task_pair_index = step_data.get("task_pair_idx")
+            task_pair_index = self._safe_int(step_data.get("task_pair_index", 0))
+            total_task_pairs = self._safe_int(step_data.get("total_task_pairs", 1))
 
-            # Prefer pre-selected scalar total if available (built by logging_utils).
-            # Fallback to legacy `total_task_pairs` container (may be dict or scalar).
-            total_task_pairs = step_data.get("total_task_pairs_selected")
-            if total_task_pairs is None:
-                total_task_pairs = step_data.get("total_task_pairs")
+            # Filter info for visualization
+            filtered_info = self._filter_info(info)
 
-            # If still missing, try to use the cached task pair counts from task start
-            # which were populated by `log_task_start` (host-side, best-effort).
-            if total_task_pairs is None and self.current_task_pairs is not None:
-                # Try to detect episode_mode from step_data or info; default to train (0)
-                ep_mode = step_data.get("episode_mode")
-                try:
-                    if ep_mode is None and isinstance(info, dict):
-                        ep_mode = info.get("episode_mode", None)
-                    if ep_mode is not None:
-                        # coerce numeric-like
-                        if hasattr(ep_mode, "item"):
-                            ep_mode_val = int(ep_mode.item())
-                        else:
-                            ep_mode_val = int(ep_mode)
-                    else:
-                        ep_mode_val = 0
-                except Exception:
-                    ep_mode_val = 0
-
-                try:
-                    total_task_pairs = (
-                        self.current_task_pairs.get("test")
-                        if ep_mode_val == 1
-                        else self.current_task_pairs.get("train")
-                    )
-                except Exception:
-                    total_task_pairs = None
-
-            # Fallbacks: if step_data didn't include them, try the before/after state
-            try:
-                # Prefer pair index from step_data, otherwise from state.
-                # Normalize to int with safe fallbacks.
-                if task_pair_index is None:
-                    if hasattr(before_state, "pair_idx"):
-                        try:
-                            task_pair_index = int(before_state.pair_idx.item())
-                        except Exception:
-                            try:
-                                task_pair_index = int(before_state.pair_idx)
-                            except Exception:
-                                task_pair_index = 0
-                    else:
-                        task_pair_index = 0
-                else:
-                    # If provided in step_data, coerce to int
-                    try:
-                        if hasattr(task_pair_index, "item"):
-                            task_pair_index = int(task_pair_index.item())
-                        else:
-                            task_pair_index = int(task_pair_index)
-                    except Exception:
-                        task_pair_index = 0
-
-                # If no explicit task_id, attempt to resolve from state.task_idx
-                if not task_id:
-                    if hasattr(before_state, "task_idx"):
-                        try:
-                            # Try to resolve a human-readable id via task manager.
-                            # If extractor returns None, fall back to global manager lookup.
-                            from jaxarc.utils.task_manager import (
-                                extract_task_id_from_index,
-                                get_task_id_globally,
-                            )
-
-                            tid = extract_task_id_from_index(before_state.task_idx)
-                            if tid is not None:
-                                task_id = tid
-                            else:
-                                # Fallback: convert index to int and query the global manager.
-                                try:
-                                    if hasattr(before_state.task_idx, "item"):
-                                        idx_val = int(before_state.task_idx.item())
-                                    else:
-                                        idx_val = int(before_state.task_idx)
-                                    gid = get_task_id_globally(idx_val)
-                                    task_id = gid if gid is not None else ""
-                                except Exception:
-                                    task_id = ""
-                        except Exception:
-                            # Final fallback: leave task_id empty instead of fabricating numeric labels
-                            task_id = ""
-
-                # Normalize total_task_pairs into a plain integer (best-effort).
-                # Handle dicts produced by older helpers, numpy/JAX scalars, or missing metadata.
-                raw_total = (
-                    total_task_pairs
-                    if total_task_pairs is not None
-                    else step_data.get("total_task_pairs")
-                )
-
-                try:
-                    # If the payload supplied a dict-like container, pick a sensible key.
-                    if isinstance(raw_total, dict):
-                        candidate = (
-                            raw_total.get("train")
-                            or raw_total.get("test")
-                            or raw_total.get("all")
-                        )
-                        total_task_pairs = candidate
-                    else:
-                        total_task_pairs = raw_total
-
-                    # If still missing and we have cached task pair counts from task start, prefer that.
-                    if total_task_pairs is None and self.current_task_pairs is not None:
-                        # Prefer train unless episode mode indicates test
-                        ep_mode = step_data.get("episode_mode")
-                        if ep_mode is None and isinstance(info, dict):
-                            ep_mode = info.get("episode_mode", None)
-                        try:
-                            if ep_mode is not None:
-                                m = (
-                                    int(ep_mode.item())
-                                    if hasattr(ep_mode, "item")
-                                    else int(ep_mode)
-                                )
-                            else:
-                                m = 0
-                        except Exception:
-                            m = 0
-                        total_task_pairs = (
-                            self.current_task_pairs.get("test")
-                            if m == 1
-                            else self.current_task_pairs.get("train")
-                        )
-
-                    # Additional fallback: if still missing, try to extract from params.buffer using logging helper.
-                    if total_task_pairs is None:
-                        try:
-                            params_obj = step_data.get("params")
-                            # Prefer a task_idx provided in the payload, otherwise try state.
-                            payload_task_idx = step_data.get("task_idx")
-                            if payload_task_idx is None:
-                                # Try to extract from before_state / after_state if possible
-                                if hasattr(before_state, "task_idx"):
-                                    payload_task_idx = before_state.task_idx
-                                elif hasattr(after_state, "task_idx"):
-                                    payload_task_idx = after_state.task_idx
-                            if params_obj is not None and payload_task_idx is not None:
-                                # Import the helper lazily to avoid top-level cycles
-                                from jaxarc.utils.logging.logging_utils import (
-                                    build_task_metadata_from_params,
-                                )
-
-                                tmeta = build_task_metadata_from_params(
-                                    params_obj, payload_task_idx
-                                )
-                                # Pick based on episode_mode on params if available, otherwise prefer train
-                                try:
-                                    p_mode = getattr(params_obj, "episode_mode", None)
-                                    if p_mode is not None:
-                                        p_val = (
-                                            int(p_mode.item())
-                                            if hasattr(p_mode, "item")
-                                            else int(p_mode)
-                                        )
-                                    else:
-                                        p_val = 0
-                                except Exception:
-                                    p_val = 0
-                                if p_val == 1:
-                                    total_task_pairs = tmeta.get("num_test_pairs")
-                                else:
-                                    total_task_pairs = tmeta.get("num_train_pairs")
-                                # If still None pick any available count
-                                if total_task_pairs is None:
-                                    total_task_pairs = tmeta.get(
-                                        "num_train_pairs"
-                                    ) or tmeta.get("num_test_pairs")
-                        except Exception:
-                            # ignore failures here and continue to final fallback
-                            total_task_pairs = None
-
-                    # Final fallback to 1 when nothing sensible is found
-                    if total_task_pairs is None:
-                        total_task_pairs = 1
-
-                    # Convert numpy/jax scalars or other numeric-like values to int
-                    if hasattr(total_task_pairs, "item"):
-                        total_task_pairs = int(total_task_pairs.item())
-                    else:
-                        total_task_pairs = int(total_task_pairs)
-                except Exception:
-                    total_task_pairs = 1
-
-                # Ensure task_pair_index is a Python int (zero-based) where possible,
-                # falling back to 0. Try state fields if step_data did not include it.
-                try:
-                    if task_pair_index is None:
-                        if hasattr(before_state, "pair_idx"):
-                            try:
-                                task_pair_index = int(before_state.pair_idx.item())
-                            except Exception:
-                                task_pair_index = int(before_state.pair_idx)
-                        elif hasattr(after_state, "pair_idx"):
-                            try:
-                                task_pair_index = int(after_state.pair_idx.item())
-                            except Exception:
-                                task_pair_index = int(after_state.pair_idx)
-                        else:
-                            task_pair_index = 0
-                    else:
-                        # Coerce provided value to int when possible
-                        try:
-                            if hasattr(task_pair_index, "item"):
-                                task_pair_index = int(task_pair_index.item())
-                            else:
-                                task_pair_index = int(task_pair_index)
-                        except Exception:
-                            task_pair_index = 0
-                except Exception:
-                    task_pair_index = 0
-
-                # Task pair indices in state are zero-based; visualizers display +1.
-                # Keep task_pair_index zero-based internally but ensure it's a valid int.
-                try:
-                    task_pair_index = int(task_pair_index)
-                except Exception:
-                    task_pair_index = 0
-
-                task_id = task_id or ""
-                total_task_pairs = int(total_task_pairs or 1)
-                logger.debug(
-                    f"SVGHandler.log_step: step={step_num} computed_pair_index={task_pair_index} total_pairs={total_task_pairs}"
-                )
-
-            except Exception:
-                # Do not allow logging enrichment to raise - fall back to safe defaults
-                task_id = task_id or ""
-                task_pair_index = int(task_pair_index or 0)
-                total_task_pairs = int(total_task_pairs or 1)
-                logger.debug(
-                    f"SVGHandler.log_step (fallback): step={step_num} computed_pair_index={task_pair_index} total_pairs={total_task_pairs}"
-                )
-
-            # Filter info dictionary to only include known visualization keys
-            # This makes SVGHandler ignore unknown keys gracefully
-            filtered_info = self._filter_info_for_visualization(info)
-
-            # Enrich filtered_info with commonly-expected metrics so older visualizations still display them.
-            try:
-                # Initialize enrichment placeholders
-                sim = None
-                sim_imp = None
-                step_ct = None
-                curr_pair = None
-
-                if isinstance(info, dict):
-                    # New format may nest metrics under 'metrics'
-                    metrics = info.get("metrics") if "metrics" in info else None
-                    if metrics is not None and isinstance(metrics, dict):
-                        sim = metrics.get("similarity", None)
-                        sim_imp = metrics.get("similarity_improvement", None)
-                    else:
-                        sim = info.get("similarity", None)
-                        sim_imp = info.get("similarity_improvement", None)
-
-                    # Common step/pair keys (try multiple aliases)
-                    step_ct = info.get("step_count", info.get("step", None))
-                    curr_pair = info.get(
-                        "current_pair_index",
-                        info.get("pair_idx", info.get("task_pair_index", None)),
-                    )
-                else:
-                    # object-like info (StepInfo or similar)
-                    try:
-                        metrics = getattr(info, "metrics", None)
-                        if metrics is not None:
-                            # metrics might be a dict-like or object
-                            if isinstance(metrics, dict):
-                                sim = metrics.get(
-                                    "similarity", getattr(info, "similarity", None)
-                                )
-                                sim_imp = metrics.get(
-                                    "similarity_improvement",
-                                    getattr(info, "similarity_improvement", None),
-                                )
-                            else:
-                                sim = getattr(
-                                    metrics,
-                                    "similarity",
-                                    getattr(info, "similarity", None),
-                                )
-                                sim_imp = getattr(
-                                    metrics,
-                                    "similarity_improvement",
-                                    getattr(info, "similarity_improvement", None),
-                                )
-                        else:
-                            sim = getattr(info, "similarity", None)
-                            sim_imp = getattr(info, "similarity_improvement", None)
-                    except Exception:
-                        sim = getattr(info, "similarity", None)
-                        sim_imp = getattr(info, "similarity_improvement", None)
-
-                    step_ct = getattr(info, "step_count", getattr(info, "step", None))
-                    curr_pair = getattr(
-                        info,
-                        "current_pair_index",
-                        getattr(
-                            info, "pair_idx", getattr(info, "task_pair_index", None)
-                        ),
-                    )
-
-                # Coerce and attach to filtered_info with safe fallbacks
-                try:
-                    filtered_info["similarity"] = (
-                        float(sim) if sim is not None else None
-                    )
-                except Exception:
-                    filtered_info["similarity"] = None
-
-                try:
-                    filtered_info["similarity_improvement"] = (
-                        float(sim_imp) if sim_imp is not None else None
-                    )
-                except Exception:
-                    filtered_info["similarity_improvement"] = None
-
-                try:
-                    filtered_info["step_count"] = (
-                        int(step_ct) if step_ct is not None else None
-                    )
-                except Exception:
-                    filtered_info["step_count"] = None
-
-                try:
-                    filtered_info["current_pair_index"] = (
-                        int(curr_pair) if curr_pair is not None else None
-                    )
-                except Exception:
-                    filtered_info["current_pair_index"] = None
-            except Exception:
-                # Best-effort enrichment; do not fail visualization if enrichment fails
-                pass
-
-            # Generate SVG content
+            # Generate SVG
             svg_content = draw_rl_step_svg_enhanced(
                 before_grid=before_grid,
                 after_grid=after_grid,
@@ -753,135 +165,195 @@ class SVGHandler:
                 total_task_pairs=total_task_pairs,
             )
 
-            # Save SVG file
+            # Save SVG
             svg_path = self.episode_manager.get_step_path(step_num, "svg")
             svg_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with Path.open(svg_path, "w", encoding="utf-8") as f:
+            with svg_path.open("w", encoding="utf-8") as f:
                 f.write(svg_content)
 
             logger.debug(f"Saved step {step_num} SVG to {svg_path}")
 
         except Exception as e:
             logger.error(
-                f"Failed to generate step {step_data.get('step_num', 'unknown')} SVG: {e}"
+                f"Failed to generate step {step_data.get('step_num', '?')} SVG: {e}"
             )
 
     def log_episode_summary(self, summary_data: dict[str, Any]) -> None:
-        """Generate and save episode summary visualization.
-
-        This method handles both traditional episode summaries and episode summary data
-        from batched training sampling. It supports initial vs final state visualization
-        when state data is available and gracefully degrades when not provided.
-
-        Args:
-            summary_data: Dictionary containing episode summary information including:
-                - episode_num: Episode number
-                - total_steps: Total number of steps
-                - total_reward: Total reward received
-                - final_similarity: Final similarity score
-                - success: Whether episode was successful
-                - task_id: Task identifier
-                - environment_id: Environment ID (for batched sampling)
-                - initial_state: Initial state (optional, for batched sampling)
-                - final_state: Final state (optional, for batched sampling)
-                - step_data: List of step data for visualization (traditional mode)
-        """
-        # Check if episode summary visualization is enabled
-        if not self._should_generate_episode_summary():
+        """Generate episode summary SVG."""
+        if not self._should_generate_svg("episode"):
             return
 
         try:
-            episode_num = summary_data.get("episode_num", 0)
+            episode_num = self._safe_int(summary_data.get("episode_num", 0))
             environment_id = summary_data.get("environment_id")
 
-            # Ensure episode is started
             if self.current_episode_num != episode_num:
                 self.start_episode(episode_num)
 
-            # Handle batched sampling mode vs traditional mode
             if environment_id is not None:
-                # Batched sampling mode - generate visualization from initial/final states
-                self._generate_batched_episode_summary(summary_data, environment_id)
+                self._generate_batched_summary(summary_data, environment_id)
             else:
-                # Traditional mode - use step data for full episode visualization
-                self._generate_traditional_episode_summary(summary_data)
+                self._generate_traditional_summary(summary_data)
 
         except Exception as e:
-            logger.error(f"Failed to generate episode summary SVG: {e}")
+            logger.error(f"Failed to generate episode summary: {e}")
 
-    def _generate_batched_episode_summary(
+    def log_evaluation_summary(self, eval_data: dict[str, Any]) -> None:
+        """Generate evaluation trajectory SVGs."""
+        if not self._should_generate_svg("evaluation"):
+            return
+
+        try:
+            test_results = eval_data.get("test_results", [])
+            if not test_results:
+                return
+
+            # Find first result with trajectory
+            trajectory = None
+            for result in test_results:
+                if isinstance(result, dict) and "trajectory" in result:
+                    trajectory = result["trajectory"]
+                    break
+
+            if not trajectory:
+                return
+
+            task_id = eval_data.get("task_id", "eval_task")
+            self.start_episode(0)
+
+            # Generate SVGs for first 50 steps
+            for idx, step_tuple in enumerate(trajectory[:50]):
+                try:
+                    if len(step_tuple) == 4:
+                        before_state, action, after_state, info = step_tuple
+                    elif len(step_tuple) == 3:
+                        before_state, action, after_state = step_tuple
+                        info = {}
+                    else:
+                        continue
+
+                    step_data = {
+                        "step_num": idx,
+                        "before_state": before_state,
+                        "after_state": after_state,
+                        "action": action,
+                        "reward": info.get("reward", 0.0)
+                        if isinstance(info, dict)
+                        else 0.0,
+                        "info": info if isinstance(info, dict) else {},
+                        "task_id": task_id,
+                    }
+                    self.log_step(step_data)
+
+                except Exception as e:
+                    logger.warning(f"Failed to process eval step {idx}: {e}")
+
+        except Exception as e:
+            logger.warning(f"Evaluation SVG generation failed: {e}")
+
+    def close(self) -> None:
+        """Close handler."""
+        logger.debug("SVGHandler closed")
+
+    def get_current_run_info(self) -> dict[str, Any]:
+        """Get current run info."""
+        return self.episode_manager.get_current_run_info()
+
+    # Helper methods
+
+    def _should_generate_svg(self, svg_type: str) -> bool:
+        """Check if SVG generation is enabled."""
+        try:
+            if not hasattr(self.config, "visualization"):
+                return False
+
+            viz_config = self.config.visualization
+            if not getattr(viz_config, "enabled", True):
+                return False
+
+            # Check specific types
+            if svg_type == "step":
+                return getattr(viz_config, "step_visualizations", True)
+            if svg_type == "episode":
+                return getattr(viz_config, "episode_summaries", True)
+            return True
+
+        except Exception:
+            return False
+
+    def _get_output_dir(self) -> Path:
+        """Get output directory for SVGs."""
+        target_dir = (
+            self.episode_manager.current_episode_dir
+            or self.episode_manager.current_run_dir
+        )
+
+        if target_dir is None:
+            info = self.episode_manager.get_current_run_info()
+            run_dir = info.get("run_dir")
+            target_dir = Path(run_dir) if run_dir else Path("outputs")
+
+        return Path(target_dir)
+
+    def _create_simple_task_svg(
+        self, task_data: dict[str, Any], target_dir: Path
+    ) -> None:
+        """Create simple text-based task SVG."""
+        task_id = str(task_data.get("task_id", "unknown"))
+        train_pairs = task_data.get("num_train_pairs", "?")
+        test_pairs = task_data.get("num_test_pairs", "?")
+
+        svg_content = f"""<svg xmlns="http://www.w3.org/2000/svg" width="500" height="120">
+  <rect width="100%" height="100%" fill="white"/>
+  <text x="20" y="28" font-size="18" font-family="Arial" fill="#222">Task Overview</text>
+  <text x="20" y="54" font-size="14" font-family="Arial" fill="#111">Task ID: {task_id}</text>
+  <text x="20" y="80" font-size="12" font-family="Arial" fill="#111">Train: {train_pairs}  Test: {test_pairs}</text>
+</svg>"""
+
+        svg_path = target_dir / "task_overview.svg"
+        svg_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with svg_path.open("w", encoding="utf-8") as f:
+            f.write(svg_content)
+
+    def _generate_batched_summary(
         self, summary_data: dict[str, Any], environment_id: int
     ) -> None:
-        """Generate episode summary for batched sampling mode.
-
-        Args:
-            summary_data: Episode summary data from batched sampling
-            environment_id: Environment ID within the batch
-        """
+        """Generate summary for batched mode."""
         try:
-            episode_num = summary_data.get("episode_num", 0)
             initial_state = summary_data.get("initial_state")
             final_state = summary_data.get("final_state")
 
-            # Check if we have state data for visualization
             if initial_state is None and final_state is None:
-                # Graceful degradation - create text-only summary
-                self._generate_text_only_summary(summary_data, environment_id)
+                # Create text summary
+                summary_text = self._create_text_summary(summary_data, environment_id)
+                filename = f"episode_summary_env_{environment_id}.txt"
+                summary_path = self.episode_manager.current_episode_dir / filename
+
+                with summary_path.open("w", encoding="utf-8") as f:
+                    f.write(summary_text)
                 return
 
-            # Extract grids from states when available
-            initial_grid = None
-            final_grid = None
+            # Create SVG with initial/final states
+            svg_content = self._create_batched_svg(summary_data, environment_id)
+            filename = f"episode_summary_env_{environment_id}.svg"
+            summary_path = self.episode_manager.current_episode_dir / filename
 
-            if initial_state is not None:
-                initial_grid = self._extract_grid_from_state(initial_state)
-
-            if final_state is not None:
-                final_grid = self._extract_grid_from_state(final_state)
-
-            # Generate SVG content for initial vs final state comparison
-            svg_content = self._create_batched_summary_svg(
-                summary_data=summary_data,
-                initial_grid=initial_grid,
-                final_grid=final_grid,
-                environment_id=environment_id,
-            )
-
-            # Save summary SVG with environment ID in filename
-            filename_suffix = (
-                f"_env_{environment_id}" if environment_id is not None else ""
-            )
-            summary_path = (
-                self.episode_manager.current_episode_dir
-                / f"episode_summary{filename_suffix}.svg"
-            )
-            summary_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with Path.open(summary_path, "w", encoding="utf-8") as f:
+            with summary_path.open("w", encoding="utf-8") as f:
                 f.write(svg_content)
 
-            logger.debug(f"Saved batched episode summary SVG to {summary_path}")
+            logger.debug(f"Saved batched summary to {summary_path}")
 
         except Exception as e:
-            logger.error(f"Failed to generate batched episode summary: {e}")
+            logger.error(f"Failed to generate batched summary: {e}")
 
-    def _generate_traditional_episode_summary(
-        self, summary_data: dict[str, Any]
-    ) -> None:
-        """Generate episode summary for traditional mode with step data.
-
-        Args:
-            summary_data: Traditional episode summary data
-        """
+    def _generate_traditional_summary(self, summary_data: dict[str, Any]) -> None:
+        """Generate summary for traditional mode."""
         try:
-            episode_num = summary_data.get("episode_num", 0)
-            step_data = summary_data.get("step_data", [])
-
-            # Convert dictionary to object for compatibility with visualization function
-            class SummaryDataWrapper:
-                def __init__(self, data_dict):
-                    # Set default values for expected attributes
+            # Convert dict to object for compatibility
+            class SummaryData:
+                def __init__(self, data):
                     self.episode_num = 0
                     self.total_steps = 0
                     self.total_reward = 0.0
@@ -892,378 +364,123 @@ class SVGHandler:
                     self.similarity_progression = []
                     self.key_moments = []
 
-                    # Override with actual data
-                    for key, value in data_dict.items():
+                    for key, value in data.items():
                         setattr(self, key, value)
 
-            summary_obj = SummaryDataWrapper(summary_data)
+            summary_obj = SummaryData(summary_data)
+            step_data = summary_data.get("step_data", [])
 
-            # Generate episode summary SVG using existing function
             svg_content = draw_enhanced_episode_summary_svg(
                 summary_data=summary_obj,
                 step_data=step_data,
                 config=self.config,
             )
 
-            # Save summary SVG
             summary_path = self.episode_manager.get_episode_summary_path("svg")
             summary_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with Path.open(summary_path, "w", encoding="utf-8") as f:
+            with summary_path.open("w", encoding="utf-8") as f:
                 f.write(svg_content)
 
-            logger.debug(
-                f"Saved traditional episode {episode_num} summary SVG to {summary_path}"
-            )
+            logger.debug(f"Saved traditional summary to {summary_path}")
 
         except Exception as e:
-            logger.error(f"Failed to generate traditional episode summary: {e}")
+            logger.error(f"Failed to generate traditional summary: {e}")
 
-    def _generate_text_only_summary(
+    def _create_batched_svg(
         self, summary_data: dict[str, Any], environment_id: int
-    ) -> None:
-        """Generate text-only summary when state data is not available.
-
-        Args:
-            summary_data: Episode summary data
-            environment_id: Environment ID within the batch
-        """
-        try:
-            # Create simple text-based summary
-            summary_text = self._create_text_summary(summary_data, environment_id)
-
-            # Save as text file instead of SVG
-            filename_suffix = (
-                f"_env_{environment_id}" if environment_id is not None else ""
-            )
-            summary_path = (
-                self.episode_manager.current_episode_dir
-                / f"episode_summary{filename_suffix}.txt"
-            )
-            summary_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with Path.open(summary_path, "w", encoding="utf-8") as f:
-                f.write(summary_text)
-
-            logger.debug(f"Saved text-only episode summary to {summary_path}")
-
-        except Exception as e:
-            logger.error(f"Failed to generate text-only summary: {e}")
-
-    def _create_batched_summary_svg(
-        self,
-        summary_data: dict[str, Any],
-        initial_grid: Grid | None,
-        final_grid: Grid | None,
-        environment_id: int,
     ) -> str:
-        """Create SVG content for batched episode summary.
+        """Create SVG for batched summary."""
+        if draw is None:
+            return '<svg width="400" height="200"><text x="200" y="100" text-anchor="middle">drawsvg not available</text></svg>'
 
-        Args:
-            summary_data: Episode summary data
-            initial_grid: Initial grid state (optional)
-            final_grid: Final grid state (optional)
-            environment_id: Environment ID within the batch
-
-        Returns:
-            SVG content as string
-        """
         try:
-            if draw is None:  # type: ignore[truthy-function]
-                logger.error("drawsvg not installed; cannot create batched summary SVG")
-                return '<svg width="400" height="200"><text x="200" y="100" text-anchor="middle">drawsvg not installed</text></svg>'
-
-            # Create drawing with appropriate size
-            width = 800
-            height = 400
+            width, height = 800, 400
             d = draw.Drawing(width, height)
 
-            # Add title
+            # Title
             episode_num = summary_data.get("episode_num", 0)
             task_id = summary_data.get("task_id", "Unknown")
-            title = f"Episode {episode_num} - Environment {environment_id} - Task: {task_id}"
+            title = f"Episode {episode_num} - Env {environment_id} - {task_id}"
+
             d.append(
                 draw.Text(
                     title,
-                    20,
+                    16,
                     x=width // 2,
                     y=30,
                     text_anchor="middle",
                     font_family="Arial",
-                    font_size=16,
                     font_weight="bold",
                 )
             )
 
-            # Add summary statistics
-            stats_y = 60
+            # Stats
             stats = [
-                f"Total Reward: {summary_data.get('total_reward', 0):.3f}",
-                f"Total Steps: {summary_data.get('total_steps', 0)}",
-                f"Final Similarity: {summary_data.get('final_similarity', 0):.3f}",
+                f"Reward: {summary_data.get('total_reward', 0):.3f}",
+                f"Steps: {summary_data.get('total_steps', 0)}",
+                f"Similarity: {summary_data.get('final_similarity', 0):.3f}",
                 f"Success: {summary_data.get('success', False)}",
             ]
 
             for i, stat in enumerate(stats):
-                d.append(
-                    draw.Text(
-                        stat,
-                        14,
-                        x=50,
-                        y=stats_y + i * 20,
-                        font_family="Arial",
-                        font_size=12,
-                    )
-                )
-
-            # Draw grids if available
-            grid_y = 150
-            grid_size = 200
-
-            if initial_grid is not None:
-                # Draw initial grid
-                self._draw_grid_in_svg(
-                    d,
-                    initial_grid,
-                    x=100,
-                    y=grid_y,
-                    size=grid_size,
-                    title="Initial State",
-                )
-
-            if final_grid is not None:
-                # Draw final grid
-                x_offset = 450 if initial_grid is not None else 300
-                self._draw_grid_in_svg(
-                    d,
-                    final_grid,
-                    x=x_offset,
-                    y=grid_y,
-                    size=grid_size,
-                    title="Final State",
-                )
-
-            # Add note about batched mode
-            d.append(
-                draw.Text(
-                    "Generated from batched training sample",
-                    12,
-                    x=width // 2,
-                    y=height - 20,
-                    text_anchor="middle",
-                    font_family="Arial",
-                    font_size=10,
-                    fill="gray",
-                )
-            )
+                d.append(draw.Text(stat, 12, x=50, y=60 + i * 20, font_family="Arial"))
 
             return d.as_svg()
 
         except Exception as e:
-            logger.error(f"Failed to create batched summary SVG: {e}")
-            # Return minimal SVG on error
-            return f'<svg width="400" height="200"><text x="200" y="100" text-anchor="middle">Error generating visualization: {e}</text></svg>'
-
-    def _draw_grid_in_svg(
-        self, drawing, grid: Grid, x: int, y: int, size: int, title: str
-    ) -> None:
-        """Draw a grid in the SVG drawing.
-
-        Args:
-            drawing: DrawSVG drawing object
-            grid: Grid object to draw
-            x: X position
-            y: Y position
-            size: Size of the grid visualization
-            title: Title for the grid
-        """
-        try:
-            if draw is None:  # type: ignore[truthy-function]
-                logger.error("drawsvg not installed; cannot draw grid")
-                return
-
-            # Add title
-            drawing.append(
-                draw.Text(
-                    title,
-                    12,
-                    x=x + size // 2,
-                    y=y - 10,
-                    text_anchor="middle",
-                    font_family="Arial",
-                    font_size=12,
-                    font_weight="bold",
-                )
-            )
-
-            # Get grid data
-            grid_data = (
-                np.asarray(grid.data) if hasattr(grid, "data") else np.asarray(grid)
-            )
-            rows, cols = grid_data.shape
-
-            # Calculate cell size
-            cell_size = min(size // max(rows, cols), 20)
-
-            # Color mapping for ARC (0-9 colors)
-            colors = [
-                "#000000",
-                "#0074D9",
-                "#FF4136",
-                "#2ECC40",
-                "#FFDC00",
-                "#AAAAAA",
-                "#F012BE",
-                "#FF851B",
-                "#7FDBFF",
-                "#870C25",
-            ]
-
-            # Draw grid cells
-            for i in range(rows):
-                for j in range(cols):
-                    cell_x = x + j * cell_size
-                    cell_y = y + i * cell_size
-                    color_idx = int(grid_data[i, j]) % len(colors)
-
-                    # Draw cell
-                    drawing.append(
-                        draw.Rectangle(
-                            cell_x,
-                            cell_y,
-                            cell_size,
-                            cell_size,
-                            fill=colors[color_idx],
-                            stroke="white",
-                            stroke_width=1,
-                        )
-                    )
-
-        except Exception as e:
-            logger.error(f"Failed to draw grid in SVG: {e}")
+            logger.error(f"Failed to create batched SVG: {e}")
+            return f'<svg width="400" height="200"><text x="200" y="100" text-anchor="middle">Error: {e}</text></svg>'
 
     def _create_text_summary(
         self, summary_data: dict[str, Any], environment_id: int
     ) -> str:
-        """Create text-based summary when visualization is not possible.
-
-        Args:
-            summary_data: Episode summary data
-            environment_id: Environment ID within the batch
-
-        Returns:
-            Text summary as string
-        """
+        """Create text summary."""
         lines = [
             f"Episode Summary - Environment {environment_id}",
-            "=" * 50,
-            f"Episode Number: {summary_data.get('episode_num', 0)}",
-            f"Task ID: {summary_data.get('task_id', 'Unknown')}",
-            f"Total Reward: {summary_data.get('total_reward', 0):.3f}",
-            f"Total Steps: {summary_data.get('total_steps', 0)}",
-            f"Final Similarity: {summary_data.get('final_similarity', 0):.3f}",
+            "=" * 40,
+            f"Episode: {summary_data.get('episode_num', 0)}",
+            f"Task: {summary_data.get('task_id', 'Unknown')}",
+            f"Reward: {summary_data.get('total_reward', 0):.3f}",
+            f"Steps: {summary_data.get('total_steps', 0)}",
+            f"Similarity: {summary_data.get('final_similarity', 0):.3f}",
             f"Success: {summary_data.get('success', False)}",
-            "",
-            "Note: This summary was generated from batched training data.",
-            "State visualization is not available as intermediate states",
-            "are not stored during batched training for performance reasons.",
         ]
-
         return "\n".join(lines)
 
-    def close(self) -> None:
-        """Clean shutdown of SVG handler."""
-        try:
-            # Perform any cleanup if needed
-            logger.debug("SVGHandler closed")
-        except Exception as e:
-            logger.error(f"Error during SVGHandler shutdown: {e}")
-
-    def _should_generate_step_svg(self) -> bool:
-        """Check if step SVG generation is enabled based on configuration."""
-        try:
-            # Check visualization config
-            if hasattr(self.config, "visualization"):
-                viz_config = self.config.visualization
-                if getattr(viz_config, "enabled", True) and getattr(
-                    viz_config, "step_visualizations", True
-                ):
-                    return True
-            return False
-        except Exception:
-            return False
-
-    def _should_generate_task_svg(self) -> bool:
-        """Check if task SVG generation is enabled based on configuration."""
-        try:
-            # Check visualization config
-            # Check visualization config
-            if hasattr(self.config, "visualization"):
-                viz_config = self.config.visualization
-                if getattr(viz_config, "enabled", True):
-                    return True
-            return False
-        except Exception:
-            return True
-
-    def _should_generate_episode_summary(self) -> bool:
-        """Check if episode summary generation is enabled based on configuration."""
-        try:
-            # Check visualization config
-            if hasattr(self.config, "visualization"):
-                viz_config = self.config.visualization
-                if getattr(viz_config, "enabled", True) and getattr(
-                    viz_config, "episode_summaries", True
-                ):
-                    return True
-            return False
-        except Exception:
-            return True
-
     def _extract_grid_from_state(self, state: Any) -> Grid | None:
-        """Extract Grid object from environment state."""
+        """Extract Grid from state."""
         try:
             if hasattr(state, "working_grid") and hasattr(state, "working_grid_mask"):
                 return Grid(
                     data=np.asarray(state.working_grid),
                     mask=np.asarray(state.working_grid_mask),
                 )
-            if hasattr(state, "data") and hasattr(state, "mask"):
-                return state  # Already Grid-like
+            if hasattr(state, "data"):
+                return state
             if isinstance(state, (np.ndarray, list)):
                 return Grid(data=np.asarray(state), mask=None)
-            logger.warning(f"Unknown state format: {type(state)}")
             return None
-        except Exception as e:  # pragma: no cover
-            logger.error(f"Failed to extract grid from state: {e}")
+        except Exception as e:
+            logger.error(f"Failed to extract grid: {e}")
             return None
 
     def _extract_operation_id(self, action: Any) -> int:
         """Extract operation ID from action."""
         try:
             if hasattr(action, "operation"):
-                op_val = action.operation
-            elif isinstance(action, dict) and "operation" in action:
-                op_val = action["operation"]
-            elif isinstance(action, tuple) and len(action) >= 1:
-                # Handle tuple actions from PointActionWrapper: (operation, row, col)
-                op_val = action[0]
-            else:
-                logger.warning(
-                    f"Could not extract operation from action: {type(action)}"
-                )
-                return 0
-            if hasattr(op_val, "item"):
-                op_val = op_val.item()
-            return int(op_val)
-        except Exception as e:  # pragma: no cover
-            logger.error(f"Failed to extract operation ID: {e}")
+                return self._safe_int(action.operation)
+            if isinstance(action, dict):
+                return self._safe_int(action.get("operation", 0))
+            if isinstance(action, tuple) and len(action) >= 1:
+                return self._safe_int(action[0])
+            return 0
+        except Exception:
             return 0
 
-    def _filter_info_for_visualization(self, info: Any) -> dict[str, Any]:
-        """Filter info object (StepInfo or dict) to include keys relevant for visualization."""
-        # Known keys used by visualization functions
-        known_viz_keys = {
+    def _filter_info(self, info: Any) -> dict[str, Any]:
+        """Filter info for visualization."""
+        viz_keys = {
             "success",
             "similarity",
             "similarity_improvement",
@@ -1273,88 +490,36 @@ class SVGHandler:
             "current_pair_index",
         }
 
-        filtered_info = {}
-        # Handle both the new StepInfo object and old dict format for robustness
-        if hasattr(info, "__class__") and "StepInfo" in info.__class__.__name__:
-            for key in known_viz_keys:
-                if hasattr(info, key):
-                    filtered_info[key] = getattr(info, key)
-        elif isinstance(info, dict):
+        filtered = {}
+
+        if isinstance(info, dict):
             for key, value in info.items():
-                if key in known_viz_keys:
-                    filtered_info[key] = value
+                if key in viz_keys:
+                    filtered[key] = value
+        else:
+            # Handle object-like info
+            for key in viz_keys:
+                if hasattr(info, key):
+                    filtered[key] = getattr(info, key)
 
-        return filtered_info
+        return filtered
 
-    def get_current_run_info(self) -> dict[str, Any]:
-        """Get information about the current run.
-
-        Returns:
-            Dictionary with current run information
-        """
-        return self.episode_manager.get_current_run_info()
-
-    # --- Evaluation Summary Support ---
-    def _should_generate_evaluation_svg(self) -> bool:
-        """Check if evaluation SVG generation is enabled.
-
-        Reuses existing visualization gating; we keep this conservative to avoid
-        large output explosions. Defaults to using episode summary setting.
-        """
-        return self._should_generate_episode_summary()
-
-    def log_evaluation_summary(self, eval_data: dict[str, Any]) -> None:
-        """Generate SVGs for evaluation trajectories (if provided).
-
-        Expects eval_data['test_results'] to contain dicts that may include a
-        'trajectory' key which is an iterable of step tuples:
-            (before_state, action, after_state, info)
-        Only the first available trajectory is rendered to limit storage.
-        """
-        if not self._should_generate_evaluation_svg():
-            return
+    def _safe_int(self, value: Any) -> int:
+        """Safely convert to int."""
+        if value is None:
+            return 0
         try:
-            test_results = eval_data.get("test_results")
-            if not isinstance(test_results, list) or not test_results:
-                return
-            representative = None
-            for res in test_results:
-                if isinstance(res, dict) and "trajectory" in res:
-                    representative = res
-                    break
-            if representative is None:
-                return
-            trajectory = representative.get("trajectory")
-            if not trajectory:
-                return
-            task_id = eval_data.get("task_id", "eval_task")
-            # Start a synthetic episode namespace for evaluation visualization
-            self.start_episode(episode_num=0)
-            # Iterate through limited number of steps to avoid huge dumps
-            max_steps = 100
-            for idx, step_tuple in enumerate(trajectory):
-                if idx >= max_steps:
-                    break
-                try:
-                    before_state, action, after_state, info = step_tuple
-                except ValueError:
-                    # Fallback if info missing: (before, action, after)
-                    if len(step_tuple) == 3:
-                        before_state, action, after_state = step_tuple
-                        info = {}
-                    else:
-                        continue
-                step_payload = {
-                    "step_num": idx,
-                    "before_state": before_state,
-                    "after_state": after_state,
-                    "action": action,
-                    "reward": info.get("reward", 0.0)
-                    if isinstance(info, dict)
-                    else 0.0,
-                    "info": info if isinstance(info, dict) else {},
-                    "task_id": task_id,
-                }
-                self.log_step(step_payload)
-        except Exception as e:
-            logger.warning(f"Evaluation SVG generation failed: {e}")
+            if hasattr(value, "item"):
+                return int(value.item())
+            return int(value)
+        except Exception:
+            return 0
+
+    def _safe_float(self, value: Any) -> float:
+        """Safely convert to float."""
+        try:
+            if hasattr(value, "item"):
+                return float(value.item())
+            return float(value)
+        except Exception:
+            return 0.0
