@@ -9,17 +9,8 @@ throughout the codebase, following the KISS principle.
 
 from __future__ import annotations
 
-# Configuration utilities
-from .core import (
-    get_path,
-    get_raw_path,
-)
-
-# Dataset utilities
-from .dataset_manager import DatasetError, DatasetManager
-
-# Essential JAXTyping definitions
-from .jax_types import (
+# Essential JAXTyping definitions (now in types.py)
+from ..types import (
     EPISODE_MODE_TEST,
     EPISODE_MODE_TRAIN,
     MAX_GRID_SIZE,
@@ -51,6 +42,15 @@ from .jax_types import (
     TaskOutputGrids,
     TaskOutputMasks,
 )
+
+# Configuration utilities
+from .core import (
+    get_path,
+    get_raw_path,
+)
+
+# Dataset utilities
+from .dataset_manager import DatasetError, DatasetManager
 
 # Task management utilities
 from .task_manager import (

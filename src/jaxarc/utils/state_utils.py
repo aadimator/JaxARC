@@ -13,7 +13,7 @@ import equinox as eqx
 import jax.numpy as jnp
 
 from ..state import State
-from .jax_types import GridArray, SelectionArray, SimilarityScore
+from ..types import GridArray, SelectionArray, SimilarityScore
 
 # Type variables for generic functions
 T = TypeVar("T", bound=eqx.Module)

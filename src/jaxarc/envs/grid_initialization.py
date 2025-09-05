@@ -15,8 +15,7 @@ import jax.numpy as jnp
 
 from jaxarc.configs import GridInitializationConfig
 
-from ..types import JaxArcTask
-from ..utils.jax_types import GridArray, MaskArray, PRNGKey
+from ..types import GridArray, JaxArcTask, MaskArray, PRNGKey
 
 
 def initialize_working_grids(

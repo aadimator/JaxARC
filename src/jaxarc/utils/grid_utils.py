@@ -12,7 +12,7 @@ import jax
 import jax.numpy as jnp
 from loguru import logger
 
-from .jax_types import (
+from ..types import (
     GridArray,
     MaskArray,
     SelectionArray,

@@ -16,8 +16,7 @@ import numpy as np
 from jaxarc.utils.serialization_utils import serialize_jax_array
 
 if TYPE_CHECKING:
-    from jaxarc.types import Grid
-    from jaxarc.utils.jax_types import GridArray
+    from jaxarc.types import Grid, GridArray
 
 
 def _extract_grid_data(

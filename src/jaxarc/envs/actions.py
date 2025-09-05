@@ -17,7 +17,7 @@ import jax.numpy as jnp
 
 from jaxarc.configs.action_config import ActionConfig
 from jaxarc.state import State
-from jaxarc.utils.jax_types import (
+from jaxarc.types import (
     NUM_OPERATIONS,
     MaskArray,
     OperationMask,
