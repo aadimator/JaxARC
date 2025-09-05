@@ -41,7 +41,7 @@ from jaxarc.registration import (
     subset_task_ids,
 )
 from jaxarc.utils.buffer import buffer_size
-from jaxarc.utils.config import get_config
+from jaxarc.utils.core import get_config
 
 
 def run_demo(id_str: str) -> None:

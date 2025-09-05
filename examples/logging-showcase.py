@@ -42,7 +42,7 @@ from jaxarc.envs.action_wrappers import PointActionWrapper
 from jaxarc.registration import make
 from jaxarc.state import State
 from jaxarc.types import TimeStep
-from jaxarc.utils.config import get_config
+from jaxarc.utils.core import get_config
 from jaxarc.utils.logging import ExperimentLogger
 from jaxarc.utils.logging.logging_utils import (
     create_episode_summary,

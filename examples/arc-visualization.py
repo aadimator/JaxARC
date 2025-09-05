@@ -34,7 +34,7 @@ from loguru import logger
 
 # JaxARC imports
 from jaxarc.parsers.arc_agi import ArcAgiParser
-from jaxarc.utils.config import get_config
+from jaxarc.utils.core import get_config
 from jaxarc.utils.visualization import (
     draw_grid_svg,
     draw_parsed_task_data_svg,

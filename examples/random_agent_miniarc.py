@@ -21,7 +21,7 @@ from rich.panel import Panel
 from jaxarc.configs import JaxArcConfig
 from jaxarc.envs.actions import MaskAction, create_mask_action
 from jaxarc.registration import make
-from jaxarc.utils.config import get_config
+from jaxarc.utils.core import get_config
 
 console = Console()
 
