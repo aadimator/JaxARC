@@ -13,15 +13,17 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from jaxarc.utils.jax_types import EPISODE_MODE_TRAIN
+from jaxarc.types import EPISODE_MODE_TRAIN
 
 from ..state import State
-from ..types import EnvParams, JaxArcTask, TimeStep
-from ..utils.jax_types import (
+from ..types import (
     NUM_OPERATIONS,
+    EnvParams,
+    JaxArcTask,
     ObservationArray,
     PRNGKey,
     RewardValue,
+    TimeStep,
 )
 from ..utils.state_utils import (
     increment_step_count,

@@ -38,7 +38,7 @@ from jaxarc.utils.state_utils import (
     update_working_grid,
 )
 
-from ..utils.jax_types import (
+from ..types import (
     ColorValue,
     GridArray,
     OperationId,

@@ -19,7 +19,7 @@ from typing import Generic, TypeVar
 import equinox as eqx
 import jax.numpy as jnp
 
-from jaxarc.utils.jax_types import (
+from jaxarc.types import (
     GridArray,
     MaskArray,
     OperationMask,

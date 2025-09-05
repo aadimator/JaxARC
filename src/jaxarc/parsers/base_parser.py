@@ -14,12 +14,12 @@ import jax.numpy as jnp
 from loguru import logger
 
 from jaxarc.configs import DatasetConfig
-from jaxarc.types import JaxArcTask
-from jaxarc.utils.jax_types import (
+from jaxarc.types import (
     ColorValue,
     GridArray,
     GridHeight,
     GridWidth,
+    JaxArcTask,
     MaskArray,
     PRNGKey,
 )
