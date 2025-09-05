@@ -32,8 +32,8 @@ import jax
 import jax.numpy as jnp
 
 from jaxarc.utils.grid_utils import compute_grid_similarity
-from jaxarc.utils.pytree import update_multiple_fields
 from jaxarc.utils.state_utils import (
+    update_multiple_fields,
     update_similarity_score,
     update_working_grid,
 )

@@ -509,7 +509,7 @@ class EnvRegistry:
         try:
             from jaxarc.configs.environment_config import EnvironmentConfig
             from jaxarc.configs.main_config import JaxArcConfig
-            from jaxarc.utils.config import get_config
+            from jaxarc.utils.core import get_config
         except Exception as e:
             raise ValueError(
                 "Could not import configuration types. Ensure configurations "

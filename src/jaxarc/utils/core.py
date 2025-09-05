@@ -1,3 +1,5 @@
+# NOTE: Moved from utils/config.py as part of Phase 1 consolidation.
+
 """Hydra configuration utilities for jaxarc project.
 
 This module provides utilities for working with Hydra configurations,
@@ -27,7 +29,7 @@ def get_config(overrides: list[str] | None = None) -> DictConfig:
 
     Example:
         ```python
-        from jaxarc.utils.config import get_config
+        from jaxarc.utils.core import get_config
 
         # Load default config
         cfg = get_config()
@@ -60,7 +62,7 @@ def get_path(path_type: str, create: bool = False) -> Path:
 
     Example:
         ```python
-        from jaxarc.utils.config import get_path
+        from jaxarc.utils.core import get_path
 
         # Get raw data path
         raw_path = get_path("data_raw", create=True)

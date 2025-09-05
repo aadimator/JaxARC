@@ -15,7 +15,7 @@ from loguru import logger
 
 from jaxarc.configs import JaxArcConfig
 from jaxarc.utils import DatasetError, DatasetManager
-from jaxarc.utils.config import get_config
+from jaxarc.utils.core import get_config
 
 app = typer.Typer(
     help="Download ARC datasets from configured repositories",

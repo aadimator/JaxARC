@@ -10,7 +10,7 @@ throughout the codebase, following the KISS principle.
 from __future__ import annotations
 
 # Configuration utilities
-from .config import (
+from .core import (
     get_path,
     get_raw_path,
 )
