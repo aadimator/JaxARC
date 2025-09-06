@@ -42,6 +42,7 @@ from .grid_operations import compute_grid_similarity, execute_grid_operation
 # OBSERVATION FUNCTIONS (moved from observation.py)
 # ============================================================================
 
+
 def _get_observation(state: State, _unused: Any) -> ObservationArray:
     """Extract observation from state.
 
@@ -61,6 +62,7 @@ def create_observation(state: State, params: EnvParams) -> ObservationArray:
 # ============================================================================
 # REWARD FUNCTIONS (moved from reward.py)
 # ============================================================================
+
 
 def _calculate_reward(
     old_state: State,
@@ -322,8 +324,6 @@ def _create_initial_state(
         similarity_score=jnp.asarray(initial_similarity, dtype=jnp.float32),
         key=key,
     )
-
-
 
 
 @eqx.filter_jit
