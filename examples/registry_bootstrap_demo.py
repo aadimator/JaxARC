@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """
-registry_bootstrap_demo.py
-
-Demonstrates the new registry-driven, buffer-backed API where make("<Dataset>-<Selector>")
-automatically:
+Demonstrates the new registry-driven, buffer-backed API where make("<Dataset>-<Selector>") automatically:
 - resolves the appropriate parser,
 - ensures the dataset is available (optionally downloading),
 - resolves the selector (all, split, concept group, or specific task id),
@@ -29,11 +26,9 @@ from __future__ import annotations
 import os
 
 import jax
-import jax.numpy as jnp
 
 from jaxarc.configs.main_config import JaxArcConfig
-from jaxarc.envs import reset as env_reset
-from jaxarc.envs import step as env_step
+from jaxarc.envs.actions import Action
 from jaxarc.registration import (
     available_named_subsets,
     make,
@@ -63,58 +58,66 @@ def run_demo(id_str: str) -> None:
         bs = "unknown"
     print(f"Buffer size: {bs}")
     print(f"Episode mode: {int(params.episode_mode)}  (0=train, 1=eval)")
+    
+    # Demonstrate spaces API
+    obs_space = env.observation_space(params)
+    action_space = env.action_space(params)
+    reward_space = env.reward_space(params)
+    
+    print(f"Observation space: {obs_space}")
+    print(f"Action space: {action_space}")
+    print(f"Reward space: {reward_space}")
 
     # Minimal reset/step: submit immediately
-    # Reset and take one step using functional API with action wrapper
+    # Reset and take one step using functional API
     key = jax.random.PRNGKey(0)
-    ts0 = env_reset(params, key)
+    ts0 = env.reset(params, key)
 
-    # Use tuple-based action format (operation, row, col) - no wrapper needed for functional API
-    # We'll create a mask action directly instead
-    from jaxarc.envs import create_mask_action
+    # Sample a random action from action space
+    key, action_key = jax.random.split(key)
+    action_dict = action_space.sample(action_key)
+    # Convert dict to Action object
+    action = Action(operation=action_dict["operation"], selection=action_dict["selection"])
+    ts1 = env.step(params, ts0, action)
 
-    # Create a mask action for SUBMIT operation at position (0, 0)
-    mask = jnp.zeros(
-        (params.dataset.max_grid_height, params.dataset.max_grid_width), dtype=jnp.bool_
-    )
-    mask = mask.at[0, 0].set(True)  # Select position (0, 0)
-    action = create_mask_action(operation=jnp.int32(34), selection=mask)  # SUBMIT
-    ts1 = env_step(params, ts0, action)
-
-    print("timestep0.step_type:", int(ts0.step_type))  # 0 = FIRST
-    print("timestep1.step_type:", int(ts1.step_type), "(2 means LAST)")
-    print("reward on submit:", float(ts1.reward))
+    print("timestep0 - first():", bool(ts0.first()))  # True = FIRST
+    print("timestep1 - last():", bool(ts1.last()))  # May be True if episode ends
+    print("reward on action:", float(ts1.reward))
     print("-" * 80)
 
 
 def main() -> None:
-    # Register and demonstrate a named subset for MiniARC
-    register_subset(
-        "Mini",
-        "easy",
-        [
-            "Most_Common_color_l6ab0lf3xztbyxsu3p",
-            "Simple_Color_Fill__l6af3wjj3htf3r242ir",
-            "Simple_Unique_Box_l6adthlbktjkouruq0j",
-            "Simple_Box_Moving_l6aapas5si5cuue2txa",
-            "define_boundary_l6aeugn2pfna6pvwdt",
-        ],
-    )
-    run_demo("Mini-easy")
-    print("Available named subsets for MiniARC:", available_named_subsets("Mini"))
-    print("Available task IDs:", subset_task_ids("Mini", "easy"))
+    # Test with Mini-all (simpler demo)
+    run_demo("Mini-all")
 
-    # MiniARC: all tasks
-    # run_demo("Mini-all")
-    run_demo("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p")
+    # Register and demonstrate a named subset for MiniARC
+    # First get some available task IDs
+    from jaxarc.registration import available_task_ids
+    try:
+        available_ids = available_task_ids("Mini", auto_download=True)
+        if len(available_ids) >= 3:
+            # Use first few available task IDs 
+            subset_ids = available_ids[:3]
+            register_subset("Mini", "easy", subset_ids)
+            print("Available named subsets for MiniARC:", available_named_subsets("Mini"))
+            print("Available task IDs for 'easy' subset:", subset_task_ids("Mini", "easy"))
+            run_demo("Mini-easy")
+    except Exception as e:
+        print(f"Failed to create subset demo: {e}")
 
     # ConceptARC: a specific concept group
-    run_demo("Concept-AboveBelow")
+    try:
+        run_demo("Concept-AboveBelow")
+    except Exception as e:
+        print(f"Failed to run Concept demo: {e}")
 
     # Optional AGI demos (datasets are large)
     if os.environ.get("ENABLE_AGI_DEMO", "0") == "1":
-        run_demo("AGI1-train")
-        run_demo("AGI2-eval")
+        try:
+            run_demo("AGI1-train")
+            run_demo("AGI2-eval") 
+        except Exception as e:
+            print(f"Failed to run AGI demos: {e}")
 
     print("Demo complete.")
 
