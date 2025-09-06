@@ -1,35 +1,9 @@
 #!/usr/bin/env python3
-"""
-JaxARC Logging Showcase
-
-This script demonstrates the comprehensive logging capabilities of the JaxARC
-environment. It runs a short RL episode with a random agent and showcases
-the output from various logging handlers:
-
-1.  **RichHandler**: Provides live, richly formatted output to the console,
-    including task visualizations, step-by-step grid changes, and summary tables.
-2.  **FileHandler**: Saves detailed, serialized episode data (states, actions, rewards)
-    to JSON and Pickle files for later analysis.
-3.  **SVGHandler**: Generates high-quality SVG visualizations for the task overview,
-    each individual step, and a final episode summary.
-4.  **WandbHandler**: (Setup included but disabled by default) Integrates with
-    Weights & Biases for experiment tracking.
-
-Usage:
-    # Run the showcase with default settings
-    pixi run python scripts/logging_showcase.py
-
-    # To enable Weights & Biases logging (requires wandb account):
-    # 1. Set up your wandb credentials (`wandb login`)
-    # 2. Add the override:
-    pixi run python scripts/logging_showcase.py --config-overrides "wandb.enabled=true" "wandb.project_name=JaxARC-Logging-Demo"
-"""
 
 from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import NamedTuple
 
 import jax
 import typer
@@ -40,7 +14,6 @@ from rich.panel import Panel
 from jaxarc.configs import JaxArcConfig
 from jaxarc.envs.action_wrappers import PointActionWrapper
 from jaxarc.registration import make
-from jaxarc.state import State
 from jaxarc.types import TimeStep
 from jaxarc.utils.core import get_config
 from jaxarc.utils.logging import (
@@ -51,25 +24,6 @@ from jaxarc.utils.logging import (
 )
 
 
-# --- 1. Agent Definition (Pure Functional Style) ---
-class AgentState(NamedTuple):
-    """A simple state for our random agent."""
-
-    key: jax.Array
-
-
-def random_agent_policy(state: State, key: jax.Array, config: JaxArcConfig) -> tuple:
-    """A pure function representing the policy of a random agent."""
-    del state  # Unused for a random agent
-    h, w = config.dataset.max_grid_height, config.dataset.max_grid_width
-    k1, k2, k3 = jax.random.split(key, 3)
-    op = jax.random.randint(k1, (), 0, 35)  # All grid operations
-    r = jax.random.randint(k2, (), 0, h)
-    c = jax.random.randint(k3, (), 0, w)
-    return (op, r, c)
-
-
-# --- 2. Main Showcase Function ---
 def run_logging_showcase(config_overrides: list[str]):
     """
     Sets up and runs a single episode to demonstrate logging.
@@ -123,6 +77,9 @@ def run_logging_showcase(config_overrides: list[str]):
     logger.info("Loading dataset and creating environment...")
     env, env_params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", config=config)
     env = PointActionWrapper(env)
+    
+    # Get action space for the agent policy
+    action_space = env.action_space(env_params)
     key = jax.random.PRNGKey(1)
 
     # --- Run Multiple Episodes ---
@@ -149,8 +106,10 @@ def run_logging_showcase(config_overrides: list[str]):
 
         while not done:
             key, action_key = jax.random.split(key)
-            action = random_agent_policy(timestep.state, action_key, config)
+            # Direct action sampling - much simpler!
+            action = action_space.sample(action_key)
 
+            # Store previous state for logging
             prev_state = timestep.state
             timestep = env.step(env_params, timestep, action)
             total_reward += timestep.reward
@@ -159,12 +118,9 @@ def run_logging_showcase(config_overrides: list[str]):
             # Prepare data for logging
             # Convert the (possibly JAX) step_count scalar to a host Python int where possible.
             try:
-                step_num_val = int(timestep.state.step_count.item())
+                step_num_val = int(step_count)
             except Exception:
-                try:
-                    step_num_val = int(timestep.state.step_count)
-                except Exception:
-                    step_num_val = None
+                step_num_val = None
 
             step_data_for_log = create_step_log(
                 timestep=timestep,
@@ -182,7 +138,7 @@ def run_logging_showcase(config_overrides: list[str]):
 
             # Update termination flag from the timestep (best-effort host-side conversion).
             try:
-                # Prefer the TimeStep helper if available
+                # Use the TimeStep helper methods
                 done = bool(timestep.last())
             except Exception:
                 try:

@@ -1,15 +1,6 @@
-"""
-High-Performance JaxARC RL Loop using the PureJaxRL pattern.
-
-This script demonstrates the optimal way to run RL experiments with JaxARC,
-achieving maximum performance by JIT-compiling the entire training loop.
-This serves as a blueprint for implementing advanced algorithms like PPO.
-"""
-
 from __future__ import annotations
 
 import time
-from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -19,7 +10,6 @@ from rich.console import Console
 from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.envs.actions import MaskAction, create_mask_action
 from jaxarc.registration import make
 from jaxarc.utils.core import get_config
 
@@ -35,7 +25,6 @@ def setup_configuration() -> JaxArcConfig:
     config_overrides = [
         "dataset=mini_arc",
         "action=raw",
-        "action.selection_format=bbox",
         "wandb.enabled=false",
         "logging.log_operations=false",
         "logging.log_rewards=false",
@@ -47,7 +36,7 @@ def setup_configuration() -> JaxArcConfig:
         Panel(
             f"[bold green]Configuration Loaded[/bold green]\n\n"
             f"Dataset: {hydra_config.dataset.dataset_name}\n"
-            f"Action Format: {hydra_config.action.selection_format}",
+            f"Action Format: point wrapper (dict-based)",
             title="JaxARC Configuration",
             border_style="green",
         )
@@ -56,61 +45,9 @@ def setup_configuration() -> JaxArcConfig:
 
 
 # ---
-# 2. Agent Definition (Pure Functional Style)
-# ---
-class AgentState(NamedTuple):
-    """A simple state for our agent, just holding a PRNG key."""
-
-    key: jax.Array
-
-
-def random_agent_policy(
-    params: None, obs: jax.Array, key: jax.Array, config: JaxArcConfig
-) -> MaskAction:
-    """
-    A pure function representing the policy of a random agent.
-    This is JIT-compatible and can be used inside the main training loop.
-    """
-    # In a real agent, `params` would be the neural network weights.
-    # `obs` would be the input to the network.
-    _ = params, obs  # Unused for a random agent
-
-    batch_size = obs.shape[0]
-    h, w = config.dataset.max_grid_height, config.dataset.max_grid_width
-
-    # Generate random parameters for the entire batch at once
-    op_key, r1_key, c1_key, r2_key, c2_key = jr.split(key, 5)
-    ops = jr.randint(op_key, shape=(batch_size,), minval=0, maxval=35)
-    r1 = jr.randint(r1_key, shape=(batch_size,), minval=0, maxval=h)
-    c1 = jr.randint(c1_key, shape=(batch_size,), minval=0, maxval=w)
-    r2 = jr.randint(r2_key, shape=(batch_size,), minval=0, maxval=h)
-    c2 = jr.randint(c2_key, shape=(batch_size,), minval=0, maxval=w)
-
-    # Ensure r1 <= r2 and c1 <= c2 for the whole batch
-    min_r, max_r = jnp.minimum(r1, r2), jnp.maximum(r1, r2)
-    min_c, max_c = jnp.minimum(c1, c2), jnp.maximum(c1, c2)
-
-    # Create mask actions from bbox coordinates
-    def create_bbox_mask_action(op, r1, c1, r2, c2):
-        # Create coordinate meshes
-        rows = jnp.arange(h)
-        cols = jnp.arange(w)
-        row_mesh, col_mesh = jnp.meshgrid(rows, cols, indexing="ij")
-
-        # Create bbox mask (inclusive bounds)
-        mask = (row_mesh >= r1) & (row_mesh <= r2) & (col_mesh >= c1) & (col_mesh <= c2)
-
-        return create_mask_action(op, mask)
-
-    # vmap the mask action creation function for efficiency
-    return jax.vmap(create_bbox_mask_action)(ops, min_r, min_c, max_r, max_c)
-
-
-# ---
 # 3. The PureJaxRL Training Loop Factory
 # ---
 def make_train(
-    config: JaxArcConfig,
     env,
     env_params,
     num_envs: int,
@@ -121,15 +58,9 @@ def make_train(
     A factory function that creates the single, JIT-compiled training function.
     This is the core of the PureJaxRL pattern.
 
-    Notes:
-    - The new registration-based API returns an (env, env_params) pair and the
-      environment's core methods follow the TimeStep-based signature:
-        timestep = env.reset(env_params, key)
-        timestep = env.step(env_params, timestep, action)
-    - We accept `env` and `env_params` here so the training factory simply closes
-      over them and remains JIT-friendly.
     """
-    # The environment and env_params are provided by the caller and closed over.
+    # Get action space for sampling
+    action_space = env.action_space(env_params)
 
     def train(key: jax.Array):
         """
@@ -168,10 +99,13 @@ def make_train(
                 prev_timestep, key = carry
                 key, action_key = jr.split(key)
 
-                # Get actions from the agent's policy using the timestep.observation
-                actions = random_agent_policy(
-                    agent_params, prev_timestep.observation, action_key, config
-                )
+                # Get actions by directly sampling from action space
+                if num_envs > 1:
+                    # Batch action sampling
+                    action_keys = jr.split(action_key, num_envs)
+                    actions = jax.vmap(action_space.sample)(action_keys)
+                else:
+                    actions = action_space.sample(action_key)
 
                 # Step the environment using the TimeStep-based API (vectorized when requested)
                 if num_envs > 1:
@@ -231,10 +165,14 @@ def main():
     # Let the parser/registry handle buffering and EnvParams construction.
     # Pick a single available Mini task via the registry helper.
     from jaxarc.registration import available_task_ids
+    from jaxarc.envs.action_wrappers import PointActionWrapper
 
     available_ids = available_task_ids("Mini", config=config, auto_download=False)
     task_id = available_ids[0]
     env, env_params = make(f"Mini-{task_id}", config=config)
+    
+    # Wrap with PointActionWrapper to handle dict<->Action conversion automatically
+    env = PointActionWrapper(env)
 
     console.rule("[bold yellow]JaxARC High-Performance Demo (PureJaxRL Style)")
     console.print(
@@ -250,7 +188,7 @@ def main():
 
     # --- Create and Compile the Training Function ---
     # Pass the constructed env and env_params into the training factory.
-    train_fn = make_train(config, env, env_params, num_envs, num_steps, num_updates)
+    train_fn = make_train(env, env_params, num_envs, num_steps, num_updates)
 
     # --- WARMUP (First call triggers JIT compilation) ---
     logger.info("Starting JIT compilation (this may take a moment)...")
