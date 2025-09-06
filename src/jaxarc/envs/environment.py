@@ -1,114 +1,77 @@
 """
-Minimal environment delegate for JaxARC following the Xland-Minigrid pattern.
+JaxARC environment following Stoa API patterns.
 
-This module intentionally keeps only a small, JAX-friendly environment delegate
-(`Environment`) that forwards calls to the functional core:
-- reset(params, key) -> TimeStep
-- step(params, timestep, action) -> TimeStep
-
-Design changes:
-- Removed the abstract Environment base class to avoid unnecessary indirection.
-- Moved auto-reset wrappers to the wrapper module (`jaxarc.envs.wrapper`).
-- Kept only convenience methods that are useful for agents (observation_shape).
-
-Typical usage:
-    from jaxarc.envs.environment import Environment
-    from jaxarc.types import EnvParams
-    import jax
-
-    # Build EnvParams from a project config and a pre-stacked task buffer (not shown)
-    params = EnvParams.from_config(config, buffer=buffer, episode_mode=0)
-
-    env = Environment()
-
-    key = jax.random.PRNGKey(0)
-    timestep = env.reset(params, key)
-    timestep = env.step(params, timestep, action)
-
-Notes:
-- The functional API in `jaxarc.envs.functional` remains the single source of truth.
-- Wrappers such as Gym/DmEnv auto-reset now live in `jaxarc.envs.wrapper`.
+Concrete implementation that delegates to functional.py with Stoa-compatible interface.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 import jax
 
 from jaxarc.configs.main_config import JaxArcConfig
+from jaxarc.envs.spaces import ARCActionSpace, BoundedArraySpace, GridSpace
 from jaxarc.types import EnvParams, TimeStep
 
-from .actions import MaskAction
 from .functional import reset as functional_reset
 from .functional import step as functional_step
 
 
 class Environment:
     """
-    Minimal environment that directly delegates to the functional core.
-
-    - default_params: builds EnvParams from config + task_data
-    - reset/step: directly call functional.reset/functional.step
-    - observation_shape: convenience helper
+    JaxARC environment implementing Stoa API patterns.
+    
+    Delegates to functional API while providing clean object-oriented interface.
     """
 
-    # -------------------------------------------------------------------------
-    # Convenience API
-    # -------------------------------------------------------------------------
-
-    def default_params(
-        self,
-        *,
-        config: JaxArcConfig,
-        buffer: Any,
-        episode_mode: int = 0,
-        subset_indices: Any | None = None,
-    ) -> EnvParams:
+    def default_params(self, *, config: JaxArcConfig, buffer: Any, 
+                      episode_mode: int = 0, subset_indices: Any | None = None) -> EnvParams:
+        """Build EnvParams from config."""
         return EnvParams.from_config(
-            config=config,
-            episode_mode=episode_mode,
-            buffer=buffer,
-            subset_indices=subset_indices,
+            config=config, episode_mode=episode_mode,
+            buffer=buffer, subset_indices=subset_indices,
         )
 
     def observation_shape(self, params: EnvParams) -> tuple[int, int]:
-        """
-        Return the shape of observations for convenience.
-
-        For ARC, observations typically match the working grid shape. We fall back to the
-        dataset's configured maximum HxW (static) shape.
-        """
+        """Get observation shape."""
         return (int(params.dataset.max_grid_height), int(params.dataset.max_grid_width))
 
-    # -------------------------------------------------------------------------
-    # Core API
-    # -------------------------------------------------------------------------
-
     def reset(self, params: EnvParams, key: jax.Array) -> TimeStep:
-        """
-        Reset the environment. Must be JAX-compatible and return a single TimeStep.
-        """
+        """Reset using functional API."""
         return functional_reset(params, key)
 
-    def step(
-        self,
-        params: EnvParams,
-        timestep: TimeStep,
-        action: MaskAction | Dict[str, jax.Array] | Any,
-    ) -> TimeStep:
-        """
-        Step the environment. Must be JAX-compatible and return a single TimeStep.
-        """
+    def step(self, params: EnvParams, timestep: TimeStep, action: Any) -> TimeStep:
+        """Step using functional API."""
         return functional_step(params, timestep, action)
 
-    def render(self, params: EnvParams, timestep: TimeStep) -> Any:
-        """
-        Optional rendering hook. Not implemented by default.
-        """
-        raise NotImplementedError("render is not implemented for this environment.")
+    def observation_space(self, params: EnvParams) -> GridSpace:
+        """Get ARC observation space."""
+        height, width = self.observation_shape(params)
+        return GridSpace(max_height=height, max_width=width)
+
+    def action_space(self, params: EnvParams) -> ARCActionSpace:
+        """Get ARC action space."""
+        height, width = self.observation_shape(params)
+        return ARCActionSpace(max_height=height, max_width=width)
+
+    def reward_space(self, params: EnvParams) -> BoundedArraySpace:
+        """Get reward space."""
+        del params  # Unused for Stoa compatibility
+        return BoundedArraySpace(shape=(), dtype=jax.numpy.float32, minimum=0.0, maximum=1.0)
+
+    def discount_space(self, params: EnvParams) -> BoundedArraySpace:
+        """Get discount space.""" 
+        del params  # Unused for Stoa compatibility
+        return BoundedArraySpace(shape=(), dtype=jax.numpy.float32, minimum=0.0, maximum=1.0)
+
+    @property
+    def unwrapped(self) -> Environment:
+        """Get the unwrapped environment."""
+        return self
+
+    def close(self) -> None:
+        """Close the environment."""
 
 
-__all__ = [
-    "Environment",
-]
+__all__ = ["Environment"]
