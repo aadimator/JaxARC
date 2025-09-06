@@ -23,6 +23,7 @@ from ..types import (
     ObservationArray,
     PRNGKey,
     RewardValue,
+    StepType,
     TimeStep,
 )
 from ..utils.state_utils import (
@@ -418,10 +419,11 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
     observation = create_observation(state, params)
 
     return TimeStep(
-        step_type=jnp.asarray(0, dtype=jnp.int32),  # FIRST
+        step_type=StepType.FIRST,
         reward=jnp.asarray(0.0, dtype=jnp.float32),
         discount=jnp.asarray(1.0, dtype=jnp.float32),
         observation=observation,
+        extras={},  # Initialize extras dict
         state=state,
     )
 
@@ -433,8 +435,13 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
     # Process action and update state using internal helpers (no legacy arc_step)
     processed_state, validated_action = _process_action(state, action, params)
     final_state = _update_state(state, processed_state, validated_action)
-    # Compute reward and termination signal (submit-aware)
+    
+    # Enhanced termination logic with proper StepType semantics
     is_submit_step = validated_action.operation == jnp.asarray(34, dtype=jnp.int32)
+    is_solved = final_state.similarity_score >= 1.0
+    is_truncated = final_state.step_count >= jnp.asarray(params.max_episode_steps)
+    
+    # Compute reward (submit-aware)
     reward = _calculate_reward(
         state,
         final_state,
@@ -442,27 +449,41 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
         is_submit_step=is_submit_step,
         episode_mode=int(params.episode_mode),
     )
-    done = is_submit_step
-    # Build observation
-    obs = create_observation(final_state, params)
-    # Truncation: step limit check
-    truncated = final_state.step_count >= jnp.asarray(params.max_episode_steps)
-    terminated = jnp.logical_or(done, truncated)
+    
+    # TERMINATED: Task completed (solved or failed via submit)
+    # TRUNCATED: Hit step/time limit
+    # MID: Continue episode
     step_type = jnp.where(
-        terminated,
-        jnp.asarray(2, dtype=jnp.int32),  # LAST
-        jnp.asarray(1, dtype=jnp.int32),  # MID
+        is_submit_step & is_solved, 
+        StepType.TERMINATED,  # Successfully completed
+        jnp.where(
+            is_submit_step & ~is_solved,
+            StepType.TERMINATED,  # Failed submission  
+            jnp.where(
+                is_truncated,
+                StepType.TRUNCATED,  # Hit step limit
+                StepType.MID  # Continue episode
+            )
+        )
     )
+    
+    # Discount: 0.0 for terminal states, 1.0 for continuing
     discount = jnp.where(
-        terminated,
+        jnp.logical_or(step_type == StepType.TERMINATED, step_type == StepType.TRUNCATED),
         jnp.asarray(0.0, dtype=jnp.float32),
         jnp.asarray(1.0, dtype=jnp.float32),
     )
+    
+    # Build observation
+    obs = create_observation(final_state, params)
+    
+    # Enhanced TimeStep with proper step_type and extras
     return TimeStep(
         step_type=step_type,
         reward=reward,
         discount=discount,
         observation=obs,
+        extras={},  # Can be populated with additional info
         state=final_state,
     )
 
