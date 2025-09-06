@@ -78,7 +78,7 @@ from .spaces import (
     SelectionSpace,
     Space,
 )
-from .wrapper import DmEnvAutoResetWrapper, GymAutoResetWrapper, Wrapper
+from .wrapper import GymAutoResetWrapper, Wrapper
 
 __all__ = [
     "OPERATION_NAMES",
@@ -87,7 +87,6 @@ __all__ = [
     "BoundedArraySpace",
     "DictSpace",
     "DiscreteSpace",
-    "DmEnvAutoResetWrapper",
     "EnvParams",
     "Environment",
     "GridSpace",
