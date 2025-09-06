@@ -68,19 +68,34 @@ from .grid_operations import (
 )
 
 # Action and observation spaces
-from .spaces import MultiBinary, Space
+from .spaces import (
+    ARCActionSpace,
+    BoundedArraySpace,
+    DictSpace,
+    DiscreteSpace,
+    GridSpace,
+    MultiBinary,
+    SelectionSpace,
+    Space,
+)
 from .wrapper import DmEnvAutoResetWrapper, GymAutoResetWrapper, Wrapper
 
 __all__ = [
     "OPERATION_NAMES",
+    "ARCActionSpace",
     "BboxActionWrapper",
+    "BoundedArraySpace",
+    "DictSpace",
+    "DiscreteSpace",
     "DmEnvAutoResetWrapper",
     "EnvParams",
     "Environment",
+    "GridSpace",
     "GymAutoResetWrapper",
     "MaskAction",
     "MultiBinary",
     "PointActionWrapper",
+    "SelectionSpace",
     "Space",
     "State",
     "TimeStep",
@@ -97,9 +112,7 @@ __all__ = [
     "initialize_working_grids",
     "is_valid_operation_id",
     "mask_handler",
-    "mask_handler",
     "reset",
     "step",
-    "validate_operation",
     "validate_operation",
 ]
