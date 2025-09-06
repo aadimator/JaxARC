@@ -57,16 +57,15 @@ cfg = get_config()
 
 # Display configuration details
 dataset_config = cfg.dataset
-logger.info(f"Dataset: {dataset_config.dataset_name} ({dataset_config.dataset_year})")
-logger.info(f"Description: {dataset_config.description}")
-logger.info(f"Data path: {dataset_config.data_root}")
-logger.info(f"Default split: {dataset_config.default_split}")
+logger.info(f"Dataset: {dataset_config.dataset_name} ({dataset_config.dataset_repo})")
+logger.info(f"Data path: {dataset_config.dataset_path}")
+logger.info(f"Default split: {dataset_config.task_split}")
 logger.info(f"Max grid height: {dataset_config.max_grid_height}")
 logger.info(f"Max grid width: {dataset_config.max_grid_width}")
 
 print("\n=== Configuration Overview ===")
-print(f"Dataset: {dataset_config.dataset_name} ({dataset_config.dataset_year})")
-print(f"Split: {dataset_config.default_split}")
+print(f"Dataset: {dataset_config.dataset_name} ({dataset_config.dataset_repo})")
+print(f"Split: {dataset_config.task_split}")
 print(
     f"Max Grid Size: {dataset_config.max_grid_height}x{dataset_config.max_grid_width}"
 )

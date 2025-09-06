@@ -43,8 +43,8 @@ from jaxarc.registration import make
 from jaxarc.state import State
 from jaxarc.types import TimeStep
 from jaxarc.utils.core import get_config
-from jaxarc.utils.logging import ExperimentLogger
-from jaxarc.utils.logging.logging_utils import (
+from jaxarc.utils.logging import (
+    ExperimentLogger,
     create_episode_summary,
     create_start_log,
     create_step_log,
