@@ -48,7 +48,7 @@ from .envs.actions import MaskAction, create_mask_action
 from .state import State
 
 # Core types
-from .types import EnvParams, Grid, JaxArcTask, TaskPair, TimeStep
+from .types import EnvParams, Grid, JaxArcTask, StepType, TaskPair, TimeStep
 
 __all__ = [
     "EnvParams",
@@ -57,6 +57,7 @@ __all__ = [
     "JaxArcTask",
     "MaskAction",
     "State",
+    "StepType",
     "TaskPair",
     "TimeStep",
     "__version__",

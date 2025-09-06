@@ -21,6 +21,7 @@ JAXTyping *batch modifier allows the same type to work for both single arrays
 
 from __future__ import annotations
 
+from dataclasses import field
 from typing import Any, TypeAlias
 
 import chex
@@ -84,6 +85,9 @@ SimilarityScore: TypeAlias = Float[Array, "*batch"]
 
 RewardValue: TypeAlias = Float[Array, "*batch"]
 """Float array representing reward value(s)."""
+
+DiscountValue: TypeAlias = Float[Array, "*batch"]
+"""Float array representing discount value(s)."""
 
 ObservationArray: TypeAlias = Int[Array, "*batch height width"]
 """Integer array representing observation(s) from the environment."""
@@ -184,33 +188,71 @@ class EnvParams(eqx.Module):
         )
 
 
+# =============================================================================
+# Stoa-inspired Episode Management Types 
+# =============================================================================
+
+class StepType:
+    """Defines the status of a TimeStep within an episode sequence."""
+    
+    # Denotes the first TimeStep in a sequence
+    FIRST: jnp.ndarray = jnp.array(0, dtype=jnp.int8)
+    # Denotes any TimeStep in a sequence that is not FIRST or LAST  
+    MID: jnp.ndarray = jnp.array(1, dtype=jnp.int8)
+    # Denotes the last TimeStep that was terminated (task completed)
+    TERMINATED: jnp.ndarray = jnp.array(2, dtype=jnp.int8)
+    # Denotes the last TimeStep that was truncated (time/step limit)
+    TRUNCATED: jnp.ndarray = jnp.array(3, dtype=jnp.int8)
+
+# Enhanced TimeStep extras type
+TimeStepExtras: TypeAlias = dict[str, Any]
+
+
 class TimeStep(eqx.Module):
-    """
-    TimeStep object following the Xland-Minigrid pattern.
-
-    Contains step information and embedded state.
-    """
-
+    
     # Core timestep data
-    step_type: jnp.ndarray  # 0=first, 1=mid, 2=last
-    reward: jnp.ndarray
-    discount: jnp.ndarray
-    observation: ObservationArray
-
-    # Embedded environment state (kept generic to avoid tight coupling)
-    state: Any
-
+    step_type: StepType
+    reward: RewardValue
+    discount: DiscountValue   # Discount factor (0.0 for terminal, 1.0 otherwise)
+    observation: ObservationArray  # Agent observation
+    
+    # Optional extras dict for additional episode information
+    extras: TimeStepExtras = field(default_factory=dict)
+    
+    # Embedded environment state (JaxARC pattern - keep this)
+    state: Any = None
+    
+    def __post_init__(self):
+        """Ensure extras dict is properly initialized."""
+        if self.extras is None:
+            object.__setattr__(self, 'extras', {})
+    
     def first(self) -> jnp.ndarray:
         """Whether this is the first timestep of an episode."""
-        return self.step_type == jnp.asarray(0)
+        return self.step_type == StepType.FIRST
 
     def mid(self) -> jnp.ndarray:
         """Whether this is a middle timestep."""
-        return self.step_type == jnp.asarray(1)
+        return self.step_type == StepType.MID
 
     def last(self) -> jnp.ndarray:
         """Whether this is the last timestep of an episode."""
-        return self.step_type == jnp.asarray(2)
+        return jnp.logical_or(
+            self.step_type == StepType.TERMINATED, 
+            self.step_type == StepType.TRUNCATED
+        )
+        
+    def terminated(self) -> jnp.ndarray:
+        """Whether episode was terminated (task completed)."""
+        return self.step_type == StepType.TERMINATED
+        
+    def truncated(self) -> jnp.ndarray:
+        """Whether episode was truncated (time/step limit)."""
+        return self.step_type == StepType.TRUNCATED
+        
+    def done(self) -> jnp.ndarray:
+        """Whether episode is finished (terminated or truncated)."""
+        return self.last()
 
 
 class Grid(eqx.Module):
