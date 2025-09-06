@@ -2,7 +2,7 @@
 Action system for JaxARC environments.
 
 This module provides the complete action system following KISS principle:
-- MaskAction class for representing actions
+- Action class for representing actions
 - Action creation and processing utilities
 - Operation validation and filtering utilities
 
@@ -25,8 +25,8 @@ from jaxarc.types import (
 )
 
 
-class MaskAction(eqx.Module):
-    """Simple mask-based action.
+class Action(eqx.Module):
+    """Simple action representation.
 
     Attributes:
         operation: ARC operation ID (0-34)
@@ -38,48 +38,48 @@ class MaskAction(eqx.Module):
 
     def validate(
         self, grid_shape: tuple[int, int], max_operations: int = 35
-    ) -> MaskAction:
-        """Validate mask action parameters.
+    ) -> Action:
+        """Validate action parameters.
 
         Args:
             grid_shape: Shape of the grid (height, width)
             max_operations: Maximum number of operations
 
         Returns:
-            Validated mask action with clipped operation
+            Validated action with clipped operation
         """
         # Clip operation to valid range
         valid_operation = jnp.clip(self.operation, 0, max_operations - 1)
 
         # Return with validated operation (assume selection is already correct shape)
-        return MaskAction(
+        return Action(
             operation=valid_operation,
             selection=self.selection,
         )
 
 
-def create_mask_action(operation, selection: SelectionArray) -> MaskAction:
-    """Create a mask action.
+def create_action(operation, selection: SelectionArray) -> Action:
+    """Create an action.
 
     Args:
         operation: ARC operation ID (0-34)
         selection: Boolean mask indicating selected cells
 
     Returns:
-        MaskAction instance
+        Action instance
     """
-    return MaskAction(
+    return Action(
         operation=jnp.array(operation, dtype=jnp.int32),
         selection=selection,
     )
 
 
 @jax.jit
-def mask_handler(action: MaskAction, working_grid_mask: MaskArray) -> SelectionArray:
-    """Process mask action to create selection mask.
+def action_handler(action: Action, working_grid_mask: MaskArray) -> SelectionArray:
+    """Process action to create selection mask.
 
     Args:
-        action: MaskAction with operation and selection
+        action: Action with operation and selection
         working_grid_mask: Boolean mask defining valid grid area
 
     Returns:

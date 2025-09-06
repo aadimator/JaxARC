@@ -31,10 +31,10 @@ from ..utils.state_utils import (
     update_selection,
 )
 from .actions import (
-    MaskAction,
-    create_mask_action,
+    Action,
+    action_handler,
+    create_action,
     filter_invalid_operation,
-    mask_handler,
 )
 from .grid_initialization import initialize_working_grids
 from .grid_operations import compute_grid_similarity, execute_grid_operation
@@ -490,29 +490,29 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
 
 def _process_action(
     state: State,
-    action: MaskAction,
+    action: Action,
     params: EnvParams,
-) -> tuple[State, MaskAction]:
-    """Process mask action and return updated state.
+) -> tuple[State, Action]:
+    """Process action and return updated state.
 
-    This function handles mask-based actions, which is the canonical action format
-    for the core JaxARC environment. All actions are expected to be MaskAction objects.
+    This function handles actions, which is the canonical action format
+    for the core JaxARC environment. All actions are expected to be Action objects.
 
     Args:
         state: Current environment state before action execution
-        action: MaskAction to execute with operation and selection mask
+        action: Action to execute with operation and selection mask
         params: Environment configuration for action processing settings
 
     Returns:
         Tuple containing:
         - new_state: Updated environment state after action execution
-        - validated_action: Validated mask action
+        - validated_action: Validated action
 
     Examples:
         ```python
-        # Process mask action
+        # Process action
         mask = jnp.zeros((10, 10), dtype=jnp.bool_).at[5, 5].set(True)
-        action = create_mask_action(operation=15, selection=mask)
+        action = create_action(operation=15, selection=mask)
         new_state, validated_action = _process_action(state, action, params)
         ```
 
@@ -541,10 +541,10 @@ def _process_action(
         operation = filter_invalid_operation(operation, state, params.action)
 
         # Update validated action with filtered operation
-        validated_action = create_mask_action(operation, validated_action.selection)
+        validated_action = create_action(operation, validated_action.selection)
 
-    # Process mask action using mask handler
-    selection_mask = mask_handler(validated_action, state.working_grid_mask)
+    # Process action using action handler
+    selection_mask = action_handler(validated_action, state.working_grid_mask)
 
     new_state = update_selection(state, selection_mask)
     new_state = execute_grid_operation(new_state, operation)
@@ -554,7 +554,7 @@ def _process_action(
 def _update_state(
     _old_state: State,
     new_state: State,
-    action: MaskAction,
+    action: Action,
 ) -> State:
     """Update state with action history and step count - focused helper function.
 
@@ -588,7 +588,7 @@ def _update_state(
 
 
 @eqx.filter_jit
-def validate_action_jax(action: MaskAction, state: State, _unused: Any) -> jax.Array:
+def validate_action_jax(action: Action, state: State, _unused: Any) -> jax.Array:
     """JAX-friendly validation returning a boolean predicate.
 
     This avoids raising inside JIT and can be used with lax.cond.

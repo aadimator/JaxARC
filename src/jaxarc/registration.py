@@ -693,27 +693,26 @@ class EnvRegistry:
             # Use DatasetManager for unified dataset management
             manager = DatasetManager()
 
-            # If no dataset config available, try to load from dataset key
-            if not hasattr(config, "dataset") or not config.dataset.dataset_repo:
-                try:
-                    dataset_config_data = EnvRegistry._load_dataset_config(dataset_key)
-                    # Update config with loaded dataset config
-                    import equinox as eqx
+            # Always load the correct dataset config based on dataset_key to override defaults
+            try:
+                dataset_config_data = EnvRegistry._load_dataset_config(dataset_key)
+                # Update config with loaded dataset config
+                import equinox as eqx
 
-                    from jaxarc.configs.dataset_config import DatasetConfig
+                from jaxarc.configs.dataset_config import DatasetConfig
 
-                    new_dataset_config = DatasetConfig.from_hydra(dataset_config_data)
-                    config = eqx.tree_at(
-                        lambda c: c.dataset, config, new_dataset_config
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"Could not load dataset config for {dataset_key}: {e}"
-                    )
-                    if not auto_download:
-                        raise ValueError(
-                            "Dataset config not available and auto_download is disabled."
-                        ) from e
+                new_dataset_config = DatasetConfig.from_hydra(dataset_config_data)
+                config = eqx.tree_at(
+                    lambda c: c.dataset, config, new_dataset_config
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Could not load dataset config for {dataset_key}: {e}"
+                )
+                if not auto_download:
+                    raise ValueError(
+                        "Dataset config not available and auto_download is disabled."
+                    ) from e
 
             # Ensure dataset is available
             dataset_path = manager.ensure_dataset_available(
