@@ -3,19 +3,19 @@ JaxARC environments module.
 
 This module provides reinforcement learning environments for solving
 ARC (Abstraction and Reasoning Corpus) tasks using JAX-compatible
-environments with a clean mask-centric action design.
+environments with a clean action design.
 
 Key Design Principles:
-- **Mask-Based Core**: All actions are ultimately processed as MaskAction objects
-- **Action Wrappers**: PointActionWrapper and BboxActionWrapper convert other formats to masks
-- **Clean Separation**: Core environment only knows about masks, wrappers handle format conversion
+- **Action-Based Core**: All actions are ultimately processed as Action objects
+- **Action Wrappers**: PointActionWrapper and BboxActionWrapper convert other formats to actions
+- **Clean Separation**: Core environment only knows about actions, wrappers handle format conversion
 - **Extensible Design**: New action formats can be added as wrappers without changing core logic
 - **JAX Compatibility**: Functional and object-oriented APIs with full JAX transformation support
 
 Architecture:
-- Core environment (`Environment`, functional API) handles only MaskAction objects
-- Action wrappers (`PointActionWrapper`, `BboxActionWrapper`) convert other formats to masks
-- Grid operations and visualization work with the unified mask representation
+- Core environment (`Environment`, functional API) handles only Action objects
+- Action wrappers (`PointActionWrapper`, `BboxActionWrapper`) convert other formats to actions
+- Grid operations and visualization work with the unified action representation
 - Clean separation of concerns allows easy extension with new action wrapper types
 """
 
@@ -35,11 +35,11 @@ from .action_wrappers import (
 
 # Complete action system (combined actions + filtering)
 from .actions import (
-    MaskAction,
-    create_mask_action,
+    Action,
+    action_handler,
+    create_action,
     filter_invalid_operation,
     get_allowed_operations,
-    mask_handler,
     validate_operation,
 )
 
@@ -83,6 +83,7 @@ from .wrapper import GymAutoResetWrapper, Wrapper
 __all__ = [
     "OPERATION_NAMES",
     "ARCActionSpace",
+    "Action",
     "BboxActionWrapper",
     "BoundedArraySpace",
     "DictSpace",
@@ -91,7 +92,6 @@ __all__ = [
     "Environment",
     "GridSpace",
     "GymAutoResetWrapper",
-    "MaskAction",
     "MultiBinary",
     "PointActionWrapper",
     "SelectionSpace",
@@ -99,7 +99,8 @@ __all__ = [
     "State",
     "TimeStep",
     "Wrapper",
-    "create_mask_action",
+    "action_handler",
+    "create_action",
     "execute_grid_operation",
     "filter_invalid_operation",
     "get_all_operation_ids",
@@ -110,7 +111,6 @@ __all__ = [
     "get_operations_by_category",
     "initialize_working_grids",
     "is_valid_operation_id",
-    "mask_handler",
     "reset",
     "step",
     "validate_operation",

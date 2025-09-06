@@ -28,7 +28,7 @@ Examples:
 
     # Create mask action (core action format)
     mask = jnp.zeros((10, 10), dtype=jnp.bool_).at[5, 5].set(True)
-    action = create_mask_action(operation=15, selection=mask)
+    action = create_action(operation=15, selection=mask)
     timestep = env.step(env_params, timestep, action)
     ```
 """
@@ -40,8 +40,8 @@ from ._version import version as __version__
 # Unified configuration system
 from .configs import JaxArcConfig
 
-# Action system (mask-based actions are the core format)
-from .envs.actions import MaskAction, create_mask_action
+# Action system (actions are the core format)
+from .envs.actions import Action, create_action
 
 # Core environment and state
 # Functional API
@@ -51,15 +51,15 @@ from .state import State
 from .types import EnvParams, Grid, JaxArcTask, StepType, TaskPair, TimeStep
 
 __all__ = [
+    "Action",
     "EnvParams",
     "Grid",
     "JaxArcConfig",
     "JaxArcTask",
-    "MaskAction",
     "State",
     "StepType",
     "TaskPair",
     "TimeStep",
     "__version__",
-    "create_mask_action",
+    "create_action",
 ]

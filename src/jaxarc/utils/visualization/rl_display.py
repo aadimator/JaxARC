@@ -19,7 +19,7 @@ import jax.numpy as jnp
 import numpy as np
 from loguru import logger
 
-from jaxarc.envs.actions import MaskAction
+from jaxarc.envs.actions import Action
 from jaxarc.envs.grid_operations import get_operation_display_text
 
 from .core import (
@@ -624,7 +624,7 @@ def get_operation_display_name(
 def draw_rl_step_svg_enhanced(
     before_grid: Grid,
     after_grid: Grid,
-    action: Any,  # Can be MaskAction or dict
+    action: Any,  # Can be Action or dict
     reward: float,
     info: Dict[str, Any],
     step_num: int,
@@ -917,7 +917,7 @@ def draw_rl_step_svg_enhanced(
 
     # Extract selection mask from action
     selection_mask = None
-    if isinstance(action, MaskAction):
+    if isinstance(action, Action):
         selection_mask = np.asarray(action.selection)
     elif isinstance(action, tuple) and len(action) >= 3:
         # Handle tuple actions from action wrappers
