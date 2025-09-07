@@ -160,8 +160,8 @@ class TestEnvironmentSpaces:
 
         obs_space = env.observation_space(env_params)
         assert isinstance(obs_space, GridSpace)
-        assert hasattr(obs_space, "max_height")
-        assert hasattr(obs_space, "max_width")
+        assert hasattr(obs_space, "shape")
+        assert len(obs_space.shape) == 2  # Should be (height, width)
 
     def test_action_space(self):
         """Test action_space method."""
@@ -175,8 +175,10 @@ class TestEnvironmentSpaces:
 
         action_space = env.action_space(env_params)
         assert isinstance(action_space, ARCActionSpace)
-        assert hasattr(action_space, "max_height")
-        assert hasattr(action_space, "max_width")
+        # ARCActionSpace is a DictSpace, so it doesn't have shape directly
+        # But it should have the expected structure
+        assert "operation" in action_space._spaces
+        assert "selection" in action_space._spaces
 
     def test_reward_space(self):
         """Test reward_space method."""
