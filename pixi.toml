@@ -39,6 +39,7 @@ default = { solve-group = "default" }
 dev = { features = ["dev"], solve-group = "default" }
 docs = { features = ["docs"], solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
+bench = { features = ["bench"], solve-group = "default" }
 
 [feature.test.dependencies]
 pytest = ">=8.4.0,<9"
@@ -66,3 +67,6 @@ docs-serve = { cmd = "jupyter book start --execute", cwd = "docs" }
 
 [feature.docs.pypi-dependencies]
 jupyter-book = ">=2.0.0a0"
+
+[feature.bench.pypi-dependencies]
+arcle = ">=0.2.6, <0.3"
