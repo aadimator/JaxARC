@@ -89,7 +89,8 @@ filterwarnings = [
   "ignore:.*unzip2 was deprecated.*:DeprecationWarning",
 ]
 log_cli_level = "INFO"
-testpaths = ["tests"]
+testpaths = ["test"]
+norecursedirs = ["wandb", ".git", ".pixi", "data", "outputs"]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
