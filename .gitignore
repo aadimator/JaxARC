@@ -1,7 +1,7 @@
 /planning-docs
 /data
 outputs/
-# /.kiro/specs
+/.kiro/specs
 **/wandb/**
 /presentations
 /arcle
