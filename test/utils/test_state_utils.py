@@ -24,11 +24,18 @@ def sample_state():
     return State(
         working_grid=jnp.array([[1, 2], [3, 4]]),
         working_grid_mask=jnp.array([[True, True], [True, True]]),
+        input_grid=jnp.array([[0, 1], [2, 3]]),
+        input_grid_mask=jnp.array([[True, True], [True, True]]),
         target_grid=jnp.array([[5, 6], [7, 8]]),
         target_grid_mask=jnp.array([[True, True], [True, True]]),
         selected=jnp.array([[False, True], [False, False]]),
+        clipboard=jnp.array([[0, 0], [0, 0]]),
         step_count=jnp.int32(5),
+        allowed_operations_mask=jnp.ones(35, dtype=bool),
         similarity_score=jnp.float32(0.75),
+        key=jax.random.PRNGKey(42),
+        task_idx=jnp.int32(0),
+        pair_idx=jnp.int32(0),
         carry={}
     )
 
@@ -367,11 +374,18 @@ class TestEdgeCasesAndBoundaryConditions:
         large_state = State(
             working_grid=large_grid,
             working_grid_mask=large_mask,
+            input_grid=large_grid,
+            input_grid_mask=large_mask,
             target_grid=large_grid * 2,
             target_grid_mask=large_mask,
             selected=large_selection,
+            clipboard=jnp.zeros((10, 10), dtype=jnp.int32),
             step_count=jnp.int32(0),
+            allowed_operations_mask=jnp.ones(35, dtype=bool),
             similarity_score=jnp.float32(0.0),
+            key=jax.random.PRNGKey(42),
+            task_idx=jnp.int32(0),
+            pair_idx=jnp.int32(0),
             carry={}
         )
         

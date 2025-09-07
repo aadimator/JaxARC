@@ -24,7 +24,7 @@ class DatasetConfig(eqx.Module):
     dataset_path: str = ""
     dataset_repo: str = ""
     parser_entry_point: str = "jaxarc.parsers:ArcAgiParser"
-    expected_subdirs: tuple[str, ...] = eqx.field(default_factory=lambda: ("data",))
+    expected_subdirs: tuple[str, ...] = ("data",)
 
     # Dataset-specific grid constraints
     max_grid_height: int = 30

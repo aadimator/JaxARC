@@ -60,14 +60,17 @@ class MockParser(ArcDataParserBase):
         test_output_masks = jnp.ones((1, 2, 2), dtype=bool)
         
         return JaxArcTask(
-            train_inputs=train_inputs,
-            train_input_masks=train_input_masks,
-            train_outputs=train_outputs,
-            train_output_masks=train_output_masks,
-            test_inputs=test_inputs,
+            input_grids_examples=train_inputs,
+            input_masks_examples=train_input_masks,
+            output_grids_examples=train_outputs,
+            output_masks_examples=train_output_masks,
+            test_input_grids=test_inputs,
             test_input_masks=test_input_masks,
-            test_outputs=test_outputs,
-            test_output_masks=test_output_masks,
+            true_test_output_grids=test_outputs,
+            true_test_output_masks=test_output_masks,
+            num_train_pairs=1,
+            num_test_pairs=1,
+            task_index=jnp.array(0, dtype=jnp.int32),
         )
 
     def get_random_task(self, key: PRNGKey) -> JaxArcTask:
@@ -162,9 +165,9 @@ class TestArcDataParserBase:
 
     def test_initialization_with_invalid_config(self, invalid_config: DatasetConfig):
         """Test initialization fails with invalid configuration."""
-        with patch.object(invalid_config, 'validate', return_value=['Invalid path']):
-            with pytest.raises(ValueError, match="Configuration validation failed"):
-                MockParser(invalid_config)
+        # The invalid_config fixture has max_grid_height=0 which should fail validation
+        with pytest.raises(ValueError, match="Configuration validation failed"):
+            MockParser(invalid_config)
 
     def test_get_data_path_default_implementation(self, mock_parser: MockParser):
         """Test default get_data_path implementation."""
