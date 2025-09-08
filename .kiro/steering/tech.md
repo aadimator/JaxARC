@@ -4,8 +4,8 @@
 
 - **JAX**: Primary framework for high-performance numerical computing with JIT
   compilation
-- **Python 3.13+**: Base language with type hints and modern features (>=3.9
-  supported)
+- **Python 3.9+**: Base language with type hints and modern features (>=3.9
+  supported in pyproject.toml, >=3.13.5 in pixi.toml for development)
 - **Equinox**: Primary framework for JAX-compatible modules and PyTree
   registration (preferred over chex.dataclass)
 - **JAXTyping**: Precise type annotations for JAX arrays with shape information
@@ -58,9 +58,11 @@ pixi run pylint                         # Run pylint specifically
 pixi run docs-serve                     # Serve documentation locally
 
 # Examples - use pixi run python to select the relevant environment
-pixi run python examples/basic_usage.py           # Basic environment usage
-pixi run python examples/functional_api.py       # Functional API demo
-pixi run python examples/configuration_demo.py   # Configuration system demo
+pixi run python examples/registry_bootstrap_demo.py    # Environment registration demo
+pixi run python examples/action_wrappers_example.py    # Action wrapper demo
+pixi run python examples/random_agent_miniarc.py       # Random agent example
+pixi run python examples/arc-visualization.py          # Visualization demo
+pixi run python examples/logging-showcase.py           # Logging showcase
 ```
 
 ## JAX-Specific Considerations

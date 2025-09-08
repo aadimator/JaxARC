@@ -44,7 +44,7 @@ inclusion: always
 - Create simple `test_*.py` files to verify functionality works as expected
 - Run tests with `pixi run python test_script.py` to confirm behavior
 - Delete temporary test files once functionality is confirmed working
-- Use the comprehensive test suite in `tests/` for permanent validation
+- Use the comprehensive test suite in `test/` for permanent validation
 
 ### Code Evolution Policy
 
