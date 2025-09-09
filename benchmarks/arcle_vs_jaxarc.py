@@ -124,15 +124,20 @@ def run_jaxarc(env, params, num_steps: int, num_envs: int):
     action_space = env.action_space(params)
 
     def _single(key):
-        ts = env.reset(params, key)
-        keys = jax.random.split(key, num_steps)
+        # Split key so reset and action generation use disjoint streams
+        reset_key, actions_key = jax.random.split(key)
+        ts = env.reset(params, reset_key)
 
-        def body(ts, k):
-            a = action_space.sample(k)
-            ts = env.step(params, ts, a)
+        # Pre-generate all actions in a single batched call (GPU friendly)
+        action_keys = jax.random.split(actions_key, num_steps)
+        actions = jax.vmap(lambda k: action_space.sample(k))(action_keys)
+
+        # Scan over actions; loop body is now minimal
+        def body(ts, action):
+            ts = env.step(params, ts, action)
             return ts, ()
 
-        ts, _ = jax.lax.scan(body, ts, keys, unroll=20)
+        ts, _ = jax.lax.scan(body, ts, actions, unroll=20)
         return ts
 
     def _batched(keys):
@@ -357,7 +362,7 @@ def main(
         case_sensitive=False,
     ),
     timestep_powers: str = typer.Option(
-        "1,2,3,4,5", help="Comma-separated powers of 10 for steps"
+        "1,2,3,4,5,6,7", help="Comma-separated powers of 10 for steps"
     ),
     batch_powers: str = typer.Option(
         "0,1,2,3,4,5,6,7", help="Comma-separated powers of 2 for envs"
