@@ -1,505 +1,437 @@
 #!/usr/bin/env python3
 """
-ARCLE vs JaxARC Performance Benchmark
+ARCLE vs JaxARC Benchmark (KISS)
 
-Comprehensive benchmarking system comparing ARCLE (Gymnasium-based) against JaxARC (JAX-based)
-performance following NAVIX's proven benchmarking patterns. Provides two key scaling analyses:
-1. Performance scaling with number of timesteps (like NAVIX speed benchmark)
-2. Throughput scaling with number of parallel environments (like NAVIX throughput benchmark)
+Two simple benchmarks inspired by NAVIX:
+    1) Speed vs number of timesteps (single env)
+    2) Throughput vs number of environments (batched)
 
-Usage:
-    pixi run -e bench python benchmarks/arcle_vs_jaxarc.py
-    pixi run -e bench python benchmarks/arcle_vs_jaxarc.py --timestep-powers "1,2,3,4" --num-runs 3
-    pixi run -e bench python benchmarks/arcle_vs_jaxarc.py --batch-powers "0,1,2,3,4" --fixed-steps 500
+Outputs a compact JSON with raw timings (seconds) for each run. Optional plotting.
+
+Usage examples:
+    pixi run -e bench python benchmarks/arcle_vs_jaxarc_simple.py --mode both
+    pixi run -e bench python benchmarks/arcle_vs_jaxarc_simple.py --mode speed --timestep-powers 1,2,3,4 --runs 3
+    pixi run -e bench python benchmarks/arcle_vs_jaxarc_simple.py --mode throughput --batch-powers 0,1,2,3,4 --fixed-steps 1000
 """
 
-import json
-import time
-import warnings
-from dataclasses import dataclass, asdict
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
-import platform
-import sys
+from __future__ import annotations
 
-# Core libraries
+import contextlib
+import json
+import sys
+import timeit
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import gymnasium as gym
 import jax
 import jax.numpy as jnp
-import numpy as np
-
-# Statistical analysis
-import scipy.stats as stats
-from scipy import __version__ as scipy_version
-
-# Visualization
 import matplotlib.pyplot as plt
-import matplotlib
-import seaborn as sns
-
-# CLI interface
+import numpy as np
 import typer
-from rich.console import Console
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich import print as rprint
+from arcle.loaders import MiniARCLoader
+from gymnasium import spaces
 
-# JaxARC imports
-try:
-    from jaxarc import JaxArcConfig
-    from jaxarc.registration import make, available_task_ids
-    from jaxarc.envs.action_wrappers import BboxActionWrapper
+from jaxarc.configs import JaxArcConfig
+from jaxarc.envs.action_wrappers import BboxActionWrapper
+from jaxarc.registration import make
+from jaxarc.utils.core import get_config
 
-    JAXARC_AVAILABLE = True
-except ImportError as e:
-    JAXARC_AVAILABLE = False
-    JAXARC_IMPORT_ERROR = str(e)
-
-# ARCLE imports (optional)
-try:
-    import gymnasium
-    from arcle import MiniARCLoader
-
-    ARCLE_AVAILABLE = True
-except ImportError as e:
-    ARCLE_AVAILABLE = False
-    ARCLE_IMPORT_ERROR = str(e)
-
-# Initialize console for rich output
-console = Console()
-
-# CLI app
 app = typer.Typer(
-    name="arcle-vs-jaxarc-benchmark",
-    help="Comprehensive benchmark comparing ARCLE vs JaxARC performance",
     add_completion=False,
+    help="ARCLE vs JaxARC benchmark (simple)",
+    invoke_without_command=True,
 )
 
 
-@dataclass
-class BenchmarkConfig:
-    """Configuration for benchmark execution."""
-
-    timestep_powers: List[int]  # Powers of 10 for timestep scaling
-    batch_powers: List[int]  # Powers of 2 for throughput scaling
-    num_runs: int  # Number of runs per configuration
-    fixed_steps: int  # Fixed steps for throughput benchmark
-    output_dir: Path  # Output directory
-    save_plots: bool  # Generate matplotlib plots
-    save_json: bool  # Save detailed JSON results
-    benchmark_type: str  # "timestep", "throughput", or "both"
+# --------------------------- Utilities -------------------------------------
 
 
-@dataclass
-class TimingResult:
-    """Results from timing measurements."""
+# BBox wrapper for ARCLE to mirror JaxARC's BboxActionWrapper
+class BBoxWrapper(gym.ActionWrapper):
+    """Convert bbox tuple (x1,y1,x2,y2,op) into ARCLE dict action.
 
-    mean_time: float  # Mean execution time
-    std_time: float  # Standard deviation
-    mean_sps: float  # Mean steps per second
-    std_sps: float  # SPS standard deviation
-    compilation_time: float  # JIT compilation time (JaxARC only)
-    raw_times: List[float]  # Raw timing data
-    raw_sps: List[float]  # Raw SPS data
+    Action space: Tuple(H, W, H, W, num_ops)
+    """
+
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        self.action_space = spaces.Tuple(
+            (
+                spaces.Discrete(self.unwrapped.H),
+                spaces.Discrete(self.unwrapped.W),
+                spaces.Discrete(self.unwrapped.H),
+                spaces.Discrete(self.unwrapped.W),
+                spaces.Discrete(len(self.unwrapped.operations)),
+            )
+        )
+
+    def action(self, action: tuple):
+        x1, y1, x2, y2, op = action
+        selection = np.zeros((self.unwrapped.H, self.unwrapped.W), dtype=np.int8)
+        x1, x2 = min(x1, x2), max(x1, x2)
+        y1, y2 = min(y1, y2), max(y1, y2)
+        selection[x1 : x2 + 1, y1 : y2 + 1] = 1
+        return {"selection": selection, "operation": op}
 
 
-@dataclass
-class BenchmarkResults:
-    """Complete benchmark results."""
-
-    timestep_scaling: Dict[int, Dict[str, TimingResult]]
-    throughput_scaling: Dict[int, Dict[str, TimingResult]]
-    system_info: Dict  # System information
-    config: BenchmarkConfig  # Benchmark configuration
-    timestamp: str  # Execution timestamp
-
-
-def get_system_info() -> Dict[str, Any]:
-    """Collect comprehensive system information."""
-    info = {
-        "platform": platform.platform(),
-        "python_version": sys.version,
-        "jax_version": jax.__version__,
-        "numpy_version": np.__version__,
-        "scipy_version": scipy_version,
-        "matplotlib_version": matplotlib.__version__,
+def system_info() -> dict[str, Any]:
+    info: dict[str, Any] = {
+        "python": sys.version.split(" ")[0],
+        "platform": sys.platform,
+        "jax": jax.__version__,
+        "numpy": np.__version__,
+        "gymnasium": getattr(gym, "__version__", "unknown"),
+        "matplotlib": getattr(plt, "__version__", "unknown"),
     }
-
-    # JAX device information
-    try:
-        devices = jax.devices()
-        info["jax_devices"] = [str(device) for device in devices]
-        info["jax_default_backend"] = jax.default_backend()
-
-        # JAX configuration flags
-        info["jax_config"] = {
-            "jax_enable_x64": jax.config.jax_enable_x64,
-            "jax_platform_name": jax.lib.xla_bridge.get_backend().platform,
-        }
-    except Exception as e:
-        info["jax_error"] = str(e)
-
-    # Library availability
-    info["jaxarc_available"] = JAXARC_AVAILABLE
-    info["arcle_available"] = ARCLE_AVAILABLE
-
-    if not JAXARC_AVAILABLE:
-        info["jaxarc_error"] = JAXARC_IMPORT_ERROR
-    if not ARCLE_AVAILABLE:
-        info["arcle_error"] = ARCLE_IMPORT_ERROR
-
+    # JAX devices
+    with contextlib.suppress(Exception):  # pragma: no cover
+        devs = jax.devices()
+        info["devices"] = [f"{d.platform}:{d.id}" for d in devs]
     return info
 
 
-def setup_jaxarc_environment():
-    """Setup JaxARC using modern registration-based API.
+def ensure_output_dir(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
 
-    Creates a JaxARC environment with minimal overhead configuration:
-    - Uses MiniARC dataset for fast testing
-    - Raw action configuration for minimal operations
-    - Disabled logging and visualization for performance
-    - BboxActionWrapper for bbox-style actions
 
-    Returns:
-        Tuple of (wrapped_env, env_params, task_id) where:
-        - wrapped_env: BboxActionWrapper around base environment
-        - env_params: Environment parameters with task buffer
-        - task_id: Selected task ID for reference
-    """
-    if not JAXARC_AVAILABLE:
-        raise ImportError(f"JaxARC not available: {JAXARC_IMPORT_ERROR}")
+def ensure_same_task() -> tuple[str, int]:
+    """Ensure both frameworks use equivalent tasks (fixed id/index)."""
+    task_id = "Most_Common_color_l6ab0lf3xztbyxsu3p"
+    task_idx = 12
+    return task_id, task_idx
 
-    try:
-        from jaxarc.utils.core import get_config
 
-        # Create config with minimal overhead overrides
-        config = JaxArcConfig.from_hydra(
-            get_config(
-                overrides=[
-                    "dataset=mini_arc",  # Use MiniARC for fast testing
-                    "action=raw",  # Minimal action set
-                    "wandb.enabled=false",  # Disable experiment tracking
-                    "logging.log_operations=false",  # Disable operation logging
-                    "logging.log_rewards=false",  # Disable reward logging
-                    "visualization.enabled=false",  # Disable visualization
-                    "environment.debug_level=off",  # Disable debug output
-                ]
+def setup_jaxarc(task_id: str):
+    """Create JaxARC env + params for a fixed MiniARC task; wrap with bbox actions."""
+    overrides = [
+        "dataset=mini_arc",
+        "action=raw",
+        "visualization.enabled=false",
+        "logging.log_operations=false",
+        "logging.log_rewards=false",
+        "wandb.enabled=false",
+    ]
+    cfg = JaxArcConfig.from_hydra(get_config(overrides=overrides))
+    env, params = make(f"Mini-{task_id}", config=cfg, auto_download=False)
+    env = BboxActionWrapper(env)
+    return env, params
+
+
+def run_jaxarc(env, params, num_steps: int, num_envs: int):
+    """Return compiled JAX runner vmapped over envs (num_envs can be 1)."""
+    action_space = env.action_space(params)
+
+    def _single(key):
+        ts = env.reset(params, key)
+        keys = jax.random.split(key, num_steps)
+
+        def body(ts, k):
+            a = action_space.sample(k)
+            ts = env.step(params, ts, a)
+            return ts, ()
+
+        ts, _ = jax.lax.scan(body, ts, keys, unroll=20)
+        return ts
+
+    def _batched(keys):
+        # Expect shape (num_envs, 2) PRNGKey array; num_envs can be 1
+        if hasattr(keys, "shape") and keys.shape[0] != num_envs:
+            raise ValueError(f"Expected {num_envs} keys, got {keys.shape[0]}")
+        return jax.vmap(_single)(keys)
+
+    return jax.jit(_batched)
+
+
+def time_runtime_only(fn, arg, repeats: int) -> list[float]:
+    """Compile outside timing and measure runtime only (NAVIX-style)."""
+    compiled = fn.lower(arg).compile()
+
+    def _call():
+        res = compiled(arg)
+        leaves = jax.tree_util.tree_leaves(res)
+        if leaves:
+            _ = leaves[0].block_until_ready()
+
+    return timeit.repeat(_call, number=1, repeat=repeats)
+
+
+def setup_arcle_env(num_envs: int):
+    """Create ARCLE RawARCEnv(s) for MiniARC with BBoxWrapper."""
+    if num_envs == 1:
+        env = gym.make(
+            "ARCLE/RawARCEnv-v0", data_loader=MiniARCLoader(), max_grid_size=(5, 5)
+        )
+        return BBoxWrapper(env)
+
+    def make_env():
+        def _init():
+            env = gym.make(
+                "ARCLE/RawARCEnv-v0", data_loader=MiniARCLoader(), max_grid_size=(5, 5)
             )
+            return BBoxWrapper(env)
+
+        return _init
+
+    return gym.vector.SyncVectorEnv([make_env() for _ in range(num_envs)])
+
+
+def run_arcle(
+    num_steps: int, num_envs: int, repeats: int, task_idx: int = 0
+) -> list[float]:
+    env = setup_arcle_env(num_envs)
+
+    def _run():
+        obs, _info = env.reset(options={"prob_index": task_idx})
+        for _ in range(num_steps):
+            actions = env.action_space.sample()
+            obs, _, term, trunc, _info = env.step(actions)
+            # VectorEnv returns arrays, handle either case
+            terminated = np.any(term) if isinstance(term, np.ndarray) else term
+            truncated = np.any(trunc) if isinstance(trunc, np.ndarray) else trunc
+            if terminated or truncated:
+                obs, _info = env.reset(options={"prob_index": task_idx})
+        return obs
+
+    times = timeit.repeat(_run, number=1, repeat=repeats)
+    with contextlib.suppress(Exception):
+        _run()
+    env.close()
+    return times
+
+
+# --------------------------- Benchmarks ------------------------------------
+
+
+@dataclass
+class BenchOutput:
+    # {config_value: {Framework: {"times": [...], "sps": [...]}}}
+    speed: dict[int, dict[str, dict[str, list[float]]]]
+    throughput: dict[int, dict[str, dict[str, list[float]]]]
+    meta: dict[str, Any]
+
+
+def benchmark_speed(
+    timestep_powers: list[int], runs: int
+) -> dict[int, dict[str, dict[str, list[float]]]]:
+    results: dict[int, dict[str, dict[str, list[float]]]] = {}
+    # JaxARC setup once
+    task_id, task_idx = ensure_same_task()
+    env, params = setup_jaxarc(task_id)
+
+    for p in timestep_powers:
+        steps = 10**p
+        # JaxARC timing
+        run_fn = run_jaxarc(env, params, steps, num_envs=1)
+        keys = jax.random.split(jax.random.PRNGKey(0), 1)
+        jax_times = time_runtime_only(run_fn, keys, runs)
+        jax_sps = [steps / t for t in jax_times]
+
+        # ARCLE timing (optional)
+        arcle_times = run_arcle(steps, num_envs=1, repeats=runs, task_idx=task_idx)
+        arcle_sps = [steps / t for t in arcle_times]
+        results[steps] = {
+            "JaxARC": {"times": jax_times, "sps": jax_sps},
+            "ARCLE": {"times": arcle_times, "sps": arcle_sps},
+        }
+        print(
+            f"Steps={steps}: JaxARC mean {np.mean(jax_times):.4f}s, ARCLE mean {np.mean(arcle_times):.4f}s"
         )
-
-        # Get available task IDs (auto-download if needed)
-        available_ids = available_task_ids("Mini", config=config, auto_download=True)
-        if not available_ids:
-            raise ValueError("No MiniARC tasks available")
-
-        # Use first available task for consistent benchmarking
-        task_id = available_ids[0]
-        console.print(f"Using MiniARC task: {task_id}")
-
-        # Create environment using registration system
-        env, env_params = make(f"Mini-{task_id}", config=config)
-
-        # Wrap with BboxActionWrapper for bbox-style actions
-        wrapped_env = BboxActionWrapper(env)
-
-        return wrapped_env, env_params, task_id
-
-    except Exception as e:
-        console.print(f"[red]Failed to setup JaxARC environment: {e}[/red]")
-        raise
-
-
-def setup_arcle_environment():
-    """Setup ARCLE with equivalent configuration."""
-    if not ARCLE_AVAILABLE:
-        raise ImportError(f"ARCLE not available: {ARCLE_IMPORT_ERROR}")
-
-    # TODO: Implement ARCLE environment setup
-    # This will be implemented in task 3
-    raise NotImplementedError("ARCLE environment setup will be implemented in task 3")
-
-
-def benchmark_timestep_scaling(
-    timestep_powers: List[int], num_runs: int = 5
-) -> Dict[int, Dict[str, TimingResult]]:
-    """
-    Benchmark performance scaling with number of timesteps.
-
-    Tests single environment with varying episode lengths from 10^1 to 10^6 steps.
-    Similar to NAVIX speed.py approach.
-
-    Args:
-        timestep_powers: Powers of 10 to test (e.g., [1, 2, 3] for 10, 100, 1000 steps)
-        num_runs: Number of runs per configuration for statistical analysis
-
-    Returns:
-        Dictionary mapping timesteps to timing results for each framework
-    """
-    console.print("[bold blue]Starting timestep scaling benchmark...[/bold blue]")
-
-    results = {}
-
-    for power in timestep_powers:
-        timesteps = 10**power
-        console.print(f"Testing {timesteps:,} timesteps...")
-
-        results[timesteps] = {}
-
-        # TODO: Implement actual benchmarking logic
-        # This will be implemented in task 5
-        console.print(
-            f"  [yellow]Timestep scaling for {timesteps} steps not yet implemented[/yellow]"
-        )
-
     return results
 
 
-def benchmark_throughput_scaling(
-    batch_powers: List[int], fixed_steps: int = 1000, num_runs: int = 5
-) -> Dict[int, Dict[str, TimingResult]]:
-    """
-    Benchmark throughput scaling with parallel environments.
+def benchmark_throughput(
+    batch_powers: list[int], fixed_steps: int, runs: int
+) -> dict[int, dict[str, dict[str, list[float]]]]:
+    results: dict[int, dict[str, dict[str, list[float]]]] = {}
+    task_id, task_idx = ensure_same_task()
+    env, params = setup_jaxarc(task_id)
 
-    Tests varying batch sizes with fixed episode length.
-    Similar to NAVIX throughput.py approach.
+    for p in batch_powers:
+        num_envs = 2**p
+        run_fn = run_jaxarc(env, params, fixed_steps, num_envs)
+        keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
+        jax_times = time_runtime_only(run_fn, keys, runs)
+        total_steps = fixed_steps * num_envs
+        jax_sps = [total_steps / t for t in jax_times]
 
-    Args:
-        batch_powers: Powers of 2 to test (e.g., [0, 1, 2] for 1, 2, 4 environments)
-        fixed_steps: Fixed number of steps per environment
-        num_runs: Number of runs per configuration for statistical analysis
-
-    Returns:
-        Dictionary mapping batch sizes to timing results for each framework
-    """
-    console.print("[bold blue]Starting throughput scaling benchmark...[/bold blue]")
-
-    results = {}
-
-    for power in batch_powers:
-        batch_size = 2**power
-        console.print(f"Testing batch size {batch_size}...")
-
-        results[batch_size] = {}
-
-        # TODO: Implement actual benchmarking logic
-        # This will be implemented in task 6
-        console.print(
-            f"  [yellow]Throughput scaling for batch size {batch_size} not yet implemented[/yellow]"
+        arcle_times = run_arcle(fixed_steps, num_envs, runs, task_idx=task_idx)
+        arcle_sps = [total_steps / t for t in arcle_times]
+        results[num_envs] = {
+            "JaxARC": {"times": jax_times, "sps": jax_sps},
+            "ARCLE": {"times": arcle_times, "sps": arcle_sps},
+        }
+        print(
+            f"Envs={num_envs}: JaxARC mean {np.mean(jax_times):.4f}s, ARCLE mean {np.mean(arcle_times):.4f}s"
         )
-
     return results
 
 
-def analyze_results(results: Dict) -> Dict:
-    """
-    Analyze benchmark results with statistical measures.
-
-    Args:
-        results: Raw benchmark results
-
-    Returns:
-        Statistical analysis including speedup ratios and confidence intervals
-    """
-    # TODO: Implement statistical analysis
-    # This will be implemented in task 7
-    console.print("[yellow]Statistical analysis not yet implemented[/yellow]")
-    return {}
+# --------------------------- Plotting (optional) ---------------------------
 
 
-def create_timestep_plot(results: Dict, output_dir: Path):
-    """Create NAVIX-style timestep scaling visualization."""
-    # TODO: Implement timestep scaling plot
-    # This will be implemented in task 8
-    console.print(
-        "[yellow]Timestep scaling plot generation not yet implemented[/yellow]"
+def plot_speed(
+    results: dict[int, dict[str, dict[str, list[float]]]], outdir: Path
+) -> Path | None:
+    xs = sorted(results.keys())
+    fig, ax = plt.subplots(figsize=(6, 3), dpi=140)
+    if any("ARCLE" in results[k] for k in xs):
+        ys = jnp.asarray([results[k]["ARCLE"]["times"] for k in xs])
+        ax.errorbar(
+            xs,
+            ys.mean(axis=-1),
+            yerr=ys.std(axis=-1),
+            label="ARCLE",
+            color="black",
+            marker="o",
+        )
+    ys = jnp.asarray([results[k]["JaxARC"]["times"] for k in xs])
+    ax.errorbar(
+        xs,
+        ys.mean(axis=-1),
+        yerr=ys.std(axis=-1),
+        label="JaxARC",
+        color="red",
+        marker="s",
     )
+    ax.set_title("Speed vs steps")
+    ax.set_xlabel("Steps")
+    ax.set_ylabel("Time (s)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
+    ax.legend(loc="best")
+    ensure_output_dir(outdir)
+    path = outdir / "speed_vs_steps.png"
+    fig.savefig(path, bbox_inches="tight")
+    return path
 
 
-def create_throughput_plot(results: Dict, output_dir: Path):
-    """Create NAVIX-style throughput scaling visualization."""
-    # TODO: Implement throughput scaling plot
-    # This will be implemented in task 8
-    console.print(
-        "[yellow]Throughput scaling plot generation not yet implemented[/yellow]"
+def plot_throughput(
+    results: dict[int, dict[str, dict[str, list[float]]]], outdir: Path
+) -> Path | None:
+    xs = sorted(results.keys())
+    fig, ax = plt.subplots(figsize=(6, 3), dpi=140)
+    if any("ARCLE" in results[k] for k in xs):
+        ys = jnp.asarray([results[k]["ARCLE"]["times"] for k in xs])
+        ax.errorbar(
+            xs,
+            ys.mean(axis=-1),
+            yerr=ys.std(axis=-1),
+            label="ARCLE",
+            color="black",
+            marker="o",
+        )
+    ys = jnp.asarray([results[k]["JaxARC"]["times"] for k in xs])
+    ax.errorbar(
+        xs,
+        ys.mean(axis=-1),
+        yerr=ys.std(axis=-1),
+        label="JaxARC",
+        color="red",
+        marker="s",
     )
+    ax.set_title("Throughput vs envs")
+    ax.set_xlabel("Num envs")
+    ax.set_ylabel("Time (s)")
+    ax.set_xscale("log", base=2)
+    ax.set_yscale("log")
+    ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
+    ax.legend(loc="best")
+    ensure_output_dir(outdir)
+    path = outdir / "throughput_vs_envs.png"
+    fig.savefig(path, bbox_inches="tight")
+    return path
 
 
-def save_results(results: BenchmarkResults, output_dir: Path):
-    """Save comprehensive benchmark results to JSON."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    timestamp = results.timestamp.replace(":", "-").replace(" ", "_")
-
-    # Save timestep scaling results
-    if results.timestep_scaling:
-        timestep_file = output_dir / f"timestep_scaling_{timestamp}.json"
-        with open(timestep_file, "w") as f:
-            json.dump(
-                {
-                    "timestep_scaling": results.timestep_scaling,
-                    "system_info": results.system_info,
-                    "config": asdict(results.config),
-                    "timestamp": results.timestamp,
-                },
-                f,
-                indent=2,
-                default=str,
-            )
-        console.print(f"Timestep results saved to: {timestep_file}")
-
-    # Save throughput scaling results
-    if results.throughput_scaling:
-        throughput_file = output_dir / f"throughput_scaling_{timestamp}.json"
-        with open(throughput_file, "w") as f:
-            json.dump(
-                {
-                    "throughput_scaling": results.throughput_scaling,
-                    "system_info": results.system_info,
-                    "config": asdict(results.config),
-                    "timestamp": results.timestamp,
-                },
-                f,
-                indent=2,
-                default=str,
-            )
-        console.print(f"Throughput results saved to: {throughput_file}")
+# --------------------------- Main -----------------------------------------
 
 
-@app.command()
+@app.callback()
 def main(
-    benchmark_type: str = typer.Option(
+    mode: str = typer.Option(
         "both",
-        "--benchmark-type",
-        help="Type of benchmark to run: 'timestep', 'throughput', or 'both'",
+        "--mode",
+        help="Benchmark mode: speed, throughput, or both",
+        case_sensitive=False,
     ),
     timestep_powers: str = typer.Option(
-        "1,2,3,4,5,6",
-        "--timestep-powers",
-        help="Comma-separated powers of 10 for timestep scaling (e.g., '1,2,3' for 10,100,1000 steps)",
+        "1,2,3,4,5", help="Comma-separated powers of 10 for steps"
     ),
     batch_powers: str = typer.Option(
-        "0,1,2,3,4,5,6,7,8,9,10",
-        "--batch-powers",
-        help="Comma-separated powers of 2 for throughput scaling (e.g., '0,1,2' for 1,2,4 environments)",
-    ),
-    num_runs: int = typer.Option(
-        5,
-        "--num-runs",
-        help="Number of runs per configuration for statistical analysis",
+        "0,1,2,3,4,5,6,7", help="Comma-separated powers of 2 for envs"
     ),
     fixed_steps: int = typer.Option(
-        1000, "--fixed-steps", help="Fixed number of steps for throughput benchmark"
+        1000, "--fixed-steps", help="Steps per env for throughput"
     ),
+    runs: int = typer.Option(3, "--runs", help="Repeated runs per config"),
+    # Task is fixed via ensure_same_task() for fair comparison
     output_dir: str = typer.Option(
-        "benchmarks/results",
-        "--output-dir",
-        help="Output directory for results and plots",
+        "benchmarks/results", "--output-dir", help="Directory to save JSON and plots"
     ),
-    save_plots: bool = typer.Option(
-        True, "--save-plots/--no-plots", help="Generate and save matplotlib plots"
-    ),
-    save_json: bool = typer.Option(
-        True, "--save-json/--no-json", help="Save detailed JSON results"
-    ),
+    plot: bool = typer.Option(False, "--plot", help="Generate PNG plots"),
 ):
-    """
-    Run comprehensive ARCLE vs JaxARC performance benchmark.
+    outdir = Path(output_dir)
+    ensure_output_dir(outdir)
 
-    This benchmark provides two key scaling analyses following NAVIX methodology:
-    1. Timestep scaling: Performance vs episode length (10 to 1M steps)
-    2. Throughput scaling: Performance vs parallel environments (1 to max feasible)
-    """
-    # Parse CLI arguments
     try:
-        timestep_powers_list = [int(x.strip()) for x in timestep_powers.split(",")]
-        batch_powers_list = [int(x.strip()) for x in batch_powers.split(",")]
-    except ValueError as e:
-        console.print(f"[red]Error parsing powers: {e}[/red]")
-        raise typer.Exit(1)
+        powers_steps = [int(x) for x in timestep_powers.split(",") if x.strip()]
+        powers_envs = [int(x) for x in batch_powers.split(",") if x.strip()]
+    except ValueError:
+        typer.secho(
+            "Invalid powers format. Use comma-separated integers.", fg=typer.colors.RED
+        )
+        raise typer.Exit(1) from None
 
-    # Validate benchmark type
-    if benchmark_type not in ["timestep", "throughput", "both"]:
-        console.print(f"[red]Invalid benchmark type: {benchmark_type}[/red]")
-        console.print("Valid options: 'timestep', 'throughput', 'both'")
-        raise typer.Exit(1)
+    output: BenchOutput = BenchOutput(speed={}, throughput={}, meta={})
+    output.meta = {
+        "system": system_info(),
+        "runs": runs,
+        "timestep_powers": powers_steps,
+        "batch_powers": powers_envs,
+        "fixed_steps": fixed_steps,
+        "task": {
+            "task_id": ensure_same_task()[0],
+            "task_idx": ensure_same_task()[1],
+        },
+    }
 
-    # Create configuration
-    config = BenchmarkConfig(
-        timestep_powers=timestep_powers_list,
-        batch_powers=batch_powers_list,
-        num_runs=num_runs,
-        fixed_steps=fixed_steps,
-        output_dir=Path(output_dir),
-        save_plots=save_plots,
-        save_json=save_json,
-        benchmark_type=benchmark_type,
-    )
+    mode = mode.lower()
+    if mode in ("speed", "both"):
+        print("Running speed vs steps…")
+        output.speed = benchmark_speed(powers_steps, runs)
 
-    # Display system information
-    console.print("[bold green]System Information[/bold green]")
-    system_info = get_system_info()
+    if mode in ("throughput", "both"):
+        print("Running throughput vs envs…")
+        output.throughput = benchmark_throughput(
+            powers_envs, fixed_steps, runs
+        )
 
-    info_table = Table(title="System Configuration")
-    info_table.add_column("Component", style="cyan")
-    info_table.add_column("Value", style="white")
+    # Save JSON
+    json_path = outdir / "arcle_vs_jaxarc_results.json"
+    with json_path.open("w") as f:
+        json.dump(
+            {
+                "meta": output.meta,
+                "speed": output.speed,
+                "throughput": output.throughput,
+            },
+            f,
+            indent=2,
+        )
+    print(f"Saved results to {json_path}")
 
-    for key, value in system_info.items():
-        if isinstance(value, (list, dict)):
-            value = str(value)
-        info_table.add_row(key, str(value))
-
-    console.print(info_table)
-
-    # Check library availability
-    if not JAXARC_AVAILABLE:
-        console.print(f"[red]JaxARC not available: {JAXARC_IMPORT_ERROR}[/red]")
-        raise typer.Exit(1)
-
-    if not ARCLE_AVAILABLE:
-        console.print(f"[yellow]ARCLE not available: {ARCLE_IMPORT_ERROR}[/yellow]")
-        console.print("[yellow]Will run JaxARC-only benchmarks[/yellow]")
-
-    # Initialize results
-    results = BenchmarkResults(
-        timestep_scaling={},
-        throughput_scaling={},
-        system_info=system_info,
-        config=config,
-        timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
-    )
-
-    # Run benchmarks based on type
-    try:
-        if benchmark_type in ["timestep", "both"]:
-            results.timestep_scaling = benchmark_timestep_scaling(
-                timestep_powers_list, num_runs
-            )
-
-        if benchmark_type in ["throughput", "both"]:
-            results.throughput_scaling = benchmark_throughput_scaling(
-                batch_powers_list, fixed_steps, num_runs
-            )
-
-        # Analyze results
-        if results.timestep_scaling or results.throughput_scaling:
-            analysis = analyze_results(results)
-            console.print("[bold green]Analysis complete[/bold green]")
-
-        # Generate plots
-        if save_plots:
-            if results.timestep_scaling:
-                create_timestep_plot(results.timestep_scaling, config.output_dir)
-            if results.throughput_scaling:
-                create_throughput_plot(results.throughput_scaling, config.output_dir)
-
-        # Save results
-        if save_json:
-            save_results(results, config.output_dir)
-
-        console.print("[bold green]Benchmark complete![/bold green]")
-
-    except Exception as e:
-        console.print(f"[red]Benchmark failed: {e}[/red]")
-        raise typer.Exit(1)
+    # Optional plots
+    if plot:
+        if output.speed:
+            p = plot_speed(output.speed, outdir)
+            if p:
+                print(f"Saved plot: {p}")
+        if output.throughput:
+            p = plot_throughput(output.throughput, outdir)
+            if p:
+                print(f"Saved plot: {p}")
 
 
 if __name__ == "__main__":
