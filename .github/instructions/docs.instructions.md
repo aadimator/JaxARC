@@ -11,7 +11,7 @@ applyTo: "**"
 - **Configuration**: Documentation structure defined in `docs/myst.yml`
 - **Build System**: Use `pixi run docs-serve` for local development
 - **Structure**: Follow the established TOC hierarchy (index → getting-started →
-  datasets → configuration → api_reference → examples)
+  datasets → configuration → api_reference → testing → examples)
 
 ## Documentation Conventions
 
@@ -39,6 +39,7 @@ applyTo: "**"
 - **Cross-references**: Link between related documentation sections
 - **Examples**: Provide both basic and advanced usage patterns
 - **Validation**: Include `chex` assertions and error handling examples
+- **Current Structure**: index → getting-started → datasets → configuration → api_reference → examples
 
 ### MyST-Specific Features
 
