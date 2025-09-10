@@ -19,6 +19,7 @@ from __future__ import annotations
 import contextlib
 import json
 import sys
+import time
 import timeit
 from dataclasses import dataclass
 from pathlib import Path
@@ -149,9 +150,11 @@ def run_jaxarc(env, params, num_steps: int, num_envs: int):
     return jax.jit(_batched)
 
 
-def time_runtime_only(fn, arg, repeats: int) -> list[float]:
-    """Compile outside timing and measure runtime only (NAVIX-style)."""
+def time_compile_and_runtime(fn, arg, repeats: int) -> tuple[float, list[float]]:
+    """Measure JAX compile time once, then runtime-only for repeated executes."""
+    t0 = time.perf_counter()
     compiled = fn.lower(arg).compile()
+    compile_time = time.perf_counter() - t0
 
     def _call():
         res = compiled(arg)
@@ -159,7 +162,8 @@ def time_runtime_only(fn, arg, repeats: int) -> list[float]:
         if leaves:
             _ = leaves[0].block_until_ready()
 
-    return timeit.repeat(_call, number=1, repeat=repeats)
+    runtime_times = timeit.repeat(_call, number=1, repeat=repeats)
+    return compile_time, runtime_times
 
 
 def setup_arcle_env(num_envs: int):
@@ -211,16 +215,16 @@ def run_arcle(
 
 @dataclass
 class BenchOutput:
-    # {config_value: {Framework: {"times": [...], "sps": [...]}}}
-    speed: dict[int, dict[str, dict[str, list[float]]]]
-    throughput: dict[int, dict[str, dict[str, list[float]]]]
+    # {config_value: {Framework: {"times": [...], "sps": [...], "compile_time": float, "total_times": [...]}}}
+    speed: dict[int, dict[str, dict[str, Any]]]
+    throughput: dict[int, dict[str, dict[str, Any]]]
     meta: dict[str, Any]
 
 
 def benchmark_speed(
     timestep_powers: list[int], runs: int
-) -> dict[int, dict[str, dict[str, list[float]]]]:
-    results: dict[int, dict[str, dict[str, list[float]]]] = {}
+) -> dict[int, dict[str, dict[str, Any]]]:
+    results: dict[int, dict[str, dict[str, Any]]] = {}
     # JaxARC setup once
     task_id, task_idx = ensure_same_task()
     env, params = setup_jaxarc(task_id)
@@ -230,15 +234,27 @@ def benchmark_speed(
         # JaxARC timing
         run_fn = run_jaxarc(env, params, steps, num_envs=1)
         keys = jax.random.split(jax.random.PRNGKey(0), 1)
-        jax_times = time_runtime_only(run_fn, keys, runs)
+        jax_compile, jax_times = time_compile_and_runtime(run_fn, keys, runs)
+        jax_total_times = [jax_compile + t for t in jax_times]
         jax_sps = [steps / t for t in jax_times]
 
         # ARCLE timing (optional)
         arcle_times = run_arcle(steps, num_envs=1, repeats=runs, task_idx=task_idx)
+        arcle_total_times = list(arcle_times)
         arcle_sps = [steps / t for t in arcle_times]
         results[steps] = {
-            "JaxARC": {"times": jax_times, "sps": jax_sps},
-            "ARCLE": {"times": arcle_times, "sps": arcle_sps},
+            "JaxARC": {
+                "times": jax_times,
+                "sps": jax_sps,
+                "compile_time": jax_compile,
+                "total_times": jax_total_times,
+            },
+            "ARCLE": {
+                "times": arcle_times,
+                "sps": arcle_sps,
+                "compile_time": 0.0,
+                "total_times": arcle_total_times,
+            },
         }
         print(
             f"Steps={steps}: JaxARC mean {np.mean(jax_times):.4f}s, ARCLE mean {np.mean(arcle_times):.4f}s"
@@ -248,8 +264,8 @@ def benchmark_speed(
 
 def benchmark_throughput(
     batch_powers: list[int], fixed_steps: int, runs: int
-) -> dict[int, dict[str, dict[str, list[float]]]]:
-    results: dict[int, dict[str, dict[str, list[float]]]] = {}
+) -> dict[int, dict[str, dict[str, Any]]]:
+    results: dict[int, dict[str, dict[str, Any]]] = {}
     task_id, task_idx = ensure_same_task()
     env, params = setup_jaxarc(task_id)
 
@@ -257,15 +273,27 @@ def benchmark_throughput(
         num_envs = 2**p
         run_fn = run_jaxarc(env, params, fixed_steps, num_envs)
         keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
-        jax_times = time_runtime_only(run_fn, keys, runs)
+        jax_compile, jax_times = time_compile_and_runtime(run_fn, keys, runs)
+        jax_total_times = [jax_compile + t for t in jax_times]
         total_steps = fixed_steps * num_envs
         jax_sps = [total_steps / t for t in jax_times]
 
         arcle_times = run_arcle(fixed_steps, num_envs, runs, task_idx=task_idx)
+        arcle_total_times = list(arcle_times)
         arcle_sps = [total_steps / t for t in arcle_times]
         results[num_envs] = {
-            "JaxARC": {"times": jax_times, "sps": jax_sps},
-            "ARCLE": {"times": arcle_times, "sps": arcle_sps},
+            "JaxARC": {
+                "times": jax_times,
+                "sps": jax_sps,
+                "compile_time": jax_compile,
+                "total_times": jax_total_times,
+            },
+            "ARCLE": {
+                "times": arcle_times,
+                "sps": arcle_sps,
+                "compile_time": 0.0,
+                "total_times": arcle_total_times,
+            },
         }
         print(
             f"Envs={num_envs}: JaxARC mean {np.mean(jax_times):.4f}s, ARCLE mean {np.mean(arcle_times):.4f}s"
@@ -277,7 +305,7 @@ def benchmark_throughput(
 
 
 def plot_speed(
-    results: dict[int, dict[str, dict[str, list[float]]]], outdir: Path
+    results: dict[int, dict[str, dict[str, Any]]], outdir: Path
 ) -> Path | None:
     xs = sorted(results.keys())
     fig, ax = plt.subplots(figsize=(6, 3), dpi=140)
@@ -314,7 +342,7 @@ def plot_speed(
 
 
 def plot_throughput(
-    results: dict[int, dict[str, dict[str, list[float]]]], outdir: Path
+    results: dict[int, dict[str, dict[str, Any]]], outdir: Path
 ) -> Path | None:
     xs = sorted(results.keys())
     fig, ax = plt.subplots(figsize=(6, 3), dpi=140)
