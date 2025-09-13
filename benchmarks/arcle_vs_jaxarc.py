@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """
-ARCLE vs JaxARC Benchmark (KISS)
+ARCLE vs JaxARC Throughput Benchmark
 
-Two simple benchmarks inspired by NAVIX:
-    1) Speed vs number of timesteps (single env)
-    2) Throughput vs number of environments (batched)
-
-Outputs a compact JSON with raw timings (seconds) for each run. Optional plotting.
+This script produces a compact JSON with timings (seconds) and SPS (steps/sec)
+for repeated runs per configuration.
 
 Usage examples:
-    pixi run -e bench python benchmarks/arcle_vs_jaxarc_simple.py --mode both
-    pixi run -e bench python benchmarks/arcle_vs_jaxarc_simple.py --mode speed --timestep-powers 1,2,3,4 --runs 3
-    pixi run -e bench python benchmarks/arcle_vs_jaxarc_simple.py --mode throughput --batch-powers 0,1,2,3,4 --fixed-steps 1000
+    pixi run -e bench python benchmarks/arcle_vs_jaxarc.py --batch-powers 0,1,2,3,4 --fixed-steps 1000 --runs 3
+    pixi run -e bench python benchmarks/arcle_vs_jaxarc.py --parallel pmap --batch-powers 0,1,2,3 --fixed-steps 2048
 """
 
 from __future__ import annotations
@@ -21,14 +17,12 @@ import json
 import sys
 import time
 import timeit
-from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import gymnasium as gym
 import jax
-import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 import typer
 from arcle.loaders import MiniARCLoader
@@ -39,9 +33,12 @@ from jaxarc.envs.action_wrappers import BboxActionWrapper
 from jaxarc.registration import make
 from jaxarc.utils.core import get_config
 
+# Enable partitionable PRNG for better multi-device behavior
+jax.config.update("jax_threefry_partitionable", True)
+
 app = typer.Typer(
     add_completion=False,
-    help="ARCLE vs JaxARC benchmark (simple)",
+    help="ARCLE vs JaxARC throughput benchmark",
     invoke_without_command=True,
 )
 
@@ -84,7 +81,6 @@ def system_info() -> dict[str, Any]:
         "jax": jax.__version__,
         "numpy": np.__version__,
         "gymnasium": getattr(gym, "__version__", "unknown"),
-        "matplotlib": getattr(plt, "__version__", "unknown"),
     }
     # JAX devices
     with contextlib.suppress(Exception):  # pragma: no cover
@@ -120,8 +116,20 @@ def setup_jaxarc(task_id: str):
     return env, params
 
 
-def run_jaxarc(env, params, num_steps: int, num_envs: int):
-    """Return compiled JAX runner vmapped over envs (num_envs can be 1)."""
+def run_jaxarc(
+    env,
+    params,
+    num_steps: int,
+    num_envs: int,
+    parallel: str = "jit",
+    unroll: int = 1,
+):
+    """Return compiled JAX runner for throughput benchmarking.
+
+    parallel:
+        - "jit": single-device, vectorize envs via vmap
+        - "pmap": multi-device, shard envs across devices then vmap within device
+    """
     action_space = env.action_space(params)
 
     def _single(key):
@@ -129,22 +137,40 @@ def run_jaxarc(env, params, num_steps: int, num_envs: int):
         reset_key, actions_key = jax.random.split(key)
         ts = env.reset(params, reset_key)
 
-        # Pre-generate all actions in a single batched call (GPU friendly)
+        # Pre-generate all actions in a single batched call (GPU/TPU friendly)
         action_keys = jax.random.split(actions_key, num_steps)
-        actions = jax.vmap(lambda k: action_space.sample(k))(action_keys)
 
-        # Scan over actions; loop body is now minimal
-        def body(ts, action):
-            ts = env.step(params, ts, action)
-            return ts, ()
+        def _sample(k):
+            return action_space.sample(k)
 
-        ts, _ = jax.lax.scan(body, ts, actions, unroll=20)
+        actions = jax.vmap(_sample)(action_keys)
+
+        # Scan over actions; loop body is minimal
+        def body(carry_ts, action):
+            new_ts = env.step(params, carry_ts, action)
+            return new_ts, ()
+
+        ts, _ = jax.lax.scan(body, ts, actions, unroll=unroll)
         return ts
 
-    def _batched(keys):
-        # Expect shape (num_envs, 2) PRNGKey array; num_envs can be 1
+    if parallel.lower() == "pmap":
+        ndev = jax.local_device_count()
+        if ndev < 1:
+            msg = "No local devices available for pmap"
+            raise RuntimeError(msg)
+        if num_envs % ndev != 0:
+            msg = f"num_envs={num_envs} must be divisible by number of devices {ndev} when using pmap"
+            raise ValueError(msg)
+
+        def _per_device(keys):  # keys shape (per_dev_envs, 2)
+            return jax.vmap(_single)(keys)
+
+        return jax.pmap(_per_device)
+
+    def _batched(keys):  # keys shape (num_envs, 2)
         if hasattr(keys, "shape") and keys.shape[0] != num_envs:
-            raise ValueError(f"Expected {num_envs} keys, got {keys.shape[0]}")
+            msg = f"Expected {num_envs} keys, got {keys.shape[0]}"
+            raise ValueError(msg)
         return jax.vmap(_single)(keys)
 
     return jax.jit(_batched)
@@ -166,13 +192,16 @@ def time_compile_and_runtime(fn, arg, repeats: int) -> tuple[float, list[float]]
     return compile_time, runtime_times
 
 
-def setup_arcle_env(num_envs: int):
-    """Create ARCLE RawARCEnv(s) for MiniARC with BBoxWrapper."""
-    if num_envs == 1:
-        env = gym.make(
-            "ARCLE/RawARCEnv-v0", data_loader=MiniARCLoader(), max_grid_size=(5, 5)
-        )
-        return BBoxWrapper(env)
+# --------------------------- ARCLE Helpers ---------------------------------
+
+
+def setup_arcle_env(num_envs: int, mode: str = "sync"):
+    """Create ARCLE environments with different vectorization strategies.
+
+    Args:
+        num_envs: Number of environments
+        mode: "sync" (SyncVectorEnv) or "async" (AsyncVectorEnv)
+    """
 
     def make_env():
         def _init():
@@ -183,24 +212,47 @@ def setup_arcle_env(num_envs: int):
 
         return _init
 
-    return gym.vector.SyncVectorEnv([make_env() for _ in range(num_envs)])
+    if num_envs == 1:
+        # Single environment (no vectorization)
+        return make_env()()
+
+    if mode == "sync":
+        # Sequential execution (SyncVectorEnv)
+        return gym.vector.SyncVectorEnv([make_env() for _ in range(num_envs)])
+
+    if mode == "async":
+        # Multiprocessing parallelization (AsyncVectorEnv)
+        return gym.vector.AsyncVectorEnv([make_env() for _ in range(num_envs)])
+
+    raise ValueError(f"Unknown ARCLE mode: {mode}. Use 'sync' or 'async'")
 
 
 def run_arcle(
-    num_steps: int, num_envs: int, repeats: int, task_idx: int = 0
+    num_steps: int, num_envs: int, repeats: int, task_idx: int = 0, mode: str = "sync"
 ) -> list[float]:
-    env = setup_arcle_env(num_envs)
+    """Run ARCLE benchmark with specified vectorization mode."""
+    env = setup_arcle_env(num_envs, mode=mode)
 
     def _run():
-        obs, _info = env.reset(options={"prob_index": task_idx})
-        for _ in range(num_steps):
-            actions = env.action_space.sample()
-            obs, _, term, trunc, _info = env.step(actions)
-            # VectorEnv returns arrays, handle either case
-            terminated = np.any(term) if isinstance(term, np.ndarray) else term
-            truncated = np.any(trunc) if isinstance(trunc, np.ndarray) else trunc
-            if terminated or truncated:
-                obs, _info = env.reset(options={"prob_index": task_idx})
+        if num_envs == 1:
+            # Single environment
+            obs, _info = env.reset(options={"prob_index": task_idx})
+            for _ in range(num_steps):
+                action = env.action_space.sample()
+                obs, _, term, trunc, _info = env.step(action)
+                if term or trunc:
+                    obs, _info = env.reset(options={"prob_index": task_idx})
+        else:
+            # Vector environment - use single options dict for all envs
+            obs, _info = env.reset(options={"prob_index": task_idx})
+            for _ in range(num_steps):
+                actions = env.action_space.sample()
+                obs, _, term, trunc, _info = env.step(actions)
+                # Handle resets for terminated/truncated envs
+                terminated = np.any(term) if isinstance(term, np.ndarray) else term
+                truncated = np.any(trunc) if isinstance(trunc, np.ndarray) else trunc
+                if terminated or truncated:
+                    obs, _info = env.reset(options={"prob_index": task_idx})
         return obs
 
     times = timeit.repeat(_run, number=1, repeat=repeats)
@@ -210,172 +262,89 @@ def run_arcle(
     return times
 
 
-# --------------------------- Benchmarks ------------------------------------
-
-
-@dataclass
-class BenchOutput:
-    # {config_value: {Framework: {"times": [...], "sps": [...], "compile_time": float, "total_times": [...]}}}
-    speed: dict[int, dict[str, dict[str, Any]]]
-    throughput: dict[int, dict[str, dict[str, Any]]]
-    meta: dict[str, Any]
-
-
-def benchmark_speed(
-    timestep_powers: list[int], runs: int
-) -> dict[int, dict[str, dict[str, Any]]]:
-    results: dict[int, dict[str, dict[str, Any]]] = {}
-    # JaxARC setup once
-    task_id, task_idx = ensure_same_task()
-    env, params = setup_jaxarc(task_id)
-
-    for p in timestep_powers:
-        steps = 10**p
-        # JaxARC timing
-        run_fn = run_jaxarc(env, params, steps, num_envs=1)
-        keys = jax.random.split(jax.random.PRNGKey(0), 1)
-        jax_compile, jax_times = time_compile_and_runtime(run_fn, keys, runs)
-        jax_total_times = [jax_compile + t for t in jax_times]
-        jax_sps = [steps / t for t in jax_times]
-
-        # ARCLE timing (optional)
-        arcle_times = run_arcle(steps, num_envs=1, repeats=runs, task_idx=task_idx)
-        arcle_total_times = list(arcle_times)
-        arcle_sps = [steps / t for t in arcle_times]
-        results[steps] = {
-            "JaxARC": {
-                "times": jax_times,
-                "sps": jax_sps,
-                "compile_time": jax_compile,
-                "total_times": jax_total_times,
-            },
-            "ARCLE": {
-                "times": arcle_times,
-                "sps": arcle_sps,
-                "compile_time": 0.0,
-                "total_times": arcle_total_times,
-            },
-        }
-        print(
-            f"Steps={steps}: JaxARC mean {np.mean(jax_times):.4f}s, ARCLE mean {np.mean(arcle_times):.4f}s"
-        )
-    return results
-
-
 def benchmark_throughput(
-    batch_powers: list[int], fixed_steps: int, runs: int
+    batch_powers: list[int], fixed_steps: int, runs: int, modes: list[str], unroll: int
 ) -> dict[int, dict[str, dict[str, Any]]]:
+    """Benchmark throughput for specified modes.
+
+    Args:
+        batch_powers: Powers of 2 for number of environments
+        fixed_steps: Steps per environment
+        runs: Number of repeated runs
+        modes: List of modes to benchmark (arcle-sync, arcle-async, jaxarc-jit, jaxarc-pmap)
+        unroll: Scan unroll factor
+    """
     results: dict[int, dict[str, dict[str, Any]]] = {}
     task_id, task_idx = ensure_same_task()
-    env, params = setup_jaxarc(task_id)
+
+    # Setup JaxARC once if needed
+    jaxarc_env, jaxarc_params = None, None
+    if any(mode.startswith("jaxarc") for mode in modes):
+        jaxarc_env, jaxarc_params = setup_jaxarc(task_id)
 
     for p in batch_powers:
         num_envs = 2**p
-        run_fn = run_jaxarc(env, params, fixed_steps, num_envs)
-        keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
-        jax_compile, jax_times = time_compile_and_runtime(run_fn, keys, runs)
-        jax_total_times = [jax_compile + t for t in jax_times]
-        total_steps = fixed_steps * num_envs
-        jax_sps = [total_steps / t for t in jax_times]
+        results[num_envs] = {}
 
-        arcle_times = run_arcle(fixed_steps, num_envs, runs, task_idx=task_idx)
-        arcle_total_times = list(arcle_times)
-        arcle_sps = [total_steps / t for t in arcle_times]
-        results[num_envs] = {
-            "JaxARC": {
-                "times": jax_times,
-                "sps": jax_sps,
-                "compile_time": jax_compile,
-                "total_times": jax_total_times,
-            },
-            "ARCLE": {
-                "times": arcle_times,
-                "sps": arcle_sps,
-                "compile_time": 0.0,
-                "total_times": arcle_total_times,
-            },
-        }
-        print(
-            f"Envs={num_envs}: JaxARC mean {np.mean(jax_times):.4f}s, ARCLE mean {np.mean(arcle_times):.4f}s"
-        )
+        for mode in modes:
+            if mode.startswith("jaxarc"):
+                # JaxARC benchmarking
+                parallel = "pmap" if mode == "jaxarc-pmap" else "jit"
+                run_fn = run_jaxarc(
+                    jaxarc_env,
+                    jaxarc_params,
+                    fixed_steps,
+                    num_envs,
+                    parallel=parallel,
+                    unroll=unroll,
+                )
+
+                # Prepare PRNG keys according to parallelization strategy
+                if parallel == "pmap":
+                    ndev = jax.local_device_count()
+                    if num_envs % ndev != 0:
+                        msg = f"num_envs={num_envs} must be divisible by number of devices {ndev} for pmap"
+                        raise ValueError(msg)
+                    per_dev_envs = num_envs // ndev
+                    flat_keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
+                    keys = flat_keys.reshape(ndev, per_dev_envs, 2)
+                else:
+                    keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
+
+                compile_time, times = time_compile_and_runtime(run_fn, keys, runs)
+                total_times = [compile_time + t for t in times]
+                total_steps = fixed_steps * num_envs
+                sps = [total_steps / t for t in times]
+
+                results[num_envs][mode] = {
+                    "times": times,
+                    "sps": sps,
+                    "compile_time": compile_time,
+                    "total_times": total_times,
+                }
+
+            elif mode.startswith("arcle"):
+                # ARCLE benchmarking
+                arcle_mode = "async" if mode == "arcle-async" else "sync"
+                times = run_arcle(
+                    fixed_steps, num_envs, runs, task_idx=task_idx, mode=arcle_mode
+                )
+                total_times = list(times)
+                total_steps = fixed_steps * num_envs
+                sps = [total_steps / t for t in times]
+
+                results[num_envs][mode] = {
+                    "times": times,
+                    "sps": sps,
+                    "compile_time": 0.0,
+                    "total_times": total_times,
+                }
+
+            print(
+                f"Envs={num_envs}, Mode={mode}: mean {np.mean(results[num_envs][mode]['times']):.4f}s"
+            )
+
     return results
-
-
-# --------------------------- Plotting (optional) ---------------------------
-
-
-def plot_speed(
-    results: dict[int, dict[str, dict[str, Any]]], outdir: Path
-) -> Path | None:
-    xs = sorted(results.keys())
-    fig, ax = plt.subplots(figsize=(6, 3), dpi=140)
-    if any("ARCLE" in results[k] for k in xs):
-        ys = jnp.asarray([results[k]["ARCLE"]["times"] for k in xs])
-        ax.errorbar(
-            xs,
-            ys.mean(axis=-1),
-            yerr=ys.std(axis=-1),
-            label="ARCLE",
-            color="black",
-            marker="o",
-        )
-    ys = jnp.asarray([results[k]["JaxARC"]["times"] for k in xs])
-    ax.errorbar(
-        xs,
-        ys.mean(axis=-1),
-        yerr=ys.std(axis=-1),
-        label="JaxARC",
-        color="red",
-        marker="s",
-    )
-    ax.set_title("Speed vs steps")
-    ax.set_xlabel("Steps")
-    ax.set_ylabel("Time (s)")
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
-    ax.legend(loc="best")
-    ensure_output_dir(outdir)
-    path = outdir / "speed_vs_steps.png"
-    fig.savefig(path, bbox_inches="tight")
-    return path
-
-
-def plot_throughput(
-    results: dict[int, dict[str, dict[str, Any]]], outdir: Path
-) -> Path | None:
-    xs = sorted(results.keys())
-    fig, ax = plt.subplots(figsize=(6, 3), dpi=140)
-    if any("ARCLE" in results[k] for k in xs):
-        ys = jnp.asarray([results[k]["ARCLE"]["times"] for k in xs])
-        ax.errorbar(
-            xs,
-            ys.mean(axis=-1),
-            yerr=ys.std(axis=-1),
-            label="ARCLE",
-            color="black",
-            marker="o",
-        )
-    ys = jnp.asarray([results[k]["JaxARC"]["times"] for k in xs])
-    ax.errorbar(
-        xs,
-        ys.mean(axis=-1),
-        yerr=ys.std(axis=-1),
-        label="JaxARC",
-        color="red",
-        marker="s",
-    )
-    ax.set_title("Throughput vs envs")
-    ax.set_xlabel("Num envs")
-    ax.set_ylabel("Time (s)")
-    ax.set_xscale("log", base=2)
-    ax.set_yscale("log")
-    ax.grid(axis="y", linestyle=(0, (6, 8)), alpha=0.6)
-    ax.legend(loc="best")
-    ensure_output_dir(outdir)
-    path = outdir / "throughput_vs_envs.png"
-    fig.savefig(path, bbox_inches="tight")
-    return path
 
 
 # --------------------------- Main -----------------------------------------
@@ -383,15 +352,6 @@ def plot_throughput(
 
 @app.callback()
 def main(
-    mode: str = typer.Option(
-        "both",
-        "--mode",
-        help="Benchmark mode: speed, throughput, or both",
-        case_sensitive=False,
-    ),
-    timestep_powers: str = typer.Option(
-        "1,2,3,4,5,6,7", help="Comma-separated powers of 10 for steps"
-    ),
     batch_powers: str = typer.Option(
         "0,1,2,3,4,5,6,7", help="Comma-separated powers of 2 for envs"
     ),
@@ -399,17 +359,28 @@ def main(
         1000, "--fixed-steps", help="Steps per env for throughput"
     ),
     runs: int = typer.Option(3, "--runs", help="Repeated runs per config"),
-    # Task is fixed via ensure_same_task() for fair comparison
-    output_dir: str = typer.Option(
-        "benchmarks/results", "--output-dir", help="Directory to save JSON and plots"
+    modes: str = typer.Option(
+        "all",
+        "--modes",
+        help="Benchmark modes: all, arcle-sync, arcle-async, jaxarc-jit, jaxarc-pmap, or comma-separated list",
     ),
-    plot: bool = typer.Option(False, "--plot", help="Generate PNG plots"),
+    unroll: int = typer.Option(
+        1, "--unroll", help="Scan unroll factor (can affect performance)", min=1
+    ),
+    run_tag: str = typer.Option(
+        "",
+        "--run-tag",
+        help="Custom tag for this run (e.g., cpu,a100,8xA100,tpus)",
+        case_sensitive=False,
+    ),
+    output_dir: str = typer.Option(
+        "benchmarks/results", "--output-dir", help="Directory to save JSON"
+    ),
 ):
     outdir = Path(output_dir)
     ensure_output_dir(outdir)
 
     try:
-        powers_steps = [int(x) for x in timestep_powers.split(",") if x.strip()]
         powers_envs = [int(x) for x in batch_powers.split(",") if x.strip()]
     except ValueError:
         typer.secho(
@@ -417,54 +388,81 @@ def main(
         )
         raise typer.Exit(1) from None
 
-    output: BenchOutput = BenchOutput(speed={}, throughput={}, meta={})
-    output.meta = {
+    # Parse modes
+    available_modes = ["arcle-sync", "arcle-async", "jaxarc-jit", "jaxarc-pmap"]
+    if modes.lower() == "all":
+        selected_modes = available_modes
+    else:
+        selected_modes = [m.strip() for m in modes.split(",") if m.strip()]
+        invalid_modes = [m for m in selected_modes if m not in available_modes]
+        if invalid_modes:
+            typer.secho(
+                f"Invalid modes: {invalid_modes}. Available modes: {available_modes}",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(1) from None
+
+    # Validate pmap mode if selected
+    if "jaxarc-pmap" in selected_modes:
+        ndev = jax.local_device_count()
+        if ndev < 2:
+            typer.secho(
+                f"Warning: jaxarc-pmap requires multiple devices but only {ndev} found. "
+                f"Consider using jaxarc-jit instead.",
+                fg=typer.colors.YELLOW,
+            )
+
+    # Metadata
+    meta: dict[str, Any] = {
         "system": system_info(),
         "runs": runs,
-        "timestep_powers": powers_steps,
         "batch_powers": powers_envs,
         "fixed_steps": fixed_steps,
+        "modes": selected_modes,
+        "num_devices": jax.local_device_count(),
+        "unroll": unroll,
+        "timestamp": datetime.now().strftime("%Y%m%d-%H%M%S"),
+        "run_tag": ("" if run_tag is None else run_tag),
         "task": {
             "task_id": ensure_same_task()[0],
             "task_idx": ensure_same_task()[1],
         },
     }
 
-    mode = mode.lower()
-    if mode in ("speed", "both"):
-        print("Running speed vs steps…")
-        output.speed = benchmark_speed(powers_steps, runs)
+    print(f"Running throughput benchmark with modes: {selected_modes}")
 
-    if mode in ("throughput", "both"):
-        print("Running throughput vs envs…")
-        output.throughput = benchmark_throughput(
-            powers_envs, fixed_steps, runs
+    # Run benchmarks and save separate JSON for each mode
+    for mode in selected_modes:
+        print(f"\nBenchmarking mode: {mode}")
+        throughput = benchmark_throughput(
+            powers_envs, fixed_steps, runs, [mode], unroll
         )
 
-    # Save JSON
-    json_path = outdir / "arcle_vs_jaxarc_results.json"
-    with json_path.open("w") as f:
-        json.dump(
-            {
-                "meta": output.meta,
-                "speed": output.speed,
-                "throughput": output.throughput,
-            },
-            f,
-            indent=2,
-        )
-    print(f"Saved results to {json_path}")
+        # Create mode-specific metadata
+        mode_meta = meta.copy()
+        mode_meta["mode"] = mode
+        mode_meta["modes"] = [mode]  # Keep for backwards compatibility
 
-    # Optional plots
-    if plot:
-        if output.speed:
-            p = plot_speed(output.speed, outdir)
-            if p:
-                print(f"Saved plot: {p}")
-        if output.throughput:
-            p = plot_throughput(output.throughput, outdir)
-            if p:
-                print(f"Saved plot: {p}")
+        # Generate filename with mode and tag
+        ts = meta["timestamp"]
+        tag_raw = meta["run_tag"] or ""
+        safe_tag = "".join(
+            c if (c.isalnum() or c in ("-", "_")) else "-" for c in tag_raw.strip()
+        )
+
+        # Build filename: arcle_vs_jaxarc_{tag}_{mode}_{timestamp}.json
+        base = "arcle_vs_jaxarc"
+        if safe_tag:
+            fname = f"{base}_{safe_tag}_{mode}_{ts}.json"
+        else:
+            fname = f"{base}_{mode}_{ts}.json"
+
+        json_path = outdir / fname
+        with json_path.open("w") as f:
+            json.dump({"meta": mode_meta, "throughput": throughput}, f, indent=2)
+        print(f"Saved {mode} results to {json_path}")
+
+    print(f"\nCompleted benchmarking {len(selected_modes)} modes")
 
 
 if __name__ == "__main__":
