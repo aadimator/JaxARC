@@ -5,6 +5,7 @@ outputs/
 **/wandb/**
 /presentations
 /arcle
+/slurm
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
