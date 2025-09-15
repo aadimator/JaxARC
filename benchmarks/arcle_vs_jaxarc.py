@@ -133,25 +133,32 @@ def run_jaxarc(
     action_space = env.action_space(params)
 
     def _single(key):
-        # Split key so reset and action generation use disjoint streams
-        reset_key, actions_key = jax.random.split(key)
-        ts = env.reset(params, reset_key)
+        # Split key so initial reset and per-step RNG use disjoint streams
+        reset_key, loop_key = jax.random.split(key)
+        ts0 = env.reset(params, reset_key)
 
-        # Pre-generate all actions in a single batched call (GPU/TPU friendly)
-        action_keys = jax.random.split(actions_key, num_steps)
+        def body(carry, _):
+            ts, k = carry
+            # Split for potential reset and action sampling
+            k_reset, k_action, k_next = jax.random.split(k, 3)
 
-        def _sample(k):
-            return action_space.sample(k)
+            # Conditionally reset if previous timestep was terminal or truncated
+            def do_reset(_ts):
+                return env.reset(params, k_reset)
 
-        actions = jax.vmap(_sample)(action_keys)
+            def keep(_ts):
+                return _ts
 
-        # Scan over actions; loop body is minimal
-        def body(carry_ts, action):
-            new_ts = env.step(params, carry_ts, action)
-            return new_ts, ()
+            ts = jax.lax.cond(ts.last(), do_reset, keep, ts)
 
-        ts, _ = jax.lax.scan(body, ts, actions, unroll=unroll)
-        return ts
+            # Sample a fresh action and step
+            act = action_space.sample(k_action)
+            new_ts = env.step(params, ts, act)
+            return (new_ts, k_next), ()
+
+        # Scan over a dummy sequence of given length; carry TimeStep and RNG key
+        (ts_final, _), _ = jax.lax.scan(body, (ts0, loop_key), xs=None, length=num_steps, unroll=unroll)
+        return ts_final
 
     if parallel.lower() == "pmap":
         ndev = jax.local_device_count()
@@ -181,6 +188,17 @@ def time_compile_and_runtime(fn, arg, repeats: int) -> tuple[float, list[float]]
     t0 = time.perf_counter()
     compiled = fn.lower(arg).compile()
     compile_time = time.perf_counter() - t0
+
+    # Warm-up run to avoid inflated first runtime due to device/context init
+    try:
+        print("Running a warm-up execution…")
+        res_warm = compiled(arg)
+        leaves_warm = jax.tree_util.tree_leaves(res_warm)
+        if leaves_warm:
+            _ = leaves_warm[0].block_until_ready()
+        print("Warm-up complete.")
+    except Exception as e:  # pragma: no cover
+        print(f"Warm-up failed (continuing without warm-up): {e}")
 
     def _call():
         res = compiled(arg)
@@ -247,12 +265,8 @@ def run_arcle(
             obs, _info = env.reset(options={"prob_index": task_idx})
             for _ in range(num_steps):
                 actions = env.action_space.sample()
-                obs, _, term, trunc, _info = env.step(actions)
-                # Handle resets for terminated/truncated envs
-                terminated = np.any(term) if isinstance(term, np.ndarray) else term
-                truncated = np.any(trunc) if isinstance(trunc, np.ndarray) else trunc
-                if terminated or truncated:
-                    obs, _info = env.reset(options={"prob_index": task_idx})
+                # Vectorized envs auto-reset individual envs; no manual reset needed
+                obs, _, _term, _trunc, _info = env.step(actions)
         return obs
 
     times = timeit.repeat(_run, number=1, repeat=repeats)
@@ -311,34 +325,54 @@ def benchmark_throughput(
                 else:
                     keys = jax.random.split(jax.random.PRNGKey(0), num_envs)
 
-                compile_time, times = time_compile_and_runtime(run_fn, keys, runs)
-                total_times = [compile_time + t for t in times]
-                total_steps = fixed_steps * num_envs
-                sps = [total_steps / t for t in times]
+                try:
+                    compile_time, times = time_compile_and_runtime(run_fn, keys, runs)
+                    total_times = [compile_time + t for t in times]
+                    total_steps = fixed_steps * num_envs
+                    sps = [total_steps / t for t in times]
 
-                results[num_envs][mode] = {
-                    "times": times,
-                    "sps": sps,
-                    "compile_time": compile_time,
-                    "total_times": total_times,
-                }
+                    results[num_envs][mode] = {
+                        "times": times,
+                        "sps": sps,
+                        "compile_time": compile_time,
+                        "total_times": total_times,
+                    }
+                except Exception as e:
+                    print(f"An error occurred during JaxARC benchmarking for {num_envs} envs: {e}")
+                    results[num_envs][mode] = {
+                        "error": str(e),
+                        "times": [],
+                        "sps": [],
+                        "compile_time": 0.0,
+                        "total_times": [],
+                    }
 
             elif mode.startswith("arcle"):
                 # ARCLE benchmarking
                 arcle_mode = "async" if mode == "arcle-async" else "sync"
-                times = run_arcle(
-                    fixed_steps, num_envs, runs, task_idx=task_idx, mode=arcle_mode
-                )
-                total_times = list(times)
-                total_steps = fixed_steps * num_envs
-                sps = [total_steps / t for t in times]
+                try:
+                    times = run_arcle(
+                        fixed_steps, num_envs, runs, task_idx=task_idx, mode=arcle_mode
+                    )
+                    total_times = list(times)
+                    total_steps = fixed_steps * num_envs
+                    sps = [total_steps / t for t in times]
 
-                results[num_envs][mode] = {
-                    "times": times,
-                    "sps": sps,
-                    "compile_time": 0.0,
-                    "total_times": total_times,
-                }
+                    results[num_envs][mode] = {
+                        "times": times,
+                        "sps": sps,
+                        "compile_time": 0.0,
+                        "total_times": total_times,
+                    }
+                except Exception as e:
+                    print(f"An error occurred during ARCLE benchmarking for {num_envs} envs: {e}")
+                    results[num_envs][mode] = {
+                        "error": str(e),
+                        "times": [],
+                        "sps": [],
+                        "compile_time": 0.0,
+                        "total_times": [],
+                    }
 
             print(
                 f"Envs={num_envs}, Mode={mode}: mean {np.mean(results[num_envs][mode]['times']):.4f}s"
@@ -431,19 +465,11 @@ def main(
 
     print(f"Running throughput benchmark with modes: {selected_modes}")
 
-    # Run benchmarks and save separate JSON for each mode
+    # Run benchmarks and save incrementally per mode and batch size
     for mode in selected_modes:
         print(f"\nBenchmarking mode: {mode}")
-        throughput = benchmark_throughput(
-            powers_envs, fixed_steps, runs, [mode], unroll
-        )
 
-        # Create mode-specific metadata
-        mode_meta = meta.copy()
-        mode_meta["mode"] = mode
-        mode_meta["modes"] = [mode]  # Keep for backwards compatibility
-
-        # Generate filename with mode and tag
+        # Generate filename with mode and tag (early)
         ts = meta["timestamp"]
         tag_raw = meta["run_tag"] or ""
         safe_tag = "".join(
@@ -458,9 +484,55 @@ def main(
             fname = f"{base}_{mode}_{ts}.json"
 
         json_path = outdir / fname
-        with json_path.open("w") as f:
-            json.dump({"meta": mode_meta, "throughput": throughput}, f, indent=2)
-        print(f"Saved {mode} results to {json_path}")
+
+        # Load existing results for resume if present
+        results_for_mode: dict[str, Any] = {"meta": meta.copy(), "throughput": {}}
+        if json_path.exists():
+            print(f"Resuming from existing file: {json_path}")
+            try:
+                with json_path.open("r") as f:
+                    results_for_mode = json.load(f)
+            except Exception as e:
+                print(f"Warning: Failed to load existing results ({e}), starting fresh.")
+
+        # Ensure meta is correct for this mode
+        results_for_mode["meta"]["mode"] = mode
+        results_for_mode["meta"]["modes"] = [mode]
+
+        for p in powers_envs:
+            num_envs = 2**p
+            key_num_envs = str(num_envs)
+
+            # Skip if already present (resume support)
+            if key_num_envs in results_for_mode.get("throughput", {}):
+                print(f"Skipping Envs={num_envs}, Mode={mode} (already completed).")
+                continue
+
+            print(f"Running Envs={num_envs}, Mode={mode}…")
+
+            # Run a single batch power via benchmark_throughput
+            throughput = benchmark_throughput([p], fixed_steps, runs, [mode], unroll)
+
+            # Merge the one-result data into our incremental dict
+            if throughput and num_envs in throughput and mode in throughput[num_envs]:
+                results_for_mode.setdefault("throughput", {})[key_num_envs] = throughput[num_envs][mode]
+            else:
+                # Store an explicit error/empty record to show attempted run
+                results_for_mode.setdefault("throughput", {})[key_num_envs] = {
+                    "error": "No data returned",
+                    "times": [],
+                    "sps": [],
+                    "compile_time": 0.0,
+                    "total_times": [],
+                }
+
+            # Save incrementally after each batch size
+            try:
+                with json_path.open("w") as f:
+                    json.dump(results_for_mode, f, indent=2)
+                print(f"Saved intermediate results for Envs={num_envs} to {json_path}")
+            except Exception as e:
+                print(f"Error saving results for Envs={num_envs}: {e}")
 
     print(f"\nCompleted benchmarking {len(selected_modes)} modes")
 
