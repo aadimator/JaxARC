@@ -165,11 +165,10 @@ class EnvRegistry:
         # Instantiate environment (spec.env_entry or override)
         env_entry = kwargs.get("env_entry", spec.env_entry)
         env_obj = self._import_from_entry_point(env_entry)
-        env = env_obj() if self._is_class(env_obj) else env_obj
 
         # If params explicitly provided, use them
         if "params" in kwargs and kwargs["params"] is not None:
-            return env, kwargs["params"]
+            return env_obj(config=kwargs["config"], buffer=kwargs["params"].buffer), kwargs["params"]
 
         # Prepare config and dataset availability
         config = self._prepare_config(
@@ -327,16 +326,9 @@ class EnvRegistry:
         tasks = self._get_tasks_for_ids(parser, parser_obj, config, dataset_key, ids)
         buf = stack_task_list(tasks)
 
-        # Create EnvParams with buffer
-        from jaxarc.types import EnvParams as _EnvParams
+        env = env_obj(config=config, buffer=buf, episode_mode=episode_mode)
 
-        params = _EnvParams.from_config(
-            config=config,
-            buffer=buf,
-            subset_indices=None,
-            episode_mode=episode_mode,
-        )
-        return env, params
+        return env, env.params
 
     # -------------------------------------------------------------------------
     # Helpers

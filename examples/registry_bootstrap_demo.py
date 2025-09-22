@@ -71,14 +71,14 @@ def run_demo(id_str: str) -> None:
     # Minimal reset/step: submit immediately
     # Reset and take one step using functional API
     key = jax.random.PRNGKey(0)
-    ts0 = env.reset(params, key)
+    state, ts0 = env.reset(key, env_params=params)
 
     # Sample a random action from action space
     key, action_key = jax.random.split(key)
     action_dict = action_space.sample(action_key)
-    # Convert dict to Action object
+    # Convert dict to Action object for unwrapped environment
     action = Action(operation=action_dict["operation"], selection=action_dict["selection"])
-    ts1 = env.step(params, ts0, action)
+    state, ts1 = env.step(state, action, env_params=params)
 
     print("timestep0 - first():", bool(ts0.first()))  # True = FIRST
     print("timestep1 - last():", bool(ts1.last()))  # May be True if episode ends

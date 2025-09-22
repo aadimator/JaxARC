@@ -24,12 +24,12 @@ Examples:
 
     # Reset environment
     key = jax.random.PRNGKey(42)
-    timestep = env.reset(env_params, key)
+    state, timestep = env.reset(key, env_params=env_params)
 
     # Create mask action (core action format)
     mask = jnp.zeros((10, 10), dtype=jnp.bool_).at[5, 5].set(True)
     action = create_action(operation=15, selection=mask)
-    timestep = env.step(env_params, timestep, action)
+    state, timestep = env.step(state, action, env_params=env_params)
     ```
 """
 

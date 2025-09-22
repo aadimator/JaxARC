@@ -687,8 +687,9 @@ class TestTimeStep:
             discount=discount,
             observation=observation,
             extras={},
-            state=None,
         )
+        # Verify extras default
+        assert timestep.extras == {}
 
         # Verify basic properties
         chex.assert_trees_all_equal(timestep.step_type, StepType.FIRST)
@@ -696,7 +697,6 @@ class TestTimeStep:
         chex.assert_trees_all_equal(timestep.discount, discount)
         chex.assert_trees_all_equal(timestep.observation, observation)
         assert timestep.extras == {}
-        assert timestep.state is None
 
     def test_timestep_step_types(self):
         """Test TimeStep with different step types."""
@@ -868,19 +868,20 @@ class TestTimeStep:
             "step_count": jnp.array(5, dtype=jnp.int32),
         }
 
+        # Stoa TimeStep does not embed state; ensure extras can carry info if needed
         timestep = TimeStep(
             step_type=StepType.MID,
             reward=reward,
             discount=discount,
             observation=observation,
-            state=mock_state,
+            extras={"state": mock_state},
         )
 
-        # Verify state is embedded correctly
-        assert timestep.state is not None
-        chex.assert_trees_all_equal(timestep.state["grid"], mock_state["grid"])
+        # Verify state-like info preserved in extras
+        assert "state" in timestep.extras
+        chex.assert_trees_all_equal(timestep.extras["state"]["grid"], mock_state["grid"])
         chex.assert_trees_all_equal(
-            timestep.state["step_count"], mock_state["step_count"]
+            timestep.extras["state"]["step_count"], mock_state["step_count"]
         )
 
     def test_timestep_extras_initialization(self):
@@ -898,17 +899,6 @@ class TestTimeStep:
             extras={},
         )
         assert timestep1.extras == {}
-
-        # Test with None extras (should be initialized to empty dict)
-        timestep2 = TimeStep(
-            step_type=StepType.FIRST,
-            reward=reward,
-            discount=discount,
-            observation=observation,
-            extras=None,
-        )
-        # After __post_init__, should be empty dict
-        assert isinstance(timestep2.extras, dict)
 
         # Test with populated extras
         extras_data = {"info": "test", "score": 42}

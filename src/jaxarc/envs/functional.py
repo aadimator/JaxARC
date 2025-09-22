@@ -264,15 +264,12 @@ def _initialize_grids(
 
 
 def _create_initial_state(
-    task_data: JaxArcTask,
     initial_grid: jnp.ndarray,
     target_grid: jnp.ndarray,
     initial_mask: jnp.ndarray,
     input_grid: jnp.ndarray,
     input_mask: jnp.ndarray,
     target_mask: jnp.ndarray,
-    selected_pair_idx: jnp.ndarray,
-    episode_mode: int,
     key: PRNGKey,
     task_idx: jnp.ndarray,
     pair_idx: jnp.ndarray,
@@ -293,6 +290,7 @@ def _create_initial_state(
         key: PRNG key for randomness during state initialization
         task_idx: Scalar task index into EnvParams.buffer identifying active task
         pair_idx: Scalar pair index within the selected task
+        params: Environment parameters.
 
     Returns:
         State: Complete initial environment state with all fields properly
@@ -308,7 +306,6 @@ def _create_initial_state(
     allowed_operations_mask = jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_)
 
     # Create initial state with simplified fields and task/pair tracking
-    # Create initial state with simplified fields
     return State(
         working_grid=initial_grid,
         working_grid_mask=initial_mask,
@@ -328,7 +325,7 @@ def _create_initial_state(
 
 
 @eqx.filter_jit
-def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
+def reset(params: EnvParams, key: PRNGKey) -> tuple[State, TimeStep]:
     """Pure JAX reset that samples from a JAX-native stacked task buffer.
 
     Behavior:
@@ -401,15 +398,12 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
     # Build initial state with dynamic fields initialized (include task/pair tracking)
     # Build initial state with dynamic fields initialized
     state = _create_initial_state(
-        task_data=task_data,
         initial_grid=initial_grid,
         target_grid=target_grid,
         initial_mask=initial_mask,
         input_grid=input_grid,
         input_mask=input_mask,
         target_mask=target_mask,
-        selected_pair_idx=selected_pair_idx,
-        episode_mode=int(params.episode_mode),
         key=key_init,
         task_idx=task_idx,
         pair_idx=pair_idx,
@@ -418,20 +412,22 @@ def reset(params: EnvParams, key: PRNGKey) -> TimeStep:
     # Create initial observation
     observation = create_observation(state, params)
 
-    return TimeStep(
+    timestep = TimeStep(
         step_type=StepType.FIRST,
         reward=jnp.asarray(0.0, dtype=jnp.float32),
         discount=jnp.asarray(1.0, dtype=jnp.float32),
         observation=observation,
         extras={},  # Initialize extras dict
-        state=state,
     )
+    return state, timestep
 
 
 @eqx.filter_jit
-def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
-    """New functional step(params, timestep, action) -> TimeStep."""
-    state = timestep.state
+def step(params: EnvParams, state: State, action) -> tuple[State, TimeStep]:
+    """Functional step(params, state, action) -> (State, TimeStep).
+
+    EnvParams is passed explicitly (not embedded in State) to support Meta-RL.
+    """
     # Process action and update state using internal helpers (no legacy arc_step)
     processed_state, validated_action = _process_action(state, action, params)
     final_state = _update_state(state, processed_state, validated_action)
@@ -478,14 +474,14 @@ def step(params: EnvParams, timestep: TimeStep, action) -> TimeStep:
     obs = create_observation(final_state, params)
     
     # Enhanced TimeStep with proper step_type and extras
-    return TimeStep(
+    timestep = TimeStep(
         step_type=step_type,
         reward=reward,
         discount=discount,
         observation=obs,
         extras={},  # Can be populated with additional info
-        state=final_state,
     )
+    return final_state, timestep
 
 
 def _process_action(
@@ -554,7 +550,7 @@ def _process_action(
 def _update_state(
     _old_state: State,
     new_state: State,
-    action: Action,
+    _action: Action,
 ) -> State:
     """Update state with action history and step count - focused helper function.
 

@@ -15,6 +15,7 @@ from jaxarc.configs import JaxArcConfig
 from jaxarc.envs.action_wrappers import PointActionWrapper
 from jaxarc.registration import make
 from jaxarc.types import TimeStep
+from jaxarc.state import State
 from jaxarc.utils.core import get_config
 from jaxarc.utils.logging import (
     ExperimentLogger,
@@ -59,7 +60,6 @@ def run_logging_showcase(config_overrides: list[str]):
         Panel(
             f"[bold green]Configuration Loaded[/bold green]\n\n"
             f"Dataset: {config.dataset.dataset_name}\n"
-            # f"Action Format: {config.action.selection_format}\n"
             f"Logging Level: {config.logging.log_level}\n"
             f"Visualization Enabled: {config.visualization.enabled}\n"
             f"Output Directory: {config.storage.base_output_dir}/{config.storage.run_name}\n"
@@ -88,12 +88,12 @@ def run_logging_showcase(config_overrides: list[str]):
     for episode_num in range(5):
         logger.info(f"Starting episode {episode_num}...")
         start_time = time.time()
-        timestep: TimeStep = env.reset(env_params, key=key)
+        state, timestep = env.reset(key, env_params=env_params)
 
         # Start episode logging with proper episode tracking
         metadata = create_start_log(
             params=env_params,
-            state=timestep.state,
+            state=state,
             episode_num=episode_num,
         )
 
@@ -110,8 +110,8 @@ def run_logging_showcase(config_overrides: list[str]):
             action = action_space.sample(action_key)
 
             # Store previous state for logging
-            prev_state = timestep.state
-            timestep = env.step(env_params, timestep, action)
+            prev_state = state
+            state, timestep = env.step(state, action, env_params=env_params)
             total_reward += timestep.reward
             step_count += 1
 
@@ -124,6 +124,7 @@ def run_logging_showcase(config_overrides: list[str]):
 
             step_data_for_log = create_step_log(
                 timestep=timestep,
+                state=state,
                 action=action,
                 step_num=step_num_val,
                 episode_num=episode_num,
