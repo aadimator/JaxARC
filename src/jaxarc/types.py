@@ -192,67 +192,7 @@ class EnvParams(eqx.Module):
 # Stoa-inspired Episode Management Types 
 # =============================================================================
 
-class StepType:
-    """Defines the status of a TimeStep within an episode sequence."""
-    
-    # Denotes the first TimeStep in a sequence
-    FIRST: jnp.ndarray = jnp.array(0, dtype=jnp.int8)
-    # Denotes any TimeStep in a sequence that is not FIRST or LAST  
-    MID: jnp.ndarray = jnp.array(1, dtype=jnp.int8)
-    # Denotes the last TimeStep that was terminated (task completed)
-    TERMINATED: jnp.ndarray = jnp.array(2, dtype=jnp.int8)
-    # Denotes the last TimeStep that was truncated (time/step limit)
-    TRUNCATED: jnp.ndarray = jnp.array(3, dtype=jnp.int8)
-
-# Enhanced TimeStep extras type
-TimeStepExtras: TypeAlias = dict[str, Any]
-
-
-class TimeStep(eqx.Module):
-    
-    # Core timestep data
-    step_type: StepType
-    reward: RewardValue
-    discount: DiscountValue   # Discount factor (0.0 for terminal, 1.0 otherwise)
-    observation: ObservationArray  # Agent observation
-    
-    # Optional extras dict for additional episode information
-    extras: TimeStepExtras = field(default_factory=dict)
-    
-    # Embedded environment state (JaxARC pattern - keep this)
-    state: Any = None
-    
-    def __post_init__(self):
-        """Ensure extras dict is properly initialized."""
-        if self.extras is None:
-            object.__setattr__(self, 'extras', {})
-    
-    def first(self) -> jnp.ndarray:
-        """Whether this is the first timestep of an episode."""
-        return self.step_type == StepType.FIRST
-
-    def mid(self) -> jnp.ndarray:
-        """Whether this is a middle timestep."""
-        return self.step_type == StepType.MID
-
-    def last(self) -> jnp.ndarray:
-        """Whether this is the last timestep of an episode."""
-        return jnp.logical_or(
-            self.step_type == StepType.TERMINATED, 
-            self.step_type == StepType.TRUNCATED
-        )
-        
-    def terminated(self) -> jnp.ndarray:
-        """Whether episode was terminated (task completed)."""
-        return self.step_type == StepType.TERMINATED
-        
-    def truncated(self) -> jnp.ndarray:
-        """Whether episode was truncated (time/step limit)."""
-        return self.step_type == StepType.TRUNCATED
-        
-    def done(self) -> jnp.ndarray:
-        """Whether episode is finished (terminated or truncated)."""
-        return self.last()
+from stoa.env_types import StepType, TimeStep
 
 
 class Grid(eqx.Module):

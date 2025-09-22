@@ -140,6 +140,7 @@ def create_start_log(
 
 def create_step_log(
     timestep,
+    state,
     action,
     step_num: int,
     episode_num: int,
@@ -149,7 +150,8 @@ def create_step_log(
     """Create step logging payload.
 
     Args:
-        timestep: TimeStep from environment
+        timestep: TimeStep from environment (no longer contains state)
+        state: Current state from environment step
         action: Action taken
         step_num: Step number
         episode_num: Episode number
@@ -165,19 +167,18 @@ def create_step_log(
         "action": action,
         "reward": to_python_float(timestep.reward),
         "before_state": prev_state,
-        "after_state": timestep.state,
+        "after_state": state,
         "params": env_params,
     }
 
-    # Extract info
+    # Extract info from timestep extras if available
     info = {}
-    if hasattr(timestep, "info") and timestep.info is not None:
-        if isinstance(timestep.info, dict):
-            info.update(timestep.info)
+    if hasattr(timestep, "extras") and timestep.extras is not None and isinstance(timestep.extras, dict):
+        info.update(timestep.extras)
 
-    # Add similarity metrics
-    if timestep.state and hasattr(timestep.state, "similarity_score"):
-        similarity = to_python_float(timestep.state.similarity_score)
+    # Add similarity metrics from current state
+    if state and hasattr(state, "similarity_score"):
+        similarity = to_python_float(state.similarity_score)
         if similarity is not None:
             info["similarity"] = similarity
 
@@ -185,30 +186,30 @@ def create_step_log(
     if (
         prev_state
         and hasattr(prev_state, "similarity_score")
-        and timestep.state
-        and hasattr(timestep.state, "similarity_score")
+        and state
+        and hasattr(state, "similarity_score")
     ):
         prev_sim = to_python_float(prev_state.similarity_score) or 0.0
-        curr_sim = to_python_float(timestep.state.similarity_score) or 0.0
+        curr_sim = to_python_float(state.similarity_score) or 0.0
         info["similarity_improvement"] = curr_sim - prev_sim
 
     log_data["info"] = info
 
-    # Extract state metadata
-    if timestep.state:
-        if hasattr(timestep.state, "task_idx"):
-            task_idx = to_python_int(timestep.state.task_idx)
+    # Extract state metadata from current state
+    if state:
+        if hasattr(state, "task_idx"):
+            task_idx = to_python_int(state.task_idx)
             log_data["task_idx"] = task_idx
             try:
                 log_data["task_id"] = extract_task_id_from_index(task_idx)
             except Exception:
                 log_data["task_id"] = f"task_{task_idx}"
 
-        if hasattr(timestep.state, "pair_idx"):
-            log_data["task_pair_index"] = to_python_int(timestep.state.pair_idx)
+        if hasattr(state, "pair_idx"):
+            log_data["task_pair_index"] = to_python_int(state.pair_idx)
 
-        if hasattr(timestep.state, "step_count"):
-            log_data["step_count"] = to_python_int(timestep.state.step_count)
+        if hasattr(state, "step_count"):
+            log_data["step_count"] = to_python_int(state.step_count)
 
     return log_data
 
@@ -433,7 +434,7 @@ class ExperimentLogger:
             step_data: Dictionary containing step information with keys:
                 - step_num: Step number within episode
                 - before_state: State before action
-                - after_state: State after action
+                - after_state: State after action (passed separately from timestep)
                 - action: Action taken
                 - reward: Reward received
                 - info: Additional information including metrics

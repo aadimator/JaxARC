@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Generic, TypeVar
 
+import chex
 import equinox as eqx
 import jax.numpy as jnp
 
@@ -79,8 +80,6 @@ class State(eqx.Module, Generic[EnvCarryT]):
             return
 
         try:
-            import chex
-
             # Validate grid ranks
             chex.assert_rank(self.working_grid, 2)
             chex.assert_rank(self.working_grid_mask, 2)
