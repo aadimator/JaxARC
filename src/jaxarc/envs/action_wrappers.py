@@ -21,9 +21,9 @@ Usage:
     env = BboxActionWrapper(env)
 
     # Use normal environment API with bbox actions
-    timestep = env.reset(env_params, key)
+    state, timestep = env.reset(key, env_params=env_params)
     action = {"operation": 15, "r1": 2, "c1": 3, "r2": 7, "c2": 8}
-    timestep = env.step(env_params, timestep, action)
+    state, timestep = env.step(state, action, env_params=env_params)
 
     # The wrapper handles the conversion:
     # bbox dict -> Action with rectangular mask -> core environment
@@ -34,11 +34,12 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from stoa.core_wrappers.wrapper import Wrapper
 
+from ..state import State
 from ..types import EnvParams, TimeStep
 from .actions import Action, create_action
 from .spaces import DictSpace, DiscreteSpace
-from .wrapper import Wrapper
 
 
 def _point_to_mask(point_action: dict, grid_shape: tuple[int, int]) -> Action:
@@ -117,58 +118,66 @@ _jit_bbox_to_mask = jax.jit(_bbox_to_mask, static_argnums=1)
 
 class PointActionWrapper(Wrapper):
     """Point action wrapper with custom action space."""
-    
-    def action_space(self, params: EnvParams):
+
+    def action_space(self, env_params: EnvParams | None = None) -> DictSpace:
         """Custom action space for point actions: (operation, row, col)."""
         # Get the underlying action space to extract operation count
-        base_action_space = self._env.action_space(params)
-        operation_space = base_action_space._spaces["operation"]
+        base_action_space = self._env.action_space(env_params)
+        operation_space = base_action_space.spaces["operation"]
 
         # Get grid dimensions from env params
-        height = params.dataset.max_grid_height
-        width = params.dataset.max_grid_width
-        
-        return DictSpace({
-            "operation": operation_space,
-            "row": DiscreteSpace(height, "row"),
-            "col": DiscreteSpace(width, "col")
-        }, "point_action")
-    
-    def step(self, params: EnvParams, timestep: TimeStep, action: dict) -> TimeStep:
+        height = env_params.dataset.max_grid_height
+        width = env_params.dataset.max_grid_width
+
+        return DictSpace(
+            {
+                "operation": operation_space,
+                "row": DiscreteSpace(height),
+                "col": DiscreteSpace(width),
+            },
+            name="point_action",
+        )
+
+    def step(
+        self, state: State, action: dict, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
         """Convert point to mask and delegate."""
-        state = timestep.state
         grid_shape = (state.working_grid.shape[0], state.working_grid.shape[1])
         mask_action = _jit_point_to_mask(action, grid_shape)
-        return self._env.step(params, timestep, mask_action)
+        return self._env.step(state, mask_action, env_params)
 
 
 class BboxActionWrapper(Wrapper):
     """Bbox action wrapper with custom action space."""
-    
-    def action_space(self, params: EnvParams):
+
+    def action_space(self, env_params: EnvParams | None = None) -> DictSpace:
         """Custom action space for bbox actions: (operation, r1, c1, r2, c2)."""
         # Get the underlying action space to extract operation count
-        base_action_space = self._env.action_space(params)
-        operation_space = base_action_space._spaces["operation"]
+        base_action_space = self._env.action_space(env_params)
+        operation_space = base_action_space.spaces["operation"]
 
         # Get grid dimensions from env params
-        height = params.dataset.max_grid_height
-        width = params.dataset.max_grid_width
-        
-        return DictSpace({
-            "operation": operation_space,
-            "r1": DiscreteSpace(height, "r1"),
-            "c1": DiscreteSpace(width, "c1"),
-            "r2": DiscreteSpace(height, "r2"),
-            "c2": DiscreteSpace(width, "c2")
-        }, "bbox_action")
-    
-    def step(self, params: EnvParams, timestep: TimeStep, action: dict) -> TimeStep:
+        height = env_params.dataset.max_grid_height
+        width = env_params.dataset.max_grid_width
+
+        return DictSpace(
+            {
+                "operation": operation_space,
+                "r1": DiscreteSpace(height),
+                "c1": DiscreteSpace(width),
+                "r2": DiscreteSpace(height),
+                "c2": DiscreteSpace(width),
+            },
+            name="bbox_action",
+        )
+
+    def step(
+        self, state: State, action: dict, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
         """Convert bbox to mask and delegate."""
-        state = timestep.state
         grid_shape = (state.working_grid.shape[0], state.working_grid.shape[1])
         mask_action = _jit_bbox_to_mask(action, grid_shape)
-        return self._env.step(params, timestep, mask_action)
+        return self._env.step(state, mask_action, env_params)
 
 
 __all__ = [

@@ -78,7 +78,6 @@ from .spaces import (
     SelectionSpace,
     Space,
 )
-from .wrapper import GymAutoResetWrapper, Wrapper
 
 __all__ = [
     "OPERATION_NAMES",
@@ -91,14 +90,12 @@ __all__ = [
     "EnvParams",
     "Environment",
     "GridSpace",
-    "GymAutoResetWrapper",
     "MultiBinary",
     "PointActionWrapper",
     "SelectionSpace",
     "Space",
     "State",
     "TimeStep",
-    "Wrapper",
     "action_handler",
     "create_action",
     "execute_grid_operation",

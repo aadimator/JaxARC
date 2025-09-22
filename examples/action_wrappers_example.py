@@ -50,13 +50,13 @@ def basic_usage_example():
 
     # Reset and take a step
     key = jax.random.PRNGKey(42)
-    timestep = env.reset(env_params, key)
+    state, timestep = env.reset(key, env_params=env_params)
     print(f"✅ Reset successful: {timestep.observation.shape}")
     print(f"✅ Initial timestep - first(): {timestep.first()}")
 
     # Simple bbox action - using dict format for BboxActionWrapper
     bbox_action = {"operation": 15, "r1": 1, "c1": 1, "r2": 3, "c2": 4}
-    new_timestep = env.step(env_params, timestep, bbox_action)
+    state, new_timestep = env.step(state, bbox_action, env_params=env_params)
     print(f"✅ Step successful with bbox action: {bbox_action}")
     print(f"✅ Next timestep - mid(): {new_timestep.mid()}")
 
@@ -98,7 +98,7 @@ def step_type_semantics_example():
     env = BboxActionWrapper(env)
     
     key = jax.random.PRNGKey(123)
-    timestep = env.reset(env_params, key)
+    state, timestep = env.reset(key, env_params=env_params)
     
     print(f"✅ Initial step - first(): {timestep.first()}")
     print(f"   Step type: {timestep.step_type}")
@@ -110,7 +110,7 @@ def step_type_semantics_example():
     ]
     
     for i, action in enumerate(actions):
-        timestep = env.step(env_params, timestep, action)
+        state, timestep = env.step(state, action, env_params=env_params)
         print(f"✅ After action {i+1} - mid(): {timestep.mid()}, last(): {timestep.last()}")
         if timestep.last():
             print("   Episode terminated!")
@@ -126,14 +126,14 @@ def bbox_wrapper_demo():
     env = BboxActionWrapper(env)
 
     key = jax.random.PRNGKey(123)
-    timestep = env.reset(env_params, key)
+    state, timestep = env.reset(key, env_params=env_params)
 
     print("🔹 Initial grid:")
     log_grid_to_console(timestep.observation, title="Working Grid")
 
     # Execute bbox action: fill rectangle using dict format
     bbox_action = {"operation": 2, "r1": 1, "c1": 2, "r2": 3, "c2": 5}  # Green rectangle from (1,2) to (3,5)
-    timestep = env.step(env_params, timestep, bbox_action)
+    state, timestep = env.step(state, bbox_action, env_params=env_params)
 
     print(f"\n🔹 After bbox action {bbox_action}:")
     log_grid_to_console(timestep.observation, title="After Rectangle Fill")
@@ -149,7 +149,7 @@ def point_wrapper_demo():
     env = PointActionWrapper(env)
 
     key = jax.random.PRNGKey(456)
-    timestep = env.reset(env_params, key)
+    state, timestep = env.reset(key, env_params=env_params)
 
     print("🔹 Initial grid:")
     log_grid_to_console(timestep.observation, title="Working Grid")
@@ -163,7 +163,7 @@ def point_wrapper_demo():
     ]
 
     for i, action in enumerate(point_actions):
-        timestep = env.step(env_params, timestep, action)
+        state, timestep = env.step(state, action, env_params=env_params)
         print(f"   Point action {i + 1}: {action}, reward: {timestep.reward}")
 
     print(f"\n🔹 After {len(point_actions)} point actions:")
@@ -179,7 +179,7 @@ def multiple_actions_demo():
     env = BboxActionWrapper(env)
 
     key = jax.random.PRNGKey(789)
-    timestep = env.reset(env_params, key)
+    state, timestep = env.reset(key, env_params=env_params)
 
     # Create a pattern with multiple bbox actions using dict format
     actions_sequence = [
@@ -193,7 +193,7 @@ def multiple_actions_demo():
     print("🔹 Executing action sequence:")
     total_reward = 0.0
     for i, action in enumerate(actions_sequence):
-        timestep = env.step(env_params, timestep, action)
+        state, timestep = env.step(state, action, env_params=env_params)
         total_reward += timestep.reward
         print(f"   Action {i + 1}: {action}, reward: {timestep.reward}")
         
@@ -267,8 +267,8 @@ def jax_compatibility_demo():
     batch_keys = jax.random.split(key, batch_size)
     
     # vmap reset for batch processing  
-    batch_reset = jax.vmap(env.reset, in_axes=(None, 0))
-    batch_timesteps = batch_reset(env_params, batch_keys)
+    batch_reset = jax.vmap(env.reset, in_axes=(0, None))
+    batch_states, batch_timesteps = batch_reset(batch_keys, env_params)
     print(f"   ✓ Batch reset: {batch_timesteps.observation.shape}")
     print(f"   ✓ All first timesteps: {jnp.all(batch_timesteps.first())}")
     

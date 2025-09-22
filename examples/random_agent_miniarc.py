@@ -75,16 +75,15 @@ def make_train(
 
         # Initialize the environments
         key, reset_key = jr.split(key)
-        # New TimeStep-based API: reset returns a TimeStep object that embeds state+obs.
+        # New TimeStep-based API: reset returns a (State, TimeStep) tuple.
         # Support multiple parallel envs by vmapping reset when num_envs > 1.
         if num_envs > 1:
             reset_keys = jr.split(reset_key, num_envs)
-            timesteps = jax.vmap(env.reset, in_axes=(None, 0))(env_params, reset_keys)
+            states, timesteps = jax.vmap(env.reset, in_axes=(0, None))(reset_keys, env_params)
         else:
-            timesteps = env.reset(env_params, reset_key)
+            states, timesteps = env.reset(reset_key, env_params=env_params)
         # The `runner_state` is the collection of all states that change over the training loop.
-        # We pack the whole TimeStep rather than separate env_state/obs tuples.
-        runner_state = (agent_params, timesteps, key)
+        runner_state = (agent_params, states, timesteps, key)
 
         # --- 2. THE TRAINING LOOP (as a scan) ---
         def _update_step(runner_state, _):
@@ -92,11 +91,11 @@ def make_train(
             This function represents one update step of the RL algorithm (e.g., one PPO update).
             It contains the environment rollout and the agent learning step.
             """
-            agent_params, timestep, key = runner_state
+            agent_params, states, timesteps, key = runner_state
 
             # A. THE ROLLOUT PHASE
             def _env_step_body(carry, _):
-                prev_timestep, key = carry
+                prev_states, _, key = carry
                 key, action_key = jr.split(key)
 
                 # Get actions by directly sampling from action space
@@ -107,30 +106,30 @@ def make_train(
                 else:
                     actions = action_space.sample(action_key)
 
-                # Step the environment using the TimeStep-based API (vectorized when requested)
+                # Step the environment using the new API (vectorized when requested)
                 if num_envs > 1:
-                    next_timestep = jax.vmap(env.step, in_axes=(None, 0, 0))(
-                        env_params, prev_timestep, actions
+                    next_states, next_timesteps = jax.vmap(env.step, in_axes=(0, 0, None))(
+                        prev_states, actions, env_params
                     )
                 else:
-                    next_timestep = env.step(env_params, prev_timestep, actions)
+                    next_states, next_timesteps = env.step(prev_states, actions, env_params=env_params)
 
                 # In a real agent, you would store the full transition for learning.
                 # For this random agent, we only care about the reward.
-                return (next_timestep, key), next_timestep.reward
+                return (next_states, next_timesteps, key), next_timesteps.reward
 
             # Run the rollout for a fixed number of steps using lax.scan
             key, rollout_key = jr.split(key)
-            (final_timestep, _), collected_rewards = jax.lax.scan(
-                _env_step_body, (timestep, rollout_key), None, length=num_steps
+            ( (final_states, final_timesteps, _), collected_rewards) = jax.lax.scan(
+                _env_step_body, (states, timesteps, rollout_key), None, length=num_steps
             )
 
             # B. THE AGENT UPDATE PHASE
             # In a real agent, you would use the `collected_transitions` to calculate the loss
             # and update the agent_params. For a random agent, this is a no-op.
 
-            # Pack the state for the next update iteration (keep the final TimeStep)
-            new_runner_state = (agent_params, final_timestep, key)
+            # Pack the state for the next update iteration
+            new_runner_state = (agent_params, final_states, final_timesteps, key)
 
             # Return metrics from this update step
             metrics = {"mean_reward": jnp.mean(collected_rewards)}
@@ -160,7 +159,9 @@ def main():
 
     config = setup_configuration()
 
-    # --- Dataset Loading ---
+    # ---
+    # Dataset Loading
+    # ---
     # Use the registration-based factory to construct an env and env_params for the chosen task.
     # Let the parser/registry handle buffering and EnvParams construction.
     # Pick a single available Mini task via the registry helper.
@@ -186,11 +187,15 @@ def main():
         )
     )
 
-    # --- Create and Compile the Training Function ---
+    # ---
+    # Create and Compile the Training Function
+    # ---
     # Pass the constructed env and env_params into the training factory.
     train_fn = make_train(env, env_params, num_envs, num_steps, num_updates)
 
-    # --- WARMUP (First call triggers JIT compilation) ---
+    # ---
+    # WARMUP (First call triggers JIT compilation)
+    # ---
     logger.info("Starting JIT compilation (this may take a moment)...")
     start_compile = time.time()
     key = jr.PRNGKey(42)
@@ -200,7 +205,9 @@ def main():
     compile_time = time.time() - start_compile
     logger.info(f"JIT compilation finished in {compile_time:.2f}s")
 
-    # --- TIMED RUN (Second call uses the compiled function) ---
+    # ---
+    # TIMED RUN (Second call uses the compiled function)
+    # ---
     logger.info("Starting timed run...")
     start_run = time.time()
     key = jr.PRNGKey(43)  # Use a different key for the timed run
@@ -208,7 +215,9 @@ def main():
     jax.tree_util.tree_map(lambda x: x.block_until_ready(), output)
     run_time = time.time() - start_run
 
-    # --- Performance Summary ---
+    # ---
+    # Performance Summary
+    # ---
     total_steps = num_envs * num_steps * num_updates
     sps = total_steps / run_time
 

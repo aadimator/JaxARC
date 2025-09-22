@@ -53,35 +53,19 @@ class TestEnvironmentInitialization:
 
     def test_environment_creation(self):
         """Test that Environment can be created."""
-        env = Environment()
+        config = JaxArcConfig()
+        mock_buffer = create_mock_buffer()
+        env = Environment(config, mock_buffer)
         assert env is not None
         assert isinstance(env, Environment)
 
-    def test_default_params(self):
-        """Test default_params method."""
-        env = Environment()
-        config = JaxArcConfig()
-        mock_buffer = create_mock_buffer()
-
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0, subset_indices=None
-        )
-
-        assert isinstance(env_params, EnvParams)
-        assert env_params.episode_mode == 0
-        assert env_params.buffer is not None
-
     def test_observation_shape(self):
         """Test observation_shape method."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
+        env = Environment(config, mock_buffer)
 
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
-
-        obs_shape = env.observation_shape(env_params)
+        obs_shape = env.observation_shape()
         assert isinstance(obs_shape, tuple)
         assert len(obs_shape) == 2  # (height, width)
         assert all(isinstance(dim, int) for dim in obs_shape)
@@ -92,16 +76,12 @@ class TestEnvironmentMethods:
 
     def test_reset_method(self, prng_key):
         """Test Environment reset method."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
-
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
+        env = Environment(config, mock_buffer)
 
         # Test reset
-        timestep = env.reset(env_params, prng_key)
+        state, timestep = env.reset(prng_key)
 
         # Verify return type
         assert isinstance(timestep, TimeStep)
@@ -109,20 +89,16 @@ class TestEnvironmentMethods:
         assert isinstance(timestep.reward, jax.Array)
         assert isinstance(timestep.discount, jax.Array)
         assert isinstance(timestep.observation, jax.Array)
-        assert isinstance(timestep.state, State)
+        assert isinstance(state, State)
 
     def test_step_method(self, prng_key):
         """Test Environment step method."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
-
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
+        env = Environment(config, mock_buffer)
 
         # Get initial timestep
-        timestep = env.reset(env_params, prng_key)
+        state, timestep = env.reset(prng_key)
 
         # Create test action
         action = create_action(
@@ -131,18 +107,18 @@ class TestEnvironmentMethods:
         )
 
         # Test step
-        new_timestep = env.step(env_params, timestep, action)
+        new_state, new_timestep = env.step(state, action)
 
         # Verify return type
         assert isinstance(new_timestep, TimeStep)
         assert isinstance(new_timestep.reward, jax.Array)
         assert isinstance(new_timestep.discount, jax.Array)
         assert isinstance(new_timestep.observation, jax.Array)
-        assert isinstance(new_timestep.state, State)
+        assert isinstance(new_state, State)
 
         # Verify state progression
-        assert new_timestep.state.step_count == 1
-        assert timestep.state.step_count == 0  # Original unchanged
+        assert new_state.step_count == 1
+        assert state.step_count == 0  # Original unchanged
 
 
 class TestEnvironmentSpaces:
@@ -150,30 +126,22 @@ class TestEnvironmentSpaces:
 
     def test_observation_space(self):
         """Test observation_space method."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
+        env = Environment(config, mock_buffer)
 
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
-
-        obs_space = env.observation_space(env_params)
+        obs_space = env.observation_space()
         assert isinstance(obs_space, GridSpace)
         assert hasattr(obs_space, "shape")
         assert len(obs_space.shape) == 2  # Should be (height, width)
 
     def test_action_space(self):
         """Test action_space method."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
+        env = Environment(config, mock_buffer)
 
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
-
-        action_space = env.action_space(env_params)
+        action_space = env.action_space()
         assert isinstance(action_space, ARCActionSpace)
         # ARCActionSpace is a DictSpace, so it doesn't have shape directly
         # But it should have the expected structure
@@ -182,30 +150,22 @@ class TestEnvironmentSpaces:
 
     def test_reward_space(self):
         """Test reward_space method."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
+        env = Environment(config, mock_buffer)
 
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
-
-        reward_space = env.reward_space(env_params)
+        reward_space = env.reward_space()
         assert isinstance(reward_space, BoundedArraySpace)
         assert reward_space.shape == ()
         assert reward_space.dtype == jnp.float32
 
     def test_discount_space(self):
         """Test discount_space method."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
+        env = Environment(config, mock_buffer)
 
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
-
-        discount_space = env.discount_space(env_params)
+        discount_space = env.discount_space()
         assert isinstance(discount_space, BoundedArraySpace)
         assert discount_space.shape == ()
         assert discount_space.dtype == jnp.float32
@@ -216,29 +176,29 @@ class TestEnvironmentInterface:
 
     def test_unwrapped_property(self):
         """Test unwrapped property."""
-        env = Environment()
+        config = JaxArcConfig()
+        mock_buffer = create_mock_buffer()
+        env = Environment(config, mock_buffer)
         assert env.unwrapped is env
 
     def test_close_method(self):
         """Test close method."""
-        env = Environment()
+        config = JaxArcConfig()
+        mock_buffer = create_mock_buffer()
+        env = Environment(config, mock_buffer)
         # Should not raise an exception
         env.close()
 
     def test_episode_workflow(self, prng_key):
         """Test complete episode workflow."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
-
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
+        env = Environment(config, mock_buffer)
 
         # Reset
-        timestep = env.reset(env_params, prng_key)
+        state, timestep = env.reset(prng_key)
         assert timestep.step_type == StepType.FIRST
-        assert timestep.state.step_count == 0
+        assert state.step_count == 0
 
         # Take several steps
         for i in range(3):
@@ -246,10 +206,10 @@ class TestEnvironmentInterface:
                 operation=jnp.array(i, dtype=jnp.int32),
                 selection=jnp.ones((3, 3), dtype=jnp.bool_),
             )
-            timestep = env.step(env_params, timestep, action)
+            state, timestep = env.step(state, action)
 
             # Verify step progression
-            assert timestep.state.step_count == i + 1
+            assert state.step_count == i + 1
 
             # Verify step type progression
             if i < 2:  # Not terminal yet
@@ -257,25 +217,21 @@ class TestEnvironmentInterface:
 
     def test_state_transitions(self, prng_key):
         """Test state transitions are handled correctly."""
-        env = Environment()
         config = JaxArcConfig()
         mock_buffer = create_mock_buffer()
-
-        env_params = env.default_params(
-            config=config, buffer=mock_buffer, episode_mode=0
-        )
+        env = Environment(config, mock_buffer)
 
         # Reset
-        timestep1 = env.reset(env_params, prng_key)
-        initial_state = timestep1.state
+        state1, timestep1 = env.reset(prng_key)
+        initial_state = state1
 
         # Step
         action = create_action(
             operation=jnp.array(1, dtype=jnp.int32),
             selection=jnp.ones((3, 3), dtype=jnp.bool_),
         )
-        timestep2 = env.step(env_params, timestep1, action)
-        new_state = timestep2.state
+        state2, timestep2 = env.step(state1, action)
+        new_state = state2
 
         # Verify state immutability
         assert initial_state.step_count == 0
