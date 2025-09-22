@@ -135,29 +135,30 @@ def run_jaxarc(
     def _single(key):
         # Split key so initial reset and per-step RNG use disjoint streams
         reset_key, loop_key = jax.random.split(key)
-        ts0 = env.reset(params, reset_key)
+        state, ts0 = env.reset(reset_key, env_params=params)
 
         def body(carry, _):
-            ts, k = carry
+            state, ts, k = carry
             # Split for potential reset and action sampling
             k_reset, k_action, k_next = jax.random.split(k, 3)
 
             # Conditionally reset if previous timestep was terminal or truncated
-            def do_reset(_ts):
-                return env.reset(params, k_reset)
+            def do_reset(_carry):
+                _state, _ts = _carry
+                return env.reset(k_reset, env_params=params)
 
-            def keep(_ts):
-                return _ts
+            def keep(_carry):
+                return _carry
 
-            ts = jax.lax.cond(ts.last(), do_reset, keep, ts)
+            state, ts = jax.lax.cond(ts.last(), do_reset, keep, (state, ts))
 
             # Sample a fresh action and step
             act = action_space.sample(k_action)
-            new_ts = env.step(params, ts, act)
-            return (new_ts, k_next), ()
+            new_state, new_ts = env.step(state, act, env_params=params)
+            return (new_state, new_ts, k_next), ()
 
-        # Scan over a dummy sequence of given length; carry TimeStep and RNG key
-        (ts_final, _), _ = jax.lax.scan(body, (ts0, loop_key), xs=None, length=num_steps, unroll=unroll)
+        # Scan over a dummy sequence of given length; carry State, TimeStep and RNG key
+        (state_final, ts_final, _), _ = jax.lax.scan(body, (state, ts0, loop_key), xs=None, length=num_steps, unroll=unroll)
         return ts_final
 
     if parallel.lower() == "pmap":
