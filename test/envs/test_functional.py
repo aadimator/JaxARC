@@ -5,16 +5,7 @@ This module tests the pure functional environment operations (reset, step)
 for JAX compatibility, pure function behavior, and state immutability.
 """
 from __future__ import annotations
-
-print("Starting imports...")
-
-try:
-    import jax
-
-    print("JAX imported")
-except Exception as e:
-    print(f"JAX import failed: {e}")
-    raise
+import jax
 import jax.numpy as jnp
 
 from jaxarc import JaxArcConfig
@@ -66,7 +57,7 @@ class TestFunctionalReset:
         )
 
         # Test function signature
-        timestep = reset(env_params, prng_key)
+        state, timestep = reset(env_params, prng_key)
 
         # Verify return type
         assert isinstance(timestep, TimeStep)
@@ -74,7 +65,7 @@ class TestFunctionalReset:
         assert isinstance(timestep.reward, jax.Array)
         assert isinstance(timestep.discount, jax.Array)
         assert isinstance(timestep.observation, jax.Array)
-        assert isinstance(timestep.state, State)
+        assert isinstance(state, State)
 
     def test_reset_jax_compatibility(self, prng_key):
         """Test that reset function is JAX-compatible."""
@@ -86,7 +77,7 @@ class TestFunctionalReset:
 
         # Test JIT compilation
         jitted_reset = jax.jit(reset)
-        timestep = jitted_reset(env_params, prng_key)
+        state, timestep = jitted_reset(env_params, prng_key)
 
         # Verify result is valid
         assert isinstance(timestep, TimeStep)
@@ -105,7 +96,7 @@ class TestFunctionalStep:
         )
 
         # Get initial timestep
-        timestep = reset(env_params, prng_key)
+        state, timestep = reset(env_params, prng_key)
 
         # Create test action
         action = create_action(
@@ -114,14 +105,13 @@ class TestFunctionalStep:
         )
 
         # Test step function
-        new_timestep = step(env_params, timestep, action)
-
+        new_state, new_timestep = step(env_params, state, action)
         # Verify return type
         assert isinstance(new_timestep, TimeStep)
         assert isinstance(new_timestep.reward, jax.Array)
         assert isinstance(new_timestep.discount, jax.Array)
         assert isinstance(new_timestep.observation, jax.Array)
-        assert isinstance(new_timestep.state, State)
+        assert isinstance(new_state, State)
 
     def test_step_jax_compatibility(self, prng_key):
         """Test that step function is JAX-compatible."""
@@ -131,16 +121,15 @@ class TestFunctionalStep:
             config=config, episode_mode=0, buffer=mock_buffer, subset_indices=None
         )
 
-        timestep = reset(env_params, prng_key)
+        state, timestep = reset(env_params, prng_key)
         action = create_action(
             operation=jnp.array(1, dtype=jnp.int32),
             selection=jnp.ones((3, 3), dtype=jnp.bool_),
         )
 
         # Test JIT compilation
-        jitted_step = jax.jit(step)
-        new_timestep = jitted_step(env_params, timestep, action)
-
+        jitted_step = jax.jit(lambda params, state, action: step(params, state, action))
+        new_state, new_timestep = jitted_step(env_params, state, action)
         # Verify result is valid
         assert isinstance(new_timestep, TimeStep)
-        assert new_timestep.state.step_count == 1
+        assert new_state.step_count == 1

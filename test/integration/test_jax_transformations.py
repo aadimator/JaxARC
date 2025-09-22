@@ -38,22 +38,7 @@ def get_grid_shape_from_state(state):
 class TestJITCompilation:
     """Test JIT compilation of core functions."""
 
-    @pytest.fixture
-    def sample_env_and_params(self):
-        """Create sample environment and parameters for testing."""
-        config = JaxArcConfig()
-        task_ids = available_task_ids("Mini", config=config)
-        task_id = task_ids[0] if task_ids else "all"
-        env, env_params = make(f"Mini-{task_id}", config=config)
-        return env, env_params
-
-    @pytest.fixture
-    def sample_state(self, sample_env_and_params):
-        """Create sample state for testing."""
-        env, env_params = sample_env_and_params
-        key = jax.random.PRNGKey(42)
-        timestep = reset(env_params, key)
-        return timestep.state
+    
 
     def test_reset_jit_compilation(self, sample_env_and_params):
         """Test that reset function compiles successfully under JIT."""
@@ -61,11 +46,11 @@ class TestJITCompilation:
         key = jax.random.PRNGKey(42)
 
         # Test JIT compilation
-        jitted_reset = jax.jit(reset)
+        jitted_reset = jax.jit(env.reset)
 
         # Should compile without errors
-        timestep_jit = jitted_reset(env_params, key)
-        timestep_normal = reset(env_params, key)
+        state_jit, timestep_jit = jitted_reset(key)
+        state_normal, timestep_normal = env.reset(key)
 
         # Results should be identical
         chex.assert_trees_all_close(
@@ -80,21 +65,21 @@ class TestJITCompilation:
         key = jax.random.PRNGKey(42)
 
         # Create initial timestep
-        timestep = reset(env_params, key)
+        state, timestep = env.reset(key)
 
         # Create test action with correct grid shape
-        grid_shape = get_grid_shape_from_state(timestep.state)
+        grid_shape = get_grid_shape_from_state(state)
         action = create_action(
             operation=jnp.array(0, dtype=jnp.int32),  # Fill with color 0
             selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[2, 2].set(True),
         )
 
         # Test JIT compilation
-        jitted_step = jax.jit(step)
+        jitted_step = jax.jit(env.step)
 
         # Should compile without errors
-        next_timestep_jit = jitted_step(env_params, timestep, action)
-        next_timestep_normal = step(env_params, timestep, action)
+        next_state_jit, next_timestep_jit = jitted_step(state, action)
+        next_state_normal, next_timestep_normal = env.step(state, action)
 
         # Results should be identical
         chex.assert_trees_all_close(
@@ -219,11 +204,11 @@ class TestJITCompilation:
         key = jax.random.PRNGKey(123)
 
         # Run multiple steps with and without JIT
-        jitted_reset = jax.jit(reset)
-        jitted_step = jax.jit(step)
+        jitted_reset = jax.jit(env.reset)
+        jitted_step = jax.jit(env.step)
 
         # Normal execution
-        timestep_normal = reset(env_params, key)
+        state_normal, timestep_normal = env.reset(key)
         grid_shape = timestep_normal.observation.shape
         for i in range(3):  # Reduce iterations to fit in 5x5 grid
             pos = min(i, grid_shape[0] - 1)
@@ -231,17 +216,17 @@ class TestJITCompilation:
                 operation=jnp.array(i % 10, dtype=jnp.int32),
                 selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[pos, pos].set(True),
             )
-            timestep_normal = step(env_params, timestep_normal, action)
+            state_normal, timestep_normal = env.step(state_normal, action)
 
         # JIT execution
-        timestep_jit = jitted_reset(env_params, key)
+        state_jit, timestep_jit = jitted_reset(key)
         for i in range(3):  # Reduce iterations to fit in 5x5 grid
             pos = min(i, grid_shape[0] - 1)
             action = create_action(
                 operation=jnp.array(i % 10, dtype=jnp.int32),
                 selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[pos, pos].set(True),
             )
-            timestep_jit = jitted_step(env_params, timestep_jit, action)
+            state_jit, timestep_jit = jitted_step(state_jit, action)
 
         # Results should be numerically identical
         chex.assert_trees_all_close(
@@ -249,7 +234,7 @@ class TestJITCompilation:
         )
         chex.assert_trees_all_close(timestep_jit.reward, timestep_normal.reward)
         chex.assert_trees_all_close(
-            timestep_jit.state.working_grid, timestep_normal.state.working_grid
+            state_jit.working_grid, state_normal.working_grid
         )
 
     def test_compilation_performance(self, sample_env_and_params):
@@ -258,21 +243,21 @@ class TestJITCompilation:
         key = jax.random.PRNGKey(42)
 
         # Compile functions
-        jitted_reset = jax.jit(reset)
-        jitted_step = jax.jit(step)
+        jitted_reset = jax.jit(env.reset)
+        jitted_step = jax.jit(env.step)
 
         # Warm up JIT compilation
-        timestep = jitted_reset(env_params, key)
+        state, timestep = jitted_reset(key)
         grid_shape = timestep.observation.shape
         action = create_action(
             operation=jnp.array(0, dtype=jnp.int32),
             selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[0, 0].set(True),
         )
-        _ = jitted_step(env_params, timestep, action)
+        _ = jitted_step(state, action)
 
         # Test that compiled functions execute without errors
         # (Performance measurement would require timing, which is not reliable in tests)
-        timestep = jitted_reset(env_params, key)
+        state, timestep = jitted_reset(key)
         for i in range(5):  # Reduce iterations to fit in 5x5 grid
             pos = i % grid_shape[0]
             action = create_action(
@@ -281,7 +266,7 @@ class TestJITCompilation:
                 .at[pos, pos]
                 .set(True),
             )
-            timestep = jitted_step(env_params, timestep, action)
+            state, timestep = jitted_step(state, action)
 
         # Should complete without errors
         assert timestep.step_type in [0, 1, 2]  # Valid step types
@@ -309,10 +294,10 @@ class TestVmapTransformations:
         env, env_params = sample_env_and_params
 
         # Test vmap over keys
-        vmapped_reset = jax.vmap(reset, in_axes=(None, 0))
+        vmapped_reset = jax.vmap(env.reset)
 
         # Should work without errors
-        batch_timesteps = vmapped_reset(env_params, batch_keys)
+        batch_states, batch_timesteps = vmapped_reset(batch_keys)
 
         # Check batch dimensions
         batch_size = batch_keys.shape[0]
@@ -320,7 +305,7 @@ class TestVmapTransformations:
         grid_shape = batch_timesteps.observation.shape[1:]
         chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape))
         chex.assert_shape(batch_timesteps.reward, (batch_size,))
-        chex.assert_shape(batch_timesteps.state.working_grid, (batch_size, *grid_shape))
+        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape))
 
         # Each timestep should be valid
         for i in range(batch_size):
@@ -331,8 +316,8 @@ class TestVmapTransformations:
         env, env_params = sample_env_and_params
 
         # Create batch of initial timesteps
-        vmapped_reset = jax.vmap(reset, in_axes=(None, 0))
-        batch_timesteps = vmapped_reset(env_params, batch_keys)
+        vmapped_reset = jax.vmap(env.reset)
+        batch_states, batch_timesteps = vmapped_reset(batch_keys)
 
         # Create batch of actions
         batch_size = batch_keys.shape[0]
@@ -360,17 +345,17 @@ class TestVmapTransformations:
         batch_action_struct = vmapped_create_action(batch_operations, batch_selections)
 
         # Test vmap over step
-        vmapped_step = jax.vmap(step, in_axes=(None, 0, 0))
+        vmapped_step = jax.vmap(env.step, in_axes=(0, 0))
 
         # Should work without errors
-        next_batch_timesteps = vmapped_step(
-            env_params, batch_timesteps, batch_action_struct
+        next_batch_states, next_batch_timesteps = vmapped_step(
+            batch_states, batch_action_struct
         )
 
         # Check batch dimensions
         chex.assert_shape(next_batch_timesteps.observation, (batch_size, *grid_shape))
         chex.assert_shape(next_batch_timesteps.reward, (batch_size,))
-        chex.assert_shape(next_batch_timesteps.state.working_grid, (batch_size, *grid_shape))
+        chex.assert_shape(next_batch_states.working_grid, (batch_size, *grid_shape))
 
     def test_grid_operations_vmap(self):
         """Test that grid operations work correctly with vmap."""
@@ -478,12 +463,12 @@ class TestVmapTransformations:
         # Individual calls
         individual_results = []
         for key in keys:
-            timestep = reset(env_params, key)
+            _, timestep = env.reset(key)
             individual_results.append(timestep)
 
         # Batch call
-        vmapped_reset = jax.vmap(reset, in_axes=(None, 0))
-        batch_result = vmapped_reset(env_params, keys)
+        vmapped_reset = jax.vmap(env.reset)
+        _, batch_result = vmapped_reset(keys)
 
         # Compare results
         for i, individual in enumerate(individual_results):
@@ -499,18 +484,18 @@ class TestVmapTransformations:
         keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
 
         # Compile vmapped function
-        vmapped_reset = jax.jit(jax.vmap(reset, in_axes=(None, 0)))
+        vmapped_reset = jax.jit(jax.vmap(env.reset))
 
         # Warm up compilation
-        _ = vmapped_reset(env_params, keys)
+        _ = vmapped_reset(keys)
 
         # Test that batch processing works efficiently
-        batch_timesteps = vmapped_reset(env_params, keys)
+        batch_states, batch_timesteps = vmapped_reset(keys)
 
         # Verify batch dimensions
         grid_shape = batch_timesteps.observation.shape[1:]  # Remove batch dimension
         chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape))
-        chex.assert_shape(batch_timesteps.state.working_grid, (batch_size, *grid_shape))
+        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape))
 
         # All timesteps should be valid
         assert jnp.all(batch_timesteps.step_type == 0)  # All FIRST step types
@@ -562,7 +547,7 @@ class TestPmapTransformations:
 
         # Test pmap compatibility (structure check)
         try:
-            pmapped_reset = jax.pmap(reset, in_axes=(None, 0))
+            pmapped_reset = jax.pmap(env.reset)
             # This tests that the function can be pmapped without errors
             # Actual execution would require proper device distribution
             assert pmapped_reset is not None
@@ -579,7 +564,7 @@ class TestPmapTransformations:
 
         # Test pmap compatibility (structure check)
         try:
-            pmapped_step = jax.pmap(step, in_axes=(None, 0, 0))
+            pmapped_step = jax.pmap(env.step, in_axes=(0, 0))
             # This tests that the function can be pmapped without errors
             assert pmapped_step is not None
         except Exception as e:
@@ -645,15 +630,15 @@ class TestPRNGManagement:
         key = jax.random.PRNGKey(42)
 
         # Run reset twice with same key
-        timestep1 = reset(env_params, key)
-        timestep2 = reset(env_params, key)
+        state1, timestep1 = env.reset(key)
+        state2, timestep2 = env.reset(key)
 
         # Results should be identical
         chex.assert_trees_all_close(timestep1.observation, timestep2.observation)
         chex.assert_trees_all_close(
-            timestep1.state.working_grid, timestep2.state.working_grid
+            state1.working_grid, state2.working_grid
         )
-        chex.assert_trees_all_close(timestep1.state.task_idx, timestep2.state.task_idx)
+        chex.assert_trees_all_close(state1.task_idx, state2.task_idx)
 
     def test_prng_key_splitting(self, sample_env_and_params):
         """Test that PRNG key splitting produces different results."""
@@ -663,18 +648,18 @@ class TestPRNGManagement:
         # Split key and use different subkeys
         key1, key2 = jax.random.split(base_key)
 
-        timestep1 = reset(env_params, key1)
-        timestep2 = reset(env_params, key2)
+        state1, timestep1 = env.reset(key1)
+        state2, timestep2 = env.reset(key2)
 
         # Results should be different (with high probability)
         # Note: There's a small chance they could be the same, but very unlikely
         try:
             chex.assert_trees_all_close(
-                timestep1.state.task_idx, timestep2.state.task_idx
+                state1.task_idx, state2.task_idx
             )
             # If they are the same, check if working grids are different
             assert not jnp.array_equal(
-                timestep1.state.working_grid, timestep2.state.working_grid
+                state1.working_grid, state2.working_grid
             )
         except AssertionError:
             # This is expected - the results should be different
@@ -686,14 +671,14 @@ class TestPRNGManagement:
         key = jax.random.PRNGKey(123)
 
         # Reset environment
-        timestep = reset(env_params, key)
+        state, timestep = env.reset(key)
 
         # Check that state contains a key
-        assert hasattr(timestep.state, "key")
-        assert timestep.state.key is not None
+        assert hasattr(state, "key")
+        assert state.key is not None
 
         # The key in state should be different from input key (due to splitting)
-        assert not jnp.array_equal(timestep.state.key, key)
+        assert not jnp.array_equal(state.key, key)
 
     def test_prng_key_consistency_under_jit(self, sample_env_and_params):
         """Test that PRNG behavior is consistent under JIT compilation."""
@@ -701,20 +686,20 @@ class TestPRNGManagement:
         key = jax.random.PRNGKey(456)
 
         # Normal execution
-        timestep_normal = reset(env_params, key)
+        state_normal, timestep_normal = env.reset(key)
 
         # JIT execution
-        jitted_reset = jax.jit(reset)
-        timestep_jit = jitted_reset(env_params, key)
+        jitted_reset = jax.jit(env.reset)
+        state_jit, timestep_jit = jitted_reset(key)
 
         # Results should be identical
         chex.assert_trees_all_close(
             timestep_normal.observation, timestep_jit.observation
         )
         chex.assert_trees_all_close(
-            timestep_normal.state.working_grid, timestep_jit.state.working_grid
+            state_normal.working_grid, state_jit.working_grid
         )
-        chex.assert_trees_all_close(timestep_normal.state.key, timestep_jit.state.key)
+        chex.assert_trees_all_close(state_normal.key, state_jit.key)
 
     def test_prng_key_batch_independence(self, sample_env_and_params):
         """Test that batch operations maintain PRNG independence."""
@@ -725,11 +710,11 @@ class TestPRNGManagement:
         batch_keys = jax.random.split(base_key, 4)
 
         # Batch reset
-        vmapped_reset = jax.vmap(reset, in_axes=(None, 0))
-        batch_timesteps = vmapped_reset(env_params, batch_keys)
+        vmapped_reset = jax.vmap(env.reset)
+        batch_states, batch_timesteps = vmapped_reset(batch_keys)
 
         # Each result should be different (check task indices)
-        task_indices = batch_timesteps.state.task_idx
+        task_indices = batch_states.task_idx
 
         # At least some should be different (very high probability)
         unique_indices = jnp.unique(task_indices)
@@ -742,8 +727,8 @@ class TestPRNGManagement:
 
         def run_sequence(key):
             """Run a deterministic sequence of operations."""
-            timestep = reset(env_params, key)
-            results = [timestep.state.task_idx]
+            state, timestep = env.reset(key)
+            results = [state.task_idx]
             grid_shape = timestep.observation.shape
 
             for i in range(3):
@@ -752,8 +737,8 @@ class TestPRNGManagement:
                     operation=jnp.array(i, dtype=jnp.int32),
                     selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[pos, pos].set(True),
                 )
-                timestep = step(env_params, timestep, action)
-                results.append(timestep.state.step_count)
+                state, timestep = env.step(state, action)
+                results.append(state.step_count)
 
             return jnp.array(results)
 
@@ -771,15 +756,12 @@ class TestPyTreeOperations:
     """Test PyTree operations and tree manipulation."""
 
     @pytest.fixture
-    def sample_state(self):
+    def sample_state(self, sample_env_and_params):
         """Create sample state for testing."""
-        config = JaxArcConfig()
-        task_ids = available_task_ids("Mini", config=config)
-        task_id = task_ids[0] if task_ids else "all"
-        env, env_params = make(f"Mini-{task_id}", config=config)
+        env, env_params = sample_env_and_params
         key = jax.random.PRNGKey(42)
-        timestep = reset(env_params, key)
-        return timestep.state
+        state, _ = env.reset(key)
+        return state
 
     def test_state_is_pytree(self, sample_state):
         """Test that State is properly registered as a PyTree."""
@@ -796,14 +778,11 @@ class TestPyTreeOperations:
             sample_state.similarity_score, reconstructed.similarity_score
         )
 
-    def test_timestep_is_pytree(self):
+    def test_timestep_is_pytree(self, sample_env_and_params):
         """Test that TimeStep is properly registered as a PyTree."""
-        config = JaxArcConfig()
-        task_ids = available_task_ids("Mini", config=config)
-        task_id = task_ids[0] if task_ids else "all"
-        env, env_params = make(f"Mini-{task_id}", config=config)
+        env, env_params = sample_env_and_params
         key = jax.random.PRNGKey(42)
-        timestep = reset(env_params, key)
+        _, timestep = env.reset(key)
 
         # Test tree operations
         leaves, treedef = jax.tree_util.tree_flatten(timestep)
@@ -881,20 +860,17 @@ class TestPyTreeOperations:
         # Integer fields should be incremented
         chex.assert_trees_all_close(processed.step_count, sample_state.step_count + 1)
 
-    def test_pytree_batch_operations(self):
+    def test_pytree_batch_operations(self, sample_env_and_params):
         """Test PyTree operations with batched data."""
-        config = JaxArcConfig()
-        task_ids = available_task_ids("Mini", config=config)
-        task_id = task_ids[0] if task_ids else "all"
-        env, env_params = make(f"Mini-{task_id}", config=config)
+        env, env_params = sample_env_and_params
 
         # Create batch of states
         keys = jax.random.split(jax.random.PRNGKey(42), 4)
-        vmapped_reset = jax.vmap(reset, in_axes=(None, 0))
-        batch_timesteps = vmapped_reset(env_params, keys)
+        vmapped_reset = jax.vmap(env.reset)
+        batch_states, batch_timesteps = vmapped_reset(keys)
 
         # Test tree operations on batch
-        batch_states = batch_timesteps.state
+        # batch_states = batch_timesteps.state
 
         # Tree map should work on batch
         processed_batch = jax.tree_util.tree_map(
@@ -926,23 +902,23 @@ class TestStaticShapeMaintenance:
         env, env_params = sample_env_and_params
         key = jax.random.PRNGKey(42)
 
-        timestep = reset(env_params, key)
+        state, timestep = env.reset(key)
 
         # Check static shapes (get actual grid shape)
         grid_shape = timestep.observation.shape
         chex.assert_shape(timestep.observation, grid_shape)
-        chex.assert_shape(timestep.state.working_grid, grid_shape)
-        chex.assert_shape(timestep.state.working_grid_mask, grid_shape)
-        chex.assert_shape(timestep.state.target_grid, grid_shape)
+        chex.assert_shape(state.working_grid, grid_shape)
+        chex.assert_shape(state.working_grid_mask, grid_shape)
+        chex.assert_shape(state.target_grid, grid_shape)
         chex.assert_shape(timestep.reward, ())
-        chex.assert_shape(timestep.state.step_count, ())
+        chex.assert_shape(state.step_count, ())
 
     def test_step_maintains_static_shapes(self, sample_env_and_params):
         """Test that step maintains static shapes."""
         env, env_params = sample_env_and_params
         key = jax.random.PRNGKey(42)
 
-        timestep = reset(env_params, key)
+        state, timestep = env.reset(key)
 
         grid_shape = timestep.observation.shape
         action = create_action(
@@ -950,15 +926,15 @@ class TestStaticShapeMaintenance:
             selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[2, 2].set(True),
         )
 
-        next_timestep = step(env_params, timestep, action)
+        next_state, next_timestep = env.step(state, action)
 
         # Shapes should remain the same
         grid_shape = timestep.observation.shape
         chex.assert_shape(next_timestep.observation, grid_shape)
-        chex.assert_shape(next_timestep.state.working_grid, grid_shape)
-        chex.assert_shape(next_timestep.state.working_grid_mask, grid_shape)
+        chex.assert_shape(next_state.working_grid, grid_shape)
+        chex.assert_shape(next_state.working_grid_mask, grid_shape)
         chex.assert_shape(next_timestep.reward, ())
-        chex.assert_shape(next_timestep.state.step_count, ())
+        chex.assert_shape(next_state.step_count, ())
 
     def test_batch_operations_maintain_shapes(self, sample_env_and_params):
         """Test that batch operations maintain static shapes."""
@@ -967,15 +943,15 @@ class TestStaticShapeMaintenance:
         keys = jax.random.split(jax.random.PRNGKey(42), batch_size)
 
         # Batch reset
-        vmapped_reset = jax.vmap(reset, in_axes=(None, 0))
-        batch_timesteps = vmapped_reset(env_params, keys)
+        vmapped_reset = jax.vmap(env.reset)
+        batch_states, batch_timesteps = vmapped_reset(keys)
 
         # Check batch shapes
         grid_shape = batch_timesteps.observation.shape[1:]  # Remove batch dimension
         chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape))
-        chex.assert_shape(batch_timesteps.state.working_grid, (batch_size, *grid_shape))
+        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape))
         chex.assert_shape(batch_timesteps.reward, (batch_size,))
-        chex.assert_shape(batch_timesteps.state.step_count, (batch_size,))
+        chex.assert_shape(batch_states.step_count, (batch_size,))
 
     def test_jit_preserves_static_shapes(self, sample_env_and_params):
         """Test that JIT compilation preserves static shapes."""
@@ -983,27 +959,27 @@ class TestStaticShapeMaintenance:
         key = jax.random.PRNGKey(42)
 
         # JIT compiled functions
-        jitted_reset = jax.jit(reset)
-        jitted_step = jax.jit(step)
+        jitted_reset = jax.jit(env.reset)
+        jitted_step = jax.jit(env.step)
 
-        timestep = jitted_reset(env_params, key)
+        state, timestep = jitted_reset(key)
 
         # Check shapes after JIT
         grid_shape = timestep.observation.shape
         chex.assert_shape(timestep.observation, grid_shape)
-        chex.assert_shape(timestep.state.working_grid, grid_shape)
+        chex.assert_shape(state.working_grid, grid_shape)
 
         action = create_action(
             operation=jnp.array(1, dtype=jnp.int32),
             selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[2, 2].set(True),
         )
 
-        next_timestep = jitted_step(env_params, timestep, action)
+        next_state, next_timestep = jitted_step(state, action)
 
         # Shapes should be preserved
         grid_shape = timestep.observation.shape
         chex.assert_shape(next_timestep.observation, grid_shape)
-        chex.assert_shape(next_timestep.state.working_grid, grid_shape)
+        chex.assert_shape(next_state.working_grid, grid_shape)
 
     def test_grid_operations_preserve_shapes(self):
         """Test that grid operations preserve static shapes."""

@@ -204,7 +204,7 @@ def test_state(prng_key: PRNGKeyArray) -> State:
     
     # Create allowed operations mask (all operations allowed)
     allowed_operations_mask = jnp.ones(35, dtype=jnp.bool_)
-    
+
     return State(
         working_grid=working_grid,
         working_grid_mask=working_grid_mask,

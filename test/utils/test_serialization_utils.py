@@ -302,6 +302,10 @@ class TestSerializeState:
     @pytest.fixture
     def sample_state(self):
         """Create a sample state for testing."""
+        from jaxarc.configs.main_config import JaxArcConfig
+        from jaxarc.types import EnvParams
+        config = JaxArcConfig()
+        params = EnvParams.from_config(config, buffer=jnp.ones(1)) # dummy buffer
         return State(
             working_grid=jnp.array([[1, 2], [3, 4]]),
             working_grid_mask=jnp.array([[True, True], [True, True]]),
@@ -317,6 +321,7 @@ class TestSerializeState:
             key=jax.random.PRNGKey(42),
             task_idx=jnp.int32(0),
             pair_idx=jnp.int32(0),
+            
             carry={"test": "value"}
         )
 
@@ -375,6 +380,10 @@ class TestSerializeLogStep:
     @pytest.fixture
     def sample_state(self):
         """Create a sample state for testing."""
+        from jaxarc.configs.main_config import JaxArcConfig
+        from jaxarc.types import EnvParams
+        config = JaxArcConfig()
+        params = EnvParams.from_config(config, buffer=jnp.ones(1)) # dummy buffer
         return State(
             working_grid=jnp.array([[1, 2]]),
             working_grid_mask=jnp.array([[True, True]]),
@@ -390,6 +399,7 @@ class TestSerializeLogStep:
             key=jax.random.PRNGKey(42),
             task_idx=jnp.int32(0),
             pair_idx=jnp.int32(0),
+            
             carry={}
         )
 
