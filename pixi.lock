@@ -3800,8 +3800,8 @@ packages:
   requires_python: '>=3.10'
 - pypi: .
   name: jaxarc
-  version: 0.1.dev228+g133652d62
-  sha256: eecb982ffc5b666b979a31926f94ec00991b0b9cd2adbcd9d3c5705b7d29c176
+  version: 0.1.dev246+g37c0b9f5d.d20250922
+  sha256: 3c0597d59e115af674ef48a267b0f040fa18c58ded2b900e72846b954b3cf8da
   requires_dist:
   - cairosvg>=2.8.2,<3
   - chex>=0.1.89,<0.2
@@ -3814,6 +3814,7 @@ packages:
   - pyprojroot>=0.3.0,<0.4
   - rich>=14.0.0,<15
   - seaborn>=0.13.2,<0.14
+  - stoa-env>=0.1.2,<0.2
   - tqdm>=4.67.1,<5
   - typer>=0.16.0,<0.17
   requires_python: '>=3.9'
