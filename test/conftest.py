@@ -127,6 +127,9 @@ def sample_state(sample_env_and_params):
 def pytest_configure(config):
     """Configure pytest with custom markers and settings."""
     config.addinivalue_line(
+        "markers", "fast: marks tests as fast/unit-level (select with '-m fast')"
+    )
+    config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
     config.addinivalue_line(

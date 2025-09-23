@@ -3800,8 +3800,8 @@ packages:
   requires_python: '>=3.10'
 - pypi: .
   name: jaxarc
-  version: 0.1.dev243+g1322cd9f3.d20250922
-  sha256: b277773a02f35284b3ab268479da880350b9e28833fa6365f6acce4a3f108cea
+  version: 0.1.dev245+g133852710.d20250923
+  sha256: 328bc6dfba764adb7ab0922089b2e27f6603f500fb9ca334bfd4ea3d35c38aef
   requires_dist:
   - cairosvg>=2.8.2,<3
   - drawsvg>=2.4.0,<3

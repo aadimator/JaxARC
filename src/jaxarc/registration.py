@@ -507,8 +507,25 @@ class EnvRegistry:
                 "Could not import configuration types. Ensure configurations "
                 "are available or provide a ready 'config' object."
             ) from e
+        # If config not provided, prefer a safe construction path that avoids Hydra re-init
+        if config is None:
+            try:
+                # Detect if a Hydra app is already initialized in this process
+                from hydra.core.global_hydra import GlobalHydra  # type: ignore
 
-        cfg = config if config is not None else JaxArcConfig.from_hydra(get_config())
+                gh = GlobalHydra.instance()
+                hydra_active = gh.is_initialized()
+            except Exception:
+                hydra_active = False
+
+            if hydra_active:
+                # Avoid re-initializing Hydra: build a default config directly
+                cfg = JaxArcConfig()
+            else:
+                # Standalone usage: use Hydra defaults
+                cfg = JaxArcConfig.from_hydra(get_config())
+        else:
+            cfg = config
 
         # Enforce max_episode_steps
         try:
@@ -516,12 +533,7 @@ class EnvRegistry:
         except Exception:
             pass
 
-        # Best-effort dataset normalization (name and path)
-        try:
-            # Basic dataset config normalization - let DatasetManager handle specifics
-            pass
-        except Exception:
-            pass
+        # Best-effort dataset normalization is handled later by _ensure_dataset_available
 
         return cfg
 
@@ -543,33 +555,41 @@ class EnvRegistry:
 
     @staticmethod
     def _load_dataset_config(dataset_key: str) -> Any:
-        """Load dataset config from Hydra configs based on dataset key."""
+        """Load dataset config from packaged YAML without initializing Hydra.
+
+        This avoids conflicts when JaxARC is embedded inside an existing Hydra app.
+        Returns a DatasetConfig instance for the requested dataset key.
+        """
         try:
-            from hydra import compose, initialize_config_dir
-            from pyprojroot import here
-
+            # Map normalized key -> dataset YAML file name inside jaxarc/conf/dataset
             key_lower = dataset_key.lower()
-            config_name = None
-
+            file_name: Optional[str] = None
             if key_lower in ("mini", "miniarc", "mini-arc"):
-                config_name = "mini_arc"
+                file_name = "mini_arc.yaml"
             elif key_lower in ("concept", "conceptarc", "concept-arc"):
-                config_name = "concept_arc"
+                file_name = "concept_arc.yaml"
             elif key_lower in ("agi1", "arc-agi-1", "agi-1", "agi_1"):
-                config_name = "arc_agi_1"
+                file_name = "arc_agi_1.yaml"
             elif key_lower in ("agi2", "arc-agi-2", "agi-2", "agi_2"):
-                config_name = "arc_agi_2"
+                file_name = "arc_agi_2.yaml"
             else:
                 raise ValueError(f"Unknown dataset key: {dataset_key}")
 
-            # Load the specific dataset config
-            config_dir = str(here() / "src" / "jaxarc" / "conf")
-            with initialize_config_dir(config_dir=config_dir, version_base=None):
-                cfg = compose(
-                    config_name="config", overrides=[f"dataset={config_name}"]
-                )
-                return cfg.dataset
+            # Load YAML via importlib.resources to avoid file path issues
+            import importlib.resources as pkg_resources
+            import io
+            import yaml
+            from omegaconf import DictConfig, OmegaConf
+            from jaxarc.configs.dataset_config import DatasetConfig
 
+            dataset_dir = pkg_resources.files("jaxarc") / "conf" / "dataset"
+            yaml_path = dataset_dir / file_name
+            # Read text and convert to DictConfig
+            with yaml_path.open("r", encoding="utf-8") as f:
+                yaml_text = f.read()
+            data = yaml.safe_load(io.StringIO(yaml_text)) or {}
+            cfg: DictConfig = OmegaConf.create(data)
+            return DatasetConfig.from_hydra(cfg)
         except Exception as e:
             raise ValueError(
                 f"Failed to load dataset config for '{dataset_key}': {e}"
@@ -678,39 +698,40 @@ class EnvRegistry:
     def _ensure_dataset_available(
         config: Any, dataset_key: str, auto_download: bool
     ) -> Any:
-        """Ensure dataset exists. If config.dataset is already a valid DatasetConfig,
-        use it. Otherwise, load from file."""
+        """Ensure dataset exists and matches the requested dataset key.
+
+        - If config.dataset exists but doesn't match the requested key, replace it.
+        - Load dataset config directly from packaged YAML (no Hydra init).
+        - Ensure files are present via DatasetManager and fix dataset_path.
+        """
         from jaxarc.configs.dataset_config import DatasetConfig
+        import equinox as eqx
+
         manager = DatasetManager()
-        # If a valid, fully-formed DatasetConfig is already present, use it.
-        # This happens when JaxARC is used as a library within a larger Hydra app.
-        if isinstance(getattr(config, "dataset", None), DatasetConfig):
-            logger.debug("Using provided DatasetConfig, skipping file-based config loading.")
-        # Otherwise, fall back to the original behavior of loading the config from a file.
-        # This is for standalone JaxARC usage.
-        else:
-            logger.debug("No valid DatasetConfig provided, loading from file.")
-            try:
-                dataset_config_data = EnvRegistry._load_dataset_config(dataset_key)
-                # Update config with loaded dataset config
-                import equinox as eqx
-                new_dataset_config = DatasetConfig.from_hydra(dataset_config_data)
-                config = eqx.tree_at(
-                    lambda c: c.dataset, config, new_dataset_config
+
+        # Load the desired dataset configuration from YAML
+        desired_ds: DatasetConfig = EnvRegistry._load_dataset_config(dataset_key)
+
+        # If a DatasetConfig is already present but for a different dataset, replace it
+        current_ds = getattr(config, "dataset", None)
+        if isinstance(current_ds, DatasetConfig):
+            same = str(current_ds.dataset_name).strip().lower() == str(
+                desired_ds.dataset_name
+            ).strip().lower()
+            if not same:
+                logger.debug(
+                    f"Overriding provided DatasetConfig '{current_ds.dataset_name}' with '{desired_ds.dataset_name}' from key '{dataset_key}'."
                 )
-            except Exception as e:
-                logger.warning(f"Could not load dataset config for {dataset_key}: {e}")
-                if not auto_download:
-                    raise ValueError(
-                        "Dataset config not available and auto_download is disabled."
-                    ) from e
-        # Now that the config is settled, ensure the dataset files are on disk.
+                config = eqx.tree_at(lambda c: c.dataset, config, desired_ds)
+        else:
+            # No valid dataset found in config, set to desired
+            config = eqx.tree_at(lambda c: c.dataset, config, desired_ds)
+
+        # Now ensure the dataset files are on disk and update dataset_path
         try:
             dataset_path = manager.ensure_dataset_available(
                 config, auto_download=auto_download
             )
-            # Update config to reflect the actual dataset path
-            import equinox as eqx
             ds = config.dataset
             ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(dataset_path))
             config = eqx.tree_at(lambda c: c.dataset, config, ds)
