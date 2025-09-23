@@ -22,7 +22,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from jaxarc.envs.action_wrappers import BboxActionWrapper, PointActionWrapper
+from jaxarc.envs import BboxActionWrapper, PointActionWrapper
 from jaxarc.registration import make
 from jaxarc.utils.visualization import log_grid_to_console
 

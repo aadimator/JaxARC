@@ -29,7 +29,7 @@ from arcle.loaders import MiniARCLoader
 from gymnasium import spaces
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.envs.action_wrappers import BboxActionWrapper
+from jaxarc.envs import BboxActionWrapper
 from jaxarc.registration import make
 from jaxarc.utils.core import get_config
 

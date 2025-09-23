@@ -21,17 +21,19 @@ Architecture:
 
 from __future__ import annotations
 
+# Action wrappers
+from jaxarc.envs.wrappers import (
+    AddChannelDimWrapper,
+    BboxActionWrapper,
+    FlattenDictActionWrapper,
+    PointActionWrapper,
+)
+
 # State definition (centralized)
 from ..state import State
 
 # Core types for new functional API
 from ..types import EnvParams, TimeStep
-
-# Action wrappers
-from .action_wrappers import (
-    BboxActionWrapper,
-    PointActionWrapper,
-)
 
 # Complete action system (combined actions + filtering)
 from .actions import (
@@ -83,12 +85,14 @@ __all__ = [
     "OPERATION_NAMES",
     "ARCActionSpace",
     "Action",
+    "AddChannelDimWrapper",
     "BboxActionWrapper",
     "BoundedArraySpace",
     "DictSpace",
     "DiscreteSpace",
     "EnvParams",
     "Environment",
+    "FlattenDictActionWrapper",
     "GridSpace",
     "MultiBinary",
     "PointActionWrapper",

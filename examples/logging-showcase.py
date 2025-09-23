@@ -12,10 +12,10 @@ from rich.console import Console
 from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.envs.action_wrappers import PointActionWrapper
+from jaxarc.envs import PointActionWrapper
 from jaxarc.registration import make
-from jaxarc.types import TimeStep
 from jaxarc.state import State
+from jaxarc.types import TimeStep
 from jaxarc.utils.core import get_config
 from jaxarc.utils.logging import (
     ExperimentLogger,
