@@ -165,8 +165,8 @@ def main():
     # Use the registration-based factory to construct an env and env_params for the chosen task.
     # Let the parser/registry handle buffering and EnvParams construction.
     # Pick a single available Mini task via the registry helper.
+    from jaxarc.envs import PointActionWrapper
     from jaxarc.registration import available_task_ids
-    from jaxarc.envs.action_wrappers import PointActionWrapper
 
     available_ids = available_task_ids("Mini", config=config, auto_download=False)
     task_id = available_ids[0]
