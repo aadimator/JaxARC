@@ -94,6 +94,7 @@ testpaths = ["test"]
 norecursedirs = ["wandb", ".git", ".pixi", "data", "outputs"]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "fast: marks tests as fast/unit-level (can be selected with '-m fast')",
 ]
 
 
