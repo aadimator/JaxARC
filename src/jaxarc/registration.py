@@ -678,51 +678,48 @@ class EnvRegistry:
     def _ensure_dataset_available(
         config: Any, dataset_key: str, auto_download: bool
     ) -> Any:
-        """Ensure dataset exists at config.dataset.dataset_path. Optionally download if missing.
-        Functional: returns (potentially) updated config without in-place mutation.
-        """
-        try:
-            # Use DatasetManager for unified dataset management
-            manager = DatasetManager()
-
-            # Always load the correct dataset config based on dataset_key to override defaults
+        """Ensure dataset exists. If config.dataset is already a valid DatasetConfig,
+        use it. Otherwise, load from file."""
+        from jaxarc.configs.dataset_config import DatasetConfig
+        manager = DatasetManager()
+        # If a valid, fully-formed DatasetConfig is already present, use it.
+        # This happens when JaxARC is used as a library within a larger Hydra app.
+        if isinstance(getattr(config, "dataset", None), DatasetConfig):
+            logger.debug("Using provided DatasetConfig, skipping file-based config loading.")
+        # Otherwise, fall back to the original behavior of loading the config from a file.
+        # This is for standalone JaxARC usage.
+        else:
+            logger.debug("No valid DatasetConfig provided, loading from file.")
             try:
                 dataset_config_data = EnvRegistry._load_dataset_config(dataset_key)
                 # Update config with loaded dataset config
                 import equinox as eqx
-
-                from jaxarc.configs.dataset_config import DatasetConfig
-
                 new_dataset_config = DatasetConfig.from_hydra(dataset_config_data)
                 config = eqx.tree_at(
                     lambda c: c.dataset, config, new_dataset_config
                 )
             except Exception as e:
-                logger.warning(
-                    f"Could not load dataset config for {dataset_key}: {e}"
-                )
+                logger.warning(f"Could not load dataset config for {dataset_key}: {e}")
                 if not auto_download:
                     raise ValueError(
                         "Dataset config not available and auto_download is disabled."
                     ) from e
-
-            # Ensure dataset is available
+        # Now that the config is settled, ensure the dataset files are on disk.
+        try:
             dataset_path = manager.ensure_dataset_available(
                 config, auto_download=auto_download
             )
-
             # Update config to reflect the actual dataset path
             import equinox as eqx
-
             ds = config.dataset
             ds = eqx.tree_at(lambda d: d.dataset_path, ds, str(dataset_path))
             config = eqx.tree_at(lambda c: c.dataset, config, ds)
-
             return config
-
         except DatasetError as e:
             logger.error(f"Dataset management failed: {e}")
             raise ValueError(f"Dataset not available: {e}") from e
+
+
 
 
 # -----------------------------------------------------------------------------

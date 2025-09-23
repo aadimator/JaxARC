@@ -121,13 +121,16 @@ class PointActionWrapper(Wrapper):
 
     def action_space(self, env_params: EnvParams | None = None) -> DictSpace:
         """Custom action space for point actions: (operation, row, col)."""
+        # Use provided params or fall back to the environment's default params.
+        p = self._env.params if env_params is None else env_params
+        
         # Get the underlying action space to extract operation count
-        base_action_space = self._env.action_space(env_params)
+        base_action_space = self._env.action_space(p)
         operation_space = base_action_space.spaces["operation"]
 
         # Get grid dimensions from env params
-        height = env_params.dataset.max_grid_height
-        width = env_params.dataset.max_grid_width
+        height = p.dataset.max_grid_height
+        width = p.dataset.max_grid_width
 
         return DictSpace(
             {
@@ -152,13 +155,16 @@ class BboxActionWrapper(Wrapper):
 
     def action_space(self, env_params: EnvParams | None = None) -> DictSpace:
         """Custom action space for bbox actions: (operation, r1, c1, r2, c2)."""
+        # Use provided params or fall back to the environment's default params.
+        p = self._env.params if env_params is None else env_params
+        
         # Get the underlying action space to extract operation count
-        base_action_space = self._env.action_space(env_params)
+        base_action_space = self._env.action_space(p)
         operation_space = base_action_space.spaces["operation"]
 
         # Get grid dimensions from env params
-        height = env_params.dataset.max_grid_height
-        width = env_params.dataset.max_grid_width
+        height = p.dataset.max_grid_height
+        width = p.dataset.max_grid_width
 
         return DictSpace(
             {
