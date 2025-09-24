@@ -12,10 +12,8 @@ from rich.console import Console
 from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.envs import PointActionWrapper
+from jaxarc.envs import BboxActionWrapper, FlattenDictActionWrapper, PointActionWrapper
 from jaxarc.registration import make
-from jaxarc.state import State
-from jaxarc.types import TimeStep
 from jaxarc.utils.core import get_config
 from jaxarc.utils.logging import (
     ExperimentLogger,
@@ -76,8 +74,10 @@ def run_logging_showcase(config_overrides: list[str]):
     # --- Dataset and Environment Setup ---
     logger.info("Loading dataset and creating environment...")
     env, env_params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", config=config)
-    env = PointActionWrapper(env)
-    
+    # env = PointActionWrapper(env)
+    env = BboxActionWrapper(env)
+    env = FlattenDictActionWrapper(env)
+
     # Get action space for the agent policy
     action_space = env.action_space(env_params)
     key = jax.random.PRNGKey(1)
