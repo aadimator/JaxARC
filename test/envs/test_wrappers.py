@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from jaxarc.envs import (
     AddChannelDimWrapper,
     BboxActionWrapper,
-    FlattenDictActionWrapper,
+    FlattenActionWrapper,
     PointActionWrapper,
 )
 from jaxarc.registration import make
@@ -35,7 +35,9 @@ def _runner(env, params, num_steps: int = 3):
             new_state, new_ts = env.step(state, act, env_params=params)
             return (new_state, new_ts, k_next), ()
 
-        (state_final, ts_final, _), _ = jax.lax.scan(body, (state, ts0, loop_key), xs=None, length=num_steps)
+        (state_final, ts_final, _), _ = jax.lax.scan(
+            body, (state, ts0, loop_key), xs=None, length=num_steps
+        )
         return ts_final
 
     return jax.jit(_single)
@@ -62,7 +64,7 @@ def test_point_wrapper_extras_are_jax_compatible():
 def test_flatten_wrapper_extras_are_jax_compatible():
     env, params = make("Mini", auto_download=True)
     env = PointActionWrapper(env)
-    env = FlattenDictActionWrapper(env)
+    env = FlattenActionWrapper(env)
 
     fn = _runner(env, params, num_steps=3)
     key = jax.random.PRNGKey(1)
@@ -108,7 +110,9 @@ def test_reset_extras_canonical_action_present_and_jax_arrays():
 
 
 def test_point_wrapper_single_point_mask_and_clipping():
-    base_env, params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True)
+    base_env, params = make(
+        "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
+    )
     env = PointActionWrapper(base_env)
 
     h, w = _grid_hw_from_reset(env, params)
@@ -133,7 +137,9 @@ def test_point_wrapper_single_point_mask_and_clipping():
 
 
 def test_bbox_wrapper_rectangle_mask_and_ordering():
-    base_env, params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True)
+    base_env, params = make(
+        "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
+    )
     env = BboxActionWrapper(base_env)
 
     h, w = _grid_hw_from_reset(env, params)
@@ -154,10 +160,12 @@ def test_bbox_wrapper_rectangle_mask_and_ordering():
 
 
 def test_flatten_wrapper_action_space_and_step_point():
-    base_env, params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True)
+    base_env, params = make(
+        "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
+    )
     # Flatten over point dict space
     dict_env = PointActionWrapper(base_env)
-    env = FlattenDictActionWrapper(dict_env)
+    env = FlattenActionWrapper(dict_env)
 
     # Validate action space size equals product of (operation, row, col)
     dict_space = dict_env.action_space(params)
@@ -171,11 +179,15 @@ def test_flatten_wrapper_action_space_and_step_point():
 
     # Pick a known triple and compose flat index with the same radix order used in wrapper
     op, r, c = 1, min(2, h - 1), min(3, w - 1)
-    flat_index = ((op * h) + r) * w + c
+    # Flattening order follows component order in FlattenActionWrapper: [operation, row, col]
+    # Flat index = ((op) * (h*w)) + (r * w) + c
+    flat_index = (op * (h * w)) + (r * w) + c
 
     key = jax.random.PRNGKey(9)
     state, ts = env.reset(key, env_params=params)
-    state, ts = env.step(state, jnp.asarray(flat_index, dtype=jnp.int32), env_params=params)
+    state, ts = env.step(
+        state, jnp.asarray(flat_index, dtype=jnp.int32), env_params=params
+    )
 
     ca = ts.extras["canonical_action"]
     sel = ca["selection"]
@@ -187,7 +199,9 @@ def test_flatten_wrapper_action_space_and_step_point():
 
 
 def test_add_channel_dim_wrapper_observation_shape_and_extras_preserved():
-    base_env, params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True)
+    base_env, params = make(
+        "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
+    )
     env = AddChannelDimWrapper(base_env)
 
     key = jax.random.PRNGKey(11)
@@ -208,7 +222,9 @@ def test_add_channel_dim_wrapper_observation_shape_and_extras_preserved():
 
 def test_extras_are_jax_compatible_after_step():
     # Sanity check to ensure no strings in jitted leaves
-    base_env, params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True)
+    base_env, params = make(
+        "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
+    )
     env = PointActionWrapper(base_env)
 
     def runner(key):

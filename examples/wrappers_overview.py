@@ -5,13 +5,14 @@ Wrappers Overview: Simple and Comprehensive Demo
 This single example consolidates the previous demos into one place. It shows:
 - Spaces introspection and sampling
 - BboxActionWrapper and PointActionWrapper dict actions
-- FlattenDictActionWrapper over a dict-discrete action space
+- FlattenActionWrapper over a dict-discrete action space
 - AddChannelDimWrapper for observation shape adaptation
 - JAX JIT/vmap compatibility for common flows
 
 Run:
     pixi run python examples/wrappers_overview.py
 """
+
 from __future__ import annotations
 
 import jax
@@ -20,7 +21,7 @@ import jax.numpy as jnp
 from jaxarc.envs import (
     AddChannelDimWrapper,
     BboxActionWrapper,
-    FlattenDictActionWrapper,
+    FlattenActionWrapper,
     PointActionWrapper,
 )
 from jaxarc.registration import make
@@ -35,7 +36,9 @@ def section(title: str) -> None:
 
 def spaces_and_reset_demo() -> tuple[object, object]:
     section("Spaces and Reset Demo")
-    env, env_params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True)
+    env, env_params = make(
+        "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
+    )
 
     obs_space = env.observation_space(env_params)
     action_space = env.action_space(env_params)
@@ -102,10 +105,10 @@ def point_wrapper_demo(base_env, env_params) -> None:
 
 
 def flatten_wrapper_demo(base_env, env_params) -> None:
-    section("FlattenDictActionWrapper Demo (over PointActionWrapper)")
+    section("FlattenActionWrapper Demo (over PointActionWrapper)")
     # Wrap a dict-discrete action space env; PointActionWrapper provides a dict action space
     env = PointActionWrapper(base_env)
-    env = FlattenDictActionWrapper(env)
+    env = FlattenActionWrapper(env)
 
     flat_space = env.action_space(env_params)
     num_values = getattr(flat_space, "num_values", None)

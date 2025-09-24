@@ -13,7 +13,7 @@ import jax.numpy as jnp
 import stoa.environment
 
 from jaxarc.configs.main_config import JaxArcConfig
-from jaxarc.envs.actions import Action
+from jaxarc.envs.actions import Action, create_action
 from jaxarc.envs.spaces import ARCActionSpace, BoundedArraySpace, DictSpace, GridSpace
 from jaxarc.types import EnvParams, TimeStep
 
@@ -78,9 +78,15 @@ class Environment(stoa.environment.Environment):
         )
         return state, new_timestep
 
-    def step(self, state: State, action: Action, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
+    def step(self, state: State, action: Action | dict, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
         """Step using functional API (supports optional per-call params override)."""
         p = self.params if env_params is None else env_params
+        # Accept canonical dict-form mask actions from ARCActionSpace and convert to internal Action
+        if isinstance(action, dict) and ("operation" in action) and ("selection" in action):
+            op = jnp.asarray(action["operation"], dtype=jnp.int32)
+            sel = jnp.asarray(action["selection"], dtype=jnp.bool_)
+            action = create_action(op, sel)
+        
         next_state, timestep = functional_step(p, state, action)
 
         # Populate a stable, JAX-friendly extras schema based on the actual mask action
