@@ -161,10 +161,21 @@ def create_step_log(
     Returns:
         Dict for step logging
     """
+    # Prefer a canonical mask-based action provided by wrappers via timestep.extras
+    canonical_action = None
+    try:
+        if hasattr(timestep, "extras") and isinstance(timestep.extras, dict):
+            ca = timestep.extras.get("canonical_action")
+            if isinstance(ca, dict) and "operation" in ca and "selection" in ca:
+                canonical_action = ca
+    except (AttributeError, KeyError, TypeError):
+        canonical_action = None
+
     log_data = {
         "step_num": step_num,
         "episode_num": episode_num,
-        "action": action,
+        # Use canonical mask action when available so visualization layers receive selection directly
+        "action": canonical_action if canonical_action is not None else action,
         "reward": to_python_float(timestep.reward),
         "before_state": prev_state,
         "after_state": state,

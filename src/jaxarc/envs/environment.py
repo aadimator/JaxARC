@@ -15,13 +15,13 @@ import stoa.environment
 from jaxarc.configs.main_config import JaxArcConfig
 from jaxarc.envs.actions import Action
 from jaxarc.envs.spaces import ARCActionSpace, BoundedArraySpace, DictSpace, GridSpace
-from jaxarc.types import EnvParams
+from jaxarc.types import EnvParams, TimeStep
 
 from .functional import reset as functional_reset
 from .functional import step as functional_step
 
 if TYPE_CHECKING:
-    from jaxarc.types import State, TimeStep
+    from jaxarc.types import State
 
 
 class Environment(stoa.environment.Environment):
@@ -46,12 +46,69 @@ class Environment(stoa.environment.Environment):
     def reset(self, rng_key: jax.Array, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
         """Reset using functional API (supports optional per-call params override)."""
         p = self.params if env_params is None else env_params
-        return functional_reset(p, rng_key)
+        state, timestep = functional_reset(p, rng_key)
+
+        # Adding canconical action and operation_id to extras for logging/visualization
+        # Ensure a stable, JAX-friendly extras schema for JIT/scan compatibility
+        height = int(p.dataset.max_grid_height)
+        width = int(p.dataset.max_grid_width)
+        zero_sel = jnp.zeros((height, width), dtype=jnp.bool_)
+        op_sentinel = jnp.array(-1, dtype=jnp.int32)
+
+        base_extras = timestep.extras if isinstance(getattr(timestep, "extras", None), dict) else {}
+        extras = dict(base_extras)
+        # Canonical action present with static shapes; values are JAX arrays
+        extras.setdefault(
+            "canonical_action",
+            {
+                "operation": op_sentinel,
+                "selection": zero_sel,
+            },
+        )
+        # Convenience scalar mirrors canonical_action.operation
+        extras.setdefault("operation_id", op_sentinel)
+
+        # Rebuild timestep with enriched extras
+        new_timestep = TimeStep(
+            step_type=timestep.step_type,
+            reward=timestep.reward,
+            discount=timestep.discount,
+            observation=timestep.observation,
+            extras=extras,
+        )
+        return state, new_timestep
 
     def step(self, state: State, action: Action, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
         """Step using functional API (supports optional per-call params override)."""
         p = self.params if env_params is None else env_params
-        return functional_step(p, state, action)
+        next_state, timestep = functional_step(p, state, action)
+
+        # Populate a stable, JAX-friendly extras schema based on the actual mask action
+        height = int(p.dataset.max_grid_height)
+        width = int(p.dataset.max_grid_width)
+        zero_sel = jnp.zeros((height, width), dtype=jnp.bool_)
+        op_sentinel = jnp.array(-1, dtype=jnp.int32)
+
+        base_extras = timestep.extras if isinstance(getattr(timestep, "extras", None), dict) else {}
+        extras = dict(base_extras)
+
+        # Derive canonical mask-based action: operation and selection must be JAX arrays
+        op_attr = getattr(action, "operation", None)
+        sel_attr = getattr(action, "selection", None)
+        op = op_sentinel if op_attr is None else jnp.asarray(op_attr, dtype=jnp.int32)
+        sel = zero_sel if sel_attr is None else jnp.asarray(sel_attr, dtype=jnp.bool_)
+
+        extras["canonical_action"] = {"operation": op, "selection": sel}
+        extras["operation_id"] = op
+
+        new_timestep = TimeStep(
+            step_type=timestep.step_type,
+            reward=timestep.reward,
+            discount=timestep.discount,
+            observation=timestep.observation,
+            extras=extras,
+        )
+        return next_state, new_timestep
 
     def state_space(self, _env_params: EnvParams | None = None) -> stoa.spaces.Space:
         """Return the state space of the environment."""

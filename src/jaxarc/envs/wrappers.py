@@ -137,8 +137,8 @@ class PointActionWrapper(Wrapper):
         return DictSpace(
             {
                 "operation": operation_space,
-                "row": DiscreteSpace(height),
-                "col": DiscreteSpace(width),
+                "row": DiscreteSpace(height, dtype=jnp.int32),
+                "col": DiscreteSpace(width, dtype=jnp.int32),
             },
             name="point_action",
         )
@@ -149,8 +149,12 @@ class PointActionWrapper(Wrapper):
         """Convert point to mask and delegate."""
         grid_shape = (state.working_grid.shape[0], state.working_grid.shape[1])
         mask_action = _jit_point_to_mask(action, grid_shape)
-        return self._env.step(state, mask_action, env_params)
 
+        # Delegate to underlying env using mask-based Action
+        next_state, timestep = self._env.step(state, mask_action, env_params)
+
+        # Core Environment now guarantees canonical_action/operation_id in extras.
+        return next_state, timestep
 
 class BboxActionWrapper(Wrapper):
     """Bbox action wrapper with custom action space."""
@@ -171,10 +175,10 @@ class BboxActionWrapper(Wrapper):
         return DictSpace(
             {
                 "operation": operation_space,
-                "r1": DiscreteSpace(height),
-                "c1": DiscreteSpace(width),
-                "r2": DiscreteSpace(height),
-                "c2": DiscreteSpace(width),
+                "r1": DiscreteSpace(height, dtype=jnp.int32),
+                "c1": DiscreteSpace(width, dtype=jnp.int32),
+                "r2": DiscreteSpace(height, dtype=jnp.int32),
+                "c2": DiscreteSpace(width, dtype=jnp.int32),
             },
             name="bbox_action",
         )
@@ -185,8 +189,12 @@ class BboxActionWrapper(Wrapper):
         """Convert bbox to mask and delegate."""
         grid_shape = (state.working_grid.shape[0], state.working_grid.shape[1])
         mask_action = _jit_bbox_to_mask(action, grid_shape)
-        return self._env.step(state, mask_action, env_params)
 
+        # Delegate to underlying env using mask-based Action
+        next_state, timestep = self._env.step(state, mask_action, env_params)
+
+        # Core Environment now guarantees canonical_action/operation_id in extras.
+        return next_state, timestep
 
 class FlattenDictActionWrapper(Wrapper):
     """Flatten a dictionary action space of Discrete sub-spaces into a single Discrete.
@@ -212,23 +220,26 @@ class FlattenDictActionWrapper(Wrapper):
             return
 
         base_space = self._env.action_space(p)
-        if not isinstance(base_space, DictSpace):
-            msg = "FlattenDictActionWrapper requires a DictSpace action_space."
+        # Accept protocol: any object with a 'spaces' mapping behaves like DictSpace
+        if not hasattr(base_space, "spaces"):
+            msg = "FlattenDictActionWrapper requires an action_space with a 'spaces' attribute (DictSpace-like)."
             raise ValueError(msg)
 
         dims: list[int] = []
         for sub in base_space.spaces.values():
-            if not isinstance(sub, DiscreteSpace):
+            # Accept DiscreteSpace or any object exposing a category count
+            if isinstance(sub, DiscreteSpace):
+                n = getattr(sub, "num_values", None)
+                if n is None:
+                    n = getattr(sub, "n", None)
+            else:
+                n = getattr(sub, "num_values", None)
+                if n is None:
+                    n = getattr(sub, "n", None)
+            if n is None:
                 msg = (
-                    "All sub-spaces must be DiscreteSpace. Wrap the env with a point/bbox wrapper first."
+                    "All sub-spaces must be discrete (provide 'num_values' or 'n'). Wrap with point/bbox wrapper first."
                 )
-                raise ValueError(msg)
-            # Most DiscreteSpace expose `num_values`; fall back to `n` if present
-            n = getattr(sub, "num_values", None)
-            if n is None:
-                n = getattr(sub, "n", None)
-            if n is None:
-                msg = "DiscreteSpace missing num_values attribute."
                 raise ValueError(msg)
             dims.append(int(n))
 
@@ -264,22 +275,8 @@ class FlattenDictActionWrapper(Wrapper):
         dict_action = self._unflatten_action(action, env_params)
         next_state, timestep = self._env.step(state, dict_action, env_params)
 
-        # Add the unflattened action to the extras for logging
-        extras = timestep.extras if timestep.extras is not None else {}
-        if isinstance(extras, dict):
-            # Avoid in-place mutation under JAX transforms by copying dict
-            extras = dict(extras)
-            extras["unflattened_action"] = dict_action
-
-        new_timestep = TimeStep(
-            step_type=timestep.step_type,
-            reward=timestep.reward,
-            discount=timestep.discount,
-            observation=timestep.observation,
-            extras=extras,
-        )
-        return next_state, new_timestep
-
+        # Core Environment guarantees canonical_action/operation_id; avoid extras mutation
+        return next_state, timestep
     def action_space(self, env_params: EnvParams | None = None) -> DiscreteSpace:
         """Return a single DiscreteSpace of size prod of dict sub-spaces."""
         self._ensure_initialized(env_params)
@@ -306,6 +303,12 @@ class AddChannelDimWrapper(Wrapper):
     def step(
         self, state: State, action, env_params: EnvParams | None = None
     ) -> tuple[State, TimeStep]:
+        # Accept both canonical Action and dict-form actions; convert dict to Action here
+        if isinstance(action, dict) and ("operation" in action) and ("selection" in action):
+            op = jnp.asarray(action["operation"], dtype=jnp.int32)
+            sel = jnp.asarray(action["selection"], dtype=jnp.bool_)
+            action = create_action(op, sel)
+
         next_state, timestep = self._env.step(state, action, env_params)
 
         # Safely rebuild TimeStep with modified observation and extras
