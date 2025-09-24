@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.envs import BboxActionWrapper, FlattenDictActionWrapper, PointActionWrapper
+from jaxarc.envs import BboxActionWrapper, FlattenActionWrapper, PointActionWrapper
 from jaxarc.registration import make
 from jaxarc.utils.core import get_config
 from jaxarc.utils.logging import (
@@ -76,7 +76,7 @@ def run_logging_showcase(config_overrides: list[str]):
     env, env_params = make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", config=config)
     # env = PointActionWrapper(env)
     env = BboxActionWrapper(env)
-    env = FlattenDictActionWrapper(env)
+    env = FlattenActionWrapper(env)
 
     # Get action space for the agent policy
     action_space = env.action_space(env_params)

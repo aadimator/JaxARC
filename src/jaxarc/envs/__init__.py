@@ -25,7 +25,7 @@ from __future__ import annotations
 from jaxarc.envs.wrappers import (
     AddChannelDimWrapper,
     BboxActionWrapper,
-    FlattenDictActionWrapper,
+    FlattenActionWrapper,
     PointActionWrapper,
 )
 
@@ -76,7 +76,6 @@ from .spaces import (
     DictSpace,
     DiscreteSpace,
     GridSpace,
-    MultiBinary,
     SelectionSpace,
     Space,
 )
@@ -92,9 +91,8 @@ __all__ = [
     "DiscreteSpace",
     "EnvParams",
     "Environment",
-    "FlattenDictActionWrapper",
+    "FlattenActionWrapper",
     "GridSpace",
-    "MultiBinary",
     "PointActionWrapper",
     "SelectionSpace",
     "Space",

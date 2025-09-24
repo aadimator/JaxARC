@@ -7,7 +7,7 @@ This module implements clean wrappers following Stoa delegation patterns:
 
 - PointActionWrapper: Converts {"operation": op, "row": r, "col": c} dicts to mask actions
 - BboxActionWrapper: Converts {"operation": op, "r1": r1, "c1": c1, "r2": r2, "c2": c2} dicts to mask actions
-- FlattenDictActionWrapper: Flattens a DictSpace of Discrete sub-spaces into a single Discrete action space
+- FlattenActionWrapper: Flattens a DictSpace of Discrete sub-spaces into a single Discrete action space
 - AddChannelDimWrapper: Adds a trailing channel dimension to observations
 
 Usage:
@@ -33,10 +33,18 @@ Usage:
 
 from __future__ import annotations
 
+import operator
+from functools import reduce
+from typing import Optional
+
 import jax
 import jax.numpy as jnp
+from jax import lax
 import numpy as np
+from stoa import MultiDiscreteSpace, Space
 from stoa.core_wrappers.wrapper import Wrapper
+
+from jaxarc.envs.environment import Environment
 
 from ..state import State
 from ..types import EnvParams, TimeStep
@@ -125,7 +133,7 @@ class PointActionWrapper(Wrapper):
         """Custom action space for point actions: (operation, row, col)."""
         # Use provided params or fall back to the environment's default params.
         p = self._env.params if env_params is None else env_params
-        
+
         # Get the underlying action space to extract operation count
         base_action_space = self._env.action_space(p)
         operation_space = base_action_space.spaces["operation"]
@@ -156,6 +164,7 @@ class PointActionWrapper(Wrapper):
         # Core Environment now guarantees canonical_action/operation_id in extras.
         return next_state, timestep
 
+
 class BboxActionWrapper(Wrapper):
     """Bbox action wrapper with custom action space."""
 
@@ -163,7 +172,7 @@ class BboxActionWrapper(Wrapper):
         """Custom action space for bbox actions: (operation, r1, c1, r2, c2)."""
         # Use provided params or fall back to the environment's default params.
         p = self._env.params if env_params is None else env_params
-        
+
         # Get the underlying action space to extract operation count
         base_action_space = self._env.action_space(p)
         operation_space = base_action_space.spaces["operation"]
@@ -196,92 +205,115 @@ class BboxActionWrapper(Wrapper):
         # Core Environment now guarantees canonical_action/operation_id in extras.
         return next_state, timestep
 
-class FlattenDictActionWrapper(Wrapper):
-    """Flatten a dictionary action space of Discrete sub-spaces into a single Discrete.
 
-    Notes:
-    - Works when the underlying action_space is a DictSpace whose sub-spaces are all
-      DiscreteSpace (e.g., PointActionWrapper or BboxActionWrapper outputs).
-    - This will NOT work directly with the core ARCActionSpace (it contains a mask),
-      so wrap the env with a dict-discrete wrapper first.
+class FlattenActionWrapper(Wrapper[State]):
+    """
+    A general-purpose wrapper to flatten any composite discrete action space.
+
+    This wrapper can handle any combination of DictSpace, MultiDiscreteSpace,
+    and DiscreteSpace, converting them into a single, unified DiscreteSpace.
     """
 
-    def __init__(self, env):
+    def __init__(self, env: Environment):
         super().__init__(env)
-        # Lazy-init fields; computed on first access with env or provided env_params
-        self._cached_params = None
-        self._action_space = None
-        self.action_dims: list[int] = []
-        self.num_actions: int | None = None
 
-    def _ensure_initialized(self, env_params: EnvParams | None = None) -> None:
-        p = self._env.params if env_params is None else env_params
-        if (self._cached_params is p) and (self._action_space is not None):
-            return
+        base_action_space = self._env.action_space()
 
-        base_space = self._env.action_space(p)
-        # Accept protocol: any object with a 'spaces' mapping behaves like DictSpace
-        if not hasattr(base_space, "spaces"):
-            msg = "FlattenDictActionWrapper requires an action_space with a 'spaces' attribute (DictSpace-like)."
-            raise ValueError(msg)
+        # 1. Recursively find all the fundamental discrete components and their sizes.
+        #    Also, store the dictionary keys if the top-level space is a dict.
+        self._components, self._component_sizes = self._get_components_and_sizes(
+            base_action_space
+        )
+        self._action_keys = None
+        if isinstance(base_action_space, DictSpace):
+            # Preserve insertion order from the DictSpace to match wrapper-defined order
+            self._action_keys = list(base_action_space.spaces.keys())
 
-        dims: list[int] = []
-        for sub in base_space.spaces.values():
-            # Accept DiscreteSpace or any object exposing a category count
-            if isinstance(sub, DiscreteSpace):
-                n = getattr(sub, "num_values", None)
-                if n is None:
-                    n = getattr(sub, "n", None)
-            else:
-                n = getattr(sub, "num_values", None)
-                if n is None:
-                    n = getattr(sub, "n", None)
-            if n is None:
-                msg = (
-                    "All sub-spaces must be discrete (provide 'num_values' or 'n'). Wrap with point/bbox wrapper first."
+        # 2. Calculate the total number of discrete actions.
+        if not self._component_sizes:
+            self._total_actions = 0
+        else:
+            self._total_actions = reduce(operator.mul, self._component_sizes)
+
+    def _get_components_and_sizes(self, space: Space) -> tuple[list[Space], list[int]]:
+        """Recursively decomposes a space into its base discrete components."""
+        if isinstance(space, DiscreteSpace):
+            return [space], [space.num_values]
+
+        if isinstance(space, MultiDiscreteSpace):
+            return [space], [int(np.prod(space.num_values))]
+
+        if isinstance(space, DictSpace):
+            components, sizes = [], []
+            # Preserve insertion order for deterministic mapping consistent with the env
+            for key in space.spaces.keys():
+                sub_components, sub_sizes = self._get_components_and_sizes(
+                    space.spaces[key]
                 )
-                raise ValueError(msg)
-            dims.append(int(n))
+                components.extend(sub_components)
+                sizes.extend(sub_sizes)
+            return components, sizes
 
-        self._cached_params = p
-        self._action_space = base_space
-        self.action_dims = dims
-        self.num_actions = int(np.prod(self.action_dims).item()) if dims else 0
+        raise TypeError(
+            f"FlattenActionWrapper does not support space type: {type(space)}"
+        )
 
-    def _unflatten_action(self, action: jax.Array, env_params: EnvParams | None = None) -> dict[str, jax.Array]:
-        """Convert a flat discrete action index into a dict of discrete components."""
-        self._ensure_initialized(env_params)
-        assert self._action_space is not None
-        assert self.num_actions is not None
+    def _unflatten_action(self, flat_action: Action) -> Action:
+        """Converts a single integer action back into the original structured action."""
+        unflattened_parts = []
+        remainder = flat_action
 
-        action_sizes = list(self._action_space.spaces.values())
-        action_keys = list(self._action_space.spaces.keys())
+        # Calculate the choice index for each component from the flat action
+        for i, size in enumerate(self._component_sizes):
+            divisor = reduce(operator.mul, self._component_sizes[i + 1 :], 1)
+            choice_index = remainder // divisor
+            remainder %= divisor
+            unflattened_parts.append(choice_index)
 
-        unflattened: dict[str, jax.Array] = {}
-        remainder = action
-        for i, (key, _space) in enumerate(zip(action_keys, action_sizes)):
-            # Divisor is product of remaining dimensions
-            divisor = int(np.prod(self.action_dims[i + 1 :]).item()) if (i + 1) < len(self.action_dims) else 1
-            # Use JAX-friendly integer ops
-            unflattened[key] = (remainder // divisor).astype(jnp.int32)
-            remainder = remainder % divisor
+        # Reconstruct each component action from its choice index
+        reconstructed_actions = []
+        for i, component in enumerate(self._components):
+            part = unflattened_parts[i]
+            if isinstance(component, DiscreteSpace):
+                reconstructed_actions.append(part.astype(component.dtype))
 
-        return unflattened
+            # *** THE FIX IS IN THIS BLOCK ***
+            elif isinstance(component, MultiDiscreteSpace):
+                num_values = component.num_values.flatten()
+
+                # Define the JIT-safe scan function
+                def scan_body(carry, n):
+                    new_carry, choice = jnp.divmod(carry, n)
+                    return new_carry, choice
+
+                # Use lax.scan to perform the sequential division and modulus
+                # We scan over the reversed num_values array
+                _, choices = lax.scan(scan_body, init=part, xs=jnp.flip(num_values))
+
+                # The choices are generated in reverse order, so we flip them back
+                multi_discrete_action = (
+                    jnp.flip(choices).astype(component.dtype).reshape(component.shape)
+                )
+                reconstructed_actions.append(multi_discrete_action)
+
+        if self._action_keys:
+            return {
+                key: action
+                for key, action in zip(self._action_keys, reconstructed_actions)
+            }
+        else:
+            return reconstructed_actions[0]
 
     def step(
-        self, state: State, action: jax.Array, env_params: EnvParams | None = None
+        self, state: State, action: Action, env_params: Optional[EnvParams] = None
     ) -> tuple[State, TimeStep]:
-        """Convert flat discrete action to dict action, then delegate to env."""
-        dict_action = self._unflatten_action(action, env_params)
-        next_state, timestep = self._env.step(state, dict_action, env_params)
+        """Un-flattens the action and steps the underlying environment."""
+        structured_action = self._unflatten_action(action)
+        return self._env.step(state, structured_action, env_params)
 
-        # Core Environment guarantees canonical_action/operation_id; avoid extras mutation
-        return next_state, timestep
-    def action_space(self, env_params: EnvParams | None = None) -> DiscreteSpace:
-        """Return a single DiscreteSpace of size prod of dict sub-spaces."""
-        self._ensure_initialized(env_params)
-        assert self.num_actions is not None
-        return DiscreteSpace(self.num_actions, dtype=jnp.int32, name="flattened_action")
+    def action_space(self, env_params: Optional[EnvParams] = None) -> Space:
+        """Returns the single, flattened DiscreteSpace."""
+        return DiscreteSpace(num_values=self._total_actions, dtype=jnp.int32)
 
 
 class AddChannelDimWrapper(Wrapper):
@@ -290,7 +322,9 @@ class AddChannelDimWrapper(Wrapper):
     def _process_obs(self, obs: jax.Array) -> jax.Array:
         return jnp.expand_dims(obs, axis=-1)
 
-    def observation_space(self, env_params: EnvParams | None = None) -> BoundedArraySpace:
+    def observation_space(
+        self, env_params: EnvParams | None = None
+    ) -> BoundedArraySpace:
         obs_space = self._env.observation_space(env_params)
         return BoundedArraySpace(
             minimum=obs_space.minimum,
@@ -303,12 +337,6 @@ class AddChannelDimWrapper(Wrapper):
     def step(
         self, state: State, action, env_params: EnvParams | None = None
     ) -> tuple[State, TimeStep]:
-        # Accept both canonical Action and dict-form actions; convert dict to Action here
-        if isinstance(action, dict) and ("operation" in action) and ("selection" in action):
-            op = jnp.asarray(action["operation"], dtype=jnp.int32)
-            sel = jnp.asarray(action["selection"], dtype=jnp.bool_)
-            action = create_action(op, sel)
-
         next_state, timestep = self._env.step(state, action, env_params)
 
         # Safely rebuild TimeStep with modified observation and extras
@@ -328,7 +356,9 @@ class AddChannelDimWrapper(Wrapper):
         )
         return next_state, new_timestep
 
-    def reset(self, rng_key: jax.Array, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
+    def reset(
+        self, rng_key: jax.Array, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
         state, timestep = self._env.reset(rng_key, env_params)
 
         new_obs = self._process_obs(timestep.observation)
@@ -350,6 +380,6 @@ class AddChannelDimWrapper(Wrapper):
 __all__ = [
     "AddChannelDimWrapper",
     "BboxActionWrapper",
-    "FlattenDictActionWrapper",
+    "FlattenActionWrapper",
     "PointActionWrapper",
 ]
