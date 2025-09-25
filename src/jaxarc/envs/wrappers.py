@@ -8,7 +8,6 @@ This module implements clean wrappers following Stoa delegation patterns:
 - PointActionWrapper: Converts {"operation": op, "row": r, "col": c} dicts to mask actions
 - BboxActionWrapper: Converts {"operation": op, "r1": r1, "c1": c1, "r2": r2, "c2": c2} dicts to mask actions
 - FlattenActionWrapper: Flattens a DictSpace of Discrete sub-spaces into a single Discrete action space
-- AddChannelDimWrapper: Adds a trailing channel dimension to observations
 
 Usage:
     ```python
@@ -316,69 +315,9 @@ class FlattenActionWrapper(Wrapper[State]):
         return DiscreteSpace(num_values=self._total_actions, dtype=jnp.int32)
 
 
-class AddChannelDimWrapper(Wrapper):
-    """Add a trailing channel dimension to observations (H, W) -> (H, W, 1)."""
-
-    def _process_obs(self, obs: jax.Array) -> jax.Array:
-        return jnp.expand_dims(obs, axis=-1)
-
-    def observation_space(
-        self, env_params: EnvParams | None = None
-    ) -> BoundedArraySpace:
-        obs_space = self._env.observation_space(env_params)
-        return BoundedArraySpace(
-            minimum=obs_space.minimum,
-            maximum=obs_space.maximum,
-            shape=(*obs_space.shape, 1),
-            dtype=obs_space.dtype,
-            name=getattr(obs_space, "name", None),
-        )
-
-    def step(
-        self, state: State, action, env_params: EnvParams | None = None
-    ) -> tuple[State, TimeStep]:
-        next_state, timestep = self._env.step(state, action, env_params)
-
-        # Safely rebuild TimeStep with modified observation and extras
-        new_obs = self._process_obs(timestep.observation)
-        extras = timestep.extras
-        if isinstance(extras, dict) and ("next_obs" in extras):
-            # Avoid in-place mutation under JAX transforms by copying dict
-            extras = dict(extras)
-            extras["next_obs"] = self._process_obs(extras["next_obs"])  # type: ignore[index]
-
-        new_timestep = TimeStep(
-            step_type=timestep.step_type,
-            reward=timestep.reward,
-            discount=timestep.discount,
-            observation=new_obs,
-            extras=extras,
-        )
-        return next_state, new_timestep
-
-    def reset(
-        self, rng_key: jax.Array, env_params: EnvParams | None = None
-    ) -> tuple[State, TimeStep]:
-        state, timestep = self._env.reset(rng_key, env_params)
-
-        new_obs = self._process_obs(timestep.observation)
-        extras = timestep.extras
-        if isinstance(extras, dict) and ("next_obs" in extras):
-            extras = dict(extras)
-            extras["next_obs"] = self._process_obs(extras["next_obs"])  # type: ignore[index]
-
-        new_timestep = TimeStep(
-            step_type=timestep.step_type,
-            reward=timestep.reward,
-            discount=timestep.discount,
-            observation=new_obs,
-            extras=extras,
-        )
-        return state, new_timestep
 
 
 __all__ = [
-    "AddChannelDimWrapper",
     "BboxActionWrapper",
     "FlattenActionWrapper",
     "PointActionWrapper",

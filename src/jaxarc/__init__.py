@@ -39,27 +39,34 @@ from ._version import version as __version__
 
 # Unified configuration system
 from .configs import JaxArcConfig
-
-# Action system (actions are the core format)
-from .envs.actions import Action, create_action
-
-# Core environment and state
-# Functional API
+from .envs import (
+    Action,
+    AnswerObservationWrapper,
+    BboxActionWrapper,
+    ClipboardObservationWrapper,
+    ContextualObservationWrapper,
+    Environment,
+    FlattenActionWrapper,
+    InputGridObservationWrapper,
+    PointActionWrapper,
+)
+from .registration import make
 from .state import State
-
-# Core types
-from .types import EnvParams, Grid, JaxArcTask, StepType, TaskPair, TimeStep
+from .types import EnvParams, TimeStep
 
 __all__ = [
     "Action",
+    "AnswerObservationWrapper",
+    "BboxActionWrapper",
+    "ClipboardObservationWrapper",
+    "ContextualObservationWrapper",
     "EnvParams",
-    "Grid",
+    "Environment",
+    "FlattenActionWrapper",
+    "InputGridObservationWrapper",
     "JaxArcConfig",
-    "JaxArcTask",
+    "PointActionWrapper",
     "State",
-    "StepType",
-    "TaskPair",
     "TimeStep",
-    "__version__",
-    "create_action",
+    "make",
 ]

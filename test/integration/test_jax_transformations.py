@@ -209,7 +209,7 @@ class TestJITCompilation:
 
         # Normal execution
         state_normal, timestep_normal = env.reset(key)
-        grid_shape = timestep_normal.observation.shape
+        grid_shape = timestep_normal.observation.shape[:2]
         for i in range(3):  # Reduce iterations to fit in 5x5 grid
             pos = min(i, grid_shape[0] - 1)
             action = create_action(
@@ -248,7 +248,7 @@ class TestJITCompilation:
 
         # Warm up JIT compilation
         state, timestep = jitted_reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
         action = create_action(
             operation=jnp.array(0, dtype=jnp.int32),
             selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[0, 0].set(True),
@@ -301,11 +301,13 @@ class TestVmapTransformations:
 
         # Check batch dimensions
         batch_size = batch_keys.shape[0]
-        # Get grid shape from first timestep
-        grid_shape = batch_timesteps.observation.shape[1:]
-        chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape))
+        # Get grid shape from first timestep (H, W, C)
+        grid_shape_3d = batch_timesteps.observation.shape[1:]
+        grid_shape_2d = grid_shape_3d[:2]
+
+        chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape_3d))
         chex.assert_shape(batch_timesteps.reward, (batch_size,))
-        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape))
+        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape_2d))
 
         # Each timestep should be valid
         for i in range(batch_size):
@@ -321,12 +323,14 @@ class TestVmapTransformations:
 
         # Create batch of actions
         batch_size = batch_keys.shape[0]
-        grid_shape = batch_timesteps.observation.shape[1:]  # Remove batch dimension
+        grid_shape_3d = batch_timesteps.observation.shape[1:]  # H, W, C
+        grid_shape_2d = grid_shape_3d[:2]  # H, W
+
         batch_actions = []
         for i in range(batch_size):
-            pos = i % grid_shape[0]
+            pos = i % grid_shape_2d[0]
             selection = (
-                jnp.zeros(grid_shape, dtype=jnp.bool_).at[pos, pos].set(True)
+                jnp.zeros(grid_shape_2d, dtype=jnp.bool_).at[pos, pos].set(True)
             )
             action = create_action(
                 operation=jnp.array(i % 10, dtype=jnp.int32), selection=selection
@@ -353,9 +357,9 @@ class TestVmapTransformations:
         )
 
         # Check batch dimensions
-        chex.assert_shape(next_batch_timesteps.observation, (batch_size, *grid_shape))
+        chex.assert_shape(next_batch_timesteps.observation, (batch_size, *grid_shape_3d))
         chex.assert_shape(next_batch_timesteps.reward, (batch_size,))
-        chex.assert_shape(next_batch_states.working_grid, (batch_size, *grid_shape))
+        chex.assert_shape(next_batch_states.working_grid, (batch_size, *grid_shape_2d))
 
     def test_grid_operations_vmap(self):
         """Test that grid operations work correctly with vmap."""
@@ -493,9 +497,10 @@ class TestVmapTransformations:
         batch_states, batch_timesteps = vmapped_reset(keys)
 
         # Verify batch dimensions
-        grid_shape = batch_timesteps.observation.shape[1:]  # Remove batch dimension
-        chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape))
-        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape))
+        grid_shape_3d = batch_timesteps.observation.shape[1:]
+        grid_shape_2d = grid_shape_3d[:2]
+        chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape_3d))
+        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape_2d))
 
         # All timesteps should be valid
         assert jnp.all(batch_timesteps.step_type == 0)  # All FIRST step types
@@ -729,7 +734,7 @@ class TestPRNGManagement:
             """Run a deterministic sequence of operations."""
             state, timestep = env.reset(key)
             results = [state.task_idx]
-            grid_shape = timestep.observation.shape
+            grid_shape = timestep.observation.shape[:2]
 
             for i in range(3):
                 pos = min(i, grid_shape[0] - 1)
@@ -904,9 +909,10 @@ class TestStaticShapeMaintenance:
 
         state, timestep = env.reset(key)
 
-        # Check static shapes (get actual grid shape)
-        grid_shape = timestep.observation.shape
-        chex.assert_shape(timestep.observation, grid_shape)
+        # Check static shapes
+        obs_shape = timestep.observation.shape
+        grid_shape = obs_shape[:2]
+        chex.assert_shape(timestep.observation, obs_shape)
         chex.assert_shape(state.working_grid, grid_shape)
         chex.assert_shape(state.working_grid_mask, grid_shape)
         chex.assert_shape(state.target_grid, grid_shape)
@@ -920,7 +926,8 @@ class TestStaticShapeMaintenance:
 
         state, timestep = env.reset(key)
 
-        grid_shape = timestep.observation.shape
+        obs_shape = timestep.observation.shape
+        grid_shape = obs_shape[:2]
         action = create_action(
             operation=jnp.array(0, dtype=jnp.int32),
             selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[2, 2].set(True),
@@ -929,8 +936,7 @@ class TestStaticShapeMaintenance:
         next_state, next_timestep = env.step(state, action)
 
         # Shapes should remain the same
-        grid_shape = timestep.observation.shape
-        chex.assert_shape(next_timestep.observation, grid_shape)
+        chex.assert_shape(next_timestep.observation, obs_shape)
         chex.assert_shape(next_state.working_grid, grid_shape)
         chex.assert_shape(next_state.working_grid_mask, grid_shape)
         chex.assert_shape(next_timestep.reward, ())
@@ -947,9 +953,10 @@ class TestStaticShapeMaintenance:
         batch_states, batch_timesteps = vmapped_reset(keys)
 
         # Check batch shapes
-        grid_shape = batch_timesteps.observation.shape[1:]  # Remove batch dimension
-        chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape))
-        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape))
+        grid_shape_3d = batch_timesteps.observation.shape[1:]
+        grid_shape_2d = grid_shape_3d[:2]
+        chex.assert_shape(batch_timesteps.observation, (batch_size, *grid_shape_3d))
+        chex.assert_shape(batch_states.working_grid, (batch_size, *grid_shape_2d))
         chex.assert_shape(batch_timesteps.reward, (batch_size,))
         chex.assert_shape(batch_states.step_count, (batch_size,))
 
@@ -965,8 +972,9 @@ class TestStaticShapeMaintenance:
         state, timestep = jitted_reset(key)
 
         # Check shapes after JIT
-        grid_shape = timestep.observation.shape
-        chex.assert_shape(timestep.observation, grid_shape)
+        obs_shape = timestep.observation.shape
+        grid_shape = obs_shape[:2]
+        chex.assert_shape(timestep.observation, obs_shape)
         chex.assert_shape(state.working_grid, grid_shape)
 
         action = create_action(
@@ -977,8 +985,7 @@ class TestStaticShapeMaintenance:
         next_state, next_timestep = jitted_step(state, action)
 
         # Shapes should be preserved
-        grid_shape = timestep.observation.shape
-        chex.assert_shape(next_timestep.observation, grid_shape)
+        chex.assert_shape(next_timestep.observation, obs_shape)
         chex.assert_shape(next_state.working_grid, grid_shape)
 
     def test_grid_operations_preserve_shapes(self):

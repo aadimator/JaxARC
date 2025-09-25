@@ -6,7 +6,7 @@ This single example consolidates the previous demos into one place. It shows:
 - Spaces introspection and sampling
 - BboxActionWrapper and PointActionWrapper dict actions
 - FlattenActionWrapper over a dict-discrete action space
-- AddChannelDimWrapper for observation shape adaptation
+- A new section for composable observation wrappers
 - JAX JIT/vmap compatibility for common flows
 
 Run:
@@ -15,13 +15,17 @@ Run:
 
 from __future__ import annotations
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 
 from jaxarc.envs import (
-    AddChannelDimWrapper,
+    AnswerObservationWrapper,
     BboxActionWrapper,
+    ClipboardObservationWrapper,
+    ContextualObservationWrapper,
     FlattenActionWrapper,
+    InputGridObservationWrapper,
     PointActionWrapper,
 )
 from jaxarc.registration import make
@@ -45,7 +49,9 @@ def spaces_and_reset_demo() -> tuple[object, object]:
     reward_space = env.reward_space(env_params)
     discount_space = env.discount_space(env_params)
 
-    print(f"Observation space: {obs_space}")
+    print(
+        f"Observation space: {obs_space} (Note: Now includes channel dimension by default)"
+    )
     print(f"Action space:      {action_space}")
     print(f"Reward space:      {reward_space}")
     print(f"Discount space:    {discount_space}")
@@ -53,6 +59,7 @@ def spaces_and_reset_demo() -> tuple[object, object]:
     key = jax.random.PRNGKey(0)
     state, ts = env.reset(key, env_params=env_params)
     print(f"Reset OK. first(): {ts.first()} | obs shape: {ts.observation.shape}")
+    log_grid_to_console(ts.observation[..., 0], title="Working Grid")
 
     # Sample a canonical (mask-based) action from the base env
     key = jax.random.PRNGKey(1)
@@ -63,6 +70,73 @@ def spaces_and_reset_demo() -> tuple[object, object]:
     return env, env_params
 
 
+def observation_wrappers_demo(base_env, env_params):
+    section("Observation Wrappers Demo")
+    key = jax.random.PRNGKey(6)
+
+    # --- 1. InputGridObservationWrapper ---
+    print("\n1. Wrapping with InputGridObservationWrapper...")
+    env_with_input = InputGridObservationWrapper(base_env)
+    obs_space = env_with_input.observation_space(env_params)
+    print(f"New observation space shape: {obs_space.shape}")
+
+    state, ts = env_with_input.reset(key)
+    log_grid_to_console(ts.observation[..., 1], title="Channel 1: Input Grid")
+
+    # --- 2. AnswerObservationWrapper ---
+    print("\n2. Wrapping with AnswerObservationWrapper...")
+    env_with_answer = AnswerObservationWrapper(env_with_input)
+    obs_space = env_with_answer.observation_space(env_params)
+    print(f"New observation space shape: {obs_space.shape}")
+
+    state, ts = env_with_answer.reset(key)
+    log_grid_to_console(
+        ts.observation[..., 2], title="Channel 2: Answer Grid (in training mode)"
+    )
+
+    # --- 3. ClipboardObservationWrapper ---
+    print("\n3. Wrapping with ClipboardObservationWrapper...")
+    env_with_clipboard = ClipboardObservationWrapper(env_with_answer)
+    obs_space = env_with_clipboard.observation_space(env_params)
+    print(f"New observation space shape: {obs_space.shape}")
+
+    state, ts = env_with_clipboard.reset(key)
+    # Modify state to have a known clipboard pattern
+    clipboard_pattern = jnp.full_like(state.clipboard, 4)
+    state = eqx.tree_at(lambda s: s.clipboard, state, clipboard_pattern)
+    # Step to get the clipboard into the observation
+    action = {
+        "operation": 0,
+        "selection": jnp.zeros_like(state.working_grid, dtype=bool),
+    }
+    _, ts = env_with_clipboard.step(state, action)
+    log_grid_to_console(ts.observation[..., 3], title="Channel 3: Clipboard")
+
+    # --- 4. ContextualObservationWrapper ---
+    print("\n4. Wrapping with ContextualObservationWrapper...")
+    num_ctx_pairs = 2
+    env_final = ContextualObservationWrapper(
+        env_with_clipboard, num_context_pairs=num_ctx_pairs
+    )
+    obs_space = env_final.observation_space(env_params)
+    print(f"Final observation space shape: {obs_space.shape}")
+
+    state, ts = env_final.reset(key)
+    print(f"Reset with final wrappers. Observation shape: {ts.observation.shape}")
+    log_grid_to_console(
+        ts.observation[..., 4], title="Channel 4: Context Pair 1 (Input)"
+    )
+    log_grid_to_console(
+        ts.observation[..., 5], title="Channel 5: Context Pair 1 (Output)"
+    )
+    log_grid_to_console(
+        ts.observation[..., 6], title="Channel 6: Context Pair 2 (Input)"
+    )
+    log_grid_to_console(
+        ts.observation[..., 7], title="Channel 7: Context Pair 3 (Output)"
+    )
+
+
 def bbox_wrapper_demo(base_env, env_params) -> None:
     section("BboxActionWrapper Demo (dict actions)")
     env = BboxActionWrapper(base_env)
@@ -71,14 +145,14 @@ def bbox_wrapper_demo(base_env, env_params) -> None:
     state, ts = env.reset(key, env_params=env_params)
 
     print("Initial grid (working):")
-    log_grid_to_console(ts.observation, title="Working Grid")
+    log_grid_to_console(ts.observation[..., 0], title="Working Grid")
 
     action = {"operation": 2, "r1": 1, "c1": 1, "r2": 3, "c2": 4}
     state, ts = env.step(state, action, env_params=env_params)
     print(f"Step with bbox dict action: {action} -> reward: {float(ts.reward):.3f}")
 
     print("After bbox action:")
-    log_grid_to_console(ts.observation, title="After Bbox Action")
+    log_grid_to_console(ts.observation[..., 0], title="After Bbox Action")
 
 
 def point_wrapper_demo(base_env, env_params) -> None:
@@ -89,7 +163,7 @@ def point_wrapper_demo(base_env, env_params) -> None:
     state, ts = env.reset(key, env_params=env_params)
 
     print("Initial grid (working):")
-    log_grid_to_console(ts.observation, title="Working Grid")
+    log_grid_to_console(ts.observation[..., 0], title="Working Grid")
 
     actions = [
         {"operation": 1, "row": 2, "col": 3},
@@ -101,7 +175,7 @@ def point_wrapper_demo(base_env, env_params) -> None:
         print(f"Point action {i}: {a} -> reward: {float(ts.reward):.3f}")
 
     print("After point actions:")
-    log_grid_to_console(ts.observation, title="After Point Actions")
+    log_grid_to_console(ts.observation[..., 0], title="After Point Actions")
 
 
 def flatten_wrapper_demo(base_env, env_params) -> None:
@@ -139,19 +213,6 @@ def flatten_wrapper_demo(base_env, env_params) -> None:
         )
 
 
-def add_channel_dim_demo(base_env, env_params) -> None:
-    section("AddChannelDimWrapper Demo")
-    env = AddChannelDimWrapper(base_env)
-
-    key = jax.random.PRNGKey(6)
-    state, ts = env.reset(key, env_params=env_params)
-    print(f"Obs shape with channel: {tuple(ts.observation.shape)} (expect H, W, 1)")
-
-    # Check observation space matches actual shape
-    obs_space = env.observation_space(env_params)
-    print(f"Observation space shape: {getattr(obs_space, 'shape', None)}")
-
-
 def jax_compat_demo(base_env, env_params) -> None:
     section("JAX Compatibility Demo (jit + vmap)")
 
@@ -184,10 +245,10 @@ def main() -> None:
     print("(This file supersedes previous wrapper demos.)")
 
     base_env, env_params = spaces_and_reset_demo()
+    observation_wrappers_demo(base_env, env_params)
     bbox_wrapper_demo(base_env, env_params)
     point_wrapper_demo(base_env, env_params)
     flatten_wrapper_demo(base_env, env_params)
-    add_channel_dim_demo(base_env, env_params)
     jax_compat_demo(base_env, env_params)
 
     print("\nAll wrapper demos completed successfully.")

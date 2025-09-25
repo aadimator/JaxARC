@@ -155,6 +155,7 @@ class TestEnvironmentCreation:
         assert hasattr(obs_space, 'shape')
         assert obs_space.shape[0] > 0
         assert obs_space.shape[1] > 0
+        assert obs_space.shape[2] > 0
         
         # Test action space
         action_space = env.action_space(env_params)

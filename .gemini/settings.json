@@ -1,5 +1,14 @@
 {
-  "theme": "GitHub",
-  "contextFileName": [".github/copilot-instructions.md", "GEMINI.md"],
-  "usageStatisticsEnabled": true
+  "context": {
+    "fileName": [
+      ".github/copilot-instructions.md",
+      "GEMINI.md"
+    ]
+  },
+  "ui": {
+    "theme": "GitHub"
+  },
+  "privacy": {
+    "usageStatisticsEnabled": true
+  }
 }

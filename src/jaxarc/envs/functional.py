@@ -47,9 +47,10 @@ from .grid_operations import compute_grid_similarity, execute_grid_operation
 def _get_observation(state: State, _unused: Any) -> ObservationArray:
     """Extract observation from state.
 
-    Currently returns the working grid; kept separate for future expansion.
+    Currently returns the working grid with a channel dimension (H, W, 1);
+    kept separate for future expansion.
     """
-    return state.working_grid
+    return jnp.expand_dims(state.working_grid, axis=-1)
 
 
 def create_observation(state: State, params: EnvParams) -> ObservationArray:

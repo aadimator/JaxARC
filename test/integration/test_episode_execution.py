@@ -54,6 +54,7 @@ class TestEpisodeExecution:
         expected_shape = (
             env_params.dataset.max_grid_height,
             env_params.dataset.max_grid_width,
+            1,  # Added channel dimension
         )
         chex.assert_shape(timestep.observation, expected_shape)
 
@@ -63,7 +64,7 @@ class TestEpisodeExecution:
         assert state.pair_idx >= 0
 
         # Take a step
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]  # Use only H, W for selection mask
         action = create_action(
             operation=jnp.array(1, dtype=jnp.int32),  # Fill with color 1
             selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[0, 0].set(True),
@@ -92,7 +93,7 @@ class TestEpisodeExecution:
 
         # Reset environment
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Take multiple steps
         num_steps = 5
@@ -132,7 +133,7 @@ class TestEpisodeExecution:
 
         # Test max episode steps termination
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         max_steps = env_params.max_episode_steps
 
@@ -160,7 +161,7 @@ class TestEpisodeExecution:
 
         # Run first episode
         state1, timestep1 = env.reset(key)
-        grid_shape = timestep1.observation.shape
+        grid_shape = timestep1.observation.shape[:2]
 
         action = create_action(
             operation=jnp.array(2, dtype=jnp.int32),
@@ -185,7 +186,7 @@ class TestEpisodeExecution:
         key = jax.random.PRNGKey(999)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Track state consistency
         initial_task_idx = state.task_idx
@@ -207,8 +208,10 @@ class TestEpisodeExecution:
             # Step count should increment
             assert state.step_count == i + 1
 
-            # Observation should match working grid
-            chex.assert_trees_all_close(timestep.observation, state.working_grid)
+            # Observation should match working grid (with channel dim)
+            chex.assert_trees_all_close(
+                timestep.observation, jnp.expand_dims(state.working_grid, axis=-1)
+            )
 
 
 class TestActionGridModificationPipeline:
@@ -232,7 +235,7 @@ class TestActionGridModificationPipeline:
         key = jax.random.PRNGKey(42)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Create fill action
         target_color = 5
@@ -258,7 +261,7 @@ class TestActionGridModificationPipeline:
         key = jax.random.PRNGKey(123)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Create selection covering multiple cells
         selection = jnp.zeros(grid_shape, dtype=jnp.bool_)
@@ -284,7 +287,7 @@ class TestActionGridModificationPipeline:
         key = jax.random.PRNGKey(456)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Create action with invalid operation (out of range)
         invalid_action = create_action(
@@ -309,7 +312,7 @@ class TestActionGridModificationPipeline:
         key = jax.random.PRNGKey(789)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Create action with empty selection
         empty_action = create_action(
@@ -337,7 +340,7 @@ class TestActionGridModificationPipeline:
         key = jax.random.PRNGKey(111)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Test various action types
         actions = [
@@ -379,7 +382,7 @@ class TestActionGridModificationPipeline:
         key = jax.random.PRNGKey(222)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Get initial mask
         initial_mask = state.working_grid_mask
@@ -425,7 +428,7 @@ class TestEpisodeTerminationConditions:
         short_env_params = eqx.tree_at(lambda p: p.max_episode_steps, env_params, 5)
 
         state, timestep = functional.reset(short_env_params, key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Take steps until termination
         step_count = 0
@@ -469,7 +472,7 @@ class TestEpisodeTerminationConditions:
         key = jax.random.PRNGKey(456)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Initial timestep should have discount = 1.0, reward = 0.0
         assert timestep.discount == 1.0
@@ -498,7 +501,7 @@ class TestEpisodeTerminationConditions:
         key = jax.random.PRNGKey(789)
 
         state, timestep = env.reset(key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Track episode progression
         initial_similarity = state.similarity_score
@@ -527,7 +530,7 @@ class TestEpisodeTerminationConditions:
         short_env_params = eqx.tree_at(lambda p: p.max_episode_steps, env_params, 3)
 
         state, timestep = functional.reset(short_env_params, key)
-        grid_shape = timestep.observation.shape
+        grid_shape = timestep.observation.shape[:2]
 
         # Run until termination
         while timestep.step_type not in [StepType.TERMINATED, StepType.TRUNCATED]:

@@ -4,7 +4,6 @@ import jax
 import jax.numpy as jnp
 
 from jaxarc.envs import (
-    AddChannelDimWrapper,
     BboxActionWrapper,
     FlattenActionWrapper,
     PointActionWrapper,
@@ -81,7 +80,7 @@ def test_flatten_wrapper_extras_are_jax_compatible():
 def _grid_hw_from_reset(env, params):
     key = jax.random.PRNGKey(0)
     _state, ts = env.reset(key, env_params=params)
-    h, w = int(ts.observation.shape[0]), int(ts.observation.shape[1])
+    h, w, _ = int(ts.observation.shape[0]), int(ts.observation.shape[1]), int(ts.observation.shape[2])
     return h, w
 
 
@@ -105,7 +104,7 @@ def test_reset_extras_canonical_action_present_and_jax_arrays():
     assert isinstance(ca["selection"], jax.Array)
     assert ca["selection"].dtype == jnp.bool_
 
-    h, w = int(ts.observation.shape[0]), int(ts.observation.shape[1])
+    h, w, _ = int(ts.observation.shape[0]), int(ts.observation.shape[1]), int(ts.observation.shape[2])
     assert tuple(ca["selection"].shape) == (h, w)
 
 
@@ -196,28 +195,6 @@ def test_flatten_wrapper_action_space_and_step_point():
     assert got_op == op
     assert int(sel.sum()) == 1
     assert bool(sel[r, c]) is True
-
-
-def test_add_channel_dim_wrapper_observation_shape_and_extras_preserved():
-    base_env, params = make(
-        "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
-    )
-    env = AddChannelDimWrapper(base_env)
-
-    key = jax.random.PRNGKey(11)
-    state, ts = env.reset(key, env_params=params)
-
-    assert len(ts.observation.shape) == 3
-    ch = int(ts.observation.shape[2])
-    assert ch == 1
-
-    # Step with a sampled action from base env to ensure extras survive through wrapper
-    action = base_env.action_space(params).sample(jax.random.PRNGKey(12))
-    state, ts = env.step(state, action, env_params=params)
-
-    assert isinstance(ts.extras, dict)
-    assert "canonical_action" in ts.extras
-    assert "operation_id" in ts.extras
 
 
 def test_extras_are_jax_compatible_after_step():
