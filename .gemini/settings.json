@@ -1,7 +1,7 @@
 {
   "context": {
     "fileName": [
-      ".github/copilot-instructions.md",
+      ".github/instructions/**.md",
       "GEMINI.md"
     ]
   },

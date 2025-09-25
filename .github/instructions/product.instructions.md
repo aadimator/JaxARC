@@ -26,6 +26,8 @@ potentially Multi-Agent RL (MARL).
   debug callbacks
 - **Mask-Based Actions**: Comprehensive mask-based action system for grid
   operations
+- **Composable Observations**: Stackable wrappers to build rich, multi-channel
+  observations (e.g., adding clipboard, input grids, or contextual examples).
 - **Functional API**: Pure functional environment operations for maximum JAX
   compatibility
 

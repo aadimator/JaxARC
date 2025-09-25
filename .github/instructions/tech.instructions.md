@@ -65,6 +65,7 @@ pixi run docs-serve                     # Serve documentation locally
 pixi run python examples/registry_bootstrap_demo.py    # Environment registration demo
 pixi run python examples/action_wrappers_example.py    # Action wrapper demo
 pixi run python examples/random_agent_miniarc.py       # Random agent example
+pixi run python examples/observation_wrappers_demo.py  # Observation wrappers demo
 pixi run python examples/arc-visualization.py          # Visualization demo
 pixi run python examples/logging-showcase.py           # Logging showcase
 ```

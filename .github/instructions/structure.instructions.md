@@ -35,11 +35,11 @@ src/jaxarc/                    # Main package
 │   ├── functional.py        # Pure functional API (reset, step)
 │   ├── environment.py       # Simple environment interface
 │   ├── actions.py           # Action handlers (Action-based)
-│   ├── action_wrappers.py   # Action wrapper utilities (Point/Bbox to Action)
 │   ├── grid_operations.py   # Grid transformation operations
 │   ├── grid_initialization.py # Grid initialization utilities
 │   ├── spaces.py            # Action and observation spaces
-│   └── wrapper.py           # Environment wrappers
+│   ├── wrappers.py          # Action and observation wrappers
+│   └── observation_wrappers.py # Composable observation wrappers
 ├── parsers/                  # Task data parsers (ARC dataset loading)
 │   ├── __init__.py          # Parser exports
 │   ├── base_parser.py       # Base parser interface
@@ -126,6 +126,13 @@ src/jaxarc/conf/              # Hydra configuration hierarchy
 - **Grid Operations**: Comprehensive set of grid transformation operations
 - **Extensible Design**: New action formats can be added as wrappers without changing core logic
 
+### Observation System Design
+
+- **Composable Wrappers**: The environment uses a wrapper-based system for building complex, multi-channel observations.
+- **Base Observation**: The default environment provides a single-channel (H, W, 1) observation representing the agent's working grid.
+- **Stackable Channels**: Wrappers like `InputGridObservationWrapper`, `AnswerObservationWrapper`, `ClipboardObservationWrapper`, and `ContextualObservationWrapper` can be stacked to add new channels to the observation tensor.
+- **Flexibility**: This design allows for easy experimentation with different observation formats without changing the core environment logic.
+
 ## File Naming Conventions
 
 - **Tests**: `test_*.py` following pytest conventions with comprehensive
@@ -146,7 +153,15 @@ from jaxarc.types import Grid, JaxArcTask, EnvParams, TimeStep
 from jaxarc.registration import make, available_task_ids
 
 # Environment classes and functional API
-from jaxarc.envs import Environment, reset, step
+from jaxarc.envs import (
+    Environment,
+    reset,
+    step,
+    AnswerObservationWrapper,
+    ClipboardObservationWrapper,
+    ContextualObservationWrapper,
+    InputGridObservationWrapper,
+)
 
 # Action creation utilities
 from jaxarc.envs import Action, create_action
