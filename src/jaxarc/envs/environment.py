@@ -39,9 +39,9 @@ class Environment(stoa.environment.Environment):
             subset_indices=subset_indices,
         )
 
-    def observation_shape(self) -> tuple[int, int]:
+    def observation_shape(self) -> tuple[int, int, int]:
         """Get observation shape."""
-        return (int(self.params.dataset.max_grid_height), int(self.params.dataset.max_grid_width))
+        return (int(self.params.dataset.max_grid_height), int(self.params.dataset.max_grid_width), 1)
 
     def reset(self, rng_key: jax.Array, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
         """Reset using functional API (supports optional per-call params override)."""
@@ -138,14 +138,20 @@ class Environment(stoa.environment.Environment):
             }
         )
 
-    def observation_space(self, _env_params: EnvParams | None = None) -> GridSpace:
+    def observation_space(self, _env_params: EnvParams | None = None) -> BoundedArraySpace:
         """Get ARC observation space."""
-        height, width = self.observation_shape()
-        return GridSpace(max_height=height, max_width=width)
+        height, width, channels = self.observation_shape()
+        return BoundedArraySpace(
+            shape=(height, width, channels),
+            dtype=jnp.int32,
+            minimum=0,
+            maximum=self.params.dataset.max_colors,
+            name="observation",
+        )
 
     def action_space(self, _env_params: EnvParams | None = None) -> ARCActionSpace:
         """Get ARC action space."""
-        height, width = self.observation_shape()
+        height, width, _ = self.observation_shape()
         return ARCActionSpace(max_height=height, max_width=width)
 
     def reward_space(self, _env_params: EnvParams | None = None) -> BoundedArraySpace:

@@ -67,7 +67,7 @@ class TestEnvironmentInitialization:
 
         obs_shape = env.observation_shape()
         assert isinstance(obs_shape, tuple)
-        assert len(obs_shape) == 2  # (height, width)
+        assert len(obs_shape) == 3  # (height, width, 1)
         assert all(isinstance(dim, int) for dim in obs_shape)
 
 
@@ -131,9 +131,10 @@ class TestEnvironmentSpaces:
         env = Environment(config, mock_buffer)
 
         obs_space = env.observation_space()
-        assert isinstance(obs_space, GridSpace)
+        assert isinstance(obs_space, BoundedArraySpace)
         assert hasattr(obs_space, "shape")
-        assert len(obs_space.shape) == 2  # Should be (height, width)
+        assert len(obs_space.shape) == 3  # Should be (height, width, 1)
+        assert obs_space.shape[-1] == 1
 
     def test_action_space(self):
         """Test action_space method."""
