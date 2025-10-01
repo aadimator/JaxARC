@@ -11,3 +11,8 @@ similarity_weight: 1.0
 # Efficiency incentives
 efficiency_bonus_threshold: 30 # Encourage efficient solutions
 efficiency_bonus: 3.0 # Good efficiency bonus
+
+# Reward clipping for training stability
+clip_similarity_delta: true # Enable clipping to prevent reward explosion
+similarity_delta_min: -0.2 # Maximum penalty per step from making grid worse
+similarity_delta_max: 0.2 # Maximum reward per step from improving grid

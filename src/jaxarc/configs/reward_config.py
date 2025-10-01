@@ -27,6 +27,11 @@ class RewardConfig(eqx.Module):
     efficiency_bonus: float = 1.0
     unsolved_submission_penalty: float = 0.0
 
+    # Reward clipping for stability
+    clip_similarity_delta: bool = False
+    similarity_delta_min: float = -0.2
+    similarity_delta_max: float = 0.2
+
     def validate(self) -> tuple[str, ...]:
         """Validate reward configuration and return tuple of errors."""
         errors: list[str] = []
@@ -34,7 +39,7 @@ class RewardConfig(eqx.Module):
         try:
             validate_float_range(self.step_penalty, "step_penalty", -10.0, 1.0)
             validate_float_range(self.success_bonus, "success_bonus", -100.0, 1000.0)
-            validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 10.0)
+            validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 100.0)
             validate_non_negative_int(
                 self.efficiency_bonus_threshold, "efficiency_bonus_threshold"
             )
@@ -45,8 +50,14 @@ class RewardConfig(eqx.Module):
                 -1000.0,
                 0.0,
             )
+            validate_float_range(self.similarity_delta_min, "similarity_delta_min", -1.0, 0.0)
+            validate_float_range(self.similarity_delta_max, "similarity_delta_max", 0.0, 1.0)
         except ConfigValidationError as e:
             errors.append(str(e))
+        
+        # Validate clipping range
+        if self.clip_similarity_delta and self.similarity_delta_min >= self.similarity_delta_max:
+            errors.append("similarity_delta_min must be less than similarity_delta_max")
 
         return tuple(errors)
 
@@ -69,4 +80,7 @@ class RewardConfig(eqx.Module):
             efficiency_bonus_threshold=cfg.get("efficiency_bonus_threshold", 50),
             efficiency_bonus=cfg.get("efficiency_bonus", 1.0),
             unsolved_submission_penalty=cfg.get("unsolved_submission_penalty", 0.0),
+            clip_similarity_delta=cfg.get("clip_similarity_delta", False),
+            similarity_delta_min=cfg.get("similarity_delta_min", -0.2),
+            similarity_delta_max=cfg.get("similarity_delta_max", 0.2),
         )

@@ -104,6 +104,15 @@ def _calculate_reward(
 
     # 1) Components
     similarity_improvement = new_state.similarity_score - old_state.similarity_score
+    
+    # Optionally clip similarity delta for training stability
+    if reward_cfg.clip_similarity_delta:
+        similarity_improvement = jnp.clip(
+            similarity_improvement,
+            reward_cfg.similarity_delta_min,
+            reward_cfg.similarity_delta_max,
+        )
+    
     is_solved = new_state.similarity_score >= 1.0
 
     step_penalty = jnp.asarray(reward_cfg.step_penalty, dtype=jnp.float32)
