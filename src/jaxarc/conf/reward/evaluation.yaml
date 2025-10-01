@@ -11,3 +11,8 @@ similarity_weight: 0.0 # No similarity rewards (target masked)
 # Efficiency is critical in evaluation
 efficiency_bonus_threshold: 25 # Strict efficiency requirement
 efficiency_bonus: 5.0 # High efficiency bonus
+
+# Reward clipping for training stability
+clip_similarity_delta: true # Enable clipping to prevent reward explosion
+similarity_delta_min: -0.2 # Maximum penalty per step from making grid worse
+similarity_delta_max: 0.2 # Maximum reward per step from improving grid
