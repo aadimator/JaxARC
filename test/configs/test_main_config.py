@@ -140,7 +140,7 @@ class TestJaxArcConfigValidation:
         """Test cross-configuration consistency validation."""
         # Create configuration that should trigger cross-validation warnings
         env_config = EnvironmentConfig(max_episode_steps=5)  # Very short episodes
-        reward_config = RewardConfig(reward_on_submit_only=True)  # Submit-only rewards
+        reward_config = RewardConfig(step_penalty=-0.1)  # Higher step penalty
         
         config = JaxArcConfig(environment=env_config, reward=reward_config)
         

@@ -21,32 +21,23 @@ class TestRewardConfigCreation:
         config = RewardConfig()
         
         # Verify default values
-        assert config.reward_on_submit_only is True
         assert config.step_penalty == -0.01
         assert config.success_bonus == 10.0
         assert config.similarity_weight == 1.0
-        assert config.efficiency_bonus_threshold == 50
-        assert config.efficiency_bonus == 1.0
         assert config.unsolved_submission_penalty == 0.0
 
     def test_custom_initialization(self):
         """Test RewardConfig with custom parameters."""
         config = RewardConfig(
-            reward_on_submit_only=False,
             step_penalty=-0.05,
             success_bonus=20.0,
             similarity_weight=2.0,
-            efficiency_bonus_threshold=30,
-            efficiency_bonus=2.5,
             unsolved_submission_penalty=-5.0
         )
         
-        assert config.reward_on_submit_only is False
         assert config.step_penalty == -0.05
         assert config.success_bonus == 20.0
         assert config.similarity_weight == 2.0
-        assert config.efficiency_bonus_threshold == 30
-        assert config.efficiency_bonus == 2.5
         assert config.unsolved_submission_penalty == -5.0
 
 
@@ -142,31 +133,10 @@ class TestRewardConfigValidation:
         assert any("similarity_weight" in error for error in errors)
         
         # Above maximum
-        config = RewardConfig(similarity_weight=15.0)
+        config = RewardConfig(similarity_weight=150.0)
         errors = config.validate()
         assert len(errors) > 0
         assert any("similarity_weight" in error for error in errors)
-
-    def test_invalid_efficiency_bonus_threshold(self):
-        """Test validation of negative efficiency_bonus_threshold."""
-        config = RewardConfig(efficiency_bonus_threshold=-5)
-        errors = config.validate()
-        assert len(errors) > 0
-        assert any("efficiency_bonus_threshold" in error for error in errors)
-
-    def test_invalid_efficiency_bonus_range(self):
-        """Test validation of efficiency_bonus out of range."""
-        # Below minimum
-        config = RewardConfig(efficiency_bonus=-15.0)
-        errors = config.validate()
-        assert len(errors) > 0
-        assert any("efficiency_bonus" in error for error in errors)
-        
-        # Above maximum
-        config = RewardConfig(efficiency_bonus=15.0)
-        errors = config.validate()
-        assert len(errors) > 0
-        assert any("efficiency_bonus" in error for error in errors)
 
     def test_invalid_unsolved_submission_penalty_range(self):
         """Test validation of unsolved_submission_penalty out of range."""
@@ -192,55 +162,32 @@ class TestRewardConfigHydraIntegration:
         config = RewardConfig.from_hydra(hydra_config)
         
         # Should use defaults
-        assert config.reward_on_submit_only is True
         assert config.step_penalty == -0.01
         assert config.success_bonus == 10.0
 
     def test_from_hydra_with_values(self):
         """Test creating RewardConfig from Hydra config with values."""
         hydra_config = DictConfig({
-            "reward_on_submit_only": False,
             "step_penalty": -0.02,
             "success_bonus": 15.0,
             "similarity_weight": 1.5,
-            "efficiency_bonus_threshold": 40,
-            "efficiency_bonus": 2.0,
             "unsolved_submission_penalty": -2.0
         })
         
         config = RewardConfig.from_hydra(hydra_config)
         
-        assert config.reward_on_submit_only is False
         assert config.step_penalty == -0.02
         assert config.success_bonus == 15.0
         assert config.similarity_weight == 1.5
-        assert config.efficiency_bonus_threshold == 40
-        assert config.efficiency_bonus == 2.0
         assert config.unsolved_submission_penalty == -2.0
 
 
 class TestRewardConfigRewardFunctionParameters:
     """Test reward function parameter configurations."""
 
-    def test_submit_only_reward_configuration(self):
-        """Test submit-only reward configuration."""
-        config = RewardConfig(
-            reward_on_submit_only=True,
-            step_penalty=0.0,  # No step penalty in submit-only mode
-            success_bonus=50.0
-        )
-        
-        errors = config.validate()
-        assert len(errors) == 0
-        
-        assert config.reward_on_submit_only is True
-        assert config.step_penalty == 0.0
-        assert config.success_bonus == 50.0
-
     def test_step_based_reward_configuration(self):
         """Test step-based reward configuration."""
         config = RewardConfig(
-            reward_on_submit_only=False,
             step_penalty=-0.1,
             success_bonus=10.0,
             similarity_weight=2.0
@@ -249,22 +196,8 @@ class TestRewardConfigRewardFunctionParameters:
         errors = config.validate()
         assert len(errors) == 0
         
-        assert config.reward_on_submit_only is False
         assert config.step_penalty == -0.1
         assert config.similarity_weight == 2.0
-
-    def test_efficiency_bonus_configuration(self):
-        """Test efficiency bonus configuration."""
-        config = RewardConfig(
-            efficiency_bonus_threshold=25,
-            efficiency_bonus=5.0
-        )
-        
-        errors = config.validate()
-        assert len(errors) == 0
-        
-        assert config.efficiency_bonus_threshold == 25
-        assert config.efficiency_bonus == 5.0
 
     def test_penalty_configuration(self):
         """Test penalty configuration."""
@@ -293,12 +226,9 @@ class TestRewardConfigRewardFunctionParameters:
     def test_balanced_reward_configuration(self):
         """Test balanced reward configuration with all parameters."""
         config = RewardConfig(
-            reward_on_submit_only=False,
             step_penalty=-0.02,
             success_bonus=25.0,
             similarity_weight=1.5,
-            efficiency_bonus_threshold=30,
-            efficiency_bonus=3.0,
             unsolved_submission_penalty=-5.0
         )
         
@@ -306,10 +236,7 @@ class TestRewardConfigRewardFunctionParameters:
         assert len(errors) == 0
         
         # Verify all parameters are set correctly
-        assert config.reward_on_submit_only is False
         assert config.step_penalty == -0.02
         assert config.success_bonus == 25.0
         assert config.similarity_weight == 1.5
-        assert config.efficiency_bonus_threshold == 30
-        assert config.efficiency_bonus == 3.0
         assert config.unsolved_submission_penalty == -5.0
