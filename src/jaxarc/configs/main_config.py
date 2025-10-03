@@ -137,14 +137,6 @@ class JaxArcConfig(eqx.Module):
             )
 
     def _validate_reward_consistency(self, warnings: list[str]) -> None:
-        if (
-            self.reward.reward_on_submit_only
-            and self.environment.max_episode_steps < 10
-        ):
-            warnings.append(
-                "Submit-only rewards with very few steps may not provide enough exploration time"
-            )
-
         if abs(self.reward.step_penalty) * self.environment.max_episode_steps > abs(
             self.reward.success_bonus
         ):

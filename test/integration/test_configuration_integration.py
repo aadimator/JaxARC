@@ -286,7 +286,7 @@ class TestConfigurationLoading:
         hydra_cfg = get_config(overrides=[
             "environment.max_episode_steps=10",
             "action.max_operations=100",  # Many operations, few steps
-            "reward.reward_on_submit_only=true"  # Submit-only with few steps
+            "reward.step_penalty=-0.1"  # High step penalty with few steps
         ])
         
         jax_config = JaxArcConfig.from_hydra(hydra_cfg)
@@ -295,7 +295,7 @@ class TestConfigurationLoading:
         # Should detect cross-validation issues
         cross_validation_warnings = [
             r for r in validation_results 
-            if "operations" in r or "submit" in r or "steps" in r
+            if "operations" in r or "penalty" in r or "steps" in r
         ]
         
         # Should have some cross-validation feedback

@@ -47,8 +47,8 @@ from .grid_operations import compute_grid_similarity, execute_grid_operation
 def _get_observation(state: State, _unused: Any) -> ObservationArray:
     """Extract observation from state.
 
-    Currently returns the working grid with a channel dimension (H, W, 1);
-    kept separate for future expansion.
+    Returns the working grid with a channel dimension added (H, W) -> (H, W, 1).
+    This ensures compatibility with observation wrappers that concatenate channels.
     """
     return jnp.expand_dims(state.working_grid, axis=-1)
 
@@ -76,18 +76,21 @@ def _calculate_reward(
 ) -> RewardValue:
     """Submit-aware reward with optional episode mode selection.
 
-    This implementation mirrors the previous logic while working with the new API:
-    - Uses similarity improvement as shaped reward during training
-    - Adds success bonus when solved (optionally only on submit)
-    - Adds efficiency bonus for fast solutions
-    - Applies step penalty on every step
-    - Applies unsolved submission penalty when submitting without solving
-    - Selects training vs evaluation composition via optional episode_mode
+    Reward components:
+    - **Similarity reward** (training only): Shaped reward for incremental progress (similarity_weight * delta_similarity)
+    - **Success bonus**: Large bonus awarded ONLY when agent submits with 100% similarity
+    - **Step penalty**: Small penalty applied every step to encourage efficiency
+    - **Unsolved submission penalty**: Penalty for submitting without reaching 100% similarity
+
+    Key behavior:
+    - Success bonus requires BOTH conditions: similarity >= 1.0 AND submit action performed
+    - Similarity improvements are rewarded independently on every step (during training)
+    - Episode mode (train vs eval) determines whether similarity shaping is included
 
     Args:
         old_state: Previous environment state
         new_state: New environment state after action
-        config: Environment configuration
+        params: Environment parameters containing reward configuration
         is_submit_step: Optional boolean array indicating if this step is a Submit action
         episode_mode: Optional episode mode (0=train, 1=test). When None, treated as train.
 
@@ -104,33 +107,15 @@ def _calculate_reward(
 
     # 1) Components
     similarity_improvement = new_state.similarity_score - old_state.similarity_score
-    
-    # Optionally clip similarity delta for training stability
-    if reward_cfg.clip_similarity_delta:
-        similarity_improvement = jnp.clip(
-            similarity_improvement,
-            reward_cfg.similarity_delta_min,
-            reward_cfg.similarity_delta_max,
-        )
-    
-    is_solved = new_state.similarity_score >= 1.0
+
+    # Success condition: Task is solved (similarity >= 1.0) AND submit action is performed
+    is_solved = (new_state.similarity_score >= 1.0) & submit_flag
 
     step_penalty = jnp.asarray(reward_cfg.step_penalty, dtype=jnp.float32)
     similarity_reward = reward_cfg.similarity_weight * similarity_improvement
 
+    # Award success bonus only when task is solved (similarity 100%) AND submit is performed
     success_bonus = jnp.where(is_solved, reward_cfg.success_bonus, 0.0)
-    # Optionally award success bonus only on submit step
-    success_bonus = jnp.where(
-        reward_cfg.reward_on_submit_only,
-        jnp.where(submit_flag, success_bonus, 0.0),
-        success_bonus,
-    )
-
-    efficiency_bonus = jnp.where(
-        is_solved & (new_state.step_count <= reward_cfg.efficiency_bonus_threshold),
-        reward_cfg.efficiency_bonus,
-        0.0,
-    )
 
     # Penalty for submitting without solving
     submission_penalty = jnp.where(
@@ -142,11 +127,10 @@ def _calculate_reward(
         similarity_reward
         + step_penalty
         + success_bonus
-        + efficiency_bonus
         + submission_penalty
     )
     evaluation_reward = (
-        step_penalty + success_bonus + efficiency_bonus + submission_penalty
+        step_penalty + success_bonus + submission_penalty
     )
 
     # 3) Select by mode
@@ -441,12 +425,12 @@ def step(params: EnvParams, state: State, action) -> tuple[State, TimeStep]:
     # Process action and update state using internal helpers (no legacy arc_step)
     processed_state, validated_action = _process_action(state, action, params)
     final_state = _update_state(state, processed_state, validated_action)
-    
+
     # Enhanced termination logic with proper StepType semantics
     is_submit_step = validated_action.operation == jnp.asarray(34, dtype=jnp.int32)
     is_solved = final_state.similarity_score >= 1.0
     is_truncated = final_state.step_count >= jnp.asarray(params.max_episode_steps)
-    
+
     # Compute reward (submit-aware)
     reward = _calculate_reward(
         state,
@@ -455,34 +439,36 @@ def step(params: EnvParams, state: State, action) -> tuple[State, TimeStep]:
         is_submit_step=is_submit_step,
         episode_mode=int(params.episode_mode),
     )
-    
+
     # TERMINATED: Task completed (solved or failed via submit)
     # TRUNCATED: Hit step/time limit
     # MID: Continue episode
     step_type = jnp.where(
-        is_submit_step & is_solved, 
+        is_submit_step & is_solved,
         StepType.TERMINATED,  # Successfully completed
         jnp.where(
             is_submit_step & ~is_solved,
-            StepType.TERMINATED,  # Failed submission  
+            StepType.TERMINATED,  # Failed submission
             jnp.where(
                 is_truncated,
                 StepType.TRUNCATED,  # Hit step limit
-                StepType.MID  # Continue episode
-            )
-        )
+                StepType.MID,  # Continue episode
+            ),
+        ),
     )
-    
+
     # Discount: 0.0 for terminal states, 1.0 for continuing
     discount = jnp.where(
-        jnp.logical_or(step_type == StepType.TERMINATED, step_type == StepType.TRUNCATED),
+        jnp.logical_or(
+            step_type == StepType.TERMINATED, step_type == StepType.TRUNCATED
+        ),
         jnp.asarray(0.0, dtype=jnp.float32),
         jnp.asarray(1.0, dtype=jnp.float32),
     )
-    
+
     # Build observation
     obs = create_observation(final_state, params)
-    
+
     # Enhanced TimeStep with proper step_type and extras
     timestep = TimeStep(
         step_type=step_type,
