@@ -107,10 +107,118 @@ class EnvRegistry:
             self._subsets[key] = {}
         self._subsets[key][sel] = ids_tuple
 
-    def available_named_subsets(self, dataset_key: str) -> tuple[str, ...]:
-        """Return names of registered subsets for a dataset key."""
+    def available_named_subsets(
+        self, dataset_key: str, include_builtin: bool = True
+    ) -> tuple[str, ...]:
+        """Return names of available subsets for a dataset.
+
+        Args:
+            dataset_key: Dataset name (Mini, Concept, AGI1, AGI2)
+            include_builtin: Include built-in selectors ('all', 'train', 'eval')
+                            and concept groups (default: True)
+
+        Returns:
+            Tuple of subset names, sorted alphabetically
+
+        Examples:
+            >>> available_named_subsets("Mini")
+            ('all',)  # Mini doesn't have train/eval splits
+
+            >>> available_named_subsets("Concept")
+            ('AboveBelow', 'Center', 'all', ...)  # Includes concept groups
+
+            >>> available_named_subsets("AGI1")
+            ('all', 'eval', 'train')  # AGI has splits
+
+            >>> available_named_subsets("Mini", include_builtin=False)
+            ()  # Only custom subsets
+        """
         key = self._normalize_dataset_key(dataset_key)
-        return tuple(sorted(self._subsets.get(key, {}).keys()))
+
+        # Start with manually registered subsets
+        subsets = set(self._subsets.get(key, {}).keys())
+
+        if include_builtin:
+            # Add 'all' for everyone
+            subsets.add("all")
+
+            # Only AGI datasets have train/eval splits
+            if key in ("agi1", "agi2"):
+                subsets.update(["train", "eval"])
+
+            # Add concept groups for ConceptARC
+            if key == "concept":
+                try:
+                    # Try to get concept groups if dataset is available
+                    spec_key = self._canonical_spec_key(dataset_key)
+                    if spec_key in self._specs:
+                        spec = self._specs[spec_key]
+                        cfg = self._prepare_config(None, spec.max_episode_steps, spec_key)
+                        try:
+                            cfg = self._ensure_dataset_available(cfg, spec_key, auto_download=False)
+                            parser = self._create_parser(cfg)
+                            if hasattr(parser, "get_concept_groups"):
+                                concepts = parser.get_concept_groups()
+                                subsets.update(concepts)
+                        except Exception:
+                            # Dataset not available, skip concept groups
+                            pass
+                except Exception:
+                    # If we can't load concepts, just continue
+                    pass
+
+        return tuple(sorted(subsets))
+
+    def get_subset_task_ids(
+        self,
+        dataset_key: str,
+        selector: str = "all",
+        config: Optional[Any] = None,
+        auto_download: bool = False,
+    ) -> list[str]:
+        """Get task IDs for a specific subset without creating an environment.
+
+        This allows users to query what tasks will be loaded before calling make().
+
+        Args:
+            dataset_key: Dataset name (Mini, Concept, AGI1, AGI2)
+            selector: Subset selector ('all', 'train', 'easy', task_id, etc.)
+            config: Optional config
+            auto_download: Download dataset if missing
+
+        Returns:
+            List of task IDs that will be loaded
+
+        Examples:
+            >>> get_subset_task_ids("Mini", "all")
+            ['Most_Common_color_l6ab0lf3xztbyxsu3p', ...]
+
+            >>> get_subset_task_ids("Mini", "easy")
+            ['task1', 'task2', 'task3']  # Only tasks in 'easy' subset
+
+            >>> get_subset_task_ids("Concept", "Center")
+            ['Center_001', 'Center_002', ...]  # Tasks in Center concept
+
+            >>> get_subset_task_ids("Mini", "Most_Common_color_l6ab0lf3xztbyxsu3p")
+            ['Most_Common_color_l6ab0lf3xztbyxsu3p']  # Single task
+        """
+        spec_key = self._canonical_spec_key(dataset_key)
+        if spec_key not in self._specs:
+            msg = f"Environment '{spec_key}' is not registered"
+            raise ValueError(msg)
+
+        spec = self._specs[spec_key]
+        cfg = self._prepare_config(config, spec.max_episode_steps, spec_key)
+
+        # Adjust split for AGI datasets (returns modified config)
+        cfg = self._maybe_adjust_task_split(cfg, dataset_key, selector)
+
+        # Ensure dataset available and create parser
+        cfg = self._ensure_dataset_available(cfg, spec_key, auto_download)
+        parser = self._create_parser(cfg)
+
+        # Use unified resolution
+        return self._resolve_selector_to_task_ids(dataset_key, selector, parser)
 
     def subset_task_ids(self, dataset_key: str, name: str) -> tuple[str, ...]:
         """Return the task IDs registered for a named subset (e.g., 'Mini', 'easy')."""
@@ -179,148 +287,37 @@ class EnvRegistry:
         # Parse selector (may be empty)
         selector = modifiers.get("selector", "")
 
-        # Adjust split for AGI datasets based on selector
-        self._maybe_adjust_task_split(config, dataset_key, selector)
+        # Adjust split for AGI datasets based on selector (returns modified config)
+        config = self._maybe_adjust_task_split(config, dataset_key, selector)
 
         # Ensure dataset exists on disk (optionally download)
         config = self._ensure_dataset_available(config, dataset_key, auto_download)
 
         # Instantiate the dataset parser from config
+        parser = self._create_parser(config)
+
+        # For AGI datasets, we may need the parser_obj for cross-split lookups
         dataset_config = config.dataset
         parser_entry = getattr(
             dataset_config, "parser_entry_point", "jaxarc.parsers:ArcAgiParser"
         )
         parser_obj = self._import_from_entry_point(parser_entry)
-        parser = (
-            parser_obj(config.dataset) if self._is_class(parser_obj) else parser_obj
-        )
 
         # Resolve episode mode (0=train, 1=eval)
         episode_mode = self._resolve_episode_mode(kwargs.get("episode_mode"), selector)
 
-        # Helper: get all ids and concept groups if available
-        def _available_ids(p):
-            return (
-                p.get_available_task_ids()
-                if hasattr(p, "get_available_task_ids")
-                else []
+        # UNIFIED RESOLUTION - works for all selector types
+        try:
+            ids = self._resolve_selector_to_task_ids(
+                dataset_key, selector if selector else "all", parser
             )
-
-        def _concept_groups(p):
-            return p.get_concept_groups() if hasattr(p, "get_concept_groups") else []
-
-        ids: list[str] = []
-
-        key_l = dataset_key.lower()
-        sel_l = selector.lower()
-
-        # Standard synonyms for full sets
-        is_full = sel_l in (
-            "",
-            "all",
-            "train",
-            "training",
-            "eval",
-            "evaluation",
-            "test",
-            "corpus",
-        )
-
-        # First priority: check for a registered named subset like 'Mini-easy'
-        named_ids = ()
-        if selector:
-            named_ids = self._get_named_subset_ids(dataset_key, selector)
-        if named_ids:
-            ids = list(named_ids)
-        elif key_l in ("concept", "conceptarc", "concept-arc"):
-            if is_full:
-                ids = _available_ids(parser)
-            else:
-                # If selector matches a concept group, select that group
-                concepts = set(_concept_groups(parser))
-                if selector in concepts and hasattr(parser, "get_tasks_in_concept"):
-                    ids = parser.get_tasks_in_concept(selector)
-                else:
-                    # Fall back to single task id if available
-                    avail = _available_ids(parser)
-                    if selector in avail:
-                        ids = [selector]
-                    else:
-                        raise ValueError(
-                            f"Unknown Concept selector '{selector}'. Not a concept group or task id."
-                        )
-        elif key_l in ("mini", "miniarc", "mini-arc"):
-            if is_full:
-                ids = _available_ids(parser)
-            else:
-                avail = _available_ids(parser)
-                if selector in avail:
-                    ids = [selector]
-                else:
-                    raise ValueError(
-                        f"Unknown Mini selector '{selector}'. Provide 'all' or a valid task id."
-                    )
-        elif key_l in (
-            "agi1",
-            "arc-agi-1",
-            "agi-1",
-            "agi_1",
-            "agi2",
-            "arc-agi-2",
-            "agi-2",
-            "agi_2",
-        ):
-            # For split-like selectors, task_split was already adjusted; use all ids
-            if is_full:
-                ids = _available_ids(parser)
-            else:
-                # Try to find the specific task id in current split; if not found, try the opposite split
-                avail = _available_ids(parser)
-                if selector in avail:
-                    ids = [selector]
-                else:
-                    # Try opposite split
-                    try:
-                        ds = config.dataset
-                        current_split = getattr(ds, "task_split", "train")
-                        opposite = (
-                            "evaluation"
-                            if current_split in ("train", "training")
-                            else "train"
-                        )
-                        ds.task_split = opposite
-                        config.dataset = ds
-                        parser2 = (
-                            parser_obj(config.dataset)
-                            if self._is_class(parser_obj)
-                            else parser_obj
-                        )
-                        avail2 = _available_ids(parser2)
-                        if selector in avail2:
-                            parser = parser2
-                            ids = [selector]
-                        else:
-                            raise ValueError(
-                                f"Task id '{selector}' not found in either split for {dataset_key}."
-                            )
-                    except Exception as e:
-                        raise ValueError(
-                            f"Failed to resolve AGI task selector '{selector}': {e}"
-                        ) from e
-        else:
-            # Generic fallback
-            avail = _available_ids(parser)
-            if is_full:
-                ids = avail
-            elif selector in avail:
-                ids = [selector]
-            else:
-                raise ValueError(
-                    f"Unknown dataset key '{dataset_key}' or selector '{selector}'"
-                )
+        except ValueError as e:
+            msg = f"Failed to resolve '{id}': {e}"
+            raise ValueError(msg) from e
 
         if not ids:
-            raise ValueError("No tasks resolved for the given selector.")
+            msg = "No tasks resolved for the given selector."
+            raise ValueError(msg)
 
         # Build stacked buffer using parser, handling cross-split lookups for AGI datasets if needed
         tasks = self._get_tasks_for_ids(parser, parser_obj, config, dataset_key, ids)
@@ -333,6 +330,99 @@ class EnvRegistry:
     # -------------------------------------------------------------------------
     # Helpers
     # -------------------------------------------------------------------------
+
+    def _resolve_selector_to_task_ids(
+        self, dataset_key: str, selector: str, parser: Any
+    ) -> list[str]:
+        """Resolve any selector to a list of task IDs.
+
+        Priority order:
+        1. Named subset (e.g., 'easy' from register_subset)
+        2. Built-in selectors ('all', 'train', 'eval')
+        3. Concept groups (ConceptARC: 'AboveBelow', 'Center', etc.)
+        4. Single task ID (e.g., 'Most_Common_color_l6ab0lf3xztbyxsu3p')
+
+        Args:
+            dataset_key: Dataset key (Mini, Concept, AGI1, AGI2)
+            selector: Selector string from make("Dataset-{selector}")
+            parser: Initialized parser instance
+
+        Returns:
+            List of resolved task IDs
+
+        Raises:
+            ValueError: If selector cannot be resolved
+        """
+        # 1. Check named subsets first (highest priority)
+        named_ids = self._get_named_subset_ids(dataset_key, selector)
+        if named_ids:
+            return list(named_ids)
+
+        # 2. Check built-in selectors
+        sel_l = selector.lower()
+        if sel_l in (
+            "",
+            "all",
+            "train",
+            "training",
+            "eval",
+            "evaluation",
+            "test",
+            "corpus",
+        ):
+            return self._get_all_task_ids(parser)
+
+        # 3. Concept-specific: check concept groups
+        key_l = self._normalize_dataset_key(dataset_key)
+        if key_l == "concept":
+            if hasattr(parser, "get_concept_groups") and hasattr(
+                parser, "get_tasks_in_concept"
+            ):
+                concepts = parser.get_concept_groups()
+                if selector in concepts:
+                    return list(parser.get_tasks_in_concept(selector))
+
+        # 4. Try as single task ID
+        all_ids = self._get_all_task_ids(parser)
+        if selector in all_ids:
+            return [selector]
+
+        # 5. Failed to resolve - provide helpful error
+        available_options = self._describe_available_selectors(dataset_key, parser)
+        raise ValueError(
+            f"Unknown selector '{selector}' for {dataset_key}.\n"
+            f"Available options: {available_options}"
+        )
+
+    def _get_all_task_ids(self, parser: Any) -> list[str]:
+        """Get all available task IDs from parser."""
+        if hasattr(parser, "get_available_task_ids"):
+            return parser.get_available_task_ids()
+        return []
+
+    def _describe_available_selectors(self, dataset_key: str, parser: Any) -> str:
+        """Create a helpful description of valid selectors for error messages."""
+        # Get all available named subsets (includes built-ins, custom subsets, and concepts)
+        named = self.available_named_subsets(dataset_key, include_builtin=True)
+        
+        options = [f"'{n}'" for n in named] if named else []
+
+        # Add note about task IDs
+        options.append("or any valid task ID")
+
+        return ", ".join(options)
+
+    def _create_parser(self, config: Any) -> Any:
+        """Create parser instance from config.
+
+        Extracted to eliminate duplication across dataset branches.
+        """
+        dataset_config = config.dataset
+        parser_entry = getattr(
+            dataset_config, "parser_entry_point", "jaxarc.parsers:ArcAgiParser"
+        )
+        parser_obj = self._import_from_entry_point(parser_entry)
+        return parser_obj(config.dataset) if self._is_class(parser_obj) else parser_obj
 
     def _parse_id(self, id: str) -> tuple[str, dict[str, str]]:
         """Parse environment ID and extract modifiers.
@@ -597,10 +687,14 @@ class EnvRegistry:
 
     def _maybe_adjust_task_split(
         self, config: Any, dataset_key: str, selector: Optional[str]
-    ) -> None:
-        """Adjust config.dataset.task_split based on selector for AGI datasets."""
+    ) -> Any:
+        """Adjust config.dataset.task_split based on selector for AGI datasets.
+        
+        Returns the modified config (necessary because equinox objects are immutable).
+        """
         try:
-            ds = config.dataset
+            import equinox as eqx
+            
             sel = (selector or "").lower()
             if dataset_key.lower() in (
                 "agi1",
@@ -612,14 +706,23 @@ class EnvRegistry:
                 "agi-2",
                 "agi_2",
             ):
+                new_split = None
                 if sel in ("train", "training"):
-                    ds.task_split = "train"
+                    logger.debug(f"Adjusting task_split to 'train' for selector '{sel}'")
+                    new_split = "train"
                 elif sel in ("eval", "evaluation", "test", "corpus"):
-                    ds.task_split = "evaluation"
-                config.dataset = ds
+                    logger.debug(f"Adjusting task_split to 'evaluation' for selector '{sel}'")
+                    new_split = "evaluation"
+                
+                if new_split is not None:
+                    # Use eqx.tree_at to properly modify immutable config
+                    ds = eqx.tree_at(lambda d: d.task_split, config.dataset, new_split)
+                    config = eqx.tree_at(lambda c: c.dataset, config, ds)
+            
+            return config
         except Exception:
             # Best-effort only
-            pass
+            return config
 
     @staticmethod
     def _infer_subset_ids(
@@ -712,17 +815,26 @@ class EnvRegistry:
         # Load the desired dataset configuration from YAML
         desired_ds: DatasetConfig = EnvRegistry._load_dataset_config(dataset_key)
 
-        # If a DatasetConfig is already present but for a different dataset, replace it
+        # Preserve task_split from current config if it was modified (e.g., by _maybe_adjust_task_split)
+        # This must happen BEFORE replacing the dataset config
         current_ds = getattr(config, "dataset", None)
         if isinstance(current_ds, DatasetConfig):
             same = str(current_ds.dataset_name).strip().lower() == str(
                 desired_ds.dataset_name
             ).strip().lower()
+            
+            # Preserve task_split if it differs from default (was modified by _maybe_adjust_task_split)
+            if hasattr(current_ds, "task_split") and hasattr(desired_ds, "task_split"):
+                if current_ds.task_split != desired_ds.task_split:
+                    logger.debug(f"Preserving task_split='{current_ds.task_split}' (was modified by selector)")
+                    desired_ds = eqx.tree_at(lambda d: d.task_split, desired_ds, current_ds.task_split)
+            
             if not same:
                 logger.debug(
                     f"Overriding provided DatasetConfig '{current_ds.dataset_name}' with '{desired_ds.dataset_name}' from key '{dataset_key}'."
                 )
-                config = eqx.tree_at(lambda c: c.dataset, config, desired_ds)
+            
+            config = eqx.tree_at(lambda c: c.dataset, config, desired_ds)
         else:
             # No valid dataset found in config, set to desired
             config = eqx.tree_at(lambda c: c.dataset, config, desired_ds)
@@ -787,20 +899,75 @@ def register_subset(
     _registry.register_subset(dataset_key, name, task_ids)
 
 
-def available_task_ids(
-    dataset_key: str, config: Optional[Any] = None, auto_download: bool = False
+def get_subset_task_ids(
+    dataset_key: str,
+    selector: str = "all",
+    config: Optional[Any] = None,
+    auto_download: bool = False,
 ) -> list[str]:
-    """List available task IDs for the given dataset key (after ensuring availability)."""
-    return _registry.available_task_ids(
-        dataset_key, config=config, auto_download=auto_download
+    """Get task IDs for a specific subset without creating an environment.
+
+    This allows users to query what tasks will be loaded before calling make().
+
+    Args:
+        dataset_key: Dataset name (Mini, Concept, AGI1, AGI2)
+        selector: Subset selector ('all', 'train', 'easy', task_id, etc.)
+        config: Optional config
+        auto_download: Download dataset if missing
+
+    Returns:
+        List of task IDs that will be loaded
+
+    Examples:
+        >>> get_subset_task_ids("Mini", "all")
+        ['Most_Common_color_l6ab0lf3xztbyxsu3p', ...]
+
+        >>> get_subset_task_ids("Mini", "easy")
+        ['task1', 'task2', 'task3']
+
+        >>> get_subset_task_ids("Mini", "Most_Common_color_l6ab0lf3xztbyxsu3p")
+        ['Most_Common_color_l6ab0lf3xztbyxsu3p']
+    """
+    return _registry.get_subset_task_ids(
+        dataset_key, selector=selector, config=config, auto_download=auto_download
     )
 
 
-def available_named_subsets(dataset_key: str) -> tuple[str, ...]:
-    """List names of registered named subsets for a dataset key (e.g., ('easy', 'hard'))."""
-    return _registry.available_named_subsets(dataset_key)
+def available_task_ids(
+    dataset_key: str, config: Optional[Any] = None, auto_download: bool = False
+) -> list[str]:
+    """List all available task IDs (equivalent to get_subset_task_ids with selector='all')."""
+    return _registry.get_subset_task_ids(
+        dataset_key, selector="all", config=config, auto_download=auto_download
+    )
+
+
+def available_named_subsets(
+    dataset_key: str, include_builtin: bool = True
+) -> tuple[str, ...]:
+    """List available subset names for a dataset (includes built-in selectors by default).
+
+    Args:
+        dataset_key: Dataset name (Mini, Concept, AGI1, AGI2)
+        include_builtin: Include built-in selectors like 'all', 'train', 'eval' (default: True)
+
+    Returns:
+        Tuple of subset names
+
+    Examples:
+        >>> available_named_subsets("Mini")
+        ('all', 'easy', 'eval', 'train')
+
+        >>> available_named_subsets("Mini", include_builtin=False)
+        ('easy',)  # Only custom subsets
+    """
+    return _registry.available_named_subsets(dataset_key, include_builtin=include_builtin)
 
 
 def subset_task_ids(dataset_key: str, name: str) -> tuple[str, ...]:
-    """Return the task IDs registered under the named subset for the dataset."""
+    """Return the task IDs registered under a named subset.
+
+    This only works for explicitly registered subsets (via register_subset).
+    For more flexible queries, use get_subset_task_ids() instead.
+    """
     return _registry.subset_task_ids(dataset_key, name)
