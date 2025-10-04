@@ -251,7 +251,7 @@ class TestParserEnvironmentIntegration:
         config = JaxArcConfig()
         
         # Test with invalid task ID
-        with pytest.raises(ValueError, match="Unknown Mini selector"):
+        with pytest.raises(ValueError, match="Unknown selector .* for Mini"):
             make("Mini-nonexistent_task_id", config=config)
         
         # Test with invalid dataset

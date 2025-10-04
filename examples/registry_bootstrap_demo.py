@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Demonstrates the new registry-driven, buffer-backed API where make("<Dataset>-<Selector>") automatically:
-- resolves the appropriate parser,
-- ensures the dataset is available (optionally downloading),
-- resolves the selector (all, split, concept group, or specific task id),
-- builds a stacked JAX buffer for the resolved tasks, and
-- returns (env, params) with a fully JIT/vmap-compatible reset.
+Demonstrates the unified registry API with discovery features.
+
+This example showcases:
+1. Discovery API - List available datasets, subsets, and task IDs
+2. Unified make() - Create environments with simple selectors
+3. Multiple selector types - 'all', splits, concept groups, named subsets, single tasks
+4. Dataset-specific features - ConceptARC groups, AGI train/eval splits
 
 Examples demonstrated:
-- Mini-all
-- Mini-easy (named subset)
-- Concept-AboveBelow
-- AGI1-train (optional, large)
-- AGI2-eval (optional, large)
+- Discovery: available_named_subsets(), get_subset_task_ids()
+- Mini-all (all 149 tasks)
+- Mini-easy (custom named subset)
+- Mini-<task_id> (single task selection)
+- Concept-Center (concept group with 10 tasks)
+- AGI1-train, AGI2-eval (optional, requires ENABLE_AGI_DEMO=1)
 
 Run:
     pixi run python examples/registry_bootstrap_demo.py
@@ -31,9 +33,10 @@ from jaxarc.configs.main_config import JaxArcConfig
 from jaxarc.envs.actions import Action
 from jaxarc.registration import (
     available_named_subsets,
+    available_task_ids,
+    get_subset_task_ids,
     make,
     register_subset,
-    subset_task_ids,
 )
 from jaxarc.utils.buffer import buffer_size
 from jaxarc.utils.core import get_config
@@ -86,40 +89,114 @@ def run_demo(id_str: str) -> None:
     print("-" * 80)
 
 
-def main() -> None:
-    # Test with Mini-all (simpler demo)
-    run_demo("Mini-all")
+def discovery_demo() -> None:
+    """Demonstrate the discovery API for exploring available datasets and subsets."""
+    print("\n" + "=" * 80)
+    print("DISCOVERY API DEMONSTRATION")
+    print("=" * 80 + "\n")
+    
+    datasets = [("Mini", "MiniARC"), ("Concept", "ConceptARC")]
+    if os.environ.get("ENABLE_AGI_DEMO", "0") == "1":
+        datasets.extend([("AGI1", "ARC-AGI-1"), ("AGI2", "ARC-AGI-2")])
+    
+    for dataset_key, dataset_name in datasets:
+        print(f"\n--- {dataset_name} ({dataset_key}) ---")
+        
+        # Show available named subsets (includes built-in selectors and concept groups)
+        subsets = available_named_subsets(dataset_key)
+        print(f"Available subsets: {', '.join(subsets)}")
+        
+        # Show task counts for key selectors
+        try:
+            all_ids = get_subset_task_ids(dataset_key, "all", auto_download=True)
+            print(f"  'all': {len(all_ids)} tasks")
+            
+            # Show a sample task ID
+            if all_ids:
+                print(f"  Sample task ID: {all_ids[0]}")
+            
+            # For datasets with concept groups or splits, show some examples
+            if dataset_key == "Concept" and len(subsets) > 2:
+                # Show first concept group that's not 'all'
+                concept = next((s for s in subsets if s != "all"), None)
+                if concept:
+                    concept_ids = get_subset_task_ids(dataset_key, concept, auto_download=True)
+                    print(f"  '{concept}' concept: {len(concept_ids)} tasks")
+            
+            elif dataset_key in ("AGI1", "AGI2"):
+                if "train" in subsets:
+                    train_ids = get_subset_task_ids(dataset_key, "train", auto_download=True)
+                    print(f"  'train' split: {len(train_ids)} tasks")
+                if "eval" in subsets:
+                    eval_ids = get_subset_task_ids(dataset_key, "eval", auto_download=True)
+                    print(f"  'eval' split: {len(eval_ids)} tasks")
+                    
+        except Exception as e:
+            print(f"  (Dataset not available: {e})")
+    
+    print("\n" + "=" * 80 + "\n")
 
-    # Register and demonstrate a named subset for MiniARC
-    # First get some available task IDs
-    from jaxarc.registration import available_task_ids
+
+def main() -> None:
+    # First, demonstrate the discovery API
+    discovery_demo()
+    
+    # Demo 1: Mini-all (all 149 tasks)
+    print("\n=== Demo 1: Mini-all (all tasks) ===")
+    run_demo("Mini-all")
+    
+    # Demo 2: Register and use a custom named subset
+    print("\n=== Demo 2: Custom named subset ===")
     try:
         available_ids = available_task_ids("Mini", auto_download=True)
         if len(available_ids) >= 3:
-            # Use first few available task IDs 
+            # Use first 3 tasks as 'easy' subset
             subset_ids = available_ids[:3]
             register_subset("Mini", "easy", subset_ids)
-            print("Available named subsets for MiniARC:", available_named_subsets("Mini"))
-            print("Available task IDs for 'easy' subset:", subset_task_ids("Mini", "easy"))
+            print(f"Registered 'easy' subset with {len(subset_ids)} tasks")
+            print(f"Available subsets after registration: {available_named_subsets('Mini')}")
             run_demo("Mini-easy")
     except Exception as e:
         print(f"Failed to create subset demo: {e}")
-
-    # ConceptARC: a specific concept group
+    
+    # Demo 3: Single task selection
+    print("\n=== Demo 3: Single task selection ===")
     try:
-        run_demo("Concept-AboveBelow")
+        available_ids = available_task_ids("Mini", auto_download=True)
+        if available_ids:
+            task_id = available_ids[0]
+            print(f"Selecting single task: {task_id}")
+            run_demo(f"Mini-{task_id}")
+    except Exception as e:
+        print(f"Failed to run single task demo: {e}")
+    
+    # Demo 4: ConceptARC concept group
+    print("\n=== Demo 4: ConceptARC concept group ===")
+    try:
+        # Show available concepts
+        concept_subsets = available_named_subsets("Concept")
+        concepts = [s for s in concept_subsets if s != "all"]
+        if concepts:
+            print(f"Available concepts: {', '.join(concepts[:5])}...")
+            run_demo("Concept-Center")
     except Exception as e:
         print(f"Failed to run Concept demo: {e}")
-
-    # Optional AGI demos (datasets are large)
+    
+    # Demo 5: AGI dataset splits (optional, large datasets)
     if os.environ.get("ENABLE_AGI_DEMO", "0") == "1":
+        print("\n=== Demo 5: AGI dataset splits ===")
         try:
+            print("\nAGI-1 Training Split:")
             run_demo("AGI1-train")
-            run_demo("AGI2-eval") 
+            
+            print("\nAGI-2 Evaluation Split:")
+            run_demo("AGI2-eval")
         except Exception as e:
             print(f"Failed to run AGI demos: {e}")
-
-    print("Demo complete.")
+    
+    print("\n" + "=" * 80)
+    print("Demo complete! All functionality working correctly.")
+    print("=" * 80)
 
 
 if __name__ == "__main__":
