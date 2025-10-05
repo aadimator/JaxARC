@@ -152,14 +152,13 @@ class TestConceptArcParser:
     def test_initialization_missing_corpus_directory(self, valid_config: DatasetConfig):
         """Test initialization with missing corpus directory."""
         with patch('pyprojroot.here', return_value=Path("/nonexistent/path")):
-            # Should not raise exception, just log warning and continue with empty dataset
-            parser = ConceptArcParser(valid_config)
-            assert len(parser._all_task_ids) == 0
-            assert len(parser._concept_groups) == 0
+            # With lazy loading, missing directory raises RuntimeError during scan
+            with pytest.raises(RuntimeError, match="corpus directory not found"):
+                ConceptArcParser(valid_config)
 
     def test_get_data_path(self, valid_config: DatasetConfig):
         """Test get_data_path returns correct corpus path."""
-        with patch.object(ConceptArcParser, '_load_and_cache_tasks'):
+        with patch.object(ConceptArcParser, '_scan_available_tasks'):
             parser = ConceptArcParser(valid_config)
             path = parser.get_data_path()
             assert path == "test/data/concept-arc/corpus"
@@ -232,7 +231,7 @@ class TestConceptArcParser:
 
     def test_get_random_task_no_tasks(self, valid_config: DatasetConfig):
         """Test get_random_task with no available tasks."""
-        with patch.object(ConceptArcParser, '_load_and_cache_tasks'):
+        with patch.object(ConceptArcParser, '_scan_available_tasks'):
             parser = ConceptArcParser(valid_config)
             parser._all_task_ids = []  # No tasks available
             
@@ -295,6 +294,10 @@ class TestConceptArcParser:
 
     def test_get_task_metadata(self, mock_parser_with_data: ConceptArcParser):
         """Test get_task_metadata returns correct information."""
+        # Lazy loading: Load task first to populate full metadata (num_demonstrations, num_test_inputs)
+        # get_task_by_id triggers _load_task_from_disk which populates these fields
+        _ = mock_parser_with_data.get_task_by_id("AboveBelow/task_001")
+        
         metadata = mock_parser_with_data.get_task_metadata("AboveBelow/task_001")
         
         assert isinstance(metadata, dict)
@@ -398,12 +401,21 @@ class TestConceptArcParser:
         )
         
         with patch('pyprojroot.here', return_value=temp_concept_arc_dataset):
-            # Should still initialize successfully, just skip the corrupted file
+            # With lazy loading, corrupted files are detected during scan (all .json files found)
+            # but error occurs when trying to load the corrupted task
             parser = ConceptArcParser(config)
-            assert len(parser._all_task_ids) == 4  # Original 4 tasks, corrupted one skipped
+            # All JSON files in AboveBelow directory are scanned: task_001, task_002, corrupted
+            # Plus task_003 in Center and task_004 in Copy = 5 total
+            assert len(parser._all_task_ids) == 5
+            
+            # Attempting to load the corrupted task should raise an error
+            with pytest.raises(ValueError, match="Invalid JSON"):
+                parser.get_task_by_id("AboveBelow/corrupted")
 
     def test_deterministic_preprocessing(self, mock_parser_with_data: ConceptArcParser):
         """Test that preprocessing is deterministic for the same input."""
+        # Lazy loading: load task first to populate cache
+        _ = mock_parser_with_data.get_task_by_id("AboveBelow/task_001")
         task_data = mock_parser_with_data._cached_tasks["AboveBelow/task_001"]
         
         # Process the same data multiple times
@@ -424,7 +436,7 @@ class TestConceptArcParser:
         mock_hydra_config = Mock()
         
         with patch.object(DatasetConfig, 'from_hydra', return_value=valid_config):
-            with patch.object(ConceptArcParser, '_load_and_cache_tasks'):
+            with patch.object(ConceptArcParser, '_scan_available_tasks'):
                 parser = ConceptArcParser.from_hydra(mock_hydra_config)
                 
                 assert isinstance(parser, ConceptArcParser)
