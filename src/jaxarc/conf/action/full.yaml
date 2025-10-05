@@ -3,7 +3,7 @@
 # Includes all operations: fill colors, flood fill, movement, rotation, flipping, clipboard, grid, and submit
 
 # Operation Settings
-max_operations: 35 # Reduced set of operations (0-34) after removing pair control operations
+max_operations: 35
 allowed_operations: # All available operations (grid + submit) using ARCOperationType IDs
   - 0 # FILL_0 (black)
   - 1 # FILL_1 (blue)

@@ -3,7 +3,7 @@
 # Only includes: Fill colors (0-9), Resize grid, and Submit actions
 
 # Operation Settings
-max_operations: 42 # Maximum operation ID + 1 (to allow operation 41) - updated for enhanced control operations
+max_operations: 35
 allowed_operations: # Only basic operations using ARCOperationType IDs
   - 0 # FILL_0 (black)
   - 1 # FILL_1 (blue)
