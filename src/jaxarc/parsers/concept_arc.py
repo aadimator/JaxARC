@@ -79,10 +79,11 @@ class ConceptArcParser(ArcDataParserBase):
         self._concept_groups: dict[str, list[str]] = {}
         self._task_metadata: dict[str, dict] = {}
         self._all_task_ids: list[str] = []
-        self._cached_tasks: dict[str, dict] = {}
+        self._cached_tasks: dict[str, dict] = {}  # Lazy cache: load on first access
+        self._data_dir: Path | None = None
 
-        # Load and cache all tasks
-        self._load_and_cache_tasks()
+        # Scan available tasks (lazy loading)
+        self._scan_available_tasks()
 
     def get_data_path(self) -> str:
         """Get the actual data path for ConceptARC based on split.
@@ -95,15 +96,20 @@ class ConceptArcParser(ArcDataParserBase):
         base_path = self.config.dataset_path
         return f"{base_path}/corpus"
 
-    def _load_and_cache_tasks(self) -> None:
-        """Load and cache all tasks from the ConceptARC corpus directory structure."""
+    def _scan_available_tasks(self) -> None:
+        """Scan directory for available task IDs without loading task data.
+
+        This is much faster than loading all tasks - we only read filenames and
+        directory structure, not file contents. Tasks are loaded on-demand when requested.
+        """
         try:
             # Get resolved corpus path
             corpus_path = self.get_data_path()
-            corpus_dir = here(corpus_path)
-            if not corpus_dir.exists():
-                logger.warning(f"ConceptARC corpus directory not found: {corpus_dir}")
-                return
+            self._data_dir = here(corpus_path)
+
+            if not self._data_dir.exists():
+                msg = f"ConceptARC corpus directory not found: {self._data_dir}"
+                raise RuntimeError(msg)
 
             # Define expected concept groups for ConceptARC
             expected_concept_groups = [
@@ -125,19 +131,21 @@ class ConceptArcParser(ArcDataParserBase):
                 "TopBottom3D",
             ]
 
-            # Discover concept groups from directory structure
-            self._discover_concept_groups(corpus_dir, expected_concept_groups)
+            # Discover concept groups from directory structure (scan only, don't load)
+            self._discover_concept_groups(self._data_dir, expected_concept_groups)
 
-            # Load tasks from each concept group
-            self._load_tasks_from_concept_groups(corpus_dir)
+            # Collect all task IDs
+            self._all_task_ids = []
+            for task_ids in self._concept_groups.values():
+                self._all_task_ids.extend(task_ids)
 
             logger.info(
-                f"Loaded {len(self._all_task_ids)} tasks from {len(self._concept_groups)} "
-                f"concept groups in ConceptARC dataset"
+                f"Found {len(self._all_task_ids)} tasks from {len(self._concept_groups)} "
+                f"concept groups in ConceptARC dataset (lazy loading - tasks loaded on-demand)"
             )
 
         except Exception as e:
-            logger.error(f"Error loading and caching ConceptARC tasks: {e}")
+            logger.error(f"Error scanning ConceptARC tasks: {e}")
             raise
 
     def _discover_concept_groups(
@@ -197,46 +205,48 @@ class ConceptArcParser(ArcDataParserBase):
             msg = f"No concept groups found in {corpus_dir}"
             raise ValueError(msg)
 
-    def _load_tasks_from_concept_groups(self, corpus_dir: Path) -> None:
-        """Load task data from all concept groups.
+    def _load_task_from_disk(self, task_id: str) -> None:
+        """Load a single task from disk and add to cache.
 
         Args:
-            corpus_dir: Path to the ConceptARC corpus directory
+            task_id: ID of the task to load (format: concept_group/task_name)
+
+        Raises:
+            FileNotFoundError: If task file doesn't exist
+            ValueError: If JSON is invalid or task_id not in metadata
         """
-        self._cached_tasks = {}
-        self._all_task_ids = []
+        if task_id not in self._task_metadata:
+            msg = f"Task ID '{task_id}' not found in ConceptARC metadata"
+            raise ValueError(msg)
 
-        for concept_group, task_ids in self._concept_groups.items():
-            for task_id in task_ids:
-                metadata = self._task_metadata[task_id]
-                task_file_path = Path(metadata["file_path"])
+        metadata = self._task_metadata[task_id]
+        task_file_path = Path(metadata["file_path"])
 
-                try:
-                    # Load task data from JSON file
-                    with task_file_path.open("r", encoding="utf-8") as f:
-                        task_data = json.load(f)
+        if not task_file_path.exists():
+            msg = f"Task file not found: {task_file_path}"
+            raise FileNotFoundError(msg)
 
-                    # Cache the task data
-                    self._cached_tasks[task_id] = task_data
-                    self._all_task_ids.append(task_id)
+        try:
+            with task_file_path.open("r", encoding="utf-8") as f:
+                task_data = json.load(f)
 
-                    # Update metadata with task statistics
-                    train_pairs = len(task_data.get("train", []))
-                    test_pairs = len(task_data.get("test", []))
-                    self._task_metadata[task_id].update(
-                        {
-                            "num_demonstrations": train_pairs,
-                            "num_test_inputs": test_pairs,
-                        }
-                    )
+            # Cache the task data
+            self._cached_tasks[task_id] = task_data
 
-                except Exception as e:
-                    logger.error(
-                        f"Error loading task {task_id} from {task_file_path}: {e}"
-                    )
-                    continue
+            # Update metadata with task statistics
+            train_pairs = len(task_data.get("train", []))
+            test_pairs = len(task_data.get("test", []))
+            self._task_metadata[task_id].update(
+                {
+                    "num_demonstrations": train_pairs,
+                    "num_test_inputs": test_pairs,
+                }
+            )
 
-        logger.info(f"Successfully cached {len(self._cached_tasks)} ConceptARC tasks")
+            logger.debug(f"Loaded ConceptARC task '{task_id}' from disk")
+        except json.JSONDecodeError as e:
+            msg = f"Invalid JSON in file {task_file_path}: {e}"
+            raise ValueError(msg) from e
 
     def load_task_file(self, task_file_path: str) -> Any:
         """Load raw task data from a JSON file.
@@ -386,11 +396,8 @@ class ConceptArcParser(ArcDataParserBase):
         task_index = jax.random.randint(key, (), 0, len(self._all_task_ids))
         task_id = self._all_task_ids[int(task_index)]
 
-        # Get the cached task data
-        task_data = self._cached_tasks[task_id]
-
-        # Preprocess and return
-        return self.preprocess_task_data((task_id, task_data), key)
+        # Use get_task_by_id which handles lazy loading
+        return self.get_task_by_id(task_id)
 
     def get_random_task_from_concept(
         self, concept: str, key: chex.PRNGKey
@@ -424,11 +431,8 @@ class ConceptArcParser(ArcDataParserBase):
         task_index = jax.random.randint(key, (), 0, len(concept_task_ids))
         task_id = concept_task_ids[int(task_index)]
 
-        # Get the cached task data
-        task_data = self._cached_tasks[task_id]
-
-        # Preprocess and return
-        return self.preprocess_task_data((task_id, task_data), key)
+        # Use get_task_by_id which handles lazy loading
+        return self.get_task_by_id(task_id)
 
     def get_concept_groups(self) -> list[str]:
         """Get list of available concept groups.
@@ -474,6 +478,10 @@ class ConceptArcParser(ArcDataParserBase):
         if task_id not in self._all_task_ids:
             msg = f"Task ID '{task_id}' not found in ConceptARC dataset"
             raise ValueError(msg)
+
+        # Lazy loading: load task from disk if not in cache
+        if task_id not in self._cached_tasks:
+            self._load_task_from_disk(task_id)
 
         # Get the cached task data
         task_data = self._cached_tasks[task_id]
@@ -532,6 +540,10 @@ class ConceptArcParser(ArcDataParserBase):
             demonstrations = []
             test_inputs = []
             for task_id in task_ids:
+                # Lazy loading: load task if not in cache (for accurate statistics)
+                if task_id not in self._cached_tasks:
+                    self._load_task_from_disk(task_id)
+
                 metadata = self._task_metadata.get(task_id, {})
                 if "num_demonstrations" in metadata:
                     demonstrations.append(metadata["num_demonstrations"])

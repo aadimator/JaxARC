@@ -63,11 +63,12 @@ class ArcAgiParser(ArcDataParserBase):
         """
         super().__init__(config)
 
-        # Load and cache all tasks in memory
+        # Lazy loading: only scan for task IDs, don't load data yet
         self._task_ids: list[str] = []
-        self._cached_tasks: dict[str, dict] = {}
+        self._cached_tasks: dict[str, dict] = {}  # Lazy cache: load on first access
+        self._data_dir: Path | None = None
 
-        self._load_and_cache_tasks()
+        self._scan_available_tasks()
 
     def get_data_path(self) -> str:
         """Get the actual data path for ARC-AGI based on split.
@@ -82,41 +83,37 @@ class ArcAgiParser(ArcDataParserBase):
         split = "training" if self.config.task_split == "train" else "evaluation"
         return f"{base_path}/data/{split}"
 
-    def _load_and_cache_tasks(self) -> None:
-        """Load and cache all tasks from individual JSON files in GitHub format."""
+    def _scan_available_tasks(self) -> None:
+        """Scan directory for available task IDs without loading task data.
+
+        This is much faster than loading all tasks - we only read filenames,
+        not file contents. Tasks are loaded on-demand when requested.
+        """
         try:
             # Get resolved data path based on split
             data_dir_path = self.get_data_path()
-            data_dir = here(data_dir_path)
-            if not data_dir.exists() or not data_dir.is_dir():
-                raise RuntimeError(f"Data directory not found: {data_dir}")
+            self._data_dir = here(data_dir_path)
 
-            # Load individual JSON files
-            json_files = list(data_dir.glob("*.json"))
+            if not self._data_dir.exists() or not self._data_dir.is_dir():
+                msg = f"Data directory not found: {self._data_dir}"
+                raise RuntimeError(msg)
+
+            # Scan for JSON files - just get filenames, don't load content
+            json_files = list(self._data_dir.glob("*.json"))
             if not json_files:
-                raise RuntimeError(f"No JSON files found in {data_dir}")
+                msg = f"No JSON files found in {self._data_dir}"
+                raise RuntimeError(msg)
 
-            self._cached_tasks = {}
-            for json_file in json_files:
-                task_id = json_file.stem  # filename without extension
-                try:
-                    with json_file.open("r", encoding="utf-8") as f:
-                        task_data = json.load(f)
-                    self._cached_tasks[task_id] = task_data
-                except json.JSONDecodeError as e:
-                    logger.warning(f"Skipping invalid JSON file {json_file}: {e}")
-                    continue
-                except Exception as e:
-                    logger.warning(f"Error loading task file {json_file}: {e}")
-                    continue
+            # Extract task IDs from filenames
+            self._task_ids = [f.stem for f in json_files]
 
-            self._task_ids = list(self._cached_tasks.keys())
             logger.info(
-                f"Loaded {len(self._cached_tasks)} tasks from GitHub format in {data_dir}"
+                f"Found {len(self._task_ids)} tasks in {self._data_dir} "
+                f"(lazy loading - tasks loaded on-demand)"
             )
 
         except Exception as e:
-            logger.error(f"Error loading and caching tasks: {e}")
+            logger.error(f"Error scanning tasks: {e}")
             raise
 
     def load_task_file(self, task_file_path: str) -> Any:
@@ -234,7 +231,7 @@ class ArcAgiParser(ArcDataParserBase):
         raise ValueError(msg)
 
     def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
-        """Get a random task from the dataset.
+        """Get a random task from the dataset with lazy loading.
 
         Args:
             key: JAX PRNG key for random selection
@@ -253,14 +250,14 @@ class ArcAgiParser(ArcDataParserBase):
         task_index = jax.random.randint(key, (), 0, len(self._task_ids))
         task_id = self._task_ids[int(task_index)]
 
-        # Get the cached task data (GitHub format: direct task content)
-        task_data = self._cached_tasks[task_id]
-
-        # Preprocess and return
-        return self.preprocess_task_data(task_data, key, task_id)
+        # Use get_task_by_id which handles lazy loading
+        return self.get_task_by_id(task_id)
 
     def get_task_by_id(self, task_id: str) -> JaxArcTask:
-        """Get a specific task by its ID.
+        """Get a specific task by its ID with lazy loading.
+
+        Tasks are loaded from disk on first access and cached for subsequent calls.
+        This is much more efficient than loading all tasks upfront.
 
         Args:
             task_id: ID of the task to retrieve
@@ -275,6 +272,10 @@ class ArcAgiParser(ArcDataParserBase):
             msg = f"Task ID '{task_id}' not found in dataset"
             raise ValueError(msg)
 
+        # Lazy load: check cache first, load from disk if not cached
+        if task_id not in self._cached_tasks:
+            self._load_task_from_disk(task_id)
+
         # Get the cached task data (GitHub format: direct task content)
         task_data = self._cached_tasks[task_id]
 
@@ -283,6 +284,35 @@ class ArcAgiParser(ArcDataParserBase):
 
         # Preprocess and return
         return self.preprocess_task_data(task_data, key, task_id)
+
+    def _load_task_from_disk(self, task_id: str) -> None:
+        """Load a single task from disk and add to cache.
+
+        Args:
+            task_id: ID of the task to load
+
+        Raises:
+            FileNotFoundError: If task file doesn't exist
+            ValueError: If JSON is invalid
+        """
+        if self._data_dir is None:
+            msg = "Data directory not initialized"
+            raise RuntimeError(msg)
+
+        task_file = self._data_dir / f"{task_id}.json"
+
+        if not task_file.exists():
+            msg = f"Task file not found: {task_file}"
+            raise FileNotFoundError(msg)
+
+        try:
+            with task_file.open("r", encoding="utf-8") as f:
+                task_data = json.load(f)
+            self._cached_tasks[task_id] = task_data
+            logger.debug(f"Loaded task '{task_id}' from disk")
+        except json.JSONDecodeError as e:
+            msg = f"Invalid JSON in file {task_file}: {e}"
+            raise ValueError(msg) from e
 
     def get_available_task_ids(self) -> list[str]:
         """Get list of all available task IDs.

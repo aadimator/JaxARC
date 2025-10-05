@@ -71,12 +71,13 @@ class MiniArcParser(ArcDataParserBase):
         # Validate and warn about grid constraints for MiniARC optimization
         self._validate_grid_constraints()
 
-        # Initialize task storage
+        # Lazy loading: only scan for task IDs, don't load data yet
         self._task_ids: list[str] = []
-        self._cached_tasks: dict[str, dict] = {}
+        self._cached_tasks: dict[str, dict] = {}  # Lazy cache: load on first access
+        self._data_dir: Path | None = None
 
-        # Load and cache all tasks
-        self._load_and_cache_tasks()
+        # Scan available tasks (lazy loading)
+        self._scan_available_tasks()
 
     def get_data_path(self) -> str:
         """Get the actual data path for MiniARC based on split.
@@ -102,69 +103,75 @@ class MiniArcParser(ArcDataParserBase):
         if self.max_grid_height == 5 and self.max_grid_width == 5:
             logger.info("MiniARC parser configured with optimal 5x5 grid constraints")
 
-    def _load_and_cache_tasks(self) -> None:
-        """Load and cache all tasks from the MiniARC flat directory structure."""
+    def _scan_available_tasks(self) -> None:
+        """Scan directory for available task IDs without loading task data.
+
+        This is much faster than loading all tasks - we only read filenames,
+        not file contents. Tasks are loaded on-demand when requested.
+        """
         try:
             # Get resolved data path
             tasks_path = self.get_data_path()
-            tasks_dir = here(tasks_path)
-            if not tasks_dir.exists():
-                logger.warning(f"MiniARC tasks directory not found: {tasks_dir}")
-                return
+            self._data_dir = here(tasks_path)
 
-            # Load tasks from flat directory structure
-            self._load_tasks_from_directory(tasks_dir)
+            if not self._data_dir.exists():
+                msg = f"MiniARC tasks directory not found: {self._data_dir}"
+                raise RuntimeError(msg)
+
+            # Scan for JSON files - just get filenames, don't load content
+            task_files = list(self._data_dir.glob("*.json"))
+
+            if not task_files:
+                msg = f"No JSON task files found in {self._data_dir}"
+                raise RuntimeError(msg)
+
+            # Extract task IDs from filenames
+            self._task_ids = [f.stem for f in task_files]
 
             logger.info(
-                f"Loaded {len(self._task_ids)} tasks from MiniARC dataset "
-                f"(optimized for 5x5 grids)"
+                f"Found {len(self._task_ids)} tasks in MiniARC dataset "
+                f"(lazy loading - tasks loaded on-demand, optimized for 5x5 grids)"
             )
 
-        except (FileNotFoundError, ValueError, OSError) as e:
-            logger.error(f"Error loading and caching MiniARC tasks: {e}")
+        except Exception as e:
+            logger.error(f"Error scanning MiniARC tasks: {e}")
             raise
 
-    def _load_tasks_from_directory(self, tasks_dir: Path) -> None:
-        """Load task data from the flat directory structure.
+    def _load_task_from_disk(self, task_id: str) -> None:
+        """Load a single task from disk and add to cache.
 
         Args:
-            tasks_dir: Path to the MiniARC tasks directory
+            task_id: ID of the task to load
+
+        Raises:
+            FileNotFoundError: If task file doesn't exist
+            ValueError: If JSON is invalid or violates MiniARC constraints
         """
-        self._cached_tasks = {}
-        self._task_ids = []
+        if self._data_dir is None:
+            msg = "Data directory not initialized"
+            raise RuntimeError(msg)
 
-        # Find all JSON files in the tasks directory
-        task_files = list(tasks_dir.glob("*.json"))
+        task_file = self._data_dir / f"{task_id}.json"
 
-        if not task_files:
-            logger.warning(f"No JSON task files found in {tasks_dir}")
-            return
+        if not task_file.exists():
+            msg = f"Task file not found: {task_file}"
+            raise FileNotFoundError(msg)
 
-        # Load each task file
-        for task_file in task_files:
-            try:
-                # Use filename (without extension) as task ID
-                task_id = task_file.stem
+        try:
+            with task_file.open("r", encoding="utf-8") as f:
+                task_data = json.load(f)
 
-                # Load task data from JSON file
-                with task_file.open("r", encoding="utf-8") as f:
-                    task_data = json.load(f)
+            # Validate task structure
+            self._validate_task_structure(task_data, task_id)
 
-                # Validate task data has required structure
-                self._validate_task_structure(task_data, task_id)
+            # Validate MiniARC-specific constraints (5x5 optimization)
+            self._validate_miniarc_constraints(task_data, task_id)
 
-                # Validate grid constraints for MiniARC (5x5 optimization)
-                self._validate_miniarc_constraints(task_data, task_id)
-
-                # Cache the task data
-                self._cached_tasks[task_id] = task_data
-                self._task_ids.append(task_id)
-
-            except (json.JSONDecodeError, ValueError, OSError) as e:
-                logger.error(f"Error loading MiniARC task {task_file}: {e}")
-                continue
-
-        logger.info(f"Successfully cached {len(self._cached_tasks)} MiniARC tasks")
+            self._cached_tasks[task_id] = task_data
+            logger.debug(f"Loaded MiniARC task '{task_id}' from disk")
+        except json.JSONDecodeError as e:
+            msg = f"Invalid JSON in file {task_file}: {e}"
+            raise ValueError(msg) from e
 
     def _validate_task_structure(self, task_data: dict, task_id: str) -> None:
         """Validate that task data has the required ARC structure.
@@ -397,11 +404,8 @@ class MiniArcParser(ArcDataParserBase):
         task_index = jax.random.randint(key, (), 0, len(self._task_ids))
         task_id = self._task_ids[int(task_index)]
 
-        # Get the cached task data
-        task_data = self._cached_tasks[task_id]
-
-        # Preprocess and return
-        return self.preprocess_task_data((task_id, task_data), key)
+        # Use get_task_by_id which handles lazy loading
+        return self.get_task_by_id(task_id)
 
     def get_task_by_id(self, task_id: str) -> JaxArcTask:
         """Get a specific task by its ID.
@@ -418,6 +422,10 @@ class MiniArcParser(ArcDataParserBase):
         if task_id not in self._task_ids:
             msg = f"Task ID '{task_id}' not found in MiniARC dataset"
             raise ValueError(msg)
+
+        # Lazy loading: load task from disk if not in cache
+        if task_id not in self._cached_tasks:
+            self._load_task_from_disk(task_id)
 
         # Get the cached task data
         task_data = self._cached_tasks[task_id]
@@ -455,6 +463,9 @@ class MiniArcParser(ArcDataParserBase):
         test_pair_counts = []
 
         for task_id in self._task_ids:
+            # Lazy loading: load task if not in cache
+            if task_id not in self._cached_tasks:
+                self._load_task_from_disk(task_id)
             task_data = self._cached_tasks[task_id]
 
             # Count training and test pairs

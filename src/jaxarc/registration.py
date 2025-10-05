@@ -153,9 +153,13 @@ class EnvRegistry:
                     spec_key = self._canonical_spec_key(dataset_key)
                     if spec_key in self._specs:
                         spec = self._specs[spec_key]
-                        cfg = self._prepare_config(None, spec.max_episode_steps, spec_key)
+                        cfg = self._prepare_config(
+                            None, spec.max_episode_steps, spec_key
+                        )
                         try:
-                            cfg = self._ensure_dataset_available(cfg, spec_key, auto_download=False)
+                            cfg = self._ensure_dataset_available(
+                                cfg, spec_key, auto_download=False
+                            )
                             parser = self._create_parser(cfg)
                             if hasattr(parser, "get_concept_groups"):
                                 concepts = parser.get_concept_groups()
@@ -276,7 +280,9 @@ class EnvRegistry:
 
         # If params explicitly provided, use them
         if "params" in kwargs and kwargs["params"] is not None:
-            return env_obj(config=kwargs["config"], buffer=kwargs["params"].buffer), kwargs["params"]
+            return env_obj(
+                config=kwargs["config"], buffer=kwargs["params"].buffer
+            ), kwargs["params"]
 
         # Prepare config and dataset availability
         config = self._prepare_config(
@@ -404,7 +410,7 @@ class EnvRegistry:
         """Create a helpful description of valid selectors for error messages."""
         # Get all available named subsets (includes built-ins, custom subsets, and concepts)
         named = self.available_named_subsets(dataset_key, include_builtin=True)
-        
+
         options = [f"'{n}'" for n in named] if named else []
 
         # Add note about task IDs
@@ -486,6 +492,8 @@ class EnvRegistry:
         ids: list[str],
     ) -> list[Any]:
         """Load tasks by ID using the current parser. For AGI datasets, missing IDs are looked up in the opposite split."""
+        import equinox as eqx
+
         tasks: list[Any] = []
         missing: list[str] = []
         for tid in ids:
@@ -513,23 +521,34 @@ class EnvRegistry:
                 opposite = (
                     "evaluation" if current_split in ("train", "training") else "train"
                 )
-                ds.task_split = opposite
-                config.dataset = ds
+                logger.debug(
+                    f"Looking for {len(missing)} missing tasks in opposite split '{opposite}'"
+                )
+
+                # Properly update immutable config using eqx.tree_at
+                ds_opposite = eqx.tree_at(lambda d: d.task_split, ds, opposite)
+                config_opposite = eqx.tree_at(lambda c: c.dataset, config, ds_opposite)
+
+                # Create parser for opposite split
                 parser2 = (
-                    parser_entry_obj(config.dataset)
+                    parser_entry_obj(config_opposite.dataset)
                     if self._is_class(parser_entry_obj)
                     else parser_entry_obj
                 )
+
                 still_missing: list[str] = []
                 for tid in list(missing):
                     try:
                         tasks.append(parser2.get_task_by_id(tid))
+                        logger.debug(
+                            f"Found task '{tid}' in opposite split '{opposite}'"
+                        )
                     except Exception:
                         still_missing.append(tid)
                 missing = still_missing
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Failed to lookup missing tasks in opposite split: {e}")
                 # Fall through to error below
-                pass
 
         if missing:
             raise ValueError(
@@ -689,12 +708,12 @@ class EnvRegistry:
         self, config: Any, dataset_key: str, selector: Optional[str]
     ) -> Any:
         """Adjust config.dataset.task_split based on selector for AGI datasets.
-        
+
         Returns the modified config (necessary because equinox objects are immutable).
         """
         try:
             import equinox as eqx
-            
+
             sel = (selector or "").lower()
             if dataset_key.lower() in (
                 "agi1",
@@ -708,17 +727,21 @@ class EnvRegistry:
             ):
                 new_split = None
                 if sel in ("train", "training"):
-                    logger.debug(f"Adjusting task_split to 'train' for selector '{sel}'")
+                    logger.debug(
+                        f"Adjusting task_split to 'train' for selector '{sel}'"
+                    )
                     new_split = "train"
                 elif sel in ("eval", "evaluation", "test", "corpus"):
-                    logger.debug(f"Adjusting task_split to 'evaluation' for selector '{sel}'")
+                    logger.debug(
+                        f"Adjusting task_split to 'evaluation' for selector '{sel}'"
+                    )
                     new_split = "evaluation"
-                
+
                 if new_split is not None:
                     # Use eqx.tree_at to properly modify immutable config
                     ds = eqx.tree_at(lambda d: d.task_split, config.dataset, new_split)
                     config = eqx.tree_at(lambda c: c.dataset, config, ds)
-            
+
             return config
         except Exception:
             # Best-effort only
@@ -819,21 +842,26 @@ class EnvRegistry:
         # This must happen BEFORE replacing the dataset config
         current_ds = getattr(config, "dataset", None)
         if isinstance(current_ds, DatasetConfig):
-            same = str(current_ds.dataset_name).strip().lower() == str(
-                desired_ds.dataset_name
-            ).strip().lower()
-            
+            same = (
+                str(current_ds.dataset_name).strip().lower()
+                == str(desired_ds.dataset_name).strip().lower()
+            )
+
             # Preserve task_split if it differs from default (was modified by _maybe_adjust_task_split)
             if hasattr(current_ds, "task_split") and hasattr(desired_ds, "task_split"):
                 if current_ds.task_split != desired_ds.task_split:
-                    logger.debug(f"Preserving task_split='{current_ds.task_split}' (was modified by selector)")
-                    desired_ds = eqx.tree_at(lambda d: d.task_split, desired_ds, current_ds.task_split)
-            
+                    logger.debug(
+                        f"Preserving task_split='{current_ds.task_split}' (was modified by selector)"
+                    )
+                    desired_ds = eqx.tree_at(
+                        lambda d: d.task_split, desired_ds, current_ds.task_split
+                    )
+
             if not same:
                 logger.debug(
                     f"Overriding provided DatasetConfig '{current_ds.dataset_name}' with '{desired_ds.dataset_name}' from key '{dataset_key}'."
                 )
-            
+
             config = eqx.tree_at(lambda c: c.dataset, config, desired_ds)
         else:
             # No valid dataset found in config, set to desired
@@ -851,8 +879,6 @@ class EnvRegistry:
         except DatasetError as e:
             logger.error(f"Dataset management failed: {e}")
             raise ValueError(f"Dataset not available: {e}") from e
-
-
 
 
 # -----------------------------------------------------------------------------
@@ -961,7 +987,9 @@ def available_named_subsets(
         >>> available_named_subsets("Mini", include_builtin=False)
         ('easy',)  # Only custom subsets
     """
-    return _registry.available_named_subsets(dataset_key, include_builtin=include_builtin)
+    return _registry.available_named_subsets(
+        dataset_key, include_builtin=include_builtin
+    )
 
 
 def subset_task_ids(dataset_key: str, name: str) -> tuple[str, ...]:

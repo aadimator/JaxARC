@@ -144,7 +144,7 @@ class TestArcAgiParser:
 
     def test_get_data_path_train_split(self, valid_config: DatasetConfig):
         """Test get_data_path returns correct path for train split."""
-        with patch.object(ArcAgiParser, '_load_and_cache_tasks'):
+        with patch.object(ArcAgiParser, '_scan_available_tasks'):
             parser = ArcAgiParser(valid_config)
             path = parser.get_data_path()
             assert path == "test/data/arc-agi/data/training"
@@ -164,7 +164,7 @@ class TestArcAgiParser:
             task_split="evaluation"
         )
         
-        with patch.object(ArcAgiParser, '_load_and_cache_tasks'):
+        with patch.object(ArcAgiParser, '_scan_available_tasks'):
             parser = ArcAgiParser(config)
             path = parser.get_data_path()
             assert path == "test/data/arc-agi/data/evaluation"
@@ -269,7 +269,7 @@ class TestArcAgiParser:
 
     def test_get_random_task_no_tasks(self, valid_config: DatasetConfig):
         """Test get_random_task with no available tasks."""
-        with patch.object(ArcAgiParser, '_load_and_cache_tasks'):
+        with patch.object(ArcAgiParser, '_scan_available_tasks'):
             parser = ArcAgiParser(valid_config)
             parser._task_ids = []  # No tasks available
             
@@ -310,7 +310,7 @@ class TestArcAgiParser:
         mock_hydra_config = Mock()
         
         with patch.object(DatasetConfig, 'from_hydra', return_value=valid_config):
-            with patch.object(ArcAgiParser, '_load_and_cache_tasks'):
+            with patch.object(ArcAgiParser, '_scan_available_tasks'):
                 parser = ArcAgiParser.from_hydra(mock_hydra_config)
                 
                 assert isinstance(parser, ArcAgiParser)
@@ -379,9 +379,14 @@ class TestArcAgiParser:
         )
         
         with patch('pyprojroot.here', return_value=temp_arc_agi_dataset):
-            # Should still initialize successfully, just skip the corrupted file
+            # With lazy loading, corrupted files are detected during scan (all .json files found)
+            # but error occurs when trying to load the corrupted task
             parser = ArcAgiParser(config)
-            assert len(parser._task_ids) == 3  # Original 3 tasks, corrupted one skipped
+            assert len(parser._task_ids) == 4  # All 4 JSON files scanned, including corrupted
+            
+            # Attempting to load the corrupted task should raise an error
+            with pytest.raises(ValueError, match="Invalid JSON"):
+                parser.get_task_by_id("corrupted")
 
     def test_task_caching_behavior(self, mock_parser_with_data: ArcAgiParser):
         """Test that tasks are properly cached and reused."""
@@ -397,6 +402,8 @@ class TestArcAgiParser:
 
     def test_deterministic_preprocessing(self, mock_parser_with_data: ArcAgiParser):
         """Test that preprocessing is deterministic for the same input."""
+        # Load the task first to populate cache (lazy loading)
+        _ = mock_parser_with_data.get_task_by_id("task_001")
         task_data = mock_parser_with_data._cached_tasks["task_001"]
         
         # Process the same data multiple times

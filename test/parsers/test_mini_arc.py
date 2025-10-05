@@ -200,13 +200,13 @@ class TestMiniArcParser:
     def test_initialization_missing_directory(self, valid_config_5x5: DatasetConfig):
         """Test initialization with missing data directory."""
         with patch('pyprojroot.here', return_value=Path("/nonexistent/path")):
-            # Should not raise exception, just log warning and continue with empty dataset
-            parser = MiniArcParser(valid_config_5x5)
-            assert len(parser._task_ids) == 0
+            # With lazy loading, missing directory raises RuntimeError during scan
+            with pytest.raises(RuntimeError, match="tasks directory not found"):
+                MiniArcParser(valid_config_5x5)
 
     def test_get_data_path(self, valid_config_5x5: DatasetConfig):
         """Test get_data_path returns correct MiniARC path."""
-        with patch.object(MiniArcParser, '_load_and_cache_tasks'):
+        with patch.object(MiniArcParser, '_scan_available_tasks'):
             parser = MiniArcParser(valid_config_5x5)
             path = parser.get_data_path()
             assert path == "test/data/mini-arc/data/MiniARC"
@@ -325,7 +325,7 @@ class TestMiniArcParser:
 
     def test_get_random_task_no_tasks(self, valid_config_5x5: DatasetConfig):
         """Test get_random_task with no available tasks."""
-        with patch.object(MiniArcParser, '_load_and_cache_tasks'):
+        with patch.object(MiniArcParser, '_scan_available_tasks'):
             parser = MiniArcParser(valid_config_5x5)
             parser._task_ids = []  # No tasks available
             
@@ -377,7 +377,7 @@ class TestMiniArcParser:
 
     def test_get_dataset_statistics_empty(self, valid_config_5x5: DatasetConfig):
         """Test get_dataset_statistics with no tasks."""
-        with patch.object(MiniArcParser, '_load_and_cache_tasks'):
+        with patch.object(MiniArcParser, '_scan_available_tasks'):
             parser = MiniArcParser(valid_config_5x5)
             parser._task_ids = []  # No tasks
             
@@ -452,13 +452,24 @@ class TestMiniArcParser:
         )
         
         with patch('pyprojroot.here', return_value=temp_mini_arc_dataset):
-            # Should still initialize successfully, just skip the corrupted file
+            # With lazy loading, corrupted files are detected during scan (all .json files found)
+            # but error occurs when trying to load the corrupted task
             parser = MiniArcParser(config)
-            assert len(parser._task_ids) == 4  # Original 4 tasks, corrupted one skipped
+            assert len(parser._task_ids) == 5  # All 5 JSON files scanned, including corrupted
+            
+            # Attempting to load the corrupted task should raise an error
+            with pytest.raises(ValueError, match="Invalid JSON"):
+                parser.get_task_by_id("corrupted")
 
     def test_deterministic_preprocessing(self, mock_parser_5x5: MiniArcParser):
         """Test that preprocessing is deterministic for the same input."""
-        task_data = mock_parser_5x5._cached_tasks["flip_pattern"]
+        # Lazy loading: load task first to populate cache
+        # Use a task that exists in the fixture
+        available_ids = mock_parser_5x5.get_available_task_ids()
+        test_task_id = available_ids[0]  # Use first available task
+        _ = mock_parser_5x5.get_task_by_id(test_task_id)
+        # Access cached task data
+        task_data = mock_parser_5x5._cached_tasks[test_task_id]
         
         # Process the same data multiple times
         key1 = jax.random.PRNGKey(42)
@@ -478,7 +489,7 @@ class TestMiniArcParser:
         mock_hydra_config = Mock()
         
         with patch.object(DatasetConfig, 'from_hydra', return_value=valid_config_5x5):
-            with patch.object(MiniArcParser, '_load_and_cache_tasks'):
+            with patch.object(MiniArcParser, '_scan_available_tasks'):
                 parser = MiniArcParser.from_hydra(mock_hydra_config)
                 
                 assert isinstance(parser, MiniArcParser)
