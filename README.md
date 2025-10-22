@@ -3,7 +3,6 @@
 [![Actions Status][actions-badge]][actions-link]
 [![Documentation Status][rtd-badge]][rtd-link]
 [![PyPI version][pypi-version]][pypi-link]
-[![Conda-Forge][conda-badge]][conda-link]
 [![PyPI platforms][pypi-platforms]][pypi-link]
 [![GitHub Discussion][github-discussions-badge]][github-discussions-link]
 
@@ -18,7 +17,6 @@ extensions to Hierarchical RL, Meta-RL, and Multi-Task RL.
 - **🔥 JAX-Native**: Pure functional API with full `jax.jit`, `jax.vmap`, and
   `jax.pmap` support
 - **⚡ High Performance**: 100x+ speedup with JIT compilation
-- **🎯 Single-Agent Focus**: Clean SARL implementation optimized for learning
 - **🔧 Extensible Architecture**: Designed to support future HRL, Meta-RL, and
   Multi-Task RL
 - **🧩 Type Safety**: Typed configuration dataclasses with comprehensive
@@ -33,12 +31,6 @@ extensions to Hierarchical RL, Meta-RL, and Multi-Task RL.
 
 ```bash
 pip install jaxarc
-```
-
-### Using conda
-
-```bash
-conda install -c conda-forge jaxarc
 ```
 
 ### Development Installation
@@ -159,43 +151,6 @@ pixi run lint
 pixi run docs-serve
 ```
 
-### Examples
-
-```bash
-# Basic configuration and environment demos
-python examples/config_api_demo.py
-python examples/hydra_integration_example.py
-
-# ConceptARC dataset exploration and usage
-python examples/conceptarc_usage_example.py
-python examples/conceptarc_usage_example.py --concept Center --visualize
-python examples/conceptarc_usage_example.py --interactive
-python examples/conceptarc_usage_example.py --run-episode --concept Copy
-
-# MiniARC rapid prototyping and performance demos
-python examples/miniarc_usage_example.py
-python examples/miniarc_usage_example.py --performance-comparison
-python examples/miniarc_usage_example.py --rapid-prototyping --visualize
-python examples/miniarc_usage_example.py --batch-processing --verbose
-
-# Visualization demos
-python examples/visualization_demo.py
-python examples/enhanced_visualization_demo.py
-```
-
-## 📚 Documentation
-
-- **[Getting Started](docs/getting-started.md)**: Complete setup and first steps
-  guide
-- **[Datasets Guide](docs/datasets.md)**: All supported datasets and usage
-  patterns
-- **[Configuration Guide](docs/configuration.md)**: Complete configuration
-  system documentation
-- **[API Reference](docs/api_reference.md)**: Comprehensive API documentation
-- **[Examples](docs/examples/)**: Practical usage examples and patterns
-- **[Architecture Overview](planning-docs/PROJECT_ARCHITECTURE.md)**: Technical
-  architecture details
-
 ## 🤝 Contributing
 
 We welcome contributions! Please see our
@@ -218,42 +173,12 @@ We welcome contributions! Please see our
 - Add type hints for all public APIs
 - Write comprehensive docstrings
 
-## 🏆 Performance
-
-JaxARC is optimized for high-performance training:
-
-- **JIT Compilation**: 100x+ speedup for environment steps
-- **Vectorization**: Batch processing with `vmap`
-- **Memory Efficient**: Static shapes and pre-allocated arrays
-- **Scalable**: Supports large-scale distributed training
-
-## 📈 Benchmarks
-
-| Operation         | Time (ms) | Memory (MB) |
-| ----------------- | --------- | ----------- |
-| Environment Reset | 0.1       | 2.5         |
-| Single Step       | 0.05      | 1.2         |
-| JIT Compiled Step | 0.0005    | 1.2         |
-| Batch (1000 envs) | 0.5       | 120         |
-
-## 🧪 Research Applications
-
-JaxARC is designed for:
-
-- **Single-Agent Reinforcement Learning**: Abstract reasoning and pattern
-  recognition
-- **Hierarchical RL**: Multi-level reasoning with extensible architecture
-- **Meta-Learning**: Learning to learn across ARC task distributions
-- **Curriculum Learning**: Progressive difficulty training
-- **Symbolic Reasoning**: Abstract pattern recognition and generalization
-
 ## 🔗 Related Projects
 
 - **[ARC Challenge](https://github.com/fchollet/ARC)**: Original ARC dataset and
   challenge
-- **[ARCLE](https://github.com/alexia-nt/ARCLE)**: ARC Learning Environment
-- **[JaxMARL](https://github.com/FLAIROx/JaxMARL)**: JAX-based multi-agent RL
-  framework
+- **[ARCLE](https://github.com/ConfeitoHS/arcle)**: ARC Learning Environment
+- **[Stoix](https://github.com/EdanToledo/Stoix)**: A research-friendly codebase for fast experimentation of single-agent reinforcement learning in JAX
 
 ## 📄 License
 
@@ -264,7 +189,7 @@ for details.
 
 - François Chollet for creating the ARC challenge
 - The JAX team for the incredible framework
-- The JaxMARL team for multi-agent RL foundations
+- The Edan Toledo for Stoix and Stoa implementations
 - The Hydra team for configuration management
 
 ## 📞 Support
@@ -273,11 +198,8 @@ for details.
   [Report bugs or request features](https://github.com/aadimator/JaxARC/issues)
 - **Discussions**:
   [Ask questions and share ideas](https://github.com/aadimator/JaxARC/discussions)
-- **Documentation**: [Read the docs](https://JaxARC.readthedocs.io)
 
 ---
-
-**Made with ❤️ by the JaxARC team**
 
 <!-- Links -->
 
