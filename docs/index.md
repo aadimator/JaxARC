@@ -1,126 +1,120 @@
 # JaxARC Documentation
 
-JaxARC is a JAX-based Single-Agent Reinforcement Learning (SARL) environment for
-solving ARC (Abstraction and Reasoning Corpus) tasks. It provides a
-high-performance, functionally-pure environment designed for training AI agents
-on abstract reasoning puzzles.
+Welcome to JaxARC - A JAX-native Reinforcement Learning environment for the Abstraction and Reasoning Corpus (ARC).
+
+## What is JaxARC?
+
+JaxARC provides a high-performance, functionally-pure environment for training AI agents on abstract reasoning puzzles from the ARC challenge. Built entirely in JAX, it enables researchers and developers to leverage modern hardware acceleration (GPUs/TPUs) while maintaining clean, composable code.
+
+The ARC challenge tests an AI system's ability to solve novel reasoning tasks by observing a few examples and inferring the underlying transformation rule. JaxARC makes it easy to experiment with different agent architectures and training strategies on this challenging benchmark.
+
+## Why JaxARC?
+
+- **JAX-Native Performance**: Full support for JIT compilation, vectorization (`vmap`), and parallelization (`pmap`) means you can scale from single environments to thousands of parallel rollouts with minimal code changes.
+
+- **Fast & Efficient**: Leverage GPU/TPU acceleration for environment simulation. Run hundreds of thousands of steps per second on modern hardware.
+
+- **Flexible & Composable**: Clean functional API makes it easy to combine with other JAX libraries like Optax, Flax, and Haiku for agent training.
+
+- **Reproducible**: Explicit PRNG key management and immutable state ensure your experiments are perfectly reproducible across runs and platforms.
 
 ## Key Features
 
-- **JAX-Native**: Pure functional API with full JIT compilation support
-- **Modern JAX Patterns**: Equinox modules and JAXTyping for better integration
-- **Multiple Datasets**: Support for ARC-AGI, ConceptARC, and MiniARC datasets
-- **Enhanced Type Safety**: Precise array type annotations with runtime
-  validation
-- **Streamlined Configuration**: Hydra-first approach with comprehensive
-  validation
-- **Rich Visualization**: Terminal and SVG grid rendering utilities
-- **Comprehensive Logging**: Handler-based logging system with batched training
-  support
-- **Centralized State Management**: Single source of truth with Equinox modules
+- **Multiple Environments**: Support for ARC-AGI-1, ARC-AGI-2, ConceptARC, and MiniARC datasets
+- **Parser Registry**: Extensible system for loading and parsing different ARC dataset formats
+- **Wrappers**: Transform observations, rewards, and states with composable wrappers
+- **Visualization**: Rich terminal and SVG rendering for debugging and analysis
+- **Type Safety**: Precise array shape annotations with `jaxtyping` for better error messages
+- **Comprehensive Testing**: Extensive test suite ensuring JAX compatibility and correctness
 
-## Quick Start
+## Quick Navigation
 
-This project uses [Pixi](https://pixi.js.org) to manage the project structure
-and build process, and [Jupyter Book](https://jupyterbook.org) for
-documentation. Below are the steps to get started with the project.
+::::{grid} 2
+
+:::{grid-item-card} 🚀 Getting Started
+:link: getting-started/index
+:link-type: doc
+
+Install JaxARC and run your first environment in under 10 minutes.
+:::
+
+:::{grid-item-card} 📚 Tutorials
+:link: tutorials/index
+:link-type: doc
+
+Step-by-step guides for common tasks like downloading datasets, creating agents, and using wrappers.
+:::
+
+:::{grid-item-card} 📖 API Reference
+:link: api/index
+:link-type: doc
+
+Complete API documentation for all modules, classes, and functions.
+:::
+
+:::{grid-item-card} 🎓 Concepts
+:link: concepts/index
+:link-type: doc
+
+Understand JaxARC's architecture and JAX-specific patterns.
+:::
+
+::::
+
+## Installation
 
 ```bash
-# Clone the repository
-git clone git@github.com:aadimator/jaxarc.git
-cd jaxarc
+# Using Pixi (recommended)
+pixi add jaxarc
 
-# Install Pixi globally
-curl -fsSL https://pixi.sh/install.sh | sh
-
-# Install project dependencies
-pixi install
+# Or using pip
+pip install jaxarc
 ```
 
-## Useful Pixi Commands
+## Quick Example
 
-Here are some useful Pixi commands to manage the project:
+```python
+import jax
+import jaxarc
 
-```bash
-# Add dependencies
-pixi add <package_name>
+# Create an environment
+env, env_params = jaxarc.make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p")
 
-# Remove dependencies
-pixi remove <package_name>
+# Reset to get initial state
+key = jax.random.PRNGKey(0)
+state, timestep = env.reset(key, env_params)
 
-# Run linting
-pixi run lint
+# Take a step
+action_space = env.action_space(env_params)
+action = action_space.sample(key)
+next_state, next_timestep = env.step(state, action)
 
-# Serve the documentation
-pixi run docs-serve
-
-# Run tests
-pixi run test
+print(f"Observation shape: {next_timestep.observation.shape}")
+print(f"Reward: {next_timestep.reward}")
 ```
 
-## Documentation
+## Next Steps
 
-### Core Documentation
+- **New to JaxARC?** Start with the [Getting Started](getting-started/index.md) guide
+- **Want to learn specific tasks?** Check out the [Tutorials](tutorials/index.md)
+- **Need API details?** Browse the [API Reference](api/index.md)
+- **Coming from Gymnasium?** Read the [Concepts](concepts/index.md) guide to understand JAX patterns
 
-- **[Getting Started](getting-started.md)**: Quick start guide and installation
-- **[API Reference](api_reference.md)**: Complete API documentation with new
-  Equinox and JAXTyping patterns
-- **[Configuration Guide](configuration.md)**: Enhanced configuration system
-  with Hydra composition
-- **[Logging System](logging_system.md)**: Comprehensive logging and batched
-  training support
-- **[Datasets Guide](datasets.md)**: Comprehensive guide for using ARC dataset
-  parsers
-- **[Migration Guide](migration_guide.md)**: Step-by-step guide for upgrading to
-  new patterns
-- **[Equinox & JAXTyping Guide](equinox_jaxtyping_guide.md)**: Modern JAX
-  patterns and best practices
+## Contents
 
-### Testing Documentation
+```{toctree}
+:maxdepth: 2
+:caption: Documentation
 
-- **[Testing Guidelines](testing_guidelines.md)**: Comprehensive testing
-  guidelines for JAX-compatible code
-- **[JAX Testing Patterns](jax_testing_patterns.md)**: Specific patterns and
-  utilities for testing JAX functions
+getting-started/index
+tutorials/index
+concepts/index
+api/index
+advanced/index
+```
 
-### Dataset Support
+## Community & Support
 
-JaxARC supports multiple ARC dataset variants with dedicated parsers:
-
-- **ARC-AGI-1/2**: Original ARC challenge datasets from GitHub (`ArcAgiParser`)
-- **ConceptARC**: 16 concept groups for systematic evaluation
-  (`ConceptArcParser`)
-- **MiniARC**: Compact 5x5 grid version for rapid prototyping (`MiniArcParser`)
-
-#### Parser Classes
-
-- **`ArcAgiParser`**: General parser for ARC-AGI datasets from GitHub
-- **`ConceptArcParser`**: Specialized parser with concept group organization and
-  systematic evaluation features
-- **`MiniArcParser`**: Optimized parser for 5x5 grids with rapid prototyping
-  capabilities and performance optimizations
-
-### Examples and Demos
-
-- **Basic Usage**: `examples/config_api_demo.py`
-- **Modern JAX Patterns**: `examples/equinox_jaxtyping_demo.py` - Equinox and
-  JAXTyping demonstration
-- **Hydra Composition**: `examples/hydra_composition_demo.py` - Enhanced
-  configuration system
-- **ConceptARC Usage**: `examples/conceptarc_usage_example.py` - Comprehensive
-  ConceptARC demonstration
-- **MiniARC Usage**: `examples/miniarc_usage_example.py` - Rapid prototyping and
-  performance comparison
-- **Hydra Integration**: `examples/hydra_integration_example.py`
-- **Visualization**: `examples/visualization_demo.py`
-
-### Architecture
-
-- **[Project Architecture](../planning-docs/PROJECT_ARCHITECTURE.md)**:
-  Technical architecture overview
-- **[Implementation Guide](../planning-docs/guides/technical_implementation_guide.md)**:
-  Detailed implementation guide
-
-For detailed documentation on how the project was set up from scratch, refer to
-the [setup guide](./setup.md). For more information on how to use Pixi, refer to
-the [Pixi Documentation](https://pixi.js.org/docs/).
+- **GitHub**: [github.com/aadimator/JaxARC](https://github.com/aadimator/JaxARC)
+- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/aadimator/JaxARC/issues)
+- **Discussions**: Ask questions on [GitHub Discussions](https://github.com/aadimator/JaxARC/discussions)
