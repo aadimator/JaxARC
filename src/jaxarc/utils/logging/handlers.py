@@ -18,10 +18,10 @@ import numpy as np
 from loguru import logger
 
 from ..serialization_utils import serialize_log_step
+from ..visualization.core import detect_changed_cells
 from ..visualization.display import (
     draw_enhanced_episode_summary_svg,
     draw_parsed_task_data_svg,
-    draw_task_pair_svg,
     visualize_grid_rich,
     visualize_parsed_task_data_rich,
     visualize_task_pair_rich,
@@ -32,11 +32,11 @@ from ..visualization.rl_display import (
     draw_rl_step_svg_enhanced,
     get_operation_display_name,
 )
-from ..visualization.core import detect_changed_cells
 from .logger import to_python_float, to_python_scalar
 
 if TYPE_CHECKING:
     from rich.console import Console
+
     from jaxarc.types import Grid
 
 
@@ -430,8 +430,6 @@ class RichHandler:
                 self.console.print("[dim]Task visualization unavailable[/dim]")
 
     def _display_episode_summary(self, summary_data: dict[str, Any]) -> None:
-        from rich.rule import Rule
-
         episode_num = summary_data.get("episode_num", 0)
         total_steps = summary_data.get("total_steps", 0)
         total_reward = summary_data.get("total_reward", 0.0)
@@ -696,12 +694,12 @@ class SVGHandler:
         task_id = str(task_data.get("task_id", "unknown"))
         train_pairs = task_data.get("num_train_pairs", "?")
         test_pairs = task_data.get("num_test_pairs", "?")
-        svg_content = f'''<svg xmlns="http://www.w3.org/2000/svg" width="500" height="120">
+        svg_content = f"""<svg xmlns="http://www.w3.org/2000/svg" width="500" height="120">
   <rect width="100%" height="100%" fill="white"/>
   <text x="20" y="28" font-size="18" font-family="Arial" fill="#222">Task Overview</text>
   <text x="20" y="54" font-size="14" font-family="Arial" fill="#111">Task ID: {task_id}</text>
   <text x="20" y="80" font-size="12" font-family="Arial" fill="#111">Train: {train_pairs}  Test: {test_pairs}</text>
-</svg>'''
+</svg>"""
         svg_path = target_dir / "task_overview.svg"
         svg_path.parent.mkdir(parents=True, exist_ok=True)
         with svg_path.open("w", encoding="utf-8") as f:
@@ -800,7 +798,7 @@ class SVGHandler:
             return d.as_svg()
         except Exception as e:
             logger.error(f"Failed to create batched SVG: {e}")
-            return f'''<svg width="400" height="200"><text x="200" y="100" text-anchor="middle">Error: {e}</text></svg>'''
+            return f"""<svg width="400" height="200"><text x="200" y="100" text-anchor="middle">Error: {e}</text></svg>"""
 
     def _create_text_summary(
         self,

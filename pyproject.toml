@@ -119,6 +119,28 @@ module = "jaxarc.*"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+# Ignore missing stubs for heavy third-party libs used at runtime
+module = [
+  "jax",
+  "jax.numpy",
+  "equinox",
+  "jaxtyping",
+  "chex",
+  "numpy",
+  "drawsvg",
+  "cairosvg",
+  "loguru",
+  "rich",
+  "rich.*",
+  "omegaconf",
+  "hydra",
+  "hydra_core",
+  "stoa",
+  "stoa.*",
+]
+ignore_missing_imports = true
+
 
 [tool.ruff]
 

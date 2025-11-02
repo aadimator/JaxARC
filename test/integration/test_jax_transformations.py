@@ -14,7 +14,7 @@ import pytest
 
 from jaxarc import JaxArcConfig
 from jaxarc.envs.actions import action_handler, create_action
-from jaxarc.envs.functional import reset, step, validate_action_jax
+from jaxarc.envs.functional import validate_action_jax
 from jaxarc.envs.grid_operations import (
     execute_grid_operation,
 )
@@ -37,8 +37,6 @@ def get_grid_shape_from_state(state):
 
 class TestJITCompilation:
     """Test JIT compilation of core functions."""
-
-    
 
     def test_reset_jit_compilation(self, sample_env_and_params):
         """Test that reset function compiles successfully under JIT."""
@@ -233,9 +231,7 @@ class TestJITCompilation:
             timestep_jit.observation, timestep_normal.observation
         )
         chex.assert_trees_all_close(timestep_jit.reward, timestep_normal.reward)
-        chex.assert_trees_all_close(
-            state_jit.working_grid, state_normal.working_grid
-        )
+        chex.assert_trees_all_close(state_jit.working_grid, state_normal.working_grid)
 
     def test_compilation_performance(self, sample_env_and_params):
         """Test that JIT compilation provides performance benefits."""
@@ -262,9 +258,7 @@ class TestJITCompilation:
             pos = i % grid_shape[0]
             action = create_action(
                 operation=jnp.array(i % 10, dtype=jnp.int32),
-                selection=jnp.zeros(grid_shape, dtype=jnp.bool_)
-                .at[pos, pos]
-                .set(True),
+                selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[pos, pos].set(True),
             )
             state, timestep = jitted_step(state, action)
 
@@ -329,9 +323,7 @@ class TestVmapTransformations:
         batch_actions = []
         for i in range(batch_size):
             pos = i % grid_shape_2d[0]
-            selection = (
-                jnp.zeros(grid_shape_2d, dtype=jnp.bool_).at[pos, pos].set(True)
-            )
+            selection = jnp.zeros(grid_shape_2d, dtype=jnp.bool_).at[pos, pos].set(True)
             action = create_action(
                 operation=jnp.array(i % 10, dtype=jnp.int32), selection=selection
             )
@@ -357,7 +349,9 @@ class TestVmapTransformations:
         )
 
         # Check batch dimensions
-        chex.assert_shape(next_batch_timesteps.observation, (batch_size, *grid_shape_3d))
+        chex.assert_shape(
+            next_batch_timesteps.observation, (batch_size, *grid_shape_3d)
+        )
         chex.assert_shape(next_batch_timesteps.reward, (batch_size,))
         chex.assert_shape(next_batch_states.working_grid, (batch_size, *grid_shape_2d))
 
@@ -640,9 +634,7 @@ class TestPRNGManagement:
 
         # Results should be identical
         chex.assert_trees_all_close(timestep1.observation, timestep2.observation)
-        chex.assert_trees_all_close(
-            state1.working_grid, state2.working_grid
-        )
+        chex.assert_trees_all_close(state1.working_grid, state2.working_grid)
         chex.assert_trees_all_close(state1.task_idx, state2.task_idx)
 
     def test_prng_key_splitting(self, sample_env_and_params):
@@ -659,13 +651,9 @@ class TestPRNGManagement:
         # Results should be different (with high probability)
         # Note: There's a small chance they could be the same, but very unlikely
         try:
-            chex.assert_trees_all_close(
-                state1.task_idx, state2.task_idx
-            )
+            chex.assert_trees_all_close(state1.task_idx, state2.task_idx)
             # If they are the same, check if working grids are different
-            assert not jnp.array_equal(
-                state1.working_grid, state2.working_grid
-            )
+            assert not jnp.array_equal(state1.working_grid, state2.working_grid)
         except AssertionError:
             # This is expected - the results should be different
             pass
@@ -701,9 +689,7 @@ class TestPRNGManagement:
         chex.assert_trees_all_close(
             timestep_normal.observation, timestep_jit.observation
         )
-        chex.assert_trees_all_close(
-            state_normal.working_grid, state_jit.working_grid
-        )
+        chex.assert_trees_all_close(state_normal.working_grid, state_jit.working_grid)
         chex.assert_trees_all_close(state_normal.key, state_jit.key)
 
     def test_prng_key_batch_independence(self, sample_env_and_params):
@@ -740,7 +726,9 @@ class TestPRNGManagement:
                 pos = min(i, grid_shape[0] - 1)
                 action = create_action(
                     operation=jnp.array(i, dtype=jnp.int32),
-                    selection=jnp.zeros(grid_shape, dtype=jnp.bool_).at[pos, pos].set(True),
+                    selection=jnp.zeros(grid_shape, dtype=jnp.bool_)
+                    .at[pos, pos]
+                    .set(True),
                 )
                 state, timestep = env.step(state, action)
                 results.append(state.step_count)

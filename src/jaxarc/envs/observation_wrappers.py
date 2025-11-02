@@ -18,7 +18,7 @@ Usage:
     from jaxarc.envs.observation_wrappers import (
         ClipboardObservationWrapper,
         InputGridObservationWrapper,
-        ContextualObservationWrapper
+        ContextualObservationWrapper,
     )
 
     # Create base environment
@@ -40,6 +40,7 @@ Usage:
     print(timestep.observation.shape)
     ```
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -56,7 +57,9 @@ from .spaces import BoundedArraySpace
 class BaseObservationWrapper(Wrapper):
     """A base class for observation wrappers to handle boilerplate."""
 
-    def _augment_observation(self, observation: jax.Array, state: State, env_params: EnvParams) -> jax.Array:
+    def _augment_observation(
+        self, observation: jax.Array, state: State, env_params: EnvParams
+    ) -> jax.Array:
         """Function to be implemented by subclasses to add channels."""
         raise NotImplementedError
 
@@ -64,14 +67,16 @@ class BaseObservationWrapper(Wrapper):
         """Function to be implemented by subclasses to declare new channels."""
         raise NotImplementedError
 
-    def observation_space(self, env_params: EnvParams | None = None) -> BoundedArraySpace:
+    def observation_space(
+        self, env_params: EnvParams | None = None
+    ) -> BoundedArraySpace:
         """Augment the observation space with the new channels."""
         p = self._env.params if env_params is None else env_params
         base_obs_space = self._env.observation_space(p)
 
         new_channels = self._get_num_new_channels()
         base_shape = base_obs_space.shape
-        
+
         return BoundedArraySpace(
             minimum=base_obs_space.minimum,
             maximum=base_obs_space.maximum,
@@ -79,14 +84,20 @@ class BaseObservationWrapper(Wrapper):
             dtype=base_obs_space.dtype,
         )
 
-    def _process_timestep(self, timestep: TimeStep, state: State, env_params: EnvParams) -> TimeStep:
+    def _process_timestep(
+        self, timestep: TimeStep, state: State, env_params: EnvParams
+    ) -> TimeStep:
         """Generic function to process a timestep and augment its observation."""
-        augmented_obs = self._augment_observation(timestep.observation, state, env_params)
-        
+        augmented_obs = self._augment_observation(
+            timestep.observation, state, env_params
+        )
+
         extras = timestep.extras
         if isinstance(extras, dict) and "next_obs" in extras:
             extras = dict(extras)  # Avoid mutation under JAX transforms
-            extras["next_obs"] = self._augment_observation(extras["next_obs"], state, env_params)
+            extras["next_obs"] = self._augment_observation(
+                extras["next_obs"], state, env_params
+            )
 
         return TimeStep(
             step_type=timestep.step_type,
@@ -96,13 +107,17 @@ class BaseObservationWrapper(Wrapper):
             extras=extras,
         )
 
-    def step(self, state: State, action: Any, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
+    def step(
+        self, state: State, action: Any, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
         """Step the environment and augment the resulting observation."""
         p = self._env.params if env_params is None else env_params
         next_state, timestep = self._env.step(state, action, env_params=p)
         return next_state, self._process_timestep(timestep, next_state, p)
 
-    def reset(self, rng_key: jax.Array, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
+    def reset(
+        self, rng_key: jax.Array, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
         """Reset the environment and augment the resulting observation."""
         p = self._env.params if env_params is None else env_params
         state, timestep = self._env.reset(rng_key, env_params=p)
@@ -115,7 +130,9 @@ class ClipboardObservationWrapper(BaseObservationWrapper):
     def _get_num_new_channels(self) -> int:
         return 1
 
-    def _augment_observation(self, observation: jax.Array, state: State, env_params: EnvParams) -> jax.Array:
+    def _augment_observation(
+        self, observation: jax.Array, state: State, env_params: EnvParams
+    ) -> jax.Array:
         clipboard_channel = jnp.expand_dims(state.clipboard, axis=-1)
         return jnp.concatenate([observation, clipboard_channel], axis=-1)
 
@@ -126,7 +143,9 @@ class InputGridObservationWrapper(BaseObservationWrapper):
     def _get_num_new_channels(self) -> int:
         return 1
 
-    def _augment_observation(self, observation: jax.Array, state: State, env_params: EnvParams) -> jax.Array:
+    def _augment_observation(
+        self, observation: jax.Array, state: State, env_params: EnvParams
+    ) -> jax.Array:
         input_grid_channel = jnp.expand_dims(state.input_grid, axis=-1)
         return jnp.concatenate([observation, input_grid_channel], axis=-1)
 
@@ -137,13 +156,14 @@ class AnswerObservationWrapper(BaseObservationWrapper):
     def _get_num_new_channels(self) -> int:
         return 1
 
-    def _augment_observation(self, observation: jax.Array, state: State, env_params: EnvParams) -> jax.Array:
+    def _augment_observation(
+        self, observation: jax.Array, state: State, env_params: EnvParams
+    ) -> jax.Array:
         # Note: The environment's state management already ensures that `state.target_grid`
         # is correctly masked (e.g., zeroed out) during test episodes to prevent cheating.
         # This wrapper can therefore simply append it.
         answer_channel = jnp.expand_dims(state.target_grid, axis=-1)
         return jnp.concatenate([observation, answer_channel], axis=-1)
-
 
 
 class ContextualObservationWrapper(BaseObservationWrapper):
@@ -164,21 +184,23 @@ class ContextualObservationWrapper(BaseObservationWrapper):
     def _get_num_new_channels(self) -> int:
         return 2 * self.num_context_pairs
 
-    def _augment_observation(self, observation: jax.Array, state: State, env_params: EnvParams) -> jax.Array:
+    def _augment_observation(
+        self, observation: jax.Array, state: State, env_params: EnvParams
+    ) -> jax.Array:
         """
         Create observation with contextual demonstration pairs.
         This implementation is inspired by the user-provided example.
         """
         current_pair_idx = state.pair_idx
         task_idx = state.task_idx
-        
+
         # This logic assumes env_params.buffer is available and contains task data
         task_data = jax.tree_util.tree_map(lambda x: x[task_idx], env_params.buffer)
 
         # All demonstration pairs for the current task
         all_inputs = task_data.input_grids_examples.astype(jnp.float32)
         all_outputs = task_data.output_grids_examples.astype(jnp.float32)
-        
+
         num_actual_examples = task_data.num_train_pairs
         grid_shape = observation.shape[:2]
         zero_grid = jnp.zeros(grid_shape, dtype=jnp.float32)
@@ -189,7 +211,7 @@ class ContextualObservationWrapper(BaseObservationWrapper):
         # In training mode, we exclude the current pair from the context.
         # In test mode, the agent is solving a test pair, so all demo pairs can be context.
         is_training = jnp.asarray(env_params.episode_mode == 0)
-        
+
         # Shift indices to skip the current pair if in training mode
         demo_indices = jnp.where(
             is_training & (context_slot_indices >= current_pair_idx),
@@ -199,7 +221,7 @@ class ContextualObservationWrapper(BaseObservationWrapper):
 
         # Create a mask for valid context pairs (within bounds of available demos)
         valid_mask = demo_indices < num_actual_examples
-        
+
         # Ensure indices are safe for gathering
         safe_demo_indices = jnp.clip(demo_indices, 0, all_inputs.shape[0] - 1)
 
@@ -214,8 +236,10 @@ class ContextualObservationWrapper(BaseObservationWrapper):
 
         # Interleave inputs and outputs: [input0, output0, input1, output1, ...]
         context_channels_stacked = jnp.stack([context_inputs, context_outputs], axis=1)
-        context_channels_flat = context_channels_stacked.reshape(2 * self.num_context_pairs, *grid_shape)
-        
+        context_channels_flat = context_channels_stacked.reshape(
+            2 * self.num_context_pairs, *grid_shape
+        )
+
         # Add channel dimension to match observation
         context_channels = jnp.transpose(context_channels_flat, (1, 2, 0))
 
@@ -225,6 +249,6 @@ class ContextualObservationWrapper(BaseObservationWrapper):
 __all__ = [
     "AnswerObservationWrapper",
     "ClipboardObservationWrapper",
-    "InputGridObservationWrapper",
     "ContextualObservationWrapper",
+    "InputGridObservationWrapper",
 ]

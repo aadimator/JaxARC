@@ -4,6 +4,7 @@ Tests for core data structures in jaxarc.types module.
 This module tests the Grid, JaxArcTask, TaskPair, TimeStep, and EnvParams classes
 to ensure proper JAX compatibility, type safety, and validation.
 """
+
 from __future__ import annotations
 
 import chex
@@ -879,7 +880,9 @@ class TestTimeStep:
 
         # Verify state-like info preserved in extras
         assert "state" in timestep.extras
-        chex.assert_trees_all_equal(timestep.extras["state"]["grid"], mock_state["grid"])
+        chex.assert_trees_all_equal(
+            timestep.extras["state"]["grid"], mock_state["grid"]
+        )
         chex.assert_trees_all_equal(
             timestep.extras["state"]["step_count"], mock_state["step_count"]
         )

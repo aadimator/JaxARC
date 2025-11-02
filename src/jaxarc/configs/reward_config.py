@@ -29,7 +29,9 @@ class RewardConfig(eqx.Module):
         try:
             validate_float_range(self.step_penalty, "step_penalty", -10.0, 1.0)
             validate_float_range(self.success_bonus, "success_bonus", -100.0, 1000.0)
-            validate_float_range(self.similarity_weight, "similarity_weight", 0.0, 100.0)
+            validate_float_range(
+                self.similarity_weight, "similarity_weight", 0.0, 100.0
+            )
             validate_float_range(
                 self.unsolved_submission_penalty,
                 "unsolved_submission_penalty",

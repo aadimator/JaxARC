@@ -3,6 +3,7 @@ Visualization core utilities for JaxARC.
 
 Contains constants, utilities, and SVG rendering engine.
 """
+
 from __future__ import annotations
 
 import io

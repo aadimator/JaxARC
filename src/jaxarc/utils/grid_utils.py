@@ -148,19 +148,21 @@ def pad_array_sequence(
 
 
 @jax.jit
-def get_selection_bounding_box(selection: SelectionArray) -> tuple[jnp.int32, jnp.int32, jnp.int32, jnp.int32]:
+def get_selection_bounding_box(
+    selection: SelectionArray,
+) -> tuple[jnp.int32, jnp.int32, jnp.int32, jnp.int32]:
     """Calculate minimal bounding box for selected pixels.
-    
+
     JAX-compatible function that calculates the smallest rectangle containing
     all selected (True) pixels in the selection mask.
-    
+
     Args:
         selection: Boolean selection mask indicating selected pixels
-        
+
     Returns:
         Tuple of (min_row, max_row, min_col, max_col) representing the bounding box.
         Returns (-1, -1, -1, -1) if no pixels are selected (empty selection).
-        
+
     Example:
         >>> selection = jnp.array([[False, True, False],
         ...                       [True, True, False],
@@ -169,33 +171,33 @@ def get_selection_bounding_box(selection: SelectionArray) -> tuple[jnp.int32, jn
         (0, 1, 0, 1)  # min_row=0, max_row=1, min_col=0, max_col=1
     """
     has_selection = jnp.sum(selection) > 0
-    
+
     def calculate_bbox():
         # Create coordinate grids
         height, width = selection.shape
         rows = jnp.arange(height, dtype=jnp.int32)[:, None]
         cols = jnp.arange(width, dtype=jnp.int32)[None, :]
-        
+
         # Find selected coordinates using JAX-compatible operations
         # For min calculations, use max int value for non-selected pixels
         selected_rows = jnp.where(selection, rows, jnp.iinfo(jnp.int32).max)
         selected_cols = jnp.where(selection, cols, jnp.iinfo(jnp.int32).max)
-        
+
         # For max calculations, use -1 for non-selected pixels
         max_selected_rows = jnp.where(selection, rows, -1)
         max_selected_cols = jnp.where(selection, cols, -1)
-        
+
         # Calculate bounds
         min_row = jnp.min(selected_rows)
         max_row = jnp.max(max_selected_rows)
         min_col = jnp.min(selected_cols)
         max_col = jnp.max(max_selected_cols)
-        
+
         return min_row, max_row, min_col, max_col
-    
+
     def no_selection():
         return jnp.int32(-1), jnp.int32(-1), jnp.int32(-1), jnp.int32(-1)
-    
+
     return jax.lax.cond(has_selection, calculate_bbox, no_selection)
 
 
@@ -206,32 +208,31 @@ def get_selection_bounding_box(selection: SelectionArray) -> tuple[jnp.int32, jn
 
 @jax.jit
 def extract_object_rectangle(
-    grid: GridArray, 
-    selection: SelectionArray
+    grid: GridArray, selection: SelectionArray
 ) -> tuple[GridArray, tuple[jnp.int32, jnp.int32, jnp.int32, jnp.int32]]:
     """Extract rectangular region containing all selected pixels (JIT-compatible).
-    
+
     JAX-compatible function that creates a masked version of the full grid
     where only the bounding box region is preserved. This maintains static
     shapes for JIT compatibility while providing the bounding box coordinates
     for further processing.
-    
+
     Args:
         grid: Source grid to extract from (fixed size)
         selection: Boolean selection mask indicating pixels to include in bounding box
-        
+
     Returns:
         Tuple of (masked_grid, bounding_box_coords) where:
         - masked_grid: Full-size grid with only bounding box region preserved, rest zeroed
         - bounding_box_coords: Tuple of (min_row, max_row, min_col, max_col)
-        
+
     Note:
         - If selection is empty, returns zeroed grid and (-1, -1, -1, -1) coords
         - The masked grid preserves spatial relationships within the bounding box
         - Non-selected pixels within the bounding box are preserved as-is (including zeros)
         - This function is JIT-compatible by maintaining static array shapes
         - Use the bounding box coordinates to determine the actual extraction region
-        
+
     Example:
         >>> grid = jnp.array([[1, 2, 3, 0],
         ...                   [4, 5, 6, 0],
@@ -246,33 +247,32 @@ def extract_object_rectangle(
     """
     # Get bounding box coordinates
     min_row, max_row, min_col, max_col = get_selection_bounding_box(selection)
-    
+
     # Check if we have a valid bounding box
     has_valid_bbox = min_row >= 0
-    
+
     # Create coordinate grids for masking
     height, width = grid.shape
     rows = jnp.arange(height)[:, None]
     cols = jnp.arange(width)[None, :]
-    
+
     # Create bounding box mask - only preserve pixels within the bounding box
     bbox_mask = (
-        (rows >= min_row) & (rows <= max_row) &
-        (cols >= min_col) & (cols <= max_col)
+        (rows >= min_row) & (rows <= max_row) & (cols >= min_col) & (cols <= max_col)
     )
-    
+
     # For invalid bounding box, create empty mask
     empty_mask = jnp.zeros_like(grid, dtype=jnp.bool_)
-    
+
     # Select appropriate mask based on validity
     final_mask = jnp.where(has_valid_bbox, bbox_mask, empty_mask)
-    
+
     # Apply mask to grid - preserve bounding box region, zero everything else
     masked_grid = jnp.where(final_mask, grid, 0)
-    
+
     # Return the masked grid and bounding box coordinates
     bbox = (min_row, max_row, min_col, max_col)
-    
+
     return masked_grid, bbox
 
 
@@ -280,64 +280,60 @@ def extract_object_rectangle(
 def extract_bounding_box_region(
     grid: GridArray,
     min_row: jnp.int32,
-    max_row: jnp.int32, 
+    max_row: jnp.int32,
     min_col: jnp.int32,
-    max_col: jnp.int32
+    max_col: jnp.int32,
 ) -> GridArray:
     """Extract a rectangular region using bounding box coordinates (JIT-compatible).
-    
+
     This function creates a mask for the specified bounding box region and
     returns a grid where only that region is preserved (rest is zeroed).
     This maintains static shapes for JIT compatibility.
-    
+
     Args:
         grid: Source grid to extract from
         min_row: Top edge of bounding box
-        max_row: Bottom edge of bounding box  
+        max_row: Bottom edge of bounding box
         min_col: Left edge of bounding box
         max_col: Right edge of bounding box
-        
+
     Returns:
         Grid with only the bounding box region preserved, rest zeroed
-        
+
     Note:
         - Invalid coordinates (e.g., -1 values) result in empty extraction
         - This function maintains the original grid shape for JIT compatibility
         - Use this with coordinates from get_selection_bounding_box()
-        
+
     Example:
         >>> grid = jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
         >>> extracted = extract_bounding_box_region(grid, 0, 1, 0, 1)
         >>> extracted
         Array([[1, 2, 0],
-               [4, 5, 0], 
+               [4, 5, 0],
                [0, 0, 0]], dtype=int32)
     """
     # Check if we have valid coordinates
     has_valid_coords = min_row >= 0
-    
+
     # Create coordinate grids
     height, width = grid.shape
     rows = jnp.arange(height)[:, None]
     cols = jnp.arange(width)[None, :]
-    
+
     # Create bounding box mask
     bbox_mask = (
-        (rows >= min_row) & (rows <= max_row) &
-        (cols >= min_col) & (cols <= max_col)
+        (rows >= min_row) & (rows <= max_row) & (cols >= min_col) & (cols <= max_col)
     )
-    
+
     # For invalid coordinates, use empty mask
     empty_mask = jnp.zeros_like(grid, dtype=jnp.bool_)
-    
+
     # Select appropriate mask
     final_mask = jnp.where(has_valid_coords, bbox_mask, empty_mask)
-    
+
     # Apply mask to grid
     return jnp.where(final_mask, grid, 0)
-
-
-
 
 
 # =============================================================================
@@ -348,17 +344,17 @@ def extract_bounding_box_region(
 @jax.jit
 def validate_single_cell_selection(selection: SelectionArray) -> jnp.bool_:
     """Validate that exactly one cell is selected.
-    
+
     JAX-compatible function that checks if the selection mask contains
     exactly one True value. Used for operations like flood fill that
     require a single starting point.
-    
+
     Args:
         selection: Boolean selection mask indicating selected pixels
-        
+
     Returns:
         True if exactly one cell is selected, False otherwise
-        
+
     Example:
         >>> # Single cell selected - valid
         >>> selection = jnp.array([[False, True, False],
@@ -366,14 +362,14 @@ def validate_single_cell_selection(selection: SelectionArray) -> jnp.bool_:
         ...                       [False, False, False]])
         >>> validate_single_cell_selection(selection)
         True
-        
+
         >>> # Multiple cells selected - invalid
         >>> selection = jnp.array([[True, True, False],
         ...                       [False, False, False],
         ...                       [False, False, False]])
         >>> validate_single_cell_selection(selection)
         False
-        
+
         >>> # No cells selected - invalid
         >>> selection = jnp.array([[False, False, False],
         ...                       [False, False, False],

@@ -277,16 +277,18 @@ def apply_within_bounds(
 
 
 @eqx.filter_jit
-def get_effective_selection(selection: SelectionArray, working_grid_mask: SelectionArray) -> SelectionArray:
+def get_effective_selection(
+    selection: SelectionArray, working_grid_mask: SelectionArray
+) -> SelectionArray:
     """Get effective selection for object operations.
-    
+
     If no selection is provided (all False), auto-selects the entire working grid area.
     This provides consistent behavior across all object operations.
-    
+
     Args:
         selection: Original selection mask
         working_grid_mask: Mask indicating active grid area
-        
+
     Returns:
         Effective selection mask to use for the operation
     """
@@ -294,38 +296,38 @@ def get_effective_selection(selection: SelectionArray, working_grid_mask: Select
     return jnp.where(has_selection, selection, working_grid_mask)
 
 
-@eqx.filter_jit  
+@eqx.filter_jit
 def validate_bounding_box_for_operation(
-    min_row: jnp.int32, 
-    max_row: jnp.int32, 
-    min_col: jnp.int32, 
+    min_row: jnp.int32,
+    max_row: jnp.int32,
+    min_col: jnp.int32,
     max_col: jnp.int32,
-    require_square: bool = False
+    require_square: bool = False,
 ) -> jnp.bool_:
     """Validate bounding box for object operations.
-    
+
     Provides consistent validation logic across all object operations.
-    
+
     Args:
         min_row: Minimum row coordinate
-        max_row: Maximum row coordinate  
+        max_row: Maximum row coordinate
         min_col: Minimum column coordinate
         max_col: Maximum column coordinate
         require_square: Whether to require square bounding box (for rotation)
-        
+
     Returns:
         True if bounding box is valid for the operation, False otherwise
     """
     # Check if we have a valid bounding box
     has_valid_bbox = min_row >= 0
-    
+
     if require_square:
         # For rotation, also check if bounding box is square
         height = max_row - min_row + 1
         width = max_col - min_col + 1
         is_square = height == width
         return has_valid_bbox & is_square
-    
+
     return has_valid_bbox
 
 
@@ -376,19 +378,27 @@ def simple_flood_fill(
         def flood_step(_i, flood_mask):
             # Expand in 4 directions without wrapping at boundaries
             h, w = flood_mask.shape
-            
+
             # Create shifted versions with proper boundary handling
             # Up: shift down and zero out bottom row
-            up = jnp.concatenate([flood_mask[1:], jnp.zeros((1, w), dtype=jnp.bool_)], axis=0)
-            
-            # Down: shift up and zero out top row  
-            down = jnp.concatenate([jnp.zeros((1, w), dtype=jnp.bool_), flood_mask[:-1]], axis=0)
-            
+            up = jnp.concatenate(
+                [flood_mask[1:], jnp.zeros((1, w), dtype=jnp.bool_)], axis=0
+            )
+
+            # Down: shift up and zero out top row
+            down = jnp.concatenate(
+                [jnp.zeros((1, w), dtype=jnp.bool_), flood_mask[:-1]], axis=0
+            )
+
             # Left: shift right and zero out rightmost column
-            left = jnp.concatenate([flood_mask[:, 1:], jnp.zeros((h, 1), dtype=jnp.bool_)], axis=1)
-            
+            left = jnp.concatenate(
+                [flood_mask[:, 1:], jnp.zeros((h, 1), dtype=jnp.bool_)], axis=1
+            )
+
             # Right: shift left and zero out leftmost column
-            right = jnp.concatenate([jnp.zeros((h, 1), dtype=jnp.bool_), flood_mask[:, :-1]], axis=1)
+            right = jnp.concatenate(
+                [jnp.zeros((h, 1), dtype=jnp.bool_), flood_mask[:, :-1]], axis=1
+            )
 
             # Combine expansions
             expanded = flood_mask | up | down | left | right
@@ -412,19 +422,19 @@ def flood_fill_color(
     state: State, selection: SelectionArray, color: ColorValue
 ) -> State:
     """Flood fill from selected region with specified color.
-    
+
     Only performs flood fill if exactly one cell is selected. Returns original
     state unchanged if multiple cells or no cells are selected.
     """
     # Validate that exactly one cell is selected
     is_valid_selection = validate_single_cell_selection(selection)
-    
+
     def do_flood_fill():
         return simple_flood_fill(state.working_grid, selection, color)
-    
+
     def no_flood_fill():
         return state.working_grid
-    
+
     # Only perform flood fill if selection is valid (single cell)
     new_grid = jax.lax.cond(is_valid_selection, do_flood_fill, no_flood_fill)
     return update_working_grid(state, new_grid)
@@ -436,18 +446,18 @@ def flood_fill_color(
 @eqx.filter_jit
 def move_object(state: State, selection: SelectionArray, direction: int) -> State:
     """Move selected object in specified direction (0=up, 1=down, 2=left, 3=right).
-    
+
     Uses bounding box extraction to move only the rectangular region containing
     all selected pixels. Movement wraps within the bounding box boundaries.
-    
+
     Args:
         state: Current environment state
         selection: Boolean mask indicating selected pixels
         direction: Movement direction (0=up, 1=down, 2=left, 3=right)
-        
+
     Returns:
         Updated state with moved object, or original state if invalid bounding box
-        
+
     Note:
         - If no selection provided, auto-selects entire working grid
         - Movement wraps within bounding box (pixels moving out one side appear on opposite)
@@ -458,76 +468,80 @@ def move_object(state: State, selection: SelectionArray, direction: int) -> Stat
 
     # Get bounding box coordinates using consistent utility function
     min_row, max_row, min_col, max_col = get_selection_bounding_box(effective_selection)
-    
+
     # Validate bounding box using standardized utility
-    has_valid_bbox = validate_bounding_box_for_operation(min_row, max_row, min_col, max_col)
-    
+    has_valid_bbox = validate_bounding_box_for_operation(
+        min_row, max_row, min_col, max_col
+    )
+
     def apply_move():
         # Create coordinate grids
         grid_height, grid_width = state.working_grid.shape
         rows = jnp.arange(grid_height)[:, None]
         cols = jnp.arange(grid_width)[None, :]
-        
+
         # Create bounding box mask
         bbox_mask = (
-            (rows >= min_row) & (rows <= max_row) &
-            (cols >= min_col) & (cols <= max_col)
+            (rows >= min_row)
+            & (rows <= max_row)
+            & (cols >= min_col)
+            & (cols <= max_col)
         )
-        
+
         # Calculate bounding box dimensions
         bbox_height = max_row - min_row + 1
         bbox_width = max_col - min_col + 1
-        
+
         # For each direction, calculate the new position within the bounding box
         def move_up():
             # Map each position to its new position after moving up with wrapping
             new_row = jnp.where(
                 rows == min_row,  # Top row wraps to bottom
                 max_row,
-                rows - 1  # Other rows move up by 1
+                rows - 1,  # Other rows move up by 1
             )
             return jnp.where(bbox_mask, state.working_grid[new_row, cols], 0)
-        
+
         def move_down():
             # Map each position to its new position after moving down with wrapping
             new_row = jnp.where(
                 rows == max_row,  # Bottom row wraps to top
                 min_row,
-                rows + 1  # Other rows move down by 1
+                rows + 1,  # Other rows move down by 1
             )
             return jnp.where(bbox_mask, state.working_grid[new_row, cols], 0)
-        
+
         def move_left():
             # Map each position to its new position after moving left with wrapping
             new_col = jnp.where(
                 cols == min_col,  # Left column wraps to right
                 max_col,
-                cols - 1  # Other columns move left by 1
+                cols - 1,  # Other columns move left by 1
             )
             return jnp.where(bbox_mask, state.working_grid[rows, new_col], 0)
-        
+
         def move_right():
             # Map each position to its new position after moving right with wrapping
             new_col = jnp.where(
                 cols == max_col,  # Right column wraps to left
                 min_col,
-                cols + 1  # Other columns move right by 1
+                cols + 1,  # Other columns move right by 1
             )
             return jnp.where(bbox_mask, state.working_grid[rows, new_col], 0)
-        
+
         moved_region = jax.lax.switch(
             direction, [move_up, move_down, move_left, move_right]
         )
-        
+
         # Clear the original bounding box region and place the moved region
         cleared_grid = jnp.where(bbox_mask, 0, state.working_grid)
         result_grid = jnp.where(moved_region > 0, moved_region, cleared_grid)
-        
+
         return result_grid
-    
+
     def no_move():
         return state.working_grid
-    
+
     # Apply move only if we have a valid bounding box
     new_grid = jax.lax.cond(has_valid_bbox, apply_move, no_move)
     return update_working_grid(state, new_grid)
@@ -539,18 +553,18 @@ def move_object(state: State, selection: SelectionArray, direction: int) -> Stat
 @eqx.filter_jit
 def rotate_object(state: State, selection: SelectionArray, angle: int) -> State:
     """Rotate selected region (0=90° clockwise, 1=90° counterclockwise).
-    
+
     Uses bounding box extraction to rotate only the rectangular region containing
     all selected pixels. Only works if the bounding box is square.
-    
+
     Args:
         state: Current environment state
         selection: Boolean mask indicating selected pixels
         angle: Rotation angle (0=90° clockwise, 1=90° counterclockwise)
-        
+
     Returns:
         Updated state with rotated object, or original state if bounding box invalid/non-square
-        
+
     Note:
         - If no selection provided, auto-selects entire working grid
         - Only rotates if bounding box is square (height == width)
@@ -561,42 +575,50 @@ def rotate_object(state: State, selection: SelectionArray, angle: int) -> State:
 
     # Get bounding box coordinates using consistent utility function
     min_row, max_row, min_col, max_col = get_selection_bounding_box(effective_selection)
-    
+
     # Validate bounding box for rotation (requires square) using standardized utility
-    can_rotate = validate_bounding_box_for_operation(min_row, max_row, min_col, max_col, require_square=True)
-    
+    can_rotate = validate_bounding_box_for_operation(
+        min_row, max_row, min_col, max_col, require_square=True
+    )
+
     def apply_rotation():
         # Extract the bounding box region
-        bbox_region = extract_bounding_box_region(state.working_grid, min_row, max_row, min_col, max_col)
-        
+        bbox_region = extract_bounding_box_region(
+            state.working_grid, min_row, max_row, min_col, max_col
+        )
+
         # Apply rotation
         def rotate_clockwise():
             return jnp.rot90(bbox_region, k=-1)  # Clockwise
-        
+
         def rotate_counterclockwise():
-            return jnp.rot90(bbox_region, k=1)   # Counterclockwise
-        
-        rotated_region = jax.lax.switch(angle, [rotate_clockwise, rotate_counterclockwise])
-        
+            return jnp.rot90(bbox_region, k=1)  # Counterclockwise
+
+        rotated_region = jax.lax.switch(
+            angle, [rotate_clockwise, rotate_counterclockwise]
+        )
+
         # Create a mask for the bounding box area
         grid_height, grid_width = state.working_grid.shape
         rows = jnp.arange(grid_height)[:, None]
         cols = jnp.arange(grid_width)[None, :]
-        
+
         bbox_mask = (
-            (rows >= min_row) & (rows <= max_row) &
-            (cols >= min_col) & (cols <= max_col)
+            (rows >= min_row)
+            & (rows <= max_row)
+            & (cols >= min_col)
+            & (cols <= max_col)
         )
-        
+
         # Clear the original bounding box region and place the rotated region
         cleared_grid = jnp.where(bbox_mask, 0, state.working_grid)
         result_grid = jnp.where(rotated_region > 0, rotated_region, cleared_grid)
-        
+
         return result_grid
-    
+
     def no_rotation():
         return state.working_grid
-    
+
     # Apply rotation only if we have a valid square bounding box
     new_grid = jax.lax.cond(can_rotate, apply_rotation, no_rotation)
     return update_working_grid(state, new_grid)
@@ -608,18 +630,18 @@ def rotate_object(state: State, selection: SelectionArray, angle: int) -> State:
 @eqx.filter_jit
 def flip_object(state: State, selection: SelectionArray, axis: int) -> State:
     """Flip selected region (0=horizontal, 1=vertical).
-    
+
     Uses bounding box extraction to flip only the rectangular region containing
     all selected pixels.
-    
+
     Args:
         state: Current environment state
         selection: Boolean mask indicating selected pixels
         axis: Flip axis (0=horizontal, 1=vertical)
-        
+
     Returns:
         Updated state with flipped object, or original state if invalid bounding box
-        
+
     Note:
         - If no selection provided, auto-selects entire working grid
         - Flips within the bounding box containing all selected pixels
@@ -630,54 +652,50 @@ def flip_object(state: State, selection: SelectionArray, axis: int) -> State:
 
     # Get bounding box coordinates using consistent utility function
     min_row, max_row, min_col, max_col = get_selection_bounding_box(effective_selection)
-    
+
     # Validate bounding box using standardized utility
-    has_valid_bbox = validate_bounding_box_for_operation(min_row, max_row, min_col, max_col)
-    
+    has_valid_bbox = validate_bounding_box_for_operation(
+        min_row, max_row, min_col, max_col
+    )
+
     def apply_flip():
         # Create coordinate grids
         grid_height, grid_width = state.working_grid.shape
         rows = jnp.arange(grid_height)[:, None]
         cols = jnp.arange(grid_width)[None, :]
-        
+
         # Create bounding box mask
         bbox_mask = (
-            (rows >= min_row) & (rows <= max_row) &
-            (cols >= min_col) & (cols <= max_col)
+            (rows >= min_row)
+            & (rows <= max_row)
+            & (cols >= min_col)
+            & (cols <= max_col)
         )
-        
+
         # For each position in the bounding box, calculate where it should come from after flip
         def flip_horizontal():
             # For horizontal flip, map column positions within bounding box
             # col -> (max_col + min_col) - col
-            new_col = jnp.where(
-                bbox_mask,
-                (max_col + min_col) - cols,
-                cols
-            )
+            new_col = jnp.where(bbox_mask, (max_col + min_col) - cols, cols)
             return jnp.where(bbox_mask, state.working_grid[rows, new_col], 0)
-        
+
         def flip_vertical():
-            # For vertical flip, map row positions within bounding box  
+            # For vertical flip, map row positions within bounding box
             # row -> (max_row + min_row) - row
-            new_row = jnp.where(
-                bbox_mask,
-                (max_row + min_row) - rows,
-                rows
-            )
+            new_row = jnp.where(bbox_mask, (max_row + min_row) - rows, rows)
             return jnp.where(bbox_mask, state.working_grid[new_row, cols], 0)
-        
+
         flipped_region = jax.lax.switch(axis, [flip_horizontal, flip_vertical])
-        
+
         # Clear the original bounding box region and place the flipped region
         cleared_grid = jnp.where(bbox_mask, 0, state.working_grid)
         result_grid = jnp.where(flipped_region > 0, flipped_region, cleared_grid)
-        
+
         return result_grid
-    
+
     def no_flip():
         return state.working_grid
-    
+
     # Apply flip only if we have a valid bounding box
     new_grid = jax.lax.cond(has_valid_bbox, apply_flip, no_flip)
     return update_working_grid(state, new_grid)

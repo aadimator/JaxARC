@@ -2,6 +2,8 @@
 Environment exports and functional API.
 """
 
+from __future__ import annotations
+
 from .actions import Action, create_action
 from .environment import Environment
 from .functional import reset, step

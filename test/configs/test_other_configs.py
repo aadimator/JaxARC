@@ -5,7 +5,8 @@ This module tests GridInitializationConfig, LoggingConfig, StorageConfig,
 VisualizationConfig, and WandbConfig for Equinox compliance and validation.
 """
 
-import pytest
+from __future__ import annotations
+
 import jax
 from omegaconf import DictConfig
 
@@ -14,7 +15,6 @@ from jaxarc.configs.logging_config import LoggingConfig
 from jaxarc.configs.storage_config import StorageConfig
 from jaxarc.configs.visualization_config import VisualizationConfig
 from jaxarc.configs.wandb_config import WandbConfig
-from jaxarc.configs.validation import ConfigValidationError
 
 
 class TestGridInitializationConfig:
@@ -23,7 +23,7 @@ class TestGridInitializationConfig:
     def test_default_initialization(self):
         """Test GridInitializationConfig creation with default values."""
         config = GridInitializationConfig()
-        
+
         # Verify default values
         assert config.demo_weight == 0.4
         assert config.permutation_weight == 0.3
@@ -42,9 +42,9 @@ class TestGridInitializationConfig:
             random_weight=0.1,
             permutation_types=("rotate", "reflect"),
             random_density=0.5,
-            random_pattern_type="dense"
+            random_pattern_type="dense",
         )
-        
+
         assert config.demo_weight == 0.5
         assert config.permutation_weight == 0.2
         assert config.empty_weight == 0.2
@@ -56,15 +56,15 @@ class TestGridInitializationConfig:
     def test_equinox_compliance(self):
         """Test Equinox Module compliance."""
         config = GridInitializationConfig()
-        
+
         # Test hashability
         hash_value = hash(config)
         assert isinstance(hash_value, int)
-        
+
         # Test JAX compatibility
         def dummy_func(cfg):
             return cfg.demo_weight
-        
+
         result = jax.jit(dummy_func)(config)
         assert result == config.demo_weight
 
@@ -74,28 +74,25 @@ class TestGridInitializationConfig:
         config = GridInitializationConfig()
         errors = config.validate()
         assert len(errors) == 0
-        
+
         # Invalid: all weights zero
         config = GridInitializationConfig(
-            demo_weight=0.0,
-            permutation_weight=0.0,
-            empty_weight=0.0,
-            random_weight=0.0
+            demo_weight=0.0, permutation_weight=0.0, empty_weight=0.0, random_weight=0.0
         )
         errors = config.validate()
         assert len(errors) > 0
         assert any("weight must be positive" in error for error in errors)
-        
+
         # Invalid: negative weight
         config = GridInitializationConfig(demo_weight=-0.1)
         errors = config.validate()
         assert len(errors) > 0
-        
+
         # Invalid: random_density out of range
         config = GridInitializationConfig(random_density=1.5)
         errors = config.validate()
         assert len(errors) > 0
-        
+
         # Invalid: random_pattern_type
         config = GridInitializationConfig(random_pattern_type="invalid")
         errors = config.validate()
@@ -103,12 +100,14 @@ class TestGridInitializationConfig:
 
     def test_from_hydra(self):
         """Test Hydra integration."""
-        hydra_config = DictConfig({
-            "demo_weight": 0.6,
-            "permutation_types": ["rotate", "color_remap"],
-            "random_density": 0.4
-        })
-        
+        hydra_config = DictConfig(
+            {
+                "demo_weight": 0.6,
+                "permutation_types": ["rotate", "color_remap"],
+                "random_density": 0.4,
+            }
+        )
+
         config = GridInitializationConfig.from_hydra(hydra_config)
         assert config.demo_weight == 0.6
         assert config.permutation_types == ("rotate", "color_remap")
@@ -121,7 +120,7 @@ class TestLoggingConfig:
     def test_default_initialization(self):
         """Test LoggingConfig creation with default values."""
         config = LoggingConfig()
-        
+
         # Verify default values
         assert config.log_operations is False
         assert config.log_rewards is False
@@ -140,9 +139,9 @@ class TestLoggingConfig:
             batched_logging_enabled=True,
             log_format="json",
             log_level="DEBUG",
-            structured_logging=True
+            structured_logging=True,
         )
-        
+
         assert config.log_operations is True
         assert config.log_rewards is True
         assert config.log_frequency == 5
@@ -154,15 +153,15 @@ class TestLoggingConfig:
     def test_equinox_compliance(self):
         """Test Equinox Module compliance."""
         config = LoggingConfig()
-        
+
         # Test hashability
         hash_value = hash(config)
         assert isinstance(hash_value, int)
-        
+
         # Test JAX compatibility
         def dummy_func(cfg):
             return cfg.log_frequency
-        
+
         result = jax.jit(dummy_func)(config)
         assert result == config.log_frequency
 
@@ -172,17 +171,17 @@ class TestLoggingConfig:
         config = LoggingConfig()
         errors = config.validate()
         assert len(errors) == 0
-        
+
         # Invalid: log_format
         config = LoggingConfig(log_format="invalid")
         errors = config.validate()
         assert len(errors) > 0
-        
+
         # Invalid: log_level
         config = LoggingConfig(log_level="INVALID")
         errors = config.validate()
         assert len(errors) > 0
-        
+
         # Invalid: log_frequency
         config = LoggingConfig(log_frequency=0)
         errors = config.validate()
@@ -190,12 +189,10 @@ class TestLoggingConfig:
 
     def test_from_hydra(self):
         """Test Hydra integration."""
-        hydra_config = DictConfig({
-            "log_operations": True,
-            "log_format": "structured",
-            "log_level": "WARNING"
-        })
-        
+        hydra_config = DictConfig(
+            {"log_operations": True, "log_format": "structured", "log_level": "WARNING"}
+        )
+
         config = LoggingConfig.from_hydra(hydra_config)
         assert config.log_operations is True
         assert config.log_format == "structured"
@@ -208,7 +205,7 @@ class TestStorageConfig:
     def test_default_initialization(self):
         """Test StorageConfig creation with default values."""
         config = StorageConfig()
-        
+
         # Verify default values
         assert config.base_output_dir == "outputs"
         assert config.run_name is None
@@ -231,9 +228,9 @@ class TestStorageConfig:
             max_storage_gb=10.0,
             cleanup_policy="oldest_first",
             create_run_subdirs=False,
-            clear_output_on_start=False
+            clear_output_on_start=False,
         )
-        
+
         assert config.base_output_dir == "/custom/output"
         assert config.run_name == "test_run"
         assert config.max_episodes_per_run == 500
@@ -245,15 +242,15 @@ class TestStorageConfig:
     def test_equinox_compliance(self):
         """Test Equinox Module compliance."""
         config = StorageConfig()
-        
+
         # Test hashability
         hash_value = hash(config)
         assert isinstance(hash_value, int)
-        
+
         # Test JAX compatibility
         def dummy_func(cfg):
             return cfg.max_episodes_per_run
-        
+
         result = jax.jit(dummy_func)(config)
         assert result == config.max_episodes_per_run
 
@@ -263,17 +260,17 @@ class TestStorageConfig:
         config = StorageConfig()
         errors = config.validate()
         assert len(errors) == 0
-        
+
         # Invalid: cleanup_policy
         config = StorageConfig(cleanup_policy="invalid")
         errors = config.validate()
         assert len(errors) > 0
-        
+
         # Invalid: max_episodes_per_run
         config = StorageConfig(max_episodes_per_run=0)
         errors = config.validate()
         assert len(errors) > 0
-        
+
         # Invalid: max_storage_gb
         config = StorageConfig(max_storage_gb=-1.0)
         errors = config.validate()
@@ -281,12 +278,14 @@ class TestStorageConfig:
 
     def test_from_hydra(self):
         """Test Hydra integration."""
-        hydra_config = DictConfig({
-            "base_output_dir": "/tmp/outputs",
-            "cleanup_policy": "manual",
-            "max_storage_gb": 20.0
-        })
-        
+        hydra_config = DictConfig(
+            {
+                "base_output_dir": "/tmp/outputs",
+                "cleanup_policy": "manual",
+                "max_storage_gb": 20.0,
+            }
+        )
+
         config = StorageConfig.from_hydra(hydra_config)
         assert config.base_output_dir == "/tmp/outputs"
         assert config.cleanup_policy == "manual"
@@ -299,7 +298,7 @@ class TestVisualizationConfig:
     def test_default_initialization(self):
         """Test VisualizationConfig creation with default values."""
         config = VisualizationConfig()
-        
+
         # Verify default values
         assert config.enabled is True
         assert config.episode_summaries is True
@@ -308,11 +307,9 @@ class TestVisualizationConfig:
     def test_custom_initialization(self):
         """Test VisualizationConfig with custom parameters."""
         config = VisualizationConfig(
-            enabled=False,
-            episode_summaries=False,
-            step_visualizations=True
+            enabled=False, episode_summaries=False, step_visualizations=True
         )
-        
+
         assert config.enabled is False
         assert config.episode_summaries is False
         assert config.step_visualizations is True
@@ -320,15 +317,15 @@ class TestVisualizationConfig:
     def test_equinox_compliance(self):
         """Test Equinox Module compliance."""
         config = VisualizationConfig()
-        
+
         # Test hashability
         hash_value = hash(config)
         assert isinstance(hash_value, int)
-        
+
         # Test JAX compatibility
         def dummy_func(cfg):
             return cfg.enabled
-        
+
         result = jax.jit(dummy_func)(config)
         assert result == config.enabled
 
@@ -338,7 +335,7 @@ class TestVisualizationConfig:
         config = VisualizationConfig()
         errors = config.validate()
         assert len(errors) == 0
-        
+
         # Test with all boolean combinations
         for enabled in [True, False]:
             for summaries in [True, False]:
@@ -346,19 +343,17 @@ class TestVisualizationConfig:
                     config = VisualizationConfig(
                         enabled=enabled,
                         episode_summaries=summaries,
-                        step_visualizations=step_viz
+                        step_visualizations=step_viz,
                     )
                     errors = config.validate()
                     assert len(errors) == 0
 
     def test_from_hydra(self):
         """Test Hydra integration."""
-        hydra_config = DictConfig({
-            "enabled": False,
-            "episode_summaries": True,
-            "step_visualizations": False
-        })
-        
+        hydra_config = DictConfig(
+            {"enabled": False, "episode_summaries": True, "step_visualizations": False}
+        )
+
         config = VisualizationConfig.from_hydra(hydra_config)
         assert config.enabled is False
         assert config.episode_summaries is True
@@ -371,7 +366,7 @@ class TestWandbConfig:
     def test_default_initialization(self):
         """Test WandbConfig creation with default values."""
         config = WandbConfig()
-        
+
         # Verify default values
         assert config.enabled is False
         assert config.project_name == "jaxarc-experiments"
@@ -394,9 +389,9 @@ class TestWandbConfig:
             group="test-group",
             job_type="evaluation",
             offline_mode=True,
-            save_code=False
+            save_code=False,
         )
-        
+
         assert config.enabled is True
         assert config.project_name == "custom-project"
         assert config.entity == "my-team"
@@ -413,11 +408,11 @@ class TestWandbConfig:
         config = WandbConfig(tags=["tag1", "tag2", "tag3"])
         assert isinstance(config.tags, tuple)
         assert config.tags == ("tag1", "tag2", "tag3")
-        
+
         # Test with string
         config = WandbConfig(tags="single-tag")
         assert config.tags == ("single-tag",)
-        
+
         # Test with empty list - should convert to empty tuple, not default
         config = WandbConfig(tags=[])
         assert config.tags == ()  # Empty list converts to empty tuple
@@ -425,15 +420,15 @@ class TestWandbConfig:
     def test_equinox_compliance(self):
         """Test Equinox Module compliance."""
         config = WandbConfig()
-        
+
         # Test hashability
         hash_value = hash(config)
         assert isinstance(hash_value, int)
-        
+
         # Test JAX compatibility
         def dummy_func(cfg):
             return cfg.enabled
-        
+
         result = jax.jit(dummy_func)(config)
         assert result == config.enabled
 
@@ -443,13 +438,13 @@ class TestWandbConfig:
         config = WandbConfig()
         errors = config.validate()
         assert len(errors) == 0
-        
+
         # Invalid: empty project_name
         config = WandbConfig(project_name="")
         errors = config.validate()
         assert len(errors) > 0
         assert any("project_name" in error for error in errors)
-        
+
         # Invalid: whitespace-only project_name
         config = WandbConfig(project_name="   ")
         errors = config.validate()
@@ -457,13 +452,15 @@ class TestWandbConfig:
 
     def test_from_hydra(self):
         """Test Hydra integration."""
-        hydra_config = DictConfig({
-            "enabled": True,
-            "project_name": "hydra-test",
-            "tags": ["hydra", "test"],
-            "entity": "test-entity"
-        })
-        
+        hydra_config = DictConfig(
+            {
+                "enabled": True,
+                "project_name": "hydra-test",
+                "tags": ["hydra", "test"],
+                "entity": "test-entity",
+            }
+        )
+
         config = WandbConfig.from_hydra(hydra_config)
         assert config.enabled is True
         assert config.project_name == "hydra-test"
@@ -476,7 +473,7 @@ class TestWandbConfig:
         hydra_config = DictConfig({"tags": ["a", "b", "c"]})
         config = WandbConfig.from_hydra(hydra_config)
         assert config.tags == ("a", "b", "c")
-        
+
         # Test with string
         hydra_config = DictConfig({"tags": "single"})
         config = WandbConfig.from_hydra(hydra_config)

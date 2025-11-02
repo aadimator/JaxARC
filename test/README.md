@@ -1,6 +1,7 @@
 # JaxARC Test Suite
 
-This directory contains comprehensive unit tests for the JaxARC codebase, focusing on correctness, reliability, and JAX compatibility.
+This directory contains comprehensive unit tests for the JaxARC codebase,
+focusing on correctness, reliability, and JAX compatibility.
 
 ## Structure
 

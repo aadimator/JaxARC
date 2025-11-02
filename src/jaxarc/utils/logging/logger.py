@@ -17,7 +17,10 @@ try:
     from jaxarc.configs import JaxArcConfig
     from jaxarc.state import State
     from jaxarc.types import EnvParams, JaxArcTask
-    from jaxarc.utils.task_manager import extract_task_id_from_index, get_task_id_globally
+    from jaxarc.utils.task_manager import (
+        extract_task_id_from_index,
+        get_task_id_globally,
+    )
 except ImportError:
     # Handle missing imports gracefully
     State = Any
@@ -31,6 +34,7 @@ except ImportError:
 # ============================================================================
 # SECTION: Logging Utilities (from logging_utils.py)
 # ============================================================================
+
 
 def to_python_int(x: Any) -> Optional[int]:
     """Convert scalar-like value to Python int or None."""
@@ -184,7 +188,11 @@ def create_step_log(
 
     # Extract info from timestep extras if available
     info = {}
-    if hasattr(timestep, "extras") and timestep.extras is not None and isinstance(timestep.extras, dict):
+    if (
+        hasattr(timestep, "extras")
+        and timestep.extras is not None
+        and isinstance(timestep.extras, dict)
+    ):
         info.update(timestep.extras)
 
     # Add similarity metrics from current state

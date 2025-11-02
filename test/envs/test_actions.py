@@ -4,6 +4,7 @@ Tests for action system in jaxarc.envs.actions.
 This module tests mask-based action creation, validation,
 action processing pipeline, and transformations.
 """
+
 from __future__ import annotations
 
 import jax

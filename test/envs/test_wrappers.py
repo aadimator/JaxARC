@@ -80,7 +80,11 @@ def test_flatten_wrapper_extras_are_jax_compatible():
 def _grid_hw_from_reset(env, params):
     key = jax.random.PRNGKey(0)
     _state, ts = env.reset(key, env_params=params)
-    h, w, _ = int(ts.observation.shape[0]), int(ts.observation.shape[1]), int(ts.observation.shape[2])
+    h, w, _ = (
+        int(ts.observation.shape[0]),
+        int(ts.observation.shape[1]),
+        int(ts.observation.shape[2]),
+    )
     return h, w
 
 
@@ -104,7 +108,11 @@ def test_reset_extras_canonical_action_present_and_jax_arrays():
     assert isinstance(ca["selection"], jax.Array)
     assert ca["selection"].dtype == jnp.bool_
 
-    h, w, _ = int(ts.observation.shape[0]), int(ts.observation.shape[1]), int(ts.observation.shape[2])
+    h, w, _ = (
+        int(ts.observation.shape[0]),
+        int(ts.observation.shape[1]),
+        int(ts.observation.shape[2]),
+    )
     assert tuple(ca["selection"].shape) == (h, w)
 
 

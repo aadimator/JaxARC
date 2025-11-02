@@ -13,9 +13,9 @@ import jax.numpy as jnp
 from jaxarc import JaxArcConfig
 from jaxarc.envs.actions import create_action
 from jaxarc.envs.environment import Environment
-from jaxarc.envs.spaces import ARCActionSpace, BoundedArraySpace, GridSpace
+from jaxarc.envs.spaces import ARCActionSpace, BoundedArraySpace
 from jaxarc.state import State
-from jaxarc.types import EnvParams, JaxArcTask, StepType, TimeStep
+from jaxarc.types import JaxArcTask, StepType, TimeStep
 from jaxarc.utils.buffer import stack_task_list
 
 

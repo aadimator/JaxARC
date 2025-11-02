@@ -124,14 +124,9 @@ def _calculate_reward(
 
     # 2) Mode-specific totals (training includes similarity shaping)
     training_reward = (
-        similarity_reward
-        + step_penalty
-        + success_bonus
-        + submission_penalty
+        similarity_reward + step_penalty + success_bonus + submission_penalty
     )
-    evaluation_reward = (
-        step_penalty + success_bonus + submission_penalty
-    )
+    evaluation_reward = step_penalty + success_bonus + submission_penalty
 
     # 3) Select by mode
     return jnp.where(is_training, training_reward, evaluation_reward)

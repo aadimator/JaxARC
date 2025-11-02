@@ -79,7 +79,9 @@ def make_train(
         # Support multiple parallel envs by vmapping reset when num_envs > 1.
         if num_envs > 1:
             reset_keys = jr.split(reset_key, num_envs)
-            states, timesteps = jax.vmap(env.reset, in_axes=(0, None))(reset_keys, env_params)
+            states, timesteps = jax.vmap(env.reset, in_axes=(0, None))(
+                reset_keys, env_params
+            )
         else:
             states, timesteps = env.reset(reset_key, env_params=env_params)
         # The `runner_state` is the collection of all states that change over the training loop.
@@ -108,11 +110,13 @@ def make_train(
 
                 # Step the environment using the new API (vectorized when requested)
                 if num_envs > 1:
-                    next_states, next_timesteps = jax.vmap(env.step, in_axes=(0, 0, None))(
-                        prev_states, actions, env_params
-                    )
+                    next_states, next_timesteps = jax.vmap(
+                        env.step, in_axes=(0, 0, None)
+                    )(prev_states, actions, env_params)
                 else:
-                    next_states, next_timesteps = env.step(prev_states, actions, env_params=env_params)
+                    next_states, next_timesteps = env.step(
+                        prev_states, actions, env_params=env_params
+                    )
 
                 # In a real agent, you would store the full transition for learning.
                 # For this random agent, we only care about the reward.
@@ -120,7 +124,7 @@ def make_train(
 
             # Run the rollout for a fixed number of steps using lax.scan
             key, rollout_key = jr.split(key)
-            ( (final_states, final_timesteps, _), collected_rewards) = jax.lax.scan(
+            ((final_states, final_timesteps, _), collected_rewards) = jax.lax.scan(
                 _env_step_body, (states, timesteps, rollout_key), None, length=num_steps
             )
 
@@ -171,7 +175,7 @@ def main():
     available_ids = available_task_ids("Mini", config=config, auto_download=False)
     task_id = available_ids[0]
     env, env_params = make(f"Mini-{task_id}", config=config)
-    
+
     # Wrap with PointActionWrapper to handle dict<->Action conversion automatically
     env = PointActionWrapper(env)
 

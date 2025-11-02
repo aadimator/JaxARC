@@ -27,11 +27,17 @@ if TYPE_CHECKING:
 class Environment(stoa.environment.Environment):
     """
     JaxARC environment implementing Stoa API patterns.
-    
+
     Delegates to functional API while providing clean object-oriented interface.
     """
 
-    def __init__(self, config: JaxArcConfig, buffer: Any, episode_mode: int = 0, subset_indices: Any | None = None):
+    def __init__(
+        self,
+        config: JaxArcConfig,
+        buffer: Any,
+        episode_mode: int = 0,
+        subset_indices: Any | None = None,
+    ):
         self.params = EnvParams.from_config(
             config=config,
             episode_mode=episode_mode,
@@ -41,9 +47,15 @@ class Environment(stoa.environment.Environment):
 
     def observation_shape(self) -> tuple[int, int, int]:
         """Get observation shape."""
-        return (int(self.params.dataset.max_grid_height), int(self.params.dataset.max_grid_width), 1)
+        return (
+            int(self.params.dataset.max_grid_height),
+            int(self.params.dataset.max_grid_width),
+            1,
+        )
 
-    def reset(self, rng_key: jax.Array, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
+    def reset(
+        self, rng_key: jax.Array, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
         """Reset using functional API (supports optional per-call params override)."""
         p = self.params if env_params is None else env_params
         state, timestep = functional_reset(p, rng_key)
@@ -55,7 +67,11 @@ class Environment(stoa.environment.Environment):
         zero_sel = jnp.zeros((height, width), dtype=jnp.bool_)
         op_sentinel = jnp.array(-1, dtype=jnp.int32)
 
-        base_extras = timestep.extras if isinstance(getattr(timestep, "extras", None), dict) else {}
+        base_extras = (
+            timestep.extras
+            if isinstance(getattr(timestep, "extras", None), dict)
+            else {}
+        )
         extras = dict(base_extras)
         # Canonical action present with static shapes; values are JAX arrays
         extras.setdefault(
@@ -78,15 +94,21 @@ class Environment(stoa.environment.Environment):
         )
         return state, new_timestep
 
-    def step(self, state: State, action: Action | dict, env_params: EnvParams | None = None) -> tuple[State, TimeStep]:
+    def step(
+        self, state: State, action: Action | dict, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
         """Step using functional API (supports optional per-call params override)."""
         p = self.params if env_params is None else env_params
         # Accept canonical dict-form mask actions from ARCActionSpace and convert to internal Action
-        if isinstance(action, dict) and ("operation" in action) and ("selection" in action):
+        if (
+            isinstance(action, dict)
+            and ("operation" in action)
+            and ("selection" in action)
+        ):
             op = jnp.asarray(action["operation"], dtype=jnp.int32)
             sel = jnp.asarray(action["selection"], dtype=jnp.bool_)
             action = create_action(op, sel)
-        
+
         next_state, timestep = functional_step(p, state, action)
 
         # Populate a stable, JAX-friendly extras schema based on the actual mask action
@@ -95,7 +117,11 @@ class Environment(stoa.environment.Environment):
         zero_sel = jnp.zeros((height, width), dtype=jnp.bool_)
         op_sentinel = jnp.array(-1, dtype=jnp.int32)
 
-        base_extras = timestep.extras if isinstance(getattr(timestep, "extras", None), dict) else {}
+        base_extras = (
+            timestep.extras
+            if isinstance(getattr(timestep, "extras", None), dict)
+            else {}
+        )
         extras = dict(base_extras)
 
         # Derive canonical mask-based action: operation and selection must be JAX arrays
@@ -122,23 +148,57 @@ class Environment(stoa.environment.Environment):
         return DictSpace(
             {
                 "working_grid": GridSpace(max_height=height, max_width=width),
-                "working_grid_mask": BoundedArraySpace(shape=(height, width), dtype=jnp.bool_, minimum=False, maximum=True),
+                "working_grid_mask": BoundedArraySpace(
+                    shape=(height, width), dtype=jnp.bool_, minimum=False, maximum=True
+                ),
                 "input_grid": GridSpace(max_height=height, max_width=width),
-                "input_grid_mask": BoundedArraySpace(shape=(height, width), dtype=jnp.bool_, minimum=False, maximum=True),
+                "input_grid_mask": BoundedArraySpace(
+                    shape=(height, width), dtype=jnp.bool_, minimum=False, maximum=True
+                ),
                 "target_grid": GridSpace(max_height=height, max_width=width),
-                "target_grid_mask": BoundedArraySpace(shape=(height, width), dtype=jnp.bool_, minimum=False, maximum=True),
-                "selected": BoundedArraySpace(shape=(height, width), dtype=jnp.bool_, minimum=False, maximum=True),
+                "target_grid_mask": BoundedArraySpace(
+                    shape=(height, width), dtype=jnp.bool_, minimum=False, maximum=True
+                ),
+                "selected": BoundedArraySpace(
+                    shape=(height, width), dtype=jnp.bool_, minimum=False, maximum=True
+                ),
                 "clipboard": GridSpace(max_height=height, max_width=width),
-                "step_count": BoundedArraySpace(shape=(), dtype=jnp.int32, minimum=0, maximum=self.params.max_episode_steps),
-                "task_idx": BoundedArraySpace(shape=(), dtype=jnp.int32, minimum=0, maximum=int(jnp.iinfo(jnp.int32).max)),
-                "pair_idx": BoundedArraySpace(shape=(), dtype=jnp.int32, minimum=0, maximum=int(jnp.iinfo(jnp.int32).max)),
-                "allowed_operations_mask": BoundedArraySpace(shape=(35,), dtype=jnp.bool_, minimum=False, maximum=True),
-                "similarity_score": BoundedArraySpace(shape=(), dtype=jnp.float32, minimum=0.0, maximum=1.0),
-                "key": BoundedArraySpace(shape=(2,), dtype=jnp.uint32, minimum=0, maximum=int(jnp.iinfo(jnp.uint32).max)),
+                "step_count": BoundedArraySpace(
+                    shape=(),
+                    dtype=jnp.int32,
+                    minimum=0,
+                    maximum=self.params.max_episode_steps,
+                ),
+                "task_idx": BoundedArraySpace(
+                    shape=(),
+                    dtype=jnp.int32,
+                    minimum=0,
+                    maximum=int(jnp.iinfo(jnp.int32).max),
+                ),
+                "pair_idx": BoundedArraySpace(
+                    shape=(),
+                    dtype=jnp.int32,
+                    minimum=0,
+                    maximum=int(jnp.iinfo(jnp.int32).max),
+                ),
+                "allowed_operations_mask": BoundedArraySpace(
+                    shape=(35,), dtype=jnp.bool_, minimum=False, maximum=True
+                ),
+                "similarity_score": BoundedArraySpace(
+                    shape=(), dtype=jnp.float32, minimum=0.0, maximum=1.0
+                ),
+                "key": BoundedArraySpace(
+                    shape=(2,),
+                    dtype=jnp.uint32,
+                    minimum=0,
+                    maximum=int(jnp.iinfo(jnp.uint32).max),
+                ),
             }
         )
 
-    def observation_space(self, _env_params: EnvParams | None = None) -> BoundedArraySpace:
+    def observation_space(
+        self, _env_params: EnvParams | None = None
+    ) -> BoundedArraySpace:
         """Get ARC observation space."""
         height, width, channels = self.observation_shape()
         return BoundedArraySpace(
@@ -156,11 +216,15 @@ class Environment(stoa.environment.Environment):
 
     def reward_space(self, _env_params: EnvParams | None = None) -> BoundedArraySpace:
         """Get reward space."""
-        return BoundedArraySpace(shape=(), dtype=jax.numpy.float32, minimum=0.0, maximum=1.0)
+        return BoundedArraySpace(
+            shape=(), dtype=jax.numpy.float32, minimum=0.0, maximum=1.0
+        )
 
     def discount_space(self, _env_params: EnvParams | None = None) -> BoundedArraySpace:
-        """Get discount space.""" 
-        return BoundedArraySpace(shape=(), dtype=jax.numpy.float32, minimum=0.0, maximum=1.0)
+        """Get discount space."""
+        return BoundedArraySpace(
+            shape=(), dtype=jax.numpy.float32, minimum=0.0, maximum=1.0
+        )
 
     @property
     def unwrapped(self) -> Environment:

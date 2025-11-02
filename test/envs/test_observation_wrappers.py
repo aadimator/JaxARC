@@ -14,6 +14,8 @@ Tests verify:
 4.  Correct functionality when wrappers are stacked.
 """
 
+from __future__ import annotations
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -56,8 +58,11 @@ def test_clipboard_observation_wrapper(base_env_and_params):
     state = eqx.tree_at(lambda s: s.clipboard, state, clipboard_pattern)
 
     # The wrapper's step/reset methods are what augment the observation
-    action = {"operation": 0, "selection": jnp.zeros_like(state.working_grid, dtype=bool)}
-    _ , new_timestep = env.step(state, action)
+    action = {
+        "operation": 0,
+        "selection": jnp.zeros_like(state.working_grid, dtype=bool),
+    }
+    _, new_timestep = env.step(state, action)
 
     # The last channel should be the clipboard
     assert new_timestep.observation.shape[-1] == 2
@@ -81,10 +86,12 @@ def test_input_grid_observation_wrapper(base_env_and_params):
 
 
 @pytest.mark.parametrize("episode_mode, should_be_masked", [(0, False), (1, True)])
-def test_answer_observation_wrapper(base_env_and_params, episode_mode, should_be_masked):
+def test_answer_observation_wrapper(
+    base_env_and_params, episode_mode, should_be_masked
+):
     """Test AnswerObservationWrapper in both training and testing modes."""
     env, env_params = base_env_and_params
-    
+
     # Create a new env_params for the desired mode
     mode_params = eqx.tree_at(lambda p: p.episode_mode, env_params, episode_mode)
 
@@ -137,7 +144,9 @@ def test_contextual_observation_wrapper(base_env_and_params):
         if jnp.array_equal(ctx_input_channel, current_pair_input):
             is_present = True
             break
-    assert not is_present, "Current pair should be excluded from context in training mode."
+    assert not is_present, (
+        "Current pair should be excluded from context in training mode."
+    )
 
 
 def test_stacked_wrappers(base_env_and_params):
@@ -170,7 +179,12 @@ def test_stacked_wrappers(base_env_and_params):
     # Channel 2: Answer wrapper
     assert jnp.array_equal(timestep.observation[..., 2], state.target_grid)
     # Channel 3: Clipboard wrapper (requires a step to populate observation)
-    state = eqx.tree_at(lambda s: s.clipboard, state, jnp.ones_like(state.clipboard) * 8)
-    action = {"operation": 0, "selection": jnp.zeros_like(state.working_grid, dtype=bool)}
+    state = eqx.tree_at(
+        lambda s: s.clipboard, state, jnp.ones_like(state.clipboard) * 8
+    )
+    action = {
+        "operation": 0,
+        "selection": jnp.zeros_like(state.working_grid, dtype=bool),
+    }
     _, new_timestep = env.step(state, action)
     assert jnp.array_equal(new_timestep.observation[..., 3], state.clipboard)

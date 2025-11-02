@@ -36,9 +36,7 @@ class Action(eqx.Module):
     operation: jnp.int32
     selection: SelectionArray
 
-    def validate(
-        self, grid_shape: tuple[int, int], max_operations: int = 35
-    ) -> Action:
+    def validate(self, grid_shape: tuple[int, int], max_operations: int = 35) -> Action:
         """Validate action parameters.
 
         Args:

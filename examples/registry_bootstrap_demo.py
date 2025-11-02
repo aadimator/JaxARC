@@ -87,7 +87,9 @@ def run_simple_demo(id_str: str, config: JaxArcConfig | None = None) -> None:
     state, ts1 = env.step(state, action, env_params=params)
 
     logger.info(f"timestep0 - first(): {bool(ts0.first())}")  # True = FIRST
-    logger.info(f"timestep1 - last(): {bool(ts1.last())}")  # May be True if episode ends
+    logger.info(
+        f"timestep1 - last(): {bool(ts1.last())}"
+    )  # May be True if episode ends
     logger.info(f"reward on action: {float(ts1.reward)}")
     logger.info("-" * 80)
 
@@ -123,15 +125,21 @@ def demo_1_discovery_api() -> None:
                 # Show first concept group that's not 'all'
                 concept = next((s for s in subsets if s != "all"), None)
                 if concept:
-                    concept_ids = get_subset_task_ids(dataset_key, concept, auto_download=True)
+                    concept_ids = get_subset_task_ids(
+                        dataset_key, concept, auto_download=True
+                    )
                     logger.info(f"  '{concept}' concept: {len(concept_ids)} tasks")
 
             elif dataset_key in ("AGI1", "AGI2"):
                 if "train" in subsets:
-                    train_ids = get_subset_task_ids(dataset_key, "train", auto_download=True)
+                    train_ids = get_subset_task_ids(
+                        dataset_key, "train", auto_download=True
+                    )
                     logger.info(f"  'train' split: {len(train_ids)} tasks")
                 if "eval" in subsets:
-                    eval_ids = get_subset_task_ids(dataset_key, "eval", auto_download=True)
+                    eval_ids = get_subset_task_ids(
+                        dataset_key, "eval", auto_download=True
+                    )
                     logger.info(f"  'eval' split: {len(eval_ids)} tasks")
 
         except Exception as e:
@@ -239,8 +247,12 @@ def demo_4_cross_split_loading() -> None:
     try:
         # Demo 4a: Basic cross-split loading
         logger.info("\n--- 4a: Basic cross-split loading ---")
-        train_ids = get_subset_task_ids("AGI2", "train", config=config, auto_download=True)
-        eval_ids = get_subset_task_ids("AGI2", "eval", config=config, auto_download=True)
+        train_ids = get_subset_task_ids(
+            "AGI2", "train", config=config, auto_download=True
+        )
+        eval_ids = get_subset_task_ids(
+            "AGI2", "eval", config=config, auto_download=True
+        )
 
         logger.info(f"Training split: {len(train_ids)} tasks")
         logger.info(f"Evaluation split: {len(eval_ids)} tasks")
@@ -293,15 +305,25 @@ def demo_4_cross_split_loading() -> None:
         logger.info("\n--- 4c: Benchmark suite creation ---")
         benchmark_tasks = [
             train_ids[0],  # First training task
-            train_ids[50] if len(train_ids) > 50 else train_ids[-1],  # Mid training task
-            train_ids[100] if len(train_ids) > 100 else train_ids[-1],  # Another training task
+            train_ids[50]
+            if len(train_ids) > 50
+            else train_ids[-1],  # Mid training task
+            train_ids[100]
+            if len(train_ids) > 100
+            else train_ids[-1],  # Another training task
             eval_ids[0],  # First eval task
             eval_ids[10] if len(eval_ids) > 10 else eval_ids[-1],  # Another eval task
         ]
 
-        logger.info(f"Creating benchmark with {len(benchmark_tasks)} carefully selected tasks:")
-        logger.info(f"  - {sum(1 for t in benchmark_tasks if t in train_ids)} from training")
-        logger.info(f"  - {sum(1 for t in benchmark_tasks if t in eval_ids)} from evaluation")
+        logger.info(
+            f"Creating benchmark with {len(benchmark_tasks)} carefully selected tasks:"
+        )
+        logger.info(
+            f"  - {sum(1 for t in benchmark_tasks if t in train_ids)} from training"
+        )
+        logger.info(
+            f"  - {sum(1 for t in benchmark_tasks if t in eval_ids)} from evaluation"
+        )
 
         register_subset("AGI2", "benchmark_suite", benchmark_tasks)
         env, params = make("AGI2-benchmark_suite", config=config, auto_download=True)
@@ -314,8 +336,8 @@ def demo_4_cross_split_loading() -> None:
         mixed_subset = [
             train_ids[0],  # From training
             train_ids[1],  # From training
-            eval_ids[0],   # From eval - automatically found
-            eval_ids[1],   # From eval - automatically found
+            eval_ids[0],  # From eval - automatically found
+            eval_ids[1],  # From eval - automatically found
         ]
 
         logger.info(f"  Task 1: {mixed_subset[0]} (from train)")
@@ -373,19 +395,23 @@ def demo_6_advanced_discovery() -> None:
 
         for dataset_key, dataset_name in datasets:
             logger.info(f"\n{dataset_name} ({dataset_key}) Analysis:")
-            
+
             # Show all available subsets
             all_subsets = available_named_subsets(dataset_key, include_builtin=True)
             custom_subsets = available_named_subsets(dataset_key, include_builtin=False)
             builtin_subsets = [s for s in all_subsets if s not in custom_subsets]
-            
+
             logger.info(f"  Built-in subsets: {', '.join(builtin_subsets)}")
-            logger.info(f"  Custom subsets: {', '.join(custom_subsets) if custom_subsets else '(none)'}")
-            
+            logger.info(
+                f"  Custom subsets: {', '.join(custom_subsets) if custom_subsets else '(none)'}"
+            )
+
             # Show task counts for built-in subsets
             for subset in builtin_subsets[:5]:  # Limit to first 5 to avoid spam
                 try:
-                    task_ids = get_subset_task_ids(dataset_key, subset, auto_download=True)
+                    task_ids = get_subset_task_ids(
+                        dataset_key, subset, auto_download=True
+                    )
                     logger.info(f"    {subset}: {len(task_ids)} tasks")
                     if subset == "all" and task_ids:
                         logger.info(f"      Sample task: {task_ids[0]}")
@@ -401,7 +427,9 @@ def demo_6_advanced_discovery() -> None:
             logger.info(f"Available concept groups ({len(concepts)} total):")
             for i, concept in enumerate(concepts[:10], 1):  # Show first 10
                 try:
-                    concept_ids = get_subset_task_ids("Concept", concept, auto_download=True)
+                    concept_ids = get_subset_task_ids(
+                        "Concept", concept, auto_download=True
+                    )
                     logger.info(f"  {i:2d}. {concept:15s}: {len(concept_ids):2d} tasks")
                     if i <= 3 and concept_ids:  # Show sample task IDs for first 3
                         logger.info(f"      Sample: {concept_ids[0]}")
@@ -414,7 +442,9 @@ def demo_6_advanced_discovery() -> None:
             # Test creating environment with concept group
             if concepts:
                 test_concept = concepts[0]
-                logger.info(f"\nTesting environment creation with '{test_concept}' concept:")
+                logger.info(
+                    f"\nTesting environment creation with '{test_concept}' concept:"
+                )
                 env, params = make(f"Concept-{test_concept}", auto_download=True)
                 logger.info("  ✓ Environment created successfully")
 
@@ -424,7 +454,7 @@ def demo_6_advanced_discovery() -> None:
         # Demo 6c: Single task selection across datasets
         logger.info("\n--- 6c: Single task selection validation ---")
         test_datasets = ["Mini", "Concept"]
-        
+
         for dataset in test_datasets:
             try:
                 # Get all tasks
@@ -439,8 +469,12 @@ def demo_6_advanced_discovery() -> None:
 
                 # Verify resolution
                 resolved_ids = get_subset_task_ids(dataset, task_id, auto_download=True)
-                assert len(resolved_ids) == 1, f"Expected 1 task, got {len(resolved_ids)}"
-                assert resolved_ids[0] == task_id, f"Task ID mismatch: {resolved_ids[0]} != {task_id}"
+                assert len(resolved_ids) == 1, (
+                    f"Expected 1 task, got {len(resolved_ids)}"
+                )
+                assert resolved_ids[0] == task_id, (
+                    f"Task ID mismatch: {resolved_ids[0]} != {task_id}"
+                )
 
                 # Create environment
                 env, params = make(f"{dataset}-{task_id}", auto_download=True)
@@ -449,7 +483,9 @@ def demo_6_advanced_discovery() -> None:
                 # Test functionality
                 key = jax.random.PRNGKey(0)
                 state, timestep = env.reset(key, params)
-                logger.info(f"  ✓ Environment reset successful, obs shape: {timestep.observation.shape}")
+                logger.info(
+                    f"  ✓ Environment reset successful, obs shape: {timestep.observation.shape}"
+                )
 
             except Exception as e:
                 logger.error(f"{dataset}: Single task test failed - {e}")
@@ -476,8 +512,10 @@ def demo_6_advanced_discovery() -> None:
                     if "/" in task_id:
                         concept_group = task_id.split("/")[0]
                         concept_groups.add(concept_group)
-                
-                logger.info(f"  ConceptARC groups found in task IDs: {len(concept_groups)}")
+
+                logger.info(
+                    f"  ConceptARC groups found in task IDs: {len(concept_groups)}"
+                )
                 logger.info(f"    Sample groups: {', '.join(list(concept_groups)[:5])}")
 
         except Exception as e:
@@ -492,21 +530,27 @@ def demo_6_advanced_discovery() -> None:
                 # Create custom subset
                 test_subset = all_mini[:5]
                 register_subset("Mini", "validation_test", test_subset)
-                
+
                 # Validate it appears in listings
                 subsets = available_named_subsets("Mini", include_builtin=False)
-                assert "validation_test" in subsets, "Custom subset not found in listings"
-                
+                assert "validation_test" in subsets, (
+                    "Custom subset not found in listings"
+                )
+
                 # Validate task resolution
-                resolved = get_subset_task_ids("Mini", "validation_test", auto_download=True)
+                resolved = get_subset_task_ids(
+                    "Mini", "validation_test", auto_download=True
+                )
                 assert resolved == test_subset, "Custom subset task resolution failed"
-                
+
                 # Validate environment creation
                 env, params = make("Mini-validation_test", auto_download=True)
                 logger.info("  ✓ Custom subset validation passed")
-                
+
                 # Test against original tasks
-                logger.info(f"  Custom subset has {len(test_subset)} tasks from {len(all_mini)} total")
+                logger.info(
+                    f"  Custom subset has {len(test_subset)} tasks from {len(all_mini)} total"
+                )
 
         except Exception as e:
             logger.error(f"Subset validation failed: {e}")
@@ -523,18 +567,20 @@ def demo_7_builtin_vs_custom_analysis() -> None:
 
     try:
         config = JaxArcConfig()
-        
+
         # Demo 7a: Before custom subsets
         logger.info("\n--- 7a: Initial state (before custom subsets) ---")
         for dataset in ["Mini", "Concept"]:
             all_subsets = available_named_subsets(dataset, include_builtin=True)
             custom_subsets = available_named_subsets(dataset, include_builtin=False)
             builtin_subsets = [s for s in all_subsets if s not in custom_subsets]
-            
+
             logger.info(f"{dataset}:")
             logger.info(f"  All subsets: {', '.join(all_subsets)}")
             logger.info(f"  Built-in: {', '.join(builtin_subsets)}")
-            logger.info(f"  Custom: {', '.join(custom_subsets) if custom_subsets else '(none)'}")
+            logger.info(
+                f"  Custom: {', '.join(custom_subsets) if custom_subsets else '(none)'}"
+            )
 
         # Demo 7b: Add custom subsets
         logger.info("\n--- 7b: Adding custom subsets ---")
@@ -544,8 +590,10 @@ def demo_7_builtin_vs_custom_analysis() -> None:
                 # Create multiple custom subsets
                 register_subset("Mini", "first_five", mini_tasks[:5])
                 register_subset("Mini", "next_five", mini_tasks[5:10])
-                register_subset("Mini", "mixed_sample", mini_tasks[::2][:5])  # Every other task
-                
+                register_subset(
+                    "Mini", "mixed_sample", mini_tasks[::2][:5]
+                )  # Every other task
+
                 logger.info("Created custom subsets:")
                 logger.info(f"  'first_five': {mini_tasks[:5]}")
                 logger.info(f"  'next_five': {mini_tasks[5:10]}")
@@ -560,19 +608,25 @@ def demo_7_builtin_vs_custom_analysis() -> None:
             all_subsets = available_named_subsets(dataset, include_builtin=True)
             custom_subsets = available_named_subsets(dataset, include_builtin=False)
             builtin_subsets = [s for s in all_subsets if s not in custom_subsets]
-            
+
             logger.info(f"{dataset}:")
             logger.info(f"  All subsets: {', '.join(all_subsets)}")
             logger.info(f"  Built-in: {', '.join(builtin_subsets)}")
-            logger.info(f"  Custom: {', '.join(custom_subsets) if custom_subsets else '(none)'}")
+            logger.info(
+                f"  Custom: {', '.join(custom_subsets) if custom_subsets else '(none)'}"
+            )
 
         # Demo 7d: Test custom subset functionality
         logger.info("\n--- 7d: Testing custom subset environments ---")
         custom_subsets = available_named_subsets("Mini", include_builtin=False)
         for subset_name in custom_subsets[:3]:  # Test first 3 custom subsets
             try:
-                env, params = make(f"Mini-{subset_name}", config=config, auto_download=True)
-                logger.info(f"  ✓ 'Mini-{subset_name}' environment created successfully")
+                env, params = make(
+                    f"Mini-{subset_name}", config=config, auto_download=True
+                )
+                logger.info(
+                    f"  ✓ 'Mini-{subset_name}' environment created successfully"
+                )
             except Exception as e:
                 logger.error(f"  ✗ 'Mini-{subset_name}' failed: {e}")
 
@@ -612,7 +666,9 @@ def main() -> None:
     logger.info("🎉 COMPREHENSIVE DEMO COMPLETE! 🎉")
     logger.info("=" * 80)
     logger.info("\nFunctionality Consolidated:")
-    logger.info("  ✓ cross_split_loading.py - Cross-split task loading for curriculum learning")
+    logger.info(
+        "  ✓ cross_split_loading.py - Cross-split task loading for curriculum learning"
+    )
     logger.info("  ✓ discovery_demo.py - Dataset exploration and subset discovery")
     logger.info("  ✓ Additional comprehensive validation and analysis")
     logger.info("\n" + "=" * 40 + " KEY TAKEAWAYS " + "=" * 40)
@@ -621,12 +677,16 @@ def main() -> None:
     logger.info("  • get_subset_task_ids() - Get task lists for any subset")
     logger.info("  • available_task_ids() - Quick access to all tasks")
     logger.info("\nEnvironment Creation:")
-    logger.info("  • make('Dataset-subset') - Create environments with flexible selectors")
+    logger.info(
+        "  • make('Dataset-subset') - Create environments with flexible selectors"
+    )
     logger.info("  • make('Dataset-task_id') - Single task environments")
     logger.info("  • make('Concept-Center') - ConceptARC concept groups")
     logger.info("\nAdvanced Features:")
     logger.info("  • register_subset() - Create custom named subsets")
-    logger.info("  • Cross-split loading - Automatic train/eval mixing for AGI datasets")
+    logger.info(
+        "  • Cross-split loading - Automatic train/eval mixing for AGI datasets"
+    )
     logger.info("  • Curriculum learning - Progressive difficulty with mixed splits")
     logger.info("  • Benchmark suites - Curated evaluation sets")
     logger.info("  • Automatic fallback - Seamless cross-split task lookup")

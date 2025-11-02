@@ -5,6 +5,8 @@ This module provides shared fixtures and configuration for the entire test suite
 focusing on JAX compatibility and common test data structures.
 """
 
+from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -25,11 +27,7 @@ def prng_key() -> PRNGKeyArray:
 def sample_grid() -> Grid:
     """Provide a standard test grid with known properties."""
     # Create a simple 3x3 grid with some pattern
-    data = jnp.array([
-        [1, 0, 2],
-        [0, 1, 0],
-        [2, 0, 1]
-    ], dtype=jnp.int32)
+    data = jnp.array([[1, 0, 2], [0, 1, 0], [2, 0, 1]], dtype=jnp.int32)
 
     # Create mask (all cells are valid)
     mask = jnp.ones((3, 3), dtype=jnp.bool_)
@@ -55,13 +53,9 @@ def sample_task(sample_task_pair) -> JaxArcTask:
     """Provide a complete JaxArcTask for testing."""
     # Create training and test pairs
     train_pairs = [sample_task_pair]  # Single training pair for simplicity
-    test_pairs = [sample_task_pair]   # Single test pair for simplicity
+    test_pairs = [sample_task_pair]  # Single test pair for simplicity
 
-    return JaxArcTask(
-        task_id="test_task_001",
-        train=train_pairs,
-        test=test_pairs
-    )
+    return JaxArcTask(task_id="test_task_001", train=train_pairs, test=test_pairs)
 
 
 @pytest.fixture
@@ -132,9 +126,7 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests"
-    )
+    config.addinivalue_line("markers", "integration: marks tests as integration tests")
     config.addinivalue_line(
         "markers", "jax_transform: marks tests that verify JAX transformations"
     )

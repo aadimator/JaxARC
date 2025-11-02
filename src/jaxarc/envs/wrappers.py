@@ -38,8 +38,8 @@ from typing import Optional
 
 import jax
 import jax.numpy as jnp
-from jax import lax
 import numpy as np
+from jax import lax
 from stoa import MultiDiscreteSpace, Space
 from stoa.core_wrappers.wrapper import Wrapper
 
@@ -48,7 +48,7 @@ from jaxarc.envs.environment import Environment
 from ..state import State
 from ..types import EnvParams, TimeStep
 from .actions import Action, create_action
-from .spaces import BoundedArraySpace, DictSpace, DiscreteSpace
+from .spaces import DictSpace, DiscreteSpace
 
 
 def _point_to_mask(point_action: dict, grid_shape: tuple[int, int]) -> Action:
@@ -300,8 +300,7 @@ class FlattenActionWrapper(Wrapper[State]):
                 key: action
                 for key, action in zip(self._action_keys, reconstructed_actions)
             }
-        else:
-            return reconstructed_actions[0]
+        return reconstructed_actions[0]
 
     def step(
         self, state: State, action: Action, env_params: Optional[EnvParams] = None
@@ -313,8 +312,6 @@ class FlattenActionWrapper(Wrapper[State]):
     def action_space(self, env_params: Optional[EnvParams] = None) -> Space:
         """Returns the single, flattened DiscreteSpace."""
         return DiscreteSpace(num_values=self._total_actions, dtype=jnp.int32)
-
-
 
 
 __all__ = [

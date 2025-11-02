@@ -687,8 +687,10 @@ class EnvRegistry:
             # Load YAML via importlib.resources to avoid file path issues
             import importlib.resources as pkg_resources
             import io
+
             import yaml
             from omegaconf import DictConfig, OmegaConf
+
             from jaxarc.configs.dataset_config import DatasetConfig
 
             dataset_dir = pkg_resources.files("jaxarc") / "conf" / "dataset"
@@ -830,8 +832,9 @@ class EnvRegistry:
         - Load dataset config directly from packaged YAML (no Hydra init).
         - Ensure files are present via DatasetManager and fix dataset_path.
         """
-        from jaxarc.configs.dataset_config import DatasetConfig
         import equinox as eqx
+
+        from jaxarc.configs.dataset_config import DatasetConfig
 
         manager = DatasetManager()
 

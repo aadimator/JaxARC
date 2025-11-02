@@ -21,7 +21,6 @@ JAXTyping *batch modifier allows the same type to work for both single arrays
 
 from __future__ import annotations
 
-from dataclasses import field
 from typing import Any, TypeAlias
 
 import chex
@@ -189,10 +188,8 @@ class EnvParams(eqx.Module):
 
 
 # =============================================================================
-# Stoa-inspired Episode Management Types 
+# Stoa-inspired Episode Management Types
 # =============================================================================
-
-from stoa.env_types import StepType, TimeStep
 
 
 class Grid(eqx.Module):

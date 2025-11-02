@@ -4,7 +4,9 @@ Tests for functional API in jaxarc.envs.functional.
 This module tests the pure functional environment operations (reset, step)
 for JAX compatibility, pure function behavior, and state immutability.
 """
+
 from __future__ import annotations
+
 import jax
 import jax.numpy as jnp
 

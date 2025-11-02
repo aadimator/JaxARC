@@ -4,15 +4,15 @@ Edge case and error handling tests for JaxARC.
 This module tests invalid input handling, boundary conditions, and error scenarios
 to ensure robust error handling with clear error messages.
 """
+
 from __future__ import annotations
 
 import chex
-import jax
 import jax.numpy as jnp
 import pytest
 
 from jaxarc.configs.main_config import JaxArcConfig
-from jaxarc.types import Grid, JaxArcTask, TaskPair, TimeStep, StepType, EnvParams
+from jaxarc.types import Grid, JaxArcTask, StepType, TimeStep
 
 
 class TestGridEdgeCases:
@@ -128,7 +128,7 @@ class TestGridEdgeCases:
 
         # Test with extreme int32 values that are outside valid ARC color range
         large_int_data = jnp.array([[2147483647, -2147483648]], dtype=jnp.int32)
-        
+
         # Should raise ValueError for values outside [-1, 9] range
         with pytest.raises(ValueError, match="Grid color values must be in"):
             Grid(data=large_int_data, mask=mask)
@@ -361,7 +361,12 @@ class TestTimeStepEdgeCases:
 
         # TimeStep doesn't validate step_type at creation, so test valid creation
         # with all valid step types
-        for step_type in [StepType.FIRST, StepType.MID, StepType.TERMINATED, StepType.TRUNCATED]:
+        for step_type in [
+            StepType.FIRST,
+            StepType.MID,
+            StepType.TERMINATED,
+            StepType.TRUNCATED,
+        ]:
             timestep = TimeStep(
                 step_type=step_type,
                 reward=reward,
@@ -396,7 +401,7 @@ class TestTimeStepEdgeCases:
         chex.assert_trees_all_equal(timestep_negative.reward, negative_reward)
 
         # NaN reward (should be handled gracefully)
-        nan_reward = jnp.array(float('nan'), dtype=jnp.float32)
+        nan_reward = jnp.array(float("nan"), dtype=jnp.float32)
         timestep_nan = TimeStep(
             step_type=StepType.MID,
             reward=nan_reward,
@@ -406,7 +411,7 @@ class TestTimeStepEdgeCases:
         assert jnp.isnan(timestep_nan.reward)
 
         # Infinite reward
-        inf_reward = jnp.array(float('inf'), dtype=jnp.float32)
+        inf_reward = jnp.array(float("inf"), dtype=jnp.float32)
         timestep_inf = TimeStep(
             step_type=StepType.MID,
             reward=inf_reward,
@@ -468,14 +473,14 @@ class TestTimeStepEdgeCases:
 
         # Empty observation array
         empty_obs = jnp.array([], dtype=jnp.int32).reshape(0, 0)
-        
+
         timestep = TimeStep(
             step_type=StepType.FIRST,
             reward=reward,
             discount=discount,
             observation=empty_obs,
         )
-        
+
         chex.assert_shape(timestep.observation, (0, 0))
 
     def test_timestep_inconsistent_terminal_states(self):
@@ -520,7 +525,7 @@ class TestConfigurationEdgeCases:
         """Test configuration with extreme but potentially valid values."""
         # Test with valid config creation using proper config objects
         from jaxarc.configs.environment_config import EnvironmentConfig
-        
+
         # Very large episode steps
         large_env_config = EnvironmentConfig(max_episode_steps=10000)
         large_config = JaxArcConfig(environment=large_env_config)
@@ -554,7 +559,9 @@ class TestConfigurationEdgeCases:
 
         with pytest.raises(ValueError, match="must be hashable for JAX compatibility"):
             JaxArcConfig(
-                environment={"max_episode_steps": 3.14}  # Dict with float instead of int
+                environment={
+                    "max_episode_steps": 3.14
+                }  # Dict with float instead of int
             )
 
 
@@ -565,13 +572,11 @@ class TestBoundaryConditions:
         """Test behavior at maximum step counts."""
         # This would test environment step limits
         # Implementation depends on actual environment limits
-        pass
 
     def test_maximum_episode_length(self):
         """Test behavior at maximum episode length."""
         # This would test episode truncation at maximum length
         # Implementation depends on actual environment configuration
-        pass
 
     def test_memory_intensive_operations(self):
         """Test operations that might consume significant memory."""
@@ -593,7 +598,7 @@ class TestBoundaryConditions:
         """Test thread safety for concurrent access where applicable."""
         # JAX operations are generally thread-safe for read operations
         # Test that multiple threads can safely access the same data structures
-        
+
         data = jnp.array([[1, 2], [3, 4]], dtype=jnp.int32)
         mask = jnp.ones((2, 2), dtype=jnp.bool_)
         grid = Grid(data=data, mask=mask)
@@ -605,7 +610,7 @@ class TestBoundaryConditions:
         # Multiple calls should be safe
         results = [read_grid() for _ in range(10)]
         expected_sum = data.sum()
-        
+
         for result in results:
             chex.assert_trees_all_equal(result, expected_sum)
 
@@ -663,4 +668,7 @@ class TestErrorMessageClarity:
             )
         except ValueError as e:
             error_msg = str(e)
-            assert "hashable" in error_msg.lower() and "jax compatibility" in error_msg.lower()
+            assert (
+                "hashable" in error_msg.lower()
+                and "jax compatibility" in error_msg.lower()
+            )

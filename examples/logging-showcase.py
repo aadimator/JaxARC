@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from jaxarc.configs import JaxArcConfig
-from jaxarc.envs import BboxActionWrapper, FlattenActionWrapper, PointActionWrapper
+from jaxarc.envs import BboxActionWrapper, FlattenActionWrapper
 from jaxarc.registration import make
 from jaxarc.utils.core import get_config
 from jaxarc.utils.logging import (

@@ -182,7 +182,6 @@ class TestState:
                 key=jax.random.PRNGKey(42),
                 task_idx=jnp.array(0, dtype=jnp.int32),
                 pair_idx=jnp.array(0, dtype=jnp.int32),
-                
             )
 
         # Test JIT compilation
@@ -217,7 +216,6 @@ class TestState:
             task_idx=jnp.array(0, dtype=jnp.int32),
             pair_idx=jnp.array(0, dtype=jnp.int32),
             carry=initial_carry,
-            
         )
 
         # Verify carry is stored correctly
@@ -272,7 +270,6 @@ class TestState:
             key=jax.random.PRNGKey(123),
             task_idx=jnp.array(1, dtype=jnp.int32),
             pair_idx=jnp.array(2, dtype=jnp.int32),
-            
         )
 
         # Verify grid operation state
@@ -314,7 +311,6 @@ class TestState:
         initial_state = State(
             step_count=jnp.array(0, dtype=jnp.int32),
             similarity_score=jnp.array(0.0, dtype=jnp.float32),
-            
             **base_arrays,
         )
 
@@ -322,7 +318,6 @@ class TestState:
         mid_state = State(
             step_count=jnp.array(10, dtype=jnp.int32),
             similarity_score=jnp.array(0.5, dtype=jnp.float32),
-            
             **base_arrays,
         )
 
@@ -330,7 +325,6 @@ class TestState:
         final_state = State(
             step_count=jnp.array(25, dtype=jnp.int32),
             similarity_score=jnp.array(0.95, dtype=jnp.float32),
-            
             **base_arrays,
         )
 
@@ -368,7 +362,6 @@ class TestState:
             key=jax.random.PRNGKey(42),
             task_idx=jnp.array(0, dtype=jnp.int32),
             pair_idx=jnp.array(0, dtype=jnp.int32),
-            
         )
 
         # Verify operation mask
@@ -402,7 +395,6 @@ class TestState:
             key=initial_key,
             task_idx=jnp.array(0, dtype=jnp.int32),
             pair_idx=jnp.array(0, dtype=jnp.int32),
-            
         )
 
         # Verify key is stored correctly
@@ -443,7 +435,6 @@ class TestState:
             key=jax.random.PRNGKey(42),
             task_idx=task_idx,
             pair_idx=pair_idx,
-            
         )
 
         # Verify indices
@@ -480,7 +471,6 @@ class TestState:
             key=jax.random.PRNGKey(999),
             task_idx=jnp.array(10, dtype=jnp.int32),
             pair_idx=jnp.array(2, dtype=jnp.int32),
-            
         )
 
         # Test PyTree flattening and unflattening
@@ -515,7 +505,6 @@ class TestState:
             key=jax.random.PRNGKey(42),
             task_idx=jnp.array(0, dtype=jnp.int32),
             pair_idx=jnp.array(0, dtype=jnp.int32),
-            
         )
 
         # Test that it's an Equinox module

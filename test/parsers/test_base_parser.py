@@ -6,7 +6,6 @@ interface compliance, validation, and error handling patterns.
 
 from __future__ import annotations
 
-from abc import ABC
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -31,18 +30,8 @@ class MockParser(ArcDataParserBase):
     def load_task_file(self, task_file_path: str) -> Any:
         """Mock implementation that returns test data."""
         return {
-            "train": [
-                {
-                    "input": [[0, 1], [1, 0]],
-                    "output": [[1, 0], [0, 1]]
-                }
-            ],
-            "test": [
-                {
-                    "input": [[0, 1], [1, 0]],
-                    "output": [[1, 0], [0, 1]]
-                }
-            ]
+            "train": [{"input": [[0, 1], [1, 0]], "output": [[1, 0], [0, 1]]}],
+            "test": [{"input": [[0, 1], [1, 0]], "output": [[1, 0], [0, 1]]}],
         }
 
     def preprocess_task_data(self, raw_task_data: Any, key: PRNGKey) -> JaxArcTask:
@@ -52,13 +41,13 @@ class MockParser(ArcDataParserBase):
         train_outputs = jnp.array([[[1, 0], [0, 1]]], dtype=jnp.int32)
         test_inputs = jnp.array([[[0, 1], [1, 0]]], dtype=jnp.int32)
         test_outputs = jnp.array([[[1, 0], [0, 1]]], dtype=jnp.int32)
-        
+
         # Create masks (all True for this simple case)
         train_input_masks = jnp.ones((1, 2, 2), dtype=bool)
         train_output_masks = jnp.ones((1, 2, 2), dtype=bool)
         test_input_masks = jnp.ones((1, 2, 2), dtype=bool)
         test_output_masks = jnp.ones((1, 2, 2), dtype=bool)
-        
+
         return JaxArcTask(
             input_grids_examples=train_inputs,
             input_masks_examples=train_input_masks,
@@ -107,7 +96,7 @@ class TestArcDataParserBase:
             background_color=0,
             max_train_pairs=5,
             max_test_pairs=3,
-            task_split="train"
+            task_split="train",
         )
 
     @pytest.fixture
@@ -123,7 +112,7 @@ class TestArcDataParserBase:
             background_color=0,
             max_train_pairs=5,
             max_test_pairs=3,
-            task_split="train"
+            task_split="train",
         )
 
     @pytest.fixture
@@ -143,16 +132,16 @@ class TestArcDataParserBase:
             background_color=0,
             max_train_pairs=5,
             max_test_pairs=3,
-            task_split="train"
+            task_split="train",
         )
-        
+
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             ArcDataParserBase(config)
 
     def test_initialization_with_valid_config(self, valid_config: DatasetConfig):
         """Test successful initialization with valid configuration."""
         parser = MockParser(valid_config)
-        
+
         assert parser.config == valid_config
         assert parser.max_grid_height == 10
         assert parser.max_grid_width == 10
@@ -176,7 +165,12 @@ class TestArcDataParserBase:
     def test_get_max_dimensions(self, mock_parser: MockParser):
         """Test get_max_dimensions returns correct values."""
         dimensions = mock_parser.get_max_dimensions()
-        expected = (10, 10, 5, 3)  # max_height, max_width, max_train_pairs, max_test_pairs
+        expected = (
+            10,
+            10,
+            5,
+            3,
+        )  # max_height, max_width, max_train_pairs, max_test_pairs
         assert dimensions == expected
 
     def test_get_grid_config(self, mock_parser: MockParser):
@@ -203,7 +197,7 @@ class TestArcDataParserBase:
         """Test validate_grid_dimensions with dimensions too small."""
         with pytest.raises(ValueError, match="below minimum"):
             mock_parser.validate_grid_dimensions(0, 5)
-        
+
         with pytest.raises(ValueError, match="below minimum"):
             mock_parser.validate_grid_dimensions(5, 0)
 
@@ -211,7 +205,7 @@ class TestArcDataParserBase:
         """Test validate_grid_dimensions with dimensions too large."""
         with pytest.raises(ValueError, match="exceed maximum"):
             mock_parser.validate_grid_dimensions(11, 5)
-        
+
         with pytest.raises(ValueError, match="exceed maximum"):
             mock_parser.validate_grid_dimensions(5, 11)
 
@@ -226,7 +220,7 @@ class TestArcDataParserBase:
         """Test validate_color_value with invalid colors."""
         with pytest.raises(ValueError, match="must be in range"):
             mock_parser.validate_color_value(-1)
-        
+
         with pytest.raises(ValueError, match="must be in range"):
             mock_parser.validate_color_value(10)
 
@@ -234,7 +228,7 @@ class TestArcDataParserBase:
         """Test _convert_grid_to_jax with valid grid data."""
         grid_data = [[0, 1, 2], [3, 4, 5]]
         result = mock_parser._convert_grid_to_jax(grid_data)
-        
+
         expected = jnp.array([[0, 1, 2], [3, 4, 5]], dtype=jnp.int32)
         assert_trees_all_close(result, expected)
         assert result.dtype == jnp.int32
@@ -282,18 +276,19 @@ class TestArcDataParserBase:
     def test_from_hydra_class_method(self, valid_config: DatasetConfig):
         """Test from_hydra class method creates parser correctly."""
         mock_hydra_config = Mock()
-        
-        with patch.object(DatasetConfig, 'from_hydra', return_value=valid_config):
+
+        with patch.object(DatasetConfig, "from_hydra", return_value=valid_config):
             parser = MockParser.from_hydra(mock_hydra_config)
-            
+
             assert isinstance(parser, MockParser)
             assert parser.config == valid_config
 
     def test_abstract_methods_must_be_implemented(self):
         """Test that abstract methods must be implemented by subclasses."""
+
         class IncompleteParser(ArcDataParserBase):
             pass
-        
+
         config = DatasetConfig(
             dataset_path="test/data",
             max_grid_height=10,
@@ -304,9 +299,9 @@ class TestArcDataParserBase:
             background_color=0,
             max_train_pairs=5,
             max_test_pairs=3,
-            task_split="train"
+            task_split="train",
         )
-        
+
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
             IncompleteParser(config)
 
@@ -315,49 +310,53 @@ class TestArcDataParserBase:
         # Test get_available_task_ids
         task_ids = mock_parser.get_available_task_ids()
         assert task_ids == ["task_001", "task_002", "task_003"]
-        
+
         # Test get_task_by_id with valid ID
         task = mock_parser.get_task_by_id("task_001")
         assert isinstance(task, JaxArcTask)
-        
+
         # Test get_task_by_id with invalid ID
         with pytest.raises(ValueError, match="not found"):
             mock_parser.get_task_by_id("invalid_task")
 
-    @patch('jaxarc.utils.task_manager.get_task_id_globally')
-    def test_validate_task_index_mapping(self, mock_get_task_id, mock_parser: MockParser):
+    @patch("jaxarc.utils.task_manager.get_task_id_globally")
+    def test_validate_task_index_mapping(
+        self, mock_get_task_id, mock_parser: MockParser
+    ):
         """Test validate_task_index_mapping method."""
         # Test valid task index
         mock_get_task_id.return_value = "task_001"
         assert mock_parser.validate_task_index_mapping(0) is True
-        
+
         # Test invalid task index (not in global manager)
         mock_get_task_id.return_value = None
         assert mock_parser.validate_task_index_mapping(999) is False
-        
+
         # Test invalid task index (not in this parser)
         mock_get_task_id.return_value = "unknown_task"
         assert mock_parser.validate_task_index_mapping(0) is False
 
-    @patch('jaxarc.utils.task_manager.get_task_id_globally')
-    def test_reconstruct_task_from_index(self, mock_get_task_id, mock_parser: MockParser):
+    @patch("jaxarc.utils.task_manager.get_task_id_globally")
+    def test_reconstruct_task_from_index(
+        self, mock_get_task_id, mock_parser: MockParser
+    ):
         """Test reconstruct_task_from_index method."""
         # Test successful reconstruction
         mock_get_task_id.return_value = "task_001"
         task = mock_parser.reconstruct_task_from_index(0)
         assert isinstance(task, JaxArcTask)
-        
+
         # Test reconstruction with invalid index
         mock_get_task_id.return_value = None
         with pytest.raises(ValueError, match="not found in global task manager"):
             mock_parser.reconstruct_task_from_index(999)
-        
+
         # Test reconstruction with unknown task ID
         mock_get_task_id.return_value = "unknown_task"
         with pytest.raises(ValueError, match="Cannot reconstruct task"):
             mock_parser.reconstruct_task_from_index(0)
 
-    @patch('jaxarc.utils.task_manager.register_task_globally')
+    @patch("jaxarc.utils.task_manager.register_task_globally")
     def test_get_task_index_for_id(self, mock_register_task, mock_parser: MockParser):
         """Test get_task_index_for_id method."""
         # Test successful index retrieval
@@ -365,7 +364,7 @@ class TestArcDataParserBase:
         index = mock_parser.get_task_index_for_id("task_001")
         assert index == 42
         mock_register_task.assert_called_once_with("task_001")
-        
+
         # Test with unavailable task ID
         with pytest.raises(ValueError, match="not available in this parser"):
             mock_parser.get_task_index_for_id("unknown_task")

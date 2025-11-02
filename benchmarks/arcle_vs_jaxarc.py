@@ -158,7 +158,9 @@ def run_jaxarc(
             return (new_state, new_ts, k_next), ()
 
         # Scan over a dummy sequence of given length; carry State, TimeStep and RNG key
-        (state_final, ts_final, _), _ = jax.lax.scan(body, (state, ts0, loop_key), xs=None, length=num_steps, unroll=unroll)
+        (state_final, ts_final, _), _ = jax.lax.scan(
+            body, (state, ts0, loop_key), xs=None, length=num_steps, unroll=unroll
+        )
         return ts_final
 
     if parallel.lower() == "pmap":
@@ -339,7 +341,9 @@ def benchmark_throughput(
                         "total_times": total_times,
                     }
                 except Exception as e:
-                    print(f"An error occurred during JaxARC benchmarking for {num_envs} envs: {e}")
+                    print(
+                        f"An error occurred during JaxARC benchmarking for {num_envs} envs: {e}"
+                    )
                     results[num_envs][mode] = {
                         "error": str(e),
                         "times": [],
@@ -366,7 +370,9 @@ def benchmark_throughput(
                         "total_times": total_times,
                     }
                 except Exception as e:
-                    print(f"An error occurred during ARCLE benchmarking for {num_envs} envs: {e}")
+                    print(
+                        f"An error occurred during ARCLE benchmarking for {num_envs} envs: {e}"
+                    )
                     results[num_envs][mode] = {
                         "error": str(e),
                         "times": [],
@@ -494,7 +500,9 @@ def main(
                 with json_path.open("r") as f:
                     results_for_mode = json.load(f)
             except Exception as e:
-                print(f"Warning: Failed to load existing results ({e}), starting fresh.")
+                print(
+                    f"Warning: Failed to load existing results ({e}), starting fresh."
+                )
 
         # Ensure meta is correct for this mode
         results_for_mode["meta"]["mode"] = mode
@@ -516,7 +524,9 @@ def main(
 
             # Merge the one-result data into our incremental dict
             if throughput and num_envs in throughput and mode in throughput[num_envs]:
-                results_for_mode.setdefault("throughput", {})[key_num_envs] = throughput[num_envs][mode]
+                results_for_mode.setdefault("throughput", {})[key_num_envs] = (
+                    throughput[num_envs][mode]
+                )
             else:
                 # Store an explicit error/empty record to show attempted run
                 results_for_mode.setdefault("throughput", {})[key_num_envs] = {
