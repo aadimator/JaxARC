@@ -52,7 +52,7 @@ repos:
     rev: "v1.16.0"
     hooks:
       - id: mypy
-        files: src|tests
+        files: src|test
         args: []
         additional_dependencies:
           - pytest

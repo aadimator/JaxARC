@@ -178,7 +178,8 @@ We welcome contributions! Please see our
 - **[ARC Challenge](https://github.com/fchollet/ARC)**: Original ARC dataset and
   challenge
 - **[ARCLE](https://github.com/ConfeitoHS/arcle)**: ARC Learning Environment
-- **[Stoix](https://github.com/EdanToledo/Stoix)**: A research-friendly codebase for fast experimentation of single-agent reinforcement learning in JAX
+- **[Stoix](https://github.com/EdanToledo/Stoix)**: A research-friendly codebase
+  for fast experimentation of single-agent reinforcement learning in JAX
 
 ## 📄 License
 

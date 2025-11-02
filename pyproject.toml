@@ -27,7 +27,7 @@ dependencies = [
   "equinox>=0.13.0,<0.14",
 ]
 classifiers = [
-  "Development Status :: 1 - Planning",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
@@ -39,6 +39,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering",
+  "License :: OSI Approved :: MIT License",
   "Typing :: Typed",
 ]
 dynamic = ["version"]
@@ -57,21 +58,22 @@ build.hooks.vcs.version-file = "src/jaxarc/_version.py"
 packages = ["src/jaxarc"]
 # Include Hydra configuration files as package data
 include = [
-    "jaxarc/conf/**/*.yaml",
-    "jaxarc/conf/**/*.yml",
-    "jaxarc/conf/README.md"
+  "src/jaxarc/py.typed",
+  "src/jaxarc/conf/**/*.yaml",
+  "src/jaxarc/conf/**/*.yml",
+  "src/jaxarc/conf/README.md",
 ]
 
 [tool.hatch.build.targets.sdist]
 # Include configs in source distribution too
 include = [
-    "src/jaxarc/**/*",
-    "conf/**/*.yaml",
-    "conf/**/*.yml",
-    "conf/README.md",
-    "tests/**/*",
-    "docs/**/*",
-    "examples/**/*"
+  "src/jaxarc/**/*",
+  "src/jaxarc/conf/**/*.yaml",
+  "src/jaxarc/conf/**/*.yml",
+  "src/jaxarc/conf/README.md",
+  "test/**/*",
+  "docs/**/*",
+  "examples/**/*",
 ]
 
 [tool.hatch.envs.default]
@@ -103,7 +105,7 @@ run.source = ["jaxarc"]
 report.exclude_also = ['\.\.\.', 'if typing.TYPE_CHECKING:']
 
 [tool.mypy]
-files = ["src", "tests"]
+files = ["src", "test"]
 python_version = "3.9"
 warn_unused_configs = true
 strict = true
@@ -153,12 +155,54 @@ isort.required-imports = ["from __future__ import annotations"]
 # typing-modules = ["jaxarc._compat.typing"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["T20", "EM102", "PT011", "PT017", "ARG001", "ARG002", "ARG005", "F841"]
+"test/**" = [
+  "T20",
+  "EM102",
+  "PT011",
+  "PT017",
+  "ARG001",
+  "ARG002",
+  "ARG005",
+  "F841",
+]
 "noxfile.py" = ["T20"]
-"notebooks/**" = ["T20", "PLC0415", "E402", "F841", "EM102", "UP035", "UP006", "RET504", "B018", "G004", "ARG002", "PT028", "RUF005"]
-"examples/**" = ["T20", "PLC0415", "E402", "F841", "EM102", "NPY002", "G004", "EXE001", "ARG005"]
-"benchmarks/**" = ["T20", "PLC0415", "E402", "F841", "EM102", "NPY002", "G004", "EXE001", "ARG005"]
-
+"notebooks/**" = [
+  "T20",
+  "PLC0415",
+  "E402",
+  "F841",
+  "EM102",
+  "UP035",
+  "UP006",
+  "RET504",
+  "B018",
+  "G004",
+  "ARG002",
+  "PT028",
+  "RUF005",
+]
+"examples/**" = [
+  "T20",
+  "PLC0415",
+  "E402",
+  "F841",
+  "EM102",
+  "NPY002",
+  "G004",
+  "EXE001",
+  "ARG005",
+]
+"benchmarks/**" = [
+  "T20",
+  "PLC0415",
+  "E402",
+  "F841",
+  "EM102",
+  "NPY002",
+  "G004",
+  "EXE001",
+  "ARG005",
+]
 
 
 [tool.pylint]

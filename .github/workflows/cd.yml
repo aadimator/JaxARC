@@ -2,13 +2,12 @@ name: CD
 
 on:
   workflow_dispatch:
-  # pull_request:
+  release:
+    types: [published]
+  # Optionally publish on version tags without a GitHub Release
   # push:
-  #   branches:
-  #     - main
-  # release:
-  #   types:
-  #     - published
+  #   tags:
+  #     - "v*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,7 +39,6 @@ jobs:
       attestations: write
       contents: read
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
 
     steps:
       - uses: actions/download-artifact@v4
@@ -53,8 +51,6 @@ jobs:
         with:
           subject-path: "dist/*"
 
+      # Using PyPI Trusted Publishing via OIDC (no API token needed).
+      # Ensure this repo is added as a Trusted Publisher for the project on PyPI.
       - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # Remember to tell (test-)pypi about this repo before publishing
-          # Remove this line to publish to PyPI
-          repository-url: https://test.pypi.org/legacy/
