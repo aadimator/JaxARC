@@ -22,6 +22,7 @@ extensions = [
     "sphinx.ext.intersphinx",  # Link to other projects
     "myst_parser",  # Markdown support
     "sphinx_copybutton",  # Copy code buttons
+    "sphinx_design",  # Grid cards and other design elements
 ]
 
 templates_path = ["_templates"]
