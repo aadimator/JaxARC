@@ -20,7 +20,7 @@ extensions = [
     "sphinx.ext.napoleon",  # Google-style docstrings
     "sphinx.ext.viewcode",  # Link to source code
     "sphinx.ext.intersphinx",  # Link to other projects
-    "myst_parser",  # Markdown support
+    "myst_nb",  # Jupyter notebook support (replaces myst_parser)
     "sphinx_copybutton",  # Copy code buttons
     "sphinx_design",  # Grid cards and other design elements
 ]
@@ -36,6 +36,33 @@ myst_enable_extensions = [
     "deflist",  # Definition lists
     "tasklist",  # Task lists
 ]
+
+# -- MyST-NB configuration ---------------------------------------------------
+# https://myst-nb.readthedocs.io/en/latest/configuration.html
+
+# Execution settings
+nb_execution_mode = "cache"  # Cache outputs to avoid re-running unchanged cells
+nb_execution_timeout = 300  # 5 minutes per cell
+nb_execution_allow_errors = False  # Stop on errors during build
+
+# Cache location
+nb_execution_cache_path = "_build/.jupyter_cache"
+
+# Output formatting
+nb_output_stderr = "show"  # Show stderr in outputs
+nb_merge_streams = True  # Merge stdout and stderr
+
+# Kernel settings
+nb_kernel_rgx_aliases = {
+    "python3": "python",
+}
+
+# File extensions to parse as notebooks
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "myst-nb",
+    ".ipynb": "myst-nb",
+}
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
