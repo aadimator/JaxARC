@@ -52,11 +52,11 @@ Step-by-step guides for common tasks like downloading datasets, creating agents,
 Complete API documentation for all modules, classes, and functions.
 :::
 
-:::{grid-item-card} 🎓 Concepts
-:link: concepts/index
+:::{grid-item-card} 🔧 Advanced
+:link: advanced/index
 :link-type: doc
 
-Understand JaxARC's architecture and JAX-specific patterns.
+Learn to add new datasets, work with YAML configs, and contribute to JaxARC.
 :::
 
 ::::
@@ -98,7 +98,7 @@ print(f"Reward: {next_timestep.reward}")
 - **New to JaxARC?** Start with the [Getting Started](getting-started/index.md) guide
 - **Want to learn specific tasks?** Check out the [Tutorials](tutorials/index.md)
 - **Need API details?** Browse the [API Reference](api/index.md)
-- **Coming from Gymnasium?** Read the [Concepts](concepts/index.md) guide to understand JAX patterns
+- **Want to extend JaxARC?** Read the [Advanced](advanced/index.md) guides
 
 ## Contents
 
@@ -108,7 +108,6 @@ print(f"Reward: {next_timestep.reward}")
 
 getting-started/index
 tutorials/index
-concepts/index
 api/index
 advanced/index
 ```
