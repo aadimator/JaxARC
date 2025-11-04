@@ -81,13 +81,6 @@ JaxARC builds on great work from the community:
 
 If you use JaxARC in your research:
 
-<<<<<<< HEAD
-- **[ARC Challenge](https://github.com/fchollet/ARC)**: Original ARC dataset and
-  challenge
-- **[ARCLE](https://github.com/ConfeitoHS/arcle)**: ARC Learning Environment
-- **[Stoix](https://github.com/EdanToledo/Stoix)**: A research-friendly codebase
-  for fast experimentation of single-agent reinforcement learning in JAX
-=======
 ```bibtex
 @software{jaxarc2025,
   author = {Aadam},
@@ -96,7 +89,6 @@ If you use JaxARC in your research:
   url = {https://github.com/aadimator/JaxARC}
 }
 ```
->>>>>>> 001-docs-website
 
 ## License
 
