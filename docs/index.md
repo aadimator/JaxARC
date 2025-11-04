@@ -27,9 +27,32 @@ The ARC challenge tests an AI system's ability to solve novel reasoning tasks by
 - **Type Safety**: Precise array shape annotations with `jaxtyping` for better error messages
 - **Comprehensive Testing**: Extensive test suite ensuring JAX compatibility and correctness
 
+## Architecture Overview
+
+JaxARC follows a modular, functional design that keeps the core environment fast (JIT-compatible) while allowing flexible customization:
+
+```{image} _static/images/jaxarc_system_architecture.svg
+:alt: JaxARC System Architecture
+:class: dark-light
+:width: 100%
+:align: center
+```
+
+**Key Components:**
+- **Datasets**: ARC-AGI-1/2, ConceptARC, MiniARC with JSON task definitions
+- **Parsers**: Convert JSON → JAX arrays with validation and normalization
+- **Task Buffer**: JIT-compatible stacked arrays with fixed shapes
+- **Registry**: Manages dataset variants and task subsets
+- **Environment**: Pure functional reset/step API following the Stoa standard
+- **State**: Immutable dataclass with working grid, input, target, and clipboard
+- **Actions**: Multiple representations (mask, point, bbox) with transformations
+- **Wrappers**: Modular observation and action space transforms
+- **Visualization**: Terminal and SVG rendering for debugging
+
 ## Quick Navigation
 
-::::{grid} 2
+::::{grid} 1 1 2 3
+:gutter: 3
 
 :::{grid-item-card} 🚀 Getting Started
 :link: getting-started/index
@@ -50,13 +73,6 @@ Step-by-step guides for common tasks like downloading datasets, creating agents,
 :link-type: doc
 
 Complete API documentation for all modules, classes, and functions.
-:::
-
-:::{grid-item-card} 🔧 Advanced
-:link: advanced/index
-:link-type: doc
-
-Learn to add new datasets, work with YAML configs, and contribute to JaxARC.
 :::
 
 ::::
@@ -98,7 +114,6 @@ print(f"Reward: {next_timestep.reward}")
 - **New to JaxARC?** Start with the [Getting Started](getting-started/index.md) guide
 - **Want to learn specific tasks?** Check out the [Tutorials](tutorials/index.md)
 - **Need API details?** Browse the [API Reference](api/index.md)
-- **Want to extend JaxARC?** Read the [Advanced](advanced/index.md) guides
 
 ## Contents
 
@@ -109,7 +124,6 @@ print(f"Reward: {next_timestep.reward}")
 getting-started/index
 tutorials/index
 api/index
-advanced/index
 ```
 
 ## Community & Support
