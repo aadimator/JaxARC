@@ -48,7 +48,7 @@ myst_enable_extensions = [
 # https://myst-nb.readthedocs.io/en/latest/configuration.html
 
 # Execution settings
-nb_execution_mode = "cache"  # Cache outputs to avoid re-running unchanged cells
+nb_execution_mode = "auto"  # Cache outputs to avoid re-running unchanged cells
 nb_execution_timeout = 300  # 5 minutes per cell
 nb_execution_allow_errors = False  # Stop on errors during build
 
