@@ -34,7 +34,9 @@ If you modify the docs dependencies in `pixi.toml`, regenerate the environment f
 pixi run -e docs docs-export
 ```
 
-This exports the pixi `docs` environment to `docs/environment.yml`, which ReadTheDocs uses to build the documentation.
+This exports the pixi `docs` environment to `docs/environment.yml` and automatically fixes ReadTheDocs compatibility issues:
+- Removes invalid `*` from `jax[cpu]*`
+- Fixes relative path for editable install (`-e ..` to reference project root)
 
 ## Writing Documentation
 
