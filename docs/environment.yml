@@ -1,0 +1,23 @@
+name: docs
+channels:
+- conda-forge
+- nodefaults
+dependencies:
+- python >=3.11,<3.14
+- python >=3.10,<3.13
+- sphinx >=7.2.0,<8
+- myst-parser >=2.0.0,<3
+- furo >=2024.1.29
+- marimo >=0.13.6,<0.15
+- wandb >=0.21.0,<0.22
+- cairo >=1.18.4,<2
+- pip
+- pip:
+  - sphinx-autodoc-typehints>=1.25.0
+  - sphinx-copybutton>=0.5.2
+  - sphinx-design>=0.5.0
+  - readthedocs-sphinx-search>=0.3.0
+  - myst-nb>=1.1.0
+  - -e .
+  - jax[cpu]*
+

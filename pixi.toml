@@ -80,7 +80,7 @@ docs-build = { cmd = "sphinx-build -b html docs/ docs/_build/html" }
 docs-serve = { cmd = "python -m http.server 8000 --directory docs/_build/html" }
 docs-clean = { cmd = "rm -rf docs/_build" }
 docs-linkcheck = { cmd = "sphinx-build -b linkcheck docs/ docs/_build/linkcheck" }
-docs-export = { cmd = "pixi project export conda-environment docs > environment.yml" }
+docs-export = { cmd = "pixi project export conda-environment --environment docs > docs/environment.yml" }
 docs = { depends-on = ["docs-clean", "docs-build"] }
 
 [feature.bench.pypi-dependencies]
