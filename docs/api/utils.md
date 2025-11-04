@@ -29,11 +29,13 @@ from jaxarc.utils.visualization import draw_grid_svg, draw_task_pair_svg
 import jax.numpy as jnp
 
 # Create a simple grid
-grid = jnp.array([
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-])
+grid = jnp.array(
+    [
+        [0, 1, 2],
+        [3, 4, 5],
+        [6, 7, 8],
+    ]
+)
 
 # Draw as SVG
 svg = draw_grid_svg(grid)
@@ -47,9 +49,11 @@ from jaxarc.utils.core import get_config
 from jaxarc import JaxArcConfig
 
 # Load configuration with overrides
-hydra_cfg = get_config(overrides=[
-    "dataset=mini_arc",
-])
+hydra_cfg = get_config(
+    overrides=[
+        "dataset=mini_arc",
+    ]
+)
 
 config = JaxArcConfig.from_hydra(hydra_cfg)
 ```

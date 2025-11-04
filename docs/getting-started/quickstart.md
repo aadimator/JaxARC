@@ -1,10 +1,12 @@
 # Quick Start
 
-Learn the JaxARC basics in 5 minutes. This guide covers the essential concepts you need to start using JaxARC.
+Learn the JaxARC basics in 5 minutes. This guide covers the essential concepts
+you need to start using JaxARC.
 
 ## Your First Environment
 
-The simplest way to start with JaxARC is to create an environment and interact with it:
+The simplest way to start with JaxARC is to create an environment and interact
+with it:
 
 ```python
 import jax
@@ -13,8 +15,7 @@ import jaxarc
 # Create an environment (returns env and env_params)
 # auto_download=True will download the dataset if it doesn't exist
 env, env_params = jaxarc.make(
-    "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p",
-    auto_download=True
+    "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
 )
 
 # Reset the environment to get the initial state and timestep
@@ -28,9 +29,13 @@ print(f"Step type: {timestep.step_type}")
 
 ### Breaking It Down
 
-1. **`jaxarc.make("Mini-...")`** creates an environment instance and environment parameters. The ID specifies the dataset ("Mini" for MiniARC) and optionally a specific task.
+1. **`jaxarc.make("Mini-...")`** creates an environment instance and environment
+   parameters. The ID specifies the dataset ("Mini" for MiniARC) and optionally
+   a specific task.
 
-2. **`env.reset(key, env_params=env_params)`** resets the environment and returns both `state` and `timestep`. Unlike Gymnasium, JAX environments require an explicit PRNG key for reproducibility.
+2. **`env.reset(key, env_params=env_params)`** resets the environment and
+   returns both `state` and `timestep`. Unlike Gymnasium, JAX environments
+   require an explicit PRNG key for reproducibility.
 
 3. **`state`** is an immutable object containing internal environment state
 
@@ -43,7 +48,8 @@ print(f"Step type: {timestep.step_type}")
 
 ## Understanding State
 
-JaxARC uses immutable state objects. Once created, state values never change - operations return new state objects instead:
+JaxARC uses immutable state objects. Once created, state values never change -
+operations return new state objects instead:
 
 ```python
 # Reset returns initial state and timestep
@@ -60,11 +66,13 @@ print(f"Original step_type: {timestep.step_type}")
 print(f"New step_type: {next_timestep.step_type}, reward={next_timestep.reward}")
 ```
 
-**Why immutable?** This enables JAX's powerful transformations like `jax.jit` (just-in-time compilation) and `jax.vmap` (vectorization).
+**Why immutable?** This enables JAX's powerful transformations like `jax.jit`
+(just-in-time compilation) and `jax.vmap` (vectorization).
 
 ## Taking Actions
 
-Environments have action and observation spaces that define valid actions and observations:
+Environments have action and observation spaces that define valid actions and
+observations:
 
 ```python
 # Check action space
@@ -103,10 +111,10 @@ while not timestep.last() and step_count < 100:
     # Sample action
     key, subkey = jax.random.split(key)
     action = action_space.sample(subkey)
-    
+
     # Take step
     state, timestep = env.step(state, action, env_params=env_params)
-    
+
     # Accumulate reward
     total_reward += float(timestep.reward)
     step_count += 1
@@ -117,7 +125,8 @@ print(f"Total reward: {total_reward}")
 
 ## PRNG Keys
 
-JAX uses explicit random number generation for reproducibility. You must manage PRNG keys:
+JAX uses explicit random number generation for reproducibility. You must manage
+PRNG keys:
 
 ```python
 # Create initial key
@@ -142,15 +151,19 @@ state2, timestep2 = env.reset(key2, env_params=env_params)
 assert jax.numpy.array_equal(timestep1.observation, timestep2.observation)
 ```
 
-**Key Point**: Always split your PRNG key before using it. Never reuse the same key for multiple operations.
+**Key Point**: Always split your PRNG key before using it. Never reuse the same
+key for multiple operations.
 
 ## Next Steps
 
 Now that you understand the basics, try:
 
-1. **[Complete Example](first-example.md)** - See a full random agent implementation
-2. **[Downloading Datasets](../tutorials/downloading-datasets.md)** - Learn how to access ARC datasets
-3. **[Creating Agents](../tutorials/creating-agents.md)** - Build your own agents
+1. **[Complete Example](first-example.md)** - See a full random agent
+   implementation
+2. **[Downloading Datasets](../tutorials/downloading-datasets.md)** - Learn how
+   to access ARC datasets
+3. **[Creating Agents](../tutorials/creating-agents.md)** - Build your own
+   agents
 
 ## Quick Reference
 
@@ -179,4 +192,3 @@ discount = timestep.discount
 # Check if episode is done
 is_done = timestep.last()
 ```
-

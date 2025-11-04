@@ -1,10 +1,13 @@
 # Your First Complete Example
 
-This guide walks through a complete, runnable example of using JaxARC to create and run a random agent. By the end, you'll have a working baseline agent that you can build upon.
+This guide walks through a complete, runnable example of using JaxARC to create
+and run a random agent. By the end, you'll have a working baseline agent that
+you can build upon.
 
 ## Complete Random Agent
 
-Here's a complete example that creates an environment, runs a random agent for multiple episodes, and tracks performance:
+Here's a complete example that creates an environment, runs a random agent for
+multiple episodes, and tracks performance:
 
 ```python
 import jax
@@ -14,64 +17,64 @@ import jaxarc
 def run_random_agent(num_episodes=10, max_steps=100, seed=0):
     """
     Run a random agent on MiniARC for multiple episodes.
-    
+
     Args:
         num_episodes: Number of episodes to run
         max_steps: Maximum steps per episode
         seed: Random seed for reproducibility
-        
+
     Returns:
         Dictionary with episode statistics
     """
     # Create environment (downloads dataset if needed)
     env, env_params = jaxarc.make("Mini", auto_download=True)
-    
+
     # Initialize PRNG key
     key = jax.random.PRNGKey(seed)
-    
+
     # Get action space
     action_space = env.action_space(env_params)
-    
+
     # Track statistics
     episode_rewards = []
     episode_lengths = []
-    
+
     print(f"Running {num_episodes} episodes...")
     print(f"Observation shape: {env.observation_shape()}")
     print(f"Action space: {action_space}")
     print("-" * 60)
-    
+
     for episode in range(num_episodes):
         # Reset environment
         key, reset_key = jax.random.split(key)
         state, timestep = env.reset(reset_key, env_params=env_params)
-        
+
         episode_reward = 0.0
         step_count = 0
-        
+
         # Run episode
         while not timestep.last() and step_count < max_steps:
             # Sample random action
             key, action_key = jax.random.split(key)
             action = action_space.sample(action_key)
-            
+
             # Take step
             state, timestep = env.step(state, action, env_params=env_params)
-            
+
             # Track metrics
             episode_reward += float(timestep.reward)
             step_count += 1
-        
+
         # Store episode statistics
         episode_rewards.append(episode_reward)
         episode_lengths.append(step_count)
-        
+
         # Print episode summary
         status = "✓ Solved" if timestep.last() else "✗ Max steps"
         print(f"Episode {episode+1:2d}: {status} | "
               f"Steps: {step_count:3d} | "
               f"Reward: {episode_reward:6.2f}")
-    
+
     # Calculate overall statistics
     stats = {
         "mean_reward": jnp.mean(jnp.array(episode_rewards)),
@@ -79,12 +82,12 @@ def run_random_agent(num_episodes=10, max_steps=100, seed=0):
         "mean_length": jnp.mean(jnp.array(episode_lengths)),
         "success_rate": sum(1 for r in episode_rewards if r > 0) / num_episodes,
     }
-    
+
     print("-" * 60)
     print(f"Average reward: {stats['mean_reward']:.2f} ± {stats['std_reward']:.2f}")
     print(f"Average episode length: {stats['mean_length']:.1f}")
     print(f"Success rate: {stats['success_rate']:.1%}")
-    
+
     return stats
 
 if __name__ == "__main__":
@@ -115,7 +118,7 @@ action_space = env.action_space(env_params)
 for episode in range(num_episodes):
     key, reset_key = jax.random.split(key)
     state, timestep = env.reset(reset_key, env_params=env_params)
-    
+
     while not timestep.last() and step_count < max_steps:
         # ... episode logic
 ```
@@ -180,4 +183,5 @@ Average episode length: 45.3
 Success rate: 0.0%
 ```
 
-**Note**: A random agent typically doesn't solve ARC tasks (success rate near 0%), but this provides a baseline for comparison.
+**Note**: A random agent typically doesn't solve ARC tasks (success rate near
+0%), but this provides a baseline for comparison.

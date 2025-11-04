@@ -1,10 +1,13 @@
 # Downloading Datasets
 
-This tutorial explains how to download and access various Abstraction and Reasoning Corpus (ARC) datasets using JaxARC. It covers automatic downloading, querying available tasks, working with subsets, and loading specific tasks.
+This tutorial explains how to download and access various Abstraction and
+Reasoning Corpus (ARC) datasets using JaxARC. It covers automatic downloading,
+querying available tasks, working with subsets, and loading specific tasks.
 
 ## Supported ARC Datasets
 
-JaxARC supports multiple ARC dataset variants, each designed for different use cases:
+JaxARC supports multiple ARC dataset variants, each designed for different use
+cases:
 
 ### ARC-AGI-1
 
@@ -19,7 +22,8 @@ The original Abstraction and Reasoning Corpus challenge dataset.
 
 Updated version with additional tasks and refinements.
 
-- **Source**: [GitHub - arcprize/ARC-AGI-2](https://github.com/arcprize/ARC-AGI-2)
+- **Source**:
+  [GitHub - arcprize/ARC-AGI-2](https://github.com/arcprize/ARC-AGI-2)
 - **Size**: Expanded task set
 - **Grid Size**: Variable
 - **Use Case**: Latest ARC challenge iteration
@@ -28,7 +32,8 @@ Updated version with additional tasks and refinements.
 
 Organized by concept groups for systematic evaluation.
 
-- **Source**: [GitHub - victorvikram/ConceptARC](https://github.com/victorvikram/ConceptARC)
+- **Source**:
+  [GitHub - victorvikram/ConceptARC](https://github.com/victorvikram/ConceptARC)
 - **Size**: 16 concept groups
 - **Concepts**: Rotation, scaling, color, patterns, etc.
 - **Use Case**: Systematic testing of specific reasoning capabilities
@@ -44,7 +49,8 @@ Compact 5x5 grid version for rapid prototyping.
 
 ## Automatic Download with `make()` (Recommended)
 
-The easiest way to get started is to let `make()` download the dataset automatically:
+The easiest way to get started is to let `make()` download the dataset
+automatically:
 
 ```python
 import jax
@@ -61,12 +67,14 @@ print(f"  Observation shape: {timestep.observation.shape}")
 ```
 
 **Available dataset keys:**
+
 - `"Mini"` - MiniARC (5x5 grids, compact)
 - `"AGI1"` - ARC-AGI-1 (original challenge)
 - `"AGI2"` - ARC-AGI-2 (updated version)
 - `"Concept"` - ConceptARC (organized by concepts)
 
 **Why use `make()` with `auto_download=True`?**
+
 - Simplest approach - one line gets you started
 - Handles dataset paths automatically
 - Validates downloaded data
@@ -154,8 +162,7 @@ import jaxarc
 
 # Load a specific task by ID
 env, env_params = jaxarc.make(
-    "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p",
-    auto_download=True
+    "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
 )
 print("Loaded specific task")
 
@@ -193,45 +200,42 @@ from jaxarc.registration import (
 
 def explore_dataset(dataset_key="Mini"):
     """Explore an ARC dataset."""
-    
+
     print(f"=== Exploring {dataset_key} Dataset ===\n")
-    
+
     # Step 1: Query available subsets
     print("Available subsets:")
     subsets = available_named_subsets(dataset_key)
     print(f"  {subsets}\n")
-    
+
     # Step 2: Get all available tasks
     print("Querying tasks...")
     task_ids = available_task_ids(dataset_key, auto_download=True)
     print(f"  Total tasks: {len(task_ids)}")
     print(f"  First 5: {task_ids[:5]}\n")
-    
+
     # Step 3: Create environment for specific task
     print("Loading first task...")
-    env, env_params = jaxarc.make(
-        f"{dataset_key}-{task_ids[0]}",
-        auto_download=True
-    )
+    env, env_params = jaxarc.make(f"{dataset_key}-{task_ids[0]}", auto_download=True)
     print(f"  Environment created\n")
-    
+
     # Step 4: Reset and explore
     print("Testing environment:")
     key = jax.random.PRNGKey(42)
     state, timestep = env.reset(key, env_params=env_params)
-    
+
     print(f"  Observation shape: {timestep.observation.shape}")
     print(f"  Step type: {timestep.step_type}")
     print(f"  Initial reward: {timestep.reward}")
-    
+
     # Step 5: Take a random action
     action_space = env.action_space(env_params)
     action = action_space.sample(key)
     next_state, next_timestep = env.step(state, action, env_params=env_params)
-    
+
     print(f"  After step - reward: {next_timestep.reward}")
     print(f"  Environment working correctly\n")
-    
+
     return env, env_params, task_ids
 
 
@@ -245,7 +249,6 @@ if __name__ == "__main__":
             print(f"Error exploring {dataset_key}: {e}")
         print()
 ```
-
 
 ## Custom Subsets
 

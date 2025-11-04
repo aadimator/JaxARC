@@ -6,25 +6,36 @@
 [![PyPI platforms][pypi-platforms]][pypi-link]
 [![GitHub Discussion][github-discussions-badge]][github-discussions-link]
 
-JaxARC is a JAX-based reinforcement learning environment for the [Abstraction and Reasoning Corpus](https://github.com/fchollet/ARC) (ARC) challenge. It's built for researchers who want to experiment fast — with JIT compilation giving you 100x+ speedups over Python loops.
+JaxARC is a JAX-based reinforcement learning environment for the
+[Abstraction and Reasoning Corpus](https://github.com/fchollet/ARC) (ARC)
+challenge. It's built for researchers who want to experiment fast — with JIT
+compilation giving you 100x+ speedups over Python loops.
 
-If you're working on program synthesis, meta-learning, or hierarchical RL for abstract reasoning, JaxARC gives you a solid foundation without the boilerplate.
+If you're working on program synthesis, meta-learning, or hierarchical RL for
+abstract reasoning, JaxARC gives you a solid foundation without the boilerplate.
 
 ## Why JaxARC?
 
-**Speed.** Environments compile with `jax.jit` and vectorize with `jax.vmap`. Run thousands of episodes in parallel on GPU/TPU.
+**Speed.** Environments compile with `jax.jit` and vectorize with `jax.vmap`.
+Run thousands of episodes in parallel on GPU/TPU.
 
-**Flexible.** Multiple action spaces (point-based, selection masks, bounding boxes). Multiple datasets (ARC-AGI, ConceptARC, MiniARC). Observation wrappers for different input formats. Configure everything via typed dataclasses or YAML.
+**Flexible.** Multiple action spaces (point-based, selection masks, bounding
+boxes). Multiple datasets (ARC-AGI, ConceptARC, MiniARC). Observation wrappers
+for different input formats. Configure everything via typed dataclasses or YAML.
 
-**Production-ready.** Type-safe configs, comprehensive tests, and functional purity throughout. No hidden state, no surprises.
+**Production-ready.** Type-safe configs, comprehensive tests, and functional
+purity throughout. No hidden state, no surprises.
 
-**Extensible.** Clean parser interface for custom datasets. Wrapper system for custom observations and actions. Built with future HRL and Meta-RL experiments in mind.
+**Extensible.** Clean parser interface for custom datasets. Wrapper system for
+custom observations and actions. Built with future HRL and Meta-RL experiments
+in mind.
 
 ## Key Features
 
 - **JAX-Native**: Pure functional API — every function is `jax.jit`-compatible
 - **100x+ Faster**: JIT compilation turns Python into XLA-optimized machine code
-- **Configurable**: Multiple action spaces, reward functions, and observation formats
+- **Configurable**: Multiple action spaces, reward functions, and observation
+  formats
 - **Four Datasets**: ARC-AGI-1, ARC-AGI-2, ConceptARC, and MiniARC included
 - **Type-Safe**: Full type hints with runtime validation
 - **Visual Debug**: Terminal and SVG rendering for development
@@ -46,36 +57,44 @@ pixi shell  # Sets up the environment
 pixi run -e dev pre-commit install  # Hooks for code quality
 ```
 
-**See the [tutorials](https://jaxarc.readthedocs.io/en/latest/tutorials/)** for training loops, custom wrappers, and dataset management.
+**See the [tutorials](https://jaxarc.readthedocs.io/en/latest/tutorials/)** for
+training loops, custom wrappers, and dataset management.
 
 ## Development
 
 **Run tests:**
+
 ```bash
 pixi run -e test test
 ```
 
 **Lint code:**
+
 ```bash
 pixi run lint
 ```
 
 **Build docs:**
+
 ```bash
 pixi run docs-serve
 ```
 
 ## Contributing
 
-Found a bug? Want a feature? **[Open an issue](https://github.com/aadimator/JaxARC/issues)** or submit a PR.
+Found a bug? Want a feature?
+**[Open an issue](https://github.com/aadimator/JaxARC/issues)** or submit a PR.
 
 ## Related Work
 
 JaxARC builds on great work from the community:
 
-- **[ARC Challenge](https://github.com/fchollet/ARC)** by François Chollet — The original dataset and challenge
-- **[ARCLE](https://github.com/ConfeitoHS/arcle)** — Python-based ARC environment (inspiration for our design)
-- **[Stoix](https://github.com/EdanToledo/Stoix)** by Edan Toledo — Single-agent RL in JAX (we use their Stoa API)
+- **[ARC Challenge](https://github.com/fchollet/ARC)** by François Chollet — The
+  original dataset and challenge
+- **[ARCLE](https://github.com/ConfeitoHS/arcle)** — Python-based ARC
+  environment (inspiration for our design)
+- **[Stoix](https://github.com/EdanToledo/Stoix)** by Edan Toledo — Single-agent
+  RL in JAX (we use their Stoa API)
 
 ## Citation
 
@@ -97,7 +116,8 @@ MIT License — see [LICENSE](LICENSE) for details.
 ## Questions?
 
 - **Bugs/Features**: [GitHub Issues](https://github.com/aadimator/JaxARC/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/aadimator/JaxARC/discussions)
+- **Discussions**:
+  [GitHub Discussions](https://github.com/aadimator/JaxARC/discussions)
 - **Docs**: [jaxarc.readthedocs.io](https://jaxarc.readthedocs.io)
 
 ---

@@ -6,7 +6,8 @@ This guide will walk you through installing JaxARC on your system.
 
 ### Using Pixi (Recommended)
 
-[Pixi](https://pixi.sh) is a fast, cross-platform package manager that makes environment management easy.
+[Pixi](https://pixi.sh) is a fast, cross-platform package manager that makes
+environment management easy.
 
 ```bash
 # Install Pixi (if not already installed)
@@ -53,7 +54,8 @@ pip install --upgrade "jax[cuda11]"  # For CUDA 11
 pip install --upgrade "jax[tpu]"
 ```
 
-For more details on JAX installation, see the [official JAX installation guide](https://github.com/google/jax#installation).
+For more details on JAX installation, see the
+[official JAX installation guide](https://github.com/google/jax#installation).
 
 ## Verify Installation
 
@@ -111,11 +113,14 @@ pip install jaxarc
 
 **Cause**: JAX has specific platform requirements.
 
-**Solution**: Visit the [JAX installation guide](https://github.com/google/jax#installation) for platform-specific instructions.
+**Solution**: Visit the
+[JAX installation guide](https://github.com/google/jax#installation) for
+platform-specific instructions.
 
 ### GPU not detected
 
-**Cause**: JAX is using the CPU version or CUDA drivers are not properly installed.
+**Cause**: JAX is using the CPU version or CUDA drivers are not properly
+installed.
 
 **Solution**:
 

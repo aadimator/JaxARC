@@ -4,8 +4,10 @@ Wrappers transform environment interfaces for different use cases.
 
 JaxARC provides two types of wrappers:
 
-- **Action Wrappers**: Convert between action formats (dict → mask, bbox → mask, flatten)
-- **Observation Wrappers**: Add channels to observations (input grid, answer, clipboard, context)
+- **Action Wrappers**: Convert between action formats (dict → mask, bbox → mask,
+  flatten)
+- **Observation Wrappers**: Add channels to observations (input grid, answer,
+  clipboard, context)
 
 ## Action Wrappers
 

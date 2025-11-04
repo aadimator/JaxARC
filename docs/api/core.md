@@ -1,6 +1,7 @@
 # Core API
 
-The core API provides essential functions and classes for creating and interacting with JaxARC environments.
+The core API provides essential functions and classes for creating and
+interacting with JaxARC environments.
 
 ## Quick Example
 

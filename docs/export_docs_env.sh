@@ -29,7 +29,7 @@ awk '
   BEGIN { in_pip = 0; lines = ""; editable = "" }
   /^- pip:/ { in_pip = 1; print; next }
   in_pip && /^  - -e/ { editable = $0; next }
-  in_pip && /^[^ -]/ { 
+  in_pip && /^[^ -]/ {
     in_pip = 0
     if (editable != "") print editable
     print

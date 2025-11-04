@@ -27,6 +27,7 @@ import chex
 import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, Int
+from stoa.env_types import StepType, TimeStep
 
 # Import configuration types for EnvParams
 from jaxarc.configs.action_config import ActionConfig
@@ -34,6 +35,9 @@ from jaxarc.configs.dataset_config import DatasetConfig
 from jaxarc.configs.grid_initialization_config import GridInitializationConfig
 from jaxarc.configs.main_config import JaxArcConfig
 from jaxarc.configs.reward_config import RewardConfig
+
+StepType = StepType  # Re-export for convenience
+TimeStep = TimeStep  # Re-export for convenience
 
 # =============================================================================
 # JAX Type Definitions (formerly in jax_types.py)
@@ -185,11 +189,6 @@ class EnvParams(eqx.Module):
             subset_indices=subset_indices,
             episode_mode=int(episode_mode),
         )
-
-
-# =============================================================================
-# Stoa-inspired Episode Management Types
-# =============================================================================
 
 
 class Grid(eqx.Module):

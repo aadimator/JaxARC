@@ -2,7 +2,8 @@
 
 JaxARC uses a comprehensive configuration system based on Hydra and Equinox.
 
-Configuration in JaxARC is handled through the `JaxArcConfig` class, which provides:
+Configuration in JaxARC is handled through the `JaxArcConfig` class, which
+provides:
 
 - Type-safe configuration with Equinox modules
 - Hydra integration for YAML-based configs
@@ -43,11 +44,9 @@ env, env_params = make("Mini", config=config)
 from jaxarc.utils.core import get_config
 
 # Load from YAML with overrides
-hydra_config = get_config(overrides=[
-    "dataset=mini_arc",
-    "action=point",
-    "grid_size=32"
-])
+hydra_config = get_config(
+    overrides=["dataset=mini_arc", "action=point", "grid_size=32"]
+)
 
 config = JaxArcConfig.from_hydra(hydra_config)
 ```
