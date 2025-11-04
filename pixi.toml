@@ -62,12 +62,26 @@ jupyter = ">=1.1.1,<2"
 lint = "pre-commit run --all-files"
 pylint = "pylint src/jaxarc"
 
-[feature.docs.tasks]
-docs-init = { cmd = "jupyter book init --write-toc", cwd = "docs" }
-docs-serve = { cmd = "jupyter book start --execute", cwd = "docs" }
+[feature.docs.dependencies]
+python = ">=3.11,<3.14"
+sphinx = ">=7.2.0,<8"
+myst-parser = ">=2.0.0,<3"
+furo = ">=2024.01.29"
 
 [feature.docs.pypi-dependencies]
-jupyter-book = ">=2.0.0a0"
+sphinx-autodoc-typehints = ">=1.25.0"
+sphinx-copybutton = ">=0.5.2"
+sphinx-design = ">=0.5.0"
+readthedocs-sphinx-search = ">=0.3.0"
+myst-nb = ">=1.1.0"  # Jupyter notebook support with MyST
+
+[feature.docs.tasks]
+docs-build = { cmd = "sphinx-build -b html docs/ docs/_build/html" }
+docs-serve = { cmd = "python -m http.server 8000 --directory docs/_build/html" }
+docs-clean = { cmd = "rm -rf docs/_build" }
+docs-linkcheck = { cmd = "sphinx-build -b linkcheck docs/ docs/_build/linkcheck" }
+docs-export = { cmd = "pixi project export conda-environment docs > environment.yml" }
+docs = { depends-on = ["docs-clean", "docs-build"] }
 
 [feature.bench.pypi-dependencies]
 arcle = ">=0.2.6, <0.3"
