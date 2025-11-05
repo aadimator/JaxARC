@@ -70,21 +70,29 @@ JaxARC follows a modular, functional design that keeps the core environment fast
 
 ## Quick Navigation
 
-::::{grid} 1 1 2 3 :gutter: 3
+::::{grid} 1 1 2 3
+:gutter: 3
 
-:::{grid-item-card} 🚀 Getting Started :link: getting-started/index :link-type:
-doc
+:::{grid-item-card} 🚀 Getting Started
+:link: getting-started/index
+:link-type: doc
 
-Install JaxARC and run your first environment in under 10 minutes. :::
+Install JaxARC and run your first environment in under 10 minutes.
+:::
 
-:::{grid-item-card} 📚 Tutorials :link: tutorials/index :link-type: doc
+:::{grid-item-card} 📚 Tutorials
+:link: tutorials/index
+:link-type: doc
 
-Step-by-step guides for common tasks like downloading datasets, creating agents,
-and using wrappers. :::
+Step-by-step guides for common tasks like downloading datasets, creating agents, and using wrappers.
+:::
 
-:::{grid-item-card} 📖 API Reference :link: api/index :link-type: doc
+:::{grid-item-card} 📖 API Reference
+:link: api/index
+:link-type: doc
 
-Complete API documentation for all modules, classes, and functions. :::
+Complete API documentation for all modules, classes, and functions.
+:::
 
 ::::
 

@@ -14,19 +14,29 @@ By the end of this section, you'll be able to:
 
 ## Quick Links
 
-::::{grid} 1 2 2 3 :gutter: 2
+::::{grid} 1 2 2 3
+:gutter: 2
 
-:::{grid-item-card} 📦 Installation :link: installation :link-type: doc
+:::{grid-item-card} 📦 Installation
+:link: installation
+:link-type: doc
 
-Install JaxARC using Pixi or pip :::
+Install JaxARC using Pixi or pip
+:::
 
-:::{grid-item-card} ⚡ Quick Start :link: quickstart :link-type: doc
+:::{grid-item-card} ⚡ Quick Start
+:link: quickstart
+:link-type: doc
 
-5-minute introduction to core concepts :::
+5-minute introduction to core concepts
+:::
 
-:::{grid-item-card} 🎯 First Example :link: first-example :link-type: doc
+:::{grid-item-card} 🎯 First Example
+:link: first-example
+:link-type: doc
 
-Complete working example with explanations :::
+Complete working example with explanations
+:::
 
 ::::
 

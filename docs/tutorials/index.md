@@ -4,25 +4,36 @@ Step-by-step guides for accomplishing specific tasks with JaxARC.
 
 ## Available Tutorials
 
-::::{grid} 1 2 2 2 :gutter: 2
+::::{grid} 1 2 2 2
+:gutter: 2
 
-:::{grid-item-card} 📦 Downloading Datasets :link: downloading-datasets
+:::{grid-item-card} 📦 Downloading Datasets
+:link: downloading-datasets
 :link-type: doc
 
-Learn how to download and access different ARC datasets :::
+Learn how to download and access different ARC datasets
+:::
 
-:::{grid-item-card} 👁️ Visualizing Tasks :link: visualizing-tasks :link-type:
-doc
+:::{grid-item-card} 👁️ Visualizing Tasks
+:link: visualizing-tasks
+:link-type: doc
 
-Understand and debug tasks through visualization :::
+Understand and debug tasks through visualization
+:::
 
-:::{grid-item-card} 🤖 Creating Agents :link: creating-agents :link-type: doc
+:::{grid-item-card} 🤖 Creating Agents
+:link: creating-agents
+:link-type: doc
 
-Build baseline and custom agents for ARC tasks :::
+Build baseline and custom agents for ARC tasks
+:::
 
-:::{grid-item-card} 🔧 Using Wrappers :link: using-wrappers :link-type: doc
+:::{grid-item-card} 🔧 Using Wrappers
+:link: using-wrappers
+:link-type: doc
 
-Transform observations and rewards with wrappers :::
+Transform observations and rewards with wrappers
+:::
 
 ::::
 

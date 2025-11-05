@@ -40,6 +40,7 @@ repos:
       - id: prettier
         types_or: [yaml, markdown, html, css, scss, javascript, json]
         args: [--prose-wrap=always]
+        # Note: docs/**/*.md excluded in .prettierignore to preserve MyST directive formatting
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.11.12"

@@ -1,0 +1,20 @@
+# Prettier ignore file
+# Prevent prettier from formatting documentation files that use MyST syntax
+
+# Documentation - MyST directives are sensitive to line wrapping
+docs/**/*.md
+
+# Build artifacts
+**/_build/
+**/dist/
+**/.eggs/
+
+# Cache directories
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Virtual environments
+**/.venv/
+**/venv/

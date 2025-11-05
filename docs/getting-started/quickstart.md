@@ -172,7 +172,9 @@ import jax
 import jaxarc
 
 # Create environment
-env, env_params = jaxarc.make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p",  auto_download=True)
+env, env_params = jaxarc.make(
+    "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p", auto_download=True
+)
 
 # Reset
 key = jax.random.PRNGKey(0)
