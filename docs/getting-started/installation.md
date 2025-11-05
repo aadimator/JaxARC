@@ -73,7 +73,7 @@ print(f"JAX version: {jax.__version__}")
 print(f"JAX devices: {jax.devices()}")
 
 # Create a simple environment to test
-env, env_params = jaxarc.make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p")
+env, env_params = jaxarc.make("Mini-Most_Common_color_l6ab0lf3xztbyxsu3p",  auto_download=True)
 print("Successfully created environment")
 
 # Test reset
