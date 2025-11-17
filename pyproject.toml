@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 [project]
 name = "JaxARC"
 authors = [{ name = "Aadam", email = "aadimator@gmail.com" }]
-description = "MARL environment for ARC dataset in JAX"
+description = "High-performance JAX-based ARC environment for RL research"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.9"
@@ -27,7 +27,7 @@ dependencies = [
   "equinox>=0.13.0,<0.14",
 ]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Science/Research",
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
