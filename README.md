@@ -1,30 +1,27 @@
 # JaxARC
 
-[![Actions Status][actions-badge]][actions-link]
+<!-- [![Actions Status][actions-badge]][actions-link] -->
 [![Documentation Status][rtd-badge]][rtd-link]
 [![PyPI version][pypi-version]][pypi-link]
-[![PyPI platforms][pypi-platforms]][pypi-link]
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/jaxarc?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/jaxarc)
 [![GitHub Discussion][github-discussions-badge]][github-discussions-link]
 
 JaxARC is a JAX-based reinforcement learning environment for the
 [Abstraction and Reasoning Corpus](https://github.com/fchollet/ARC) (ARC)
-challenge. It's built for researchers who want to experiment fast — with JIT
-compilation giving you 100x+ speedups over Python loops.
-
-If you're working on program synthesis, meta-learning, or hierarchical RL for
-abstract reasoning, JaxARC gives you a solid foundation without the boilerplate.
+challenge. It's built for researchers who want to use extremely fast vectorized
+environments to explore reinforcement learning, and meta-learning techniques for
+abstract reasoning.
 
 ## Why JaxARC?
 
 **Speed.** Environments compile with `jax.jit` and vectorize with `jax.vmap`.
 Run thousands of episodes in parallel on GPU/TPU.
 
+![JaxARC throughput as compared with ARCLE](docs/_static/images/sps_vs_envs_linear_h100.png)
+
 **Flexible.** Multiple action spaces (point-based, selection masks, bounding
 boxes). Multiple datasets (ARC-AGI, ConceptARC, MiniARC). Observation wrappers
 for different input formats. Configure everything via typed dataclasses or YAML.
-
-**Production-ready.** Type-safe configs, comprehensive tests, and functional
-purity throughout. No hidden state, no surprises.
 
 **Extensible.** Clean parser interface for custom datasets. Wrapper system for
 custom observations and actions. Built with future HRL and Meta-RL experiments
@@ -33,10 +30,10 @@ in mind.
 ## Key Features
 
 - **JAX-Native**: Pure functional API — every function is `jax.jit`-compatible
-- **100x+ Faster**: JIT compilation turns Python into XLA-optimized machine code
+- **Lightning Fast**: JIT compilation turns Python into XLA-optimized machine code
 - **Configurable**: Multiple action spaces, reward functions, and observation
   formats
-- **Four Datasets**: ARC-AGI-1, ARC-AGI-2, ConceptARC, and MiniARC included
+- **Multiple Datasets**: ARC-AGI-1, ARC-AGI-2, ConceptARC, and MiniARC included
 - **Type-Safe**: Full type hints with runtime validation
 - **Visual Debug**: Terminal and SVG rendering for development
 
@@ -60,25 +57,17 @@ pixi run -e dev pre-commit install  # Hooks for code quality
 **See the [tutorials](https://jaxarc.readthedocs.io/en/latest/tutorials/)** for
 training loops, custom wrappers, and dataset management.
 
-## Development
+## Stoix Integration
 
-**Run tests:**
+JaxARC uses the [Stoa API](https://github.com/EdanToledo/Stoa), allowing seamless
+integration with [Stoix](https://github.com/EdanToledo/Stoix), which is a JAX-based
+reinforcement learning codebase supporting various RL algorithms. 
 
-```bash
-pixi run -e test test
-```
+This means you can easily plug JaxARC environments into Stoix's training pipelines to
+leverage its efficient implementations of RL algorithms. 
 
-**Lint code:**
-
-```bash
-pixi run lint
-```
-
-**Build docs:**
-
-```bash
-pixi run docs-serve
-```
+You can explore [jaxarc-baselines](https://github.com/aadimator/jaxarc-baselines) repository
+for example implementations of training agents on JaxARC environments using Stoix.
 
 ## Contributing
 
