@@ -15,7 +15,7 @@ from other demonstration pairs.
 Usage:
     ```python
     from jaxarc.registration import make
-    from jaxarc.envs.observation_wrappers import (
+    from jaxarc.wrappers import (
         ClipboardObservationWrapper,
         InputGridObservationWrapper,
         ContextualObservationWrapper,
@@ -49,9 +49,9 @@ import jax
 import jax.numpy as jnp
 from stoa.core_wrappers.wrapper import Wrapper
 
-from ..state import State
-from ..types import EnvParams, TimeStep
-from .spaces import BoundedArraySpace
+from jaxarc.envs.spaces import BoundedArraySpace
+from jaxarc.state import State
+from jaxarc.types import EnvParams, TimeStep
 
 
 class BaseObservationWrapper(Wrapper):

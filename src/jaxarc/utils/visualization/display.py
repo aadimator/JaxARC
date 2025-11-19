@@ -33,7 +33,7 @@ from .core import (
 )
 
 if TYPE_CHECKING:
-    from jaxarc.types import Grid, JaxArcTask
+    from jaxarc.types import Grid, GridArray, JaxArcTask
 
 
 # ============================================================================
@@ -1984,3 +1984,74 @@ def create_episode_comparison_visualization(
                 )
 
     return drawing.as_svg()
+
+
+def display_grid(
+    grid: GridArray | np.ndarray | Grid, title: str = "Grid", show_mask: bool = True
+) -> None:
+    """Display a single grid using Rich."""
+    console = Console()
+    # Note: visualize_grid_rich currently uses the mask embedded in grid if present.
+    # show_mask parameter is kept for API compatibility but currently ignored
+    # until visualize_grid_rich supports forcing mask visibility.
+    console.print(visualize_grid_rich(grid, title=title))
+
+
+def render_ansi(grid_input: GridArray | np.ndarray | Grid) -> str:
+    """Render grid as ANSI string.
+
+    Args:
+        grid_input: Grid data (JAX array, numpy array, or Grid object)
+
+    Returns:
+        A string containing the ANSI representation of the grid.
+    """
+    # Create a temporary console for capturing output
+    temp_console = Console(force_terminal=True, color_system="truecolor", width=1000)
+    table = visualize_grid_rich(grid_input)
+    with temp_console.capture() as capture:
+        temp_console.print(table)
+    return capture.get()
+
+
+def display_step(
+    step_data: dict[str, Any],
+    step_idx: int,
+    console: Console | None = None,
+    show_coordinates: bool = False,
+    show_numbers: bool = False,
+    double_width: bool = True,
+) -> None:
+    """Display a single step of the episode using Rich.
+
+    Args:
+        step_data: Step data dictionary
+        step_idx: Index of the step
+        console: Optional Rich console (creates one if None)
+        show_coordinates: Whether to show grid coordinates
+        show_numbers: If True, show colored numbers; if False, show colored blocks
+        double_width: If True and show_numbers=False, use double-width blocks for square appearance
+    """
+    if console is None:
+        console = Console()
+
+    # Extract relevant data
+    input_grid = step_data["input_grid"]
+    output_grid = step_data["output_grid"]
+    input_mask = step_data["input_mask"]
+    output_mask = step_data["output_mask"]
+
+    # Create title
+    title = f"Step {step_idx + 1}"
+
+    # Display input-output pair
+    visualize_task_pair_rich(
+        input_grid,
+        output_grid,
+        input_mask,
+        output_mask,
+        title=title,
+        show_numbers=show_numbers,
+        double_width=double_width,
+        console=console,
+    )

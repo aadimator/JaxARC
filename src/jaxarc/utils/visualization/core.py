@@ -233,6 +233,66 @@ def get_info_metric(info: dict, key: str, default=None):
     return default
 
 
+def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert hex color string to RGB tuple."""
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) == 8:  # Handle RGBA (ignore alpha for now)
+        hex_color = hex_color[:6]
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return (r, g, b)
+
+
+def render_rgb(
+    grid_input: GridArray | np.ndarray | Grid, cell_size: int = 20
+) -> np.ndarray:
+    """Render grid as an RGB array.
+
+    Args:
+        grid_input: Grid data (JAX array, numpy array, or Grid object)
+        cell_size: The size of each grid cell in pixels.
+
+    Returns:
+        A numpy array of shape (height * cell_size, width * cell_size, 3) representing the RGB image.
+    """
+    grid, _ = _extract_grid_data(grid_input)
+    height, width = grid.shape
+
+    # Create empty RGB array
+    img_height = height * cell_size
+    img_width = width * cell_size
+    img = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+
+    # Precompute color map
+    color_map = {k: hex_to_rgb(v) for k, v in ARC_COLOR_PALETTE.items()}
+    # Add default for unknown colors (gray)
+    default_color = (128, 128, 128)
+
+    for r in range(height):
+        for c in range(width):
+            color_id = int(grid[r, c])
+            rgb = color_map.get(color_id, default_color)
+
+            # Fill the cell
+            r_start = r * cell_size
+            r_end = (r + 1) * cell_size
+            c_start = c * cell_size
+            c_end = (c + 1) * cell_size
+
+            img[r_start:r_end, c_start:c_end] = rgb
+
+            # Draw grid lines (optional, maybe simple 1px border)
+            # For now, let's keep it simple without borders or add a thin border
+            # Adding a 1px border for better visibility
+            if cell_size > 2:
+                border_color = (50, 50, 50)
+                img[r_start:r_end, c_start] = border_color
+                img[r_start, c_start:c_end] = border_color
+
+    return img
+
+
 def _clear_output_directory(output_dir: str) -> None:
     """Clear output directory for new episode."""
     output_path = Path(output_dir)

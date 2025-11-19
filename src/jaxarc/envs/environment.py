@@ -16,7 +16,8 @@ from jaxarc.configs.main_config import JaxArcConfig
 from jaxarc.envs.actions import Action, create_action
 from jaxarc.envs.spaces import ARCActionSpace, BoundedArraySpace, DictSpace, GridSpace
 from jaxarc.types import EnvParams, TimeStep
-from jaxarc.utils.visualization.render_utils import render_ansi, render_rgb, render_svg
+from jaxarc.utils.visualization.core import draw_grid_svg, render_rgb
+from jaxarc.utils.visualization.display import render_ansi
 
 from .functional import reset as functional_reset
 from .functional import step as functional_step
@@ -254,11 +255,20 @@ class Environment(stoa.environment.Environment):
 
         # Dispatch to appropriate renderer
         if render_mode == "rgb_array":
-            return render_rgb(state)
+            return render_rgb(state.working_grid)
         if render_mode == "ansi":
-            return render_ansi(state)
+            return render_ansi(state.working_grid)
         if render_mode == "svg":
-            return render_svg(state)
+            drawing = draw_grid_svg(
+                state.working_grid,
+                state.working_grid_mask,
+                label=f"Step {int(state.step_count)}",
+                show_size=True,
+            )
+            # Ensure we have a Drawing object (default behavior of draw_grid_svg)
+            if isinstance(drawing, tuple):
+                drawing = drawing[0]
+            return drawing.as_svg()
         raise ValueError(f"Unsupported render mode: {render_mode}")
 
 

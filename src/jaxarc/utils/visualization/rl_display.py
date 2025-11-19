@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional
@@ -677,16 +676,15 @@ def draw_rl_step_svg_enhanced(
 
     # Layout parameters
     top_padding = 100
-    bottom_padding = 120
+    bottom_padding = 50
     side_padding = 50
     grid_spacing = 180
     grid_max_width = 280
     grid_max_height = 280
-    info_panel_height = 80
 
     # Calculate total dimensions
     total_width = 2 * grid_max_width + grid_spacing + 2 * side_padding
-    total_height = grid_max_height + top_padding + bottom_padding + info_panel_height
+    total_height = grid_max_height + top_padding + bottom_padding
 
     # Create main drawing with background
     drawing = draw.Drawing(total_width, total_height)
@@ -949,12 +947,12 @@ def draw_rl_step_svg_enhanced(
             selection_mask = np.asarray(action["selection"])
 
     # Draw before grid with selection overlay
-    before_width, before_height = draw_enhanced_grid(
+    draw_enhanced_grid(
         before_grid, before_x, grids_y, "Before State", selection_mask=selection_mask
     )
 
     # Draw after grid with change highlighting
-    after_width, after_height = draw_enhanced_grid(
+    draw_enhanced_grid(
         after_grid,
         after_x,
         grids_y,
@@ -991,95 +989,6 @@ def draw_rl_step_svg_enhanced(
             arrow_y,
             close=True,
             fill="#6c757d",
-        )
-    )
-
-    # Add information panel at bottom
-    info_y = grids_y + grid_max_height + 60
-
-    # Info panel background
-    drawing.append(
-        draw.Rectangle(
-            side_padding,
-            info_y,
-            total_width - 2 * side_padding,
-            info_panel_height,
-            fill="#ffffff",
-            stroke="#dee2e6",
-            stroke_width=1,
-            rx=5,
-        )
-    )
-
-    # Add metadata information
-    info_items = []
-
-    # Add step metadata with support for both old and new info structure
-    similarity_val = get_info_metric(info, "similarity")
-    if similarity_val is not None:
-        info_items.append(f"Similarity: {similarity_val:.3f}")
-
-    # Check for episode_reward or total_reward
-    episode_reward_val = get_info_metric(info, "episode_reward") or get_info_metric(
-        info, "total_reward"
-    )
-    if episode_reward_val is not None:
-        info_items.append(f"Episode Reward: {episode_reward_val:.3f}")
-
-    step_count_val = get_info_metric(info, "step_count")
-    if step_count_val is not None:
-        info_items.append(f"Total Steps: {int(step_count_val)}")
-
-    # Add action details
-    # Handle structured actions, dictionary format, and tuple format for visualization
-    if hasattr(action, "operation"):
-        op_val = (
-            int(action.operation)
-            if hasattr(action.operation, "item")
-            else action.operation
-        )
-        info_items.append(f"Operation ID: {op_val}")
-    elif isinstance(action, tuple) and len(action) >= 1:
-        # Handle tuple actions from PointActionWrapper: (operation, row, col)
-        op_val = int(action[0])
-        info_items.append(f"Operation ID: {op_val}")
-    elif isinstance(action, dict) and "operation" in action:
-        op_val = (
-            int(action["operation"])
-            if hasattr(action["operation"], "item")
-            else action["operation"]
-        )
-        info_items.append(
-            f"Operation ID: {op_val}"
-        )  # Legacy format for visualization only
-
-    # Display info items
-    info_text = " | ".join(info_items) if info_items else "No additional information"
-    drawing.append(
-        draw.Text(
-            info_text,
-            font_size=14,
-            x=total_width / 2,
-            y=info_y + 25,
-            text_anchor="middle",
-            font_family="Anuphan",
-            font_weight="400",
-            fill="#6c757d",
-        )
-    )
-
-    # Add timestamp
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    drawing.append(
-        draw.Text(
-            f"Generated: {timestamp}",
-            font_size=12,
-            x=total_width - side_padding,
-            y=info_y + 50,
-            text_anchor="end",
-            font_family="Anuphan",
-            font_weight="300",
-            fill="#adb5bd",
         )
     )
 

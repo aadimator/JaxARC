@@ -12,7 +12,7 @@ This module implements clean wrappers following Stoa delegation patterns:
 Usage:
     ```python
     from jaxarc.registration import make
-    from jaxarc.envs.wrappers import BboxActionWrapper
+    from jaxarc.wrappers import BboxActionWrapper
 
     # Create base environment (handles Action only)
     env, env_params = make("Mini")
@@ -43,12 +43,11 @@ from jax import lax
 from stoa import MultiDiscreteSpace, Space
 from stoa.core_wrappers.wrapper import Wrapper
 
+from jaxarc.envs.actions import Action, create_action
 from jaxarc.envs.environment import Environment
-
-from ..state import State
-from ..types import EnvParams, TimeStep
-from .actions import Action, create_action
-from .spaces import DictSpace, DiscreteSpace
+from jaxarc.envs.spaces import DictSpace, DiscreteSpace
+from jaxarc.state import State
+from jaxarc.types import EnvParams, TimeStep
 
 
 def _point_to_mask(point_action: dict, grid_shape: tuple[int, int]) -> Action:
@@ -245,7 +244,7 @@ class FlattenActionWrapper(Wrapper[State]):
         if isinstance(space, DictSpace):
             components, sizes = [], []
             # Preserve insertion order for deterministic mapping consistent with the env
-            for key in space.spaces.keys():
+            for key in space.spaces:
                 sub_components, sub_sizes = self._get_components_and_sizes(
                     space.spaces[key]
                 )
@@ -253,9 +252,8 @@ class FlattenActionWrapper(Wrapper[State]):
                 sizes.extend(sub_sizes)
             return components, sizes
 
-        raise TypeError(
-            f"FlattenActionWrapper does not support space type: {type(space)}"
-        )
+        msg = f"FlattenActionWrapper does not support space type: {type(space)}"
+        raise TypeError(msg)
 
     def _unflatten_action(self, flat_action: Action) -> Action:
         """Converts a single integer action back into the original structured action."""

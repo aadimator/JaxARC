@@ -20,6 +20,7 @@ from rich.panel import Panel
 from jaxarc.configs import JaxArcConfig
 from jaxarc.registration import make
 from jaxarc.utils.core import get_config
+from jaxarc.wrappers import StepVisualizationWrapper
 
 console = Console()
 
@@ -51,6 +52,9 @@ def main():
     console.print(f"Creating environment for task: [cyan]{task_id}[/cyan]")
 
     env, env_params = make(f"Mini-{task_id}", config=config)
+
+    # Wrap with StepVisualizationWrapper for detailed rendering
+    env = StepVisualizationWrapper(env)
 
     # 3. Reset Environment
     key = jr.PRNGKey(42)
@@ -94,6 +98,35 @@ def main():
     console.print(f"Default Output Type: {type(default_output)}")
     if isinstance(default_output, np.ndarray):
         console.print(f"Default Output Shape: {default_output.shape}")
+
+    # --- Detailed Mode (Wrapper) ---
+    console.print(Panel("[bold]5. Detailed Render Mode (Wrapper)[/bold]", style="cyan"))
+
+    # Perform a dummy step to generate a transition
+    console.print("Performing a dummy step to generate transition...")
+    grid_h, grid_w = state.working_grid.shape
+    selection = np.zeros((grid_h, grid_w), dtype=bool)
+    selection[:2, :2] = True
+
+    # Simple action dict (assuming environment accepts it)
+    action = {
+        "operation": 0,  # FILL (usually)
+        "selection": selection,
+    }
+
+    try:
+        next_state, _ = env.step(state, action, env_params)
+
+        detailed_svg = env.render(next_state, mode="detailed")
+        console.print(f"Detailed SVG Output Length: {len(detailed_svg)} characters")
+        Path("render_detailed_example.svg").write_text(detailed_svg, encoding="utf-8")
+        console.print(
+            "Saved Detailed SVG render to [yellow]render_detailed_example.svg[/yellow]"
+        )
+    except Exception as e:
+        console.print(
+            f"[red]Detailed render failed (step might have failed): {e}[/red]"
+        )
 
     console.rule("[bold green]Showcase Complete")
 
