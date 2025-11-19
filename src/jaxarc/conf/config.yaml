@@ -8,6 +8,7 @@ environment:
   max_episode_steps: 150
   debug_level: "minimal" # off|minimal|verbose
   auto_reset: true
+  render_mode: "rgb_array" # rgb_array|ansi|svg
 
 logging:
   log_operations: true

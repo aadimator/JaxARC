@@ -16,6 +16,7 @@ from jaxarc.configs.main_config import JaxArcConfig
 from jaxarc.envs.actions import Action, create_action
 from jaxarc.envs.spaces import ARCActionSpace, BoundedArraySpace, DictSpace, GridSpace
 from jaxarc.types import EnvParams, TimeStep
+from jaxarc.utils.visualization.render_utils import render_ansi, render_rgb, render_svg
 
 from .functional import reset as functional_reset
 from .functional import step as functional_step
@@ -44,6 +45,7 @@ class Environment(stoa.environment.Environment):
             buffer=buffer,
             subset_indices=subset_indices,
         )
+        self.render_mode = config.environment.render_mode
 
     def observation_shape(self) -> tuple[int, int, int]:
         """Get observation shape."""
@@ -235,9 +237,29 @@ class Environment(stoa.environment.Environment):
         """Close the environment."""
         return
 
-    def render(self, *_args: Any, **_kwargs: Any) -> None:
-        """Basic render stub to satisfy abstract base; users use visualization utils externally."""
-        return
+    def render(self, state: State, mode: str | None = None) -> Any:
+        """
+        Render the environment state.
+
+        Args:
+            state: The current environment state.
+            mode: The rendering mode ("rgb_array", "ansi", "svg").
+                  If None, uses the default mode from configuration.
+
+        Returns:
+            The rendered output (numpy array, string, or SVG string).
+        """
+        # Determine render mode
+        render_mode = mode if mode is not None else self.render_mode
+
+        # Dispatch to appropriate renderer
+        if render_mode == "rgb_array":
+            return render_rgb(state)
+        if render_mode == "ansi":
+            return render_ansi(state)
+        if render_mode == "svg":
+            return render_svg(state)
+        raise ValueError(f"Unsupported render mode: {render_mode}")
 
 
 __all__ = ["Environment"]

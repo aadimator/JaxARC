@@ -1,6 +1,7 @@
 # JaxARC
 
 <!-- [![Actions Status][actions-badge]][actions-link] -->
+
 [![Documentation Status][rtd-badge]][rtd-link]
 [![PyPI version][pypi-version]][pypi-link]
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/jaxarc?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/jaxarc)
@@ -30,7 +31,8 @@ in mind.
 ## Key Features
 
 - **JAX-Native**: Pure functional API — every function is `jax.jit`-compatible
-- **Lightning Fast**: JIT compilation turns Python into XLA-optimized machine code
+- **Lightning Fast**: JIT compilation turns Python into XLA-optimized machine
+  code
 - **Configurable**: Multiple action spaces, reward functions, and observation
   formats
 - **Multiple Datasets**: ARC-AGI-1, ARC-AGI-2, ConceptARC, and MiniARC included
@@ -59,15 +61,16 @@ training loops, custom wrappers, and dataset management.
 
 ## Stoix Integration
 
-JaxARC uses the [Stoa API](https://github.com/EdanToledo/Stoa), allowing seamless
-integration with [Stoix](https://github.com/EdanToledo/Stoix), which is a JAX-based
-reinforcement learning codebase supporting various RL algorithms. 
+JaxARC uses the [Stoa API](https://github.com/EdanToledo/Stoa), allowing
+seamless integration with [Stoix](https://github.com/EdanToledo/Stoix), which is
+a JAX-based reinforcement learning codebase supporting various RL algorithms.
 
-This means you can easily plug JaxARC environments into Stoix's training pipelines to
-leverage its efficient implementations of RL algorithms. 
+This means you can easily plug JaxARC environments into Stoix's training
+pipelines to leverage its efficient implementations of RL algorithms.
 
-You can explore [jaxarc-baselines](https://github.com/aadimator/jaxarc-baselines) repository
-for example implementations of training agents on JaxARC environments using Stoix.
+You can explore
+[jaxarc-baselines](https://github.com/aadimator/jaxarc-baselines) repository for
+example implementations of training agents on JaxARC environments using Stoix.
 
 ## Contributing
 

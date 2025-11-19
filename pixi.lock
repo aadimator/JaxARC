@@ -3237,8 +3237,6 @@ packages:
   depends:
   - python >=3.12,<3.13.0a0
   - python_abi 3.12.* *_cp312
-  arch: x86_64
-  platform: linux
   license: CC-PDDC AND BSD-3-Clause AND BSD-2-Clause AND ZPL-2.1
   purls:
   - pkg:pypi/docutils?source=hash-mapping
@@ -3251,8 +3249,6 @@ packages:
   - python >=3.12,<3.13.0a0
   - python >=3.12,<3.13.0a0 *_cpython
   - python_abi 3.12.* *_cp312
-  arch: arm64
-  platform: osx
   license: CC-PDDC AND BSD-3-Clause AND BSD-2-Clause AND ZPL-2.1
   purls:
   - pkg:pypi/docutils?source=hash-mapping
@@ -4258,8 +4254,8 @@ packages:
   requires_python: '>=3.10'
 - pypi: .
   name: jaxarc
-  version: 1.0.1.dev10+g2305b7779.d20251104
-  sha256: 90147b0c6e62b26a1739783c8b0a8f615d55bb3c843426b193f6167491357bf0
+  version: 1.0.2.dev5+g8e1da214b
+  sha256: 6a7198f78d13b744338b3ba8a54bfd3a153e5700f81599f810082d54630a6ec9
   requires_dist:
   - cairosvg>=2.8.2,<3
   - drawsvg>=2.4.0,<3

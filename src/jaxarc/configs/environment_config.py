@@ -27,6 +27,9 @@ class EnvironmentConfig(eqx.Module):
     # Debug level (simplified: off|minimal|verbose)
     debug_level: Literal["off", "minimal", "verbose"] = "minimal"
 
+    # Render mode (rgb_array|ansi|svg)
+    render_mode: Literal["rgb_array", "ansi", "svg"] = "rgb_array"
+
     def validate(self) -> tuple[str, ...]:
         """Validate environment configuration and return tuple of errors."""
         errors: list[str] = []
@@ -42,6 +45,10 @@ class EnvironmentConfig(eqx.Module):
             # Validate debug level
             valid_levels = ("off", "minimal", "verbose")
             validate_string_choice(self.debug_level, "debug_level", valid_levels)
+
+            # Validate render mode
+            valid_render_modes = ("rgb_array", "ansi", "svg")
+            validate_string_choice(self.render_mode, "render_mode", valid_render_modes)
 
         except ConfigValidationError as e:
             errors.append(str(e))
@@ -60,7 +67,8 @@ class EnvironmentConfig(eqx.Module):
     def from_hydra(cls, cfg: DictConfig) -> EnvironmentConfig:
         """Create environment config from Hydra DictConfig."""
         return cls(
-            max_episode_steps=cfg.get("max_episode_steps", 100),
-            auto_reset=cfg.get("auto_reset", True),
-            debug_level=cfg.get("debug_level", "minimal"),
+            max_episode_steps=cfg.max_episode_steps,
+            auto_reset=cfg.auto_reset,
+            debug_level=cfg.debug_level,
+            render_mode=cfg.get("render_mode", "rgb_array"),
         )
