@@ -8,13 +8,14 @@ JaxARC provides two types of wrappers:
   flatten)
 - **Observation Wrappers**: Add channels to observations (input grid, answer,
   clipboard, context)
+- **Visualization Wrappers**: Enhance rendering capabilities (step visualization)
 
 ## Action Wrappers
 
 ### PointActionWrapper
 
 ```{eval-rst}
-.. autoclass:: jaxarc.PointActionWrapper
+.. autoclass:: jaxarc.wrappers.PointActionWrapper
    :members:
    :undoc-members:
    :show-inheritance:
@@ -23,7 +24,7 @@ JaxARC provides two types of wrappers:
 ### BboxActionWrapper
 
 ```{eval-rst}
-.. autoclass:: jaxarc.BboxActionWrapper
+.. autoclass:: jaxarc.wrappers.BboxActionWrapper
    :members:
    :undoc-members:
    :show-inheritance:
@@ -32,7 +33,7 @@ JaxARC provides two types of wrappers:
 ### FlattenActionWrapper
 
 ```{eval-rst}
-.. autoclass:: jaxarc.FlattenActionWrapper
+.. autoclass:: jaxarc.wrappers.FlattenActionWrapper
    :members:
    :undoc-members:
    :show-inheritance:
@@ -43,7 +44,7 @@ JaxARC provides two types of wrappers:
 ### InputGridObservationWrapper
 
 ```{eval-rst}
-.. autoclass:: jaxarc.InputGridObservationWrapper
+.. autoclass:: jaxarc.wrappers.InputGridObservationWrapper
    :members:
    :undoc-members:
    :show-inheritance:
@@ -52,7 +53,7 @@ JaxARC provides two types of wrappers:
 ### AnswerObservationWrapper
 
 ```{eval-rst}
-.. autoclass:: jaxarc.AnswerObservationWrapper
+.. autoclass:: jaxarc.wrappers.AnswerObservationWrapper
    :members:
    :undoc-members:
    :show-inheritance:
@@ -61,7 +62,7 @@ JaxARC provides two types of wrappers:
 ### ClipboardObservationWrapper
 
 ```{eval-rst}
-.. autoclass:: jaxarc.ClipboardObservationWrapper
+.. autoclass:: jaxarc.wrappers.ClipboardObservationWrapper
    :members:
    :undoc-members:
    :show-inheritance:
@@ -70,7 +71,18 @@ JaxARC provides two types of wrappers:
 ### ContextualObservationWrapper
 
 ```{eval-rst}
-.. autoclass:: jaxarc.ContextualObservationWrapper
+.. autoclass:: jaxarc.wrappers.ContextualObservationWrapper
+   :members:
+   :undoc-members:
+   :show-inheritance:
+```
+
+## Visualization Wrappers
+
+### StepVisualizationWrapper
+
+```{eval-rst}
+.. autoclass:: jaxarc.wrappers.StepVisualizationWrapper
    :members:
    :undoc-members:
    :show-inheritance:
@@ -80,7 +92,7 @@ JaxARC provides two types of wrappers:
 
 ```python
 from jaxarc import make
-from jaxarc import PointActionWrapper, InputGridObservationWrapper
+from jaxarc.wrappers import PointActionWrapper, InputGridObservationWrapper
 
 # Create base environment
 env, env_params = make("Mini")

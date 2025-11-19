@@ -2,6 +2,8 @@
 Wrappers for JaxARC environments.
 """
 
+from __future__ import annotations
+
 from .action_wrappers import (
     BboxActionWrapper,
     FlattenActionWrapper,
