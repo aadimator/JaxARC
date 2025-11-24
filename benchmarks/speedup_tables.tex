@@ -1,0 +1,89 @@
+\begin{table}[h]
+\centering
+\caption{Detailed speedup comparison on CPU (M2 Pro)}
+\label{tab:speedup_cpu_m2_pro}
+\begin{tabular}{lrrrrr}
+\toprule
+Batch Size & JaxARC SPS & Mode & ARCLE SPS & Mode & Speedup \\
+\midrule
+1 & 56,266 & jaxarc-jit & 50,823 & arcle-sync & 1.1× \\
+2 & 53,035 & jaxarc-jit & 25,299 & arcle-sync & 2.1× \\
+4 & 87,928 & jaxarc-jit & 38,816 & arcle-sync & 2.3× \\
+8 & 92,525 & jaxarc-jit & 48,384 & arcle-sync & 1.9× \\
+16 & 111,057 & jaxarc-jit & 57,336 & arcle-sync & 1.9× \\
+32 & 166,687 & jaxarc-jit & 61,319 & arcle-sync & 2.7× \\
+64 & 190,381 & jaxarc-jit & 62,324 & arcle-sync & 3.1× \\
+128 & 165,107 & jaxarc-jit & 65,020 & arcle-sync & 2.5× \\
+256 & 177,682 & jaxarc-jit & 65,871 & arcle-sync & 2.7× \\
+512 & 230,453 & jaxarc-jit & 62,397 & arcle-sync & 3.7× \\
+1,024 & 257,889 & jaxarc-jit & 62,820 & arcle-sync & 4.1× \\
+2,048 & 257,877 & jaxarc-jit & 63,111 & arcle-sync & 4.1× \\
+4,096 & 319,194 & jaxarc-jit & 55,270 & arcle-sync & 5.8× \\
+8,192 & 467,960 & jaxarc-jit & 54,033 & arcle-sync & 8.7× \\
+16,384 & 616,683 & jaxarc-jit & 48,383 & arcle-sync & 12.7× \\
+32,768 & 714,731 & jaxarc-jit & 38,334 & arcle-sync & 18.6× \\
+65,536 & 788,855 & jaxarc-jit & 20,634 & arcle-sync & 38.2× \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Detailed speedup comparison on RTX 3090}
+\label{tab:speedup_rtx_3090}
+\begin{tabular}{lrrrrr}
+\toprule
+Batch Size & JaxARC SPS & Mode & ARCLE SPS & Mode & Speedup \\
+\midrule
+1 & 2,327 & jaxarc-jit & 56,066 & arcle-async & 0.0× \\
+2 & 4,948 & jaxarc-jit & 23,845 & arcle-sync & 0.2× \\
+4 & 9,282 & jaxarc-jit & 34,396 & arcle-sync & 0.3× \\
+8 & 18,667 & jaxarc-jit & 45,991 & arcle-sync & 0.4× \\
+16 & 38,305 & jaxarc-jit & 55,162 & arcle-sync & 0.7× \\
+32 & 76,158 & jaxarc-jit & 60,394 & arcle-sync & 1.3× \\
+64 & 147,835 & jaxarc-jit & 62,266 & arcle-sync & 2.4× \\
+128 & 299,201 & jaxarc-jit & 65,513 & arcle-sync & 4.6× \\
+256 & 589,248 & jaxarc-jit & 67,777 & arcle-sync & 8.7× \\
+512 & 1,141,716 & jaxarc-jit & 68,011 & arcle-sync & 16.8× \\
+1,024 & 2,205,416 & jaxarc-jit & 65,038 & arcle-sync & 33.9× \\
+2,048 & 4,010,852 & jaxarc-jit & 63,005 & arcle-sync & 63.7× \\
+4,096 & 7,519,602 & jaxarc-jit & 57,698 & arcle-sync & 130.3× \\
+8,192 & 15,672,773 & jaxarc-jit & 55,584 & arcle-sync & 282.0× \\
+16,384 & 25,365,090 & jaxarc-jit & 54,126 & arcle-sync & 468.6× \\
+32,768 & 36,337,555 & jaxarc-jit & 50,002 & arcle-sync & 726.7× \\
+65,536 & 36,570,507 & jaxarc-jit & 43,765 & arcle-sync & 835.6× \\
+131,072 & 32,613,474 & jaxarc-jit & 36,131 & arcle-sync & 902.6× \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Detailed speedup comparison on H100 GPU}
+\label{tab:speedup_h100_gpu}
+\begin{tabular}{lrrrrr}
+\toprule
+Batch Size & JaxARC SPS & Mode & ARCLE SPS & Mode & Speedup \\
+\midrule
+1 & 1,359 & jaxarc-jit & 54,082 & arcle-async & 0.0× \\
+2 & 2,776 & jaxarc-jit & 19,375 & arcle-sync & 0.1× \\
+4 & 5,482 & jaxarc-jit & 27,123 & arcle-sync & 0.2× \\
+8 & 13,912 & jaxarc-jit & 35,775 & arcle-sync & 0.4× \\
+16 & 30,045 & jaxarc-jit & 43,116 & arcle-sync & 0.7× \\
+32 & 59,176 & jaxarc-jit & 44,860 & arcle-sync & 1.3× \\
+64 & 86,458 & jaxarc-jit & 50,575 & arcle-sync & 1.7× \\
+128 & 176,671 & jaxarc-jit & 27,236 & arcle-sync & 6.5× \\
+256 & 482,233 & jaxarc-jit & 51,035 & arcle-sync & 9.4× \\
+512 & 942,287 & jaxarc-jit & 47,571 & arcle-sync & 19.8× \\
+1,024 & 1,766,400 & jaxarc-jit & 44,436 & arcle-sync & 39.8× \\
+2,048 & 3,448,222 & jaxarc-jit & 44,965 & arcle-sync & 76.7× \\
+4,096 & 6,440,953 & jaxarc-jit & 48,389 & arcle-sync & 133.1× \\
+8,192 & 10,743,903 & jaxarc-jit & 47,972 & arcle-sync & 224.0× \\
+16,384 & 24,598,104 & jaxarc-jit & 39,065 & arcle-sync & 629.7× \\
+32,768 & 40,676,131 & jaxarc-jit & 36,002 & arcle-sync & 1129.8× \\
+65,536 & 69,422,302 & jaxarc-pmap & 31,038 & arcle-sync & 2236.7× \\
+131,072 & 141,892,015 & jaxarc-pmap & 26,089 & arcle-sync & 5438.8× \\
+\bottomrule
+\end{tabular}
+\end{table}
+
