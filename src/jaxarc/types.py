@@ -27,7 +27,8 @@ import chex
 import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, Int
-from stoa.env_types import StepType, TimeStep
+from stoa.env_types import StepType as _StepType
+from stoa.env_types import TimeStep as _TimeStep
 
 # Import configuration types for EnvParams
 from jaxarc.configs.action_config import ActionConfig
@@ -35,9 +36,15 @@ from jaxarc.configs.dataset_config import DatasetConfig
 from jaxarc.configs.grid_initialization_config import GridInitializationConfig
 from jaxarc.configs.main_config import JaxArcConfig
 from jaxarc.configs.reward_config import RewardConfig
+from jaxarc.constants import MAX_GRID_SIZE as _MAX_GRID_SIZE
+from jaxarc.constants import NUM_COLORS as _NUM_COLORS
+from jaxarc.constants import NUM_OPERATIONS as _NUM_OPERATIONS
 
-StepType = StepType  # Re-export for convenience
-TimeStep = TimeStep  # Re-export for convenience
+StepType = _StepType  # Re-export for convenience
+TimeStep = _TimeStep  # Re-export for convenience
+MAX_GRID_SIZE = _MAX_GRID_SIZE  # Re-export canonical constants
+NUM_COLORS = _NUM_COLORS
+NUM_OPERATIONS = _NUM_OPERATIONS
 
 # =============================================================================
 # JAX Type Definitions (formerly in jax_types.py)
