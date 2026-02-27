@@ -109,13 +109,9 @@ GridWidth: TypeAlias = Int[Array, ""]
 """Scalar integer representing grid width."""
 
 # =============================================================================
-# Constants (formerly in jax_types.py)
+# Constants (canonical definitions in jaxarc.constants)
 # =============================================================================
 
-# Core ARC constants
-NUM_OPERATIONS = 35  # Number of ARC operations (0-34)
-NUM_COLORS = 10  # Number of colors in ARC (0-9)
-MAX_GRID_SIZE = 30  # Maximum grid dimension in ARC
 
 # Episode mode constants for JAX compatibility
 EPISODE_MODE_TRAIN = 0  # Training mode
