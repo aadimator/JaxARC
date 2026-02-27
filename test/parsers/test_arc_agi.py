@@ -195,34 +195,29 @@ class TestArcAgiParser:
             with pytest.raises(ValueError, match="Invalid JSON"):
                 mock_parser_with_data.load_task_file(f.name)
 
-    def test_extract_task_id_and_content_github_format(
+    def test_extract_task_content_github_format(
         self, mock_parser_with_data: ArcAgiParser, sample_task_data: dict
     ):
-        """Test _extract_task_id_and_content with GitHub format."""
-        task_id, content = mock_parser_with_data._extract_task_id_and_content(
-            sample_task_data
-        )
+        """Test _extract_task_content with GitHub format."""
+        content = mock_parser_with_data._extract_task_content(sample_task_data)
 
-        assert task_id == "unknown"  # GitHub format doesn't include task ID in data
         assert content == sample_task_data
         assert "train" in content
         assert "test" in content
 
-    def test_extract_task_id_and_content_invalid_format(
+    def test_extract_task_content_invalid_format(
         self, mock_parser_with_data: ArcAgiParser
     ):
-        """Test _extract_task_id_and_content with invalid format."""
+        """Test _extract_task_content with invalid format."""
         invalid_data = {"invalid": "format"}
 
         with pytest.raises(ValueError, match="Invalid task data format"):
-            mock_parser_with_data._extract_task_id_and_content(invalid_data)
+            mock_parser_with_data._extract_task_content(invalid_data)
 
-    def test_extract_task_id_and_content_non_dict(
-        self, mock_parser_with_data: ArcAgiParser
-    ):
-        """Test _extract_task_id_and_content with non-dict input."""
+    def test_extract_task_content_non_dict(self, mock_parser_with_data: ArcAgiParser):
+        """Test _extract_task_content with non-dict input."""
         with pytest.raises(ValueError, match="Expected dict"):
-            mock_parser_with_data._extract_task_id_and_content("not a dict")
+            mock_parser_with_data._extract_task_content("not a dict")
 
     def test_preprocess_task_data_success(
         self, mock_parser_with_data: ArcAgiParser, sample_task_data: dict

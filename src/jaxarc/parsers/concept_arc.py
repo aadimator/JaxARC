@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 import chex
 import jax
@@ -19,7 +18,6 @@ from pyprojroot import here
 
 from jaxarc.configs import DatasetConfig
 from jaxarc.types import JaxArcTask
-from jaxarc.utils.task_manager import create_jax_task_index
 
 from .base_parser import ArcDataParserBase
 
@@ -79,11 +77,14 @@ class ConceptArcParser(ArcDataParserBase):
         self._concept_groups: dict[str, list[str]] = {}
         self._task_metadata: dict[str, dict] = {}
         self._all_task_ids: list[str] = []
-        self._cached_tasks: dict[str, dict] = {}  # Lazy cache: load on first access
-        self._data_dir: Path | None = None
 
         # Scan available tasks (lazy loading)
         self._scan_available_tasks()
+
+    @property
+    def _dataset_name(self) -> str:
+        """Dataset name for error messages."""
+        return "ConceptARC dataset"
 
     def get_data_path(self) -> str:
         """Get the actual data path for ConceptARC based on split.
@@ -134,10 +135,11 @@ class ConceptArcParser(ArcDataParserBase):
             # Discover concept groups from directory structure (scan only, don't load)
             self._discover_concept_groups(self._data_dir, expected_concept_groups)
 
-            # Collect all task IDs
+            # Collect all task IDs and sync with base class _task_ids
             self._all_task_ids = []
             for task_ids in self._concept_groups.values():
                 self._all_task_ids.extend(task_ids)
+            self._task_ids = self._all_task_ids
 
             logger.info(
                 f"Found {len(self._all_task_ids)} tasks from {len(self._concept_groups)} "
@@ -248,92 +250,6 @@ class ConceptArcParser(ArcDataParserBase):
             msg = f"Invalid JSON in file {task_file_path}: {e}"
             raise ValueError(msg) from e
 
-    def load_task_file(self, task_file_path: str) -> Any:
-        """Load raw task data from a JSON file.
-
-        Args:
-            task_file_path: Path to the JSON file containing task data
-
-        Returns:
-            Dictionary containing the raw task data
-
-        Raises:
-            FileNotFoundError: If the file doesn't exist
-            ValueError: If the JSON is invalid
-        """
-        file_path = Path(task_file_path)
-
-        if not file_path.exists():
-            msg = f"Task file not found: {file_path}"
-            raise FileNotFoundError(msg)
-
-        try:
-            with file_path.open("r", encoding="utf-8") as f:
-                return json.load(f)
-        except json.JSONDecodeError as e:
-            msg = f"Invalid JSON in file {file_path}: {e}"
-            raise ValueError(msg) from e
-
-    def preprocess_task_data(
-        self,
-        raw_task_data: Any,
-        key: chex.PRNGKey,  # noqa: ARG002
-    ) -> JaxArcTask:
-        """Convert raw task data into JaxArcTask structure.
-
-        Args:
-            raw_task_data: Raw task data dictionary or tuple (task_id, task_content)
-            key: JAX PRNG key (unused in this deterministic preprocessing)
-
-        Returns:
-            JaxArcTask: JAX-compatible task data with padded arrays
-
-        Raises:
-            ValueError: If the task data format is invalid
-        """
-        # Handle both direct task data and (task_id, task_content) tuple
-        if isinstance(raw_task_data, tuple) and len(raw_task_data) == 2:
-            task_id, task_content = raw_task_data
-        else:
-            # Assume it's direct task content, create a dummy task ID
-            task_content = raw_task_data
-            task_id = "unknown_task"
-
-        # Process training and test pairs
-        train_input_grids, train_output_grids = self._process_training_pairs(
-            task_content
-        )
-        test_input_grids, test_output_grids = self._process_test_pairs(task_content)
-
-        # Pad arrays and create masks
-        padded_arrays = self._pad_and_create_masks(
-            train_input_grids, train_output_grids, test_input_grids, test_output_grids
-        )
-
-        # Log parsing statistics
-        self._log_parsing_stats(
-            train_input_grids,
-            train_output_grids,
-            test_input_grids,
-            test_output_grids,
-            task_id,
-        )
-
-        # Create JaxArcTask structure with JAX-compatible task index
-        return JaxArcTask(
-            input_grids_examples=padded_arrays["train_inputs"],
-            input_masks_examples=padded_arrays["train_input_masks"],
-            output_grids_examples=padded_arrays["train_outputs"],
-            output_masks_examples=padded_arrays["train_output_masks"],
-            num_train_pairs=len(train_input_grids),
-            test_input_grids=padded_arrays["test_inputs"],
-            test_input_masks=padded_arrays["test_input_masks"],
-            true_test_output_grids=padded_arrays["test_outputs"],
-            true_test_output_masks=padded_arrays["test_output_masks"],
-            num_test_pairs=len(test_input_grids),
-            task_index=create_jax_task_index(task_id),
-        )
-
     def _process_training_pairs(self, task_content: dict) -> tuple[list, list]:
         """Process training pairs and convert them to JAX arrays.
 
@@ -375,29 +291,6 @@ class ConceptArcParser(ArcDataParserBase):
                 msg = "ConceptARC task must have at least one test pair"
                 raise ValueError(msg) from e
             raise
-
-    def get_random_task(self, key: chex.PRNGKey) -> JaxArcTask:
-        """Get a random task from the dataset.
-
-        Args:
-            key: JAX PRNG key for random selection
-
-        Returns:
-            JaxArcTask: A randomly selected and preprocessed task
-
-        Raises:
-            RuntimeError: If no tasks are available
-        """
-        if not self._all_task_ids:
-            msg = "No tasks available in ConceptARC dataset"
-            raise RuntimeError(msg)
-
-        # Randomly select a task ID
-        task_index = jax.random.randint(key, (), 0, len(self._all_task_ids))
-        task_id = self._all_task_ids[int(task_index)]
-
-        # Use get_task_by_id which handles lazy loading
-        return self.get_task_by_id(task_id)
 
     def get_random_task_from_concept(
         self, concept: str, key: chex.PRNGKey
@@ -462,43 +355,6 @@ class ConceptArcParser(ArcDataParserBase):
             raise ValueError(msg)
 
         return self._concept_groups[concept].copy()
-
-    def get_task_by_id(self, task_id: str) -> JaxArcTask:
-        """Get a specific task by its ID.
-
-        Args:
-            task_id: ID of the task to retrieve (format: concept_group/task_name)
-
-        Returns:
-            JaxArcTask: The preprocessed task data
-
-        Raises:
-            ValueError: If the task ID is not found
-        """
-        if task_id not in self._all_task_ids:
-            msg = f"Task ID '{task_id}' not found in ConceptARC dataset"
-            raise ValueError(msg)
-
-        # Lazy loading: load task from disk if not in cache
-        if task_id not in self._cached_tasks:
-            self._load_task_from_disk(task_id)
-
-        # Get the cached task data
-        task_data = self._cached_tasks[task_id]
-
-        # Create a dummy key for preprocessing (deterministic)
-        key = jax.random.PRNGKey(0)
-
-        # Preprocess and return
-        return self.preprocess_task_data((task_id, task_data), key)
-
-    def get_available_task_ids(self) -> list[str]:
-        """Get list of all available task IDs.
-
-        Returns:
-            List of task IDs available in the dataset
-        """
-        return self._all_task_ids.copy()
 
     def get_task_metadata(self, task_id: str) -> dict:
         """Get metadata for a specific task.

@@ -217,7 +217,7 @@ class TestMiniArcParser:
         """Test initialization with missing data directory."""
         with patch("pyprojroot.here", return_value=Path("/nonexistent/path")):
             # With lazy loading, missing directory raises RuntimeError during scan
-            with pytest.raises(RuntimeError, match="tasks directory not found"):
+            with pytest.raises(RuntimeError, match="Data directory not found"):
                 MiniArcParser(valid_config_5x5)
 
     def test_get_data_path(self, valid_config_5x5: DatasetConfig):
