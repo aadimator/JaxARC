@@ -7,11 +7,15 @@ JAX-compatible format for the MARL environment.
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+import json
+from abc import ABC
+from pathlib import Path
 from typing import Any
 
+import jax
 import jax.numpy as jnp
 from loguru import logger
+from pyprojroot import here
 
 from jaxarc.configs import DatasetConfig
 from jaxarc.types import (
@@ -23,6 +27,7 @@ from jaxarc.types import (
     MaskArray,
     PRNGKey,
 )
+from jaxarc.utils.task_manager import create_jax_task_index
 
 # Type aliases for parser functions
 GridList = list[GridArray]
@@ -70,6 +75,11 @@ class ArcDataParserBase(ABC):
 
         # Store the typed configuration
         self.config = config
+
+        # Common state for lazy loading (concrete parsers call _scan_available_tasks)
+        self._task_ids: list[str] = []
+        self._cached_tasks: dict[str, dict] = {}
+        self._data_dir: Path | None = None
 
         # Extract commonly used values for convenience
         self.max_grid_height = config.max_grid_height
@@ -136,68 +146,140 @@ class ArcDataParserBase(ABC):
         dataset_config = DatasetConfig.from_hydra(hydra_config)
         return cls(dataset_config)
 
-    @abstractmethod
+    @property
+    def _dataset_name(self) -> str:
+        """Name of the dataset for error messages. Override in subclasses."""
+        return "dataset"
+
     def load_task_file(self, task_file_path: str) -> Any:
-        """Load the raw content of a single task file.
-
-        This method should handle the dataset-specific file format and return
-        the raw data structure (e.g., dict for JSON files). Error handling
-        for file access and format parsing should be implemented here.
+        """Load raw task data from a JSON file.
 
         Args:
-            task_file_path: Path to the task file to load
+            task_file_path: Path to the JSON file containing task data
 
         Returns:
-            Raw task data in dataset-specific format (e.g., dict for JSON)
+            Dictionary containing the raw task data
 
         Raises:
-            FileNotFoundError: If the task file doesn't exist
-            ValueError: If the file format is invalid or corrupted
+            FileNotFoundError: If the file doesn't exist
+            ValueError: If the JSON is invalid
         """
+        file_path = Path(task_file_path)
 
-    @abstractmethod
-    def preprocess_task_data(self, raw_task_data: Any, key: PRNGKey) -> JaxArcTask:
-        """Convert raw task data into a JAX-compatible JaxArcTask structure.
+        if not file_path.exists():
+            msg = f"Task file not found: {file_path}"
+            raise FileNotFoundError(msg)
 
-        This method performs the core transformation from dataset-specific format
-        to the standardized JaxArcTask pytree. It should handle:
-        - Converting grids to JAX arrays with proper dtypes
-        - Padding grids to maximum dimensions
-        - Creating boolean masks for valid data regions
-        - Validating data integrity
+        try:
+            with file_path.open("r", encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            msg = f"Invalid JSON in file {file_path}: {e}"
+            raise ValueError(msg) from e
+
+    def _extract_task_content(self, raw_task_data: Any) -> dict:
+        """Extract task content dict from raw task data.
+
+        Override in subclasses that need custom extraction logic (e.g., ArcAgi
+        validates GitHub format). Default returns raw_task_data as-is.
 
         Args:
-            raw_task_data: Raw data as returned by load_task_file
-            key: JAX PRNG key for any stochastic preprocessing steps
+            raw_task_data: Raw task data as loaded from disk
 
         Returns:
-            JaxArcTask: JAX-compatible task data with padded arrays and masks
+            Task content dictionary with 'train' and 'test' keys
+        """
+        return raw_task_data
+
+    def preprocess_task_data(
+        self,
+        raw_task_data: Any,
+        key: PRNGKey,  # noqa: ARG002
+        task_id: str | None = None,
+    ) -> JaxArcTask:
+        """Convert raw task data into JaxArcTask structure.
+
+        Supports both direct task content dicts and (task_id, task_content) tuples
+        for backward compatibility.
+
+        Args:
+            raw_task_data: Raw task data dictionary or (task_id, task_content) tuple
+            key: JAX PRNG key (unused in this deterministic preprocessing)
+            task_id: Optional task ID. If not provided, extracted from raw_task_data.
+
+        Returns:
+            JaxArcTask: JAX-compatible task data with padded arrays
 
         Raises:
-            ValueError: If the raw data format is invalid or incompatible
+            ValueError: If the task data format is invalid
         """
+        # Handle (task_id, task_content) tuple format for backward compatibility
+        if isinstance(raw_task_data, tuple) and len(raw_task_data) == 2:
+            tuple_id, task_content = raw_task_data
+            if task_id is None:
+                task_id = tuple_id
+        else:
+            task_content = self._extract_task_content(raw_task_data)
+            if task_id is None:
+                task_id = "unknown"
 
-    @abstractmethod
+        # Process training and test pairs
+        train_input_grids, train_output_grids = self._process_training_pairs(
+            task_content
+        )
+        test_input_grids, test_output_grids = self._process_test_pairs(task_content)
+
+        # Pad arrays and create masks
+        padded_arrays = self._pad_and_create_masks(
+            train_input_grids, train_output_grids, test_input_grids, test_output_grids
+        )
+
+        # Log parsing statistics
+        self._log_parsing_stats(
+            train_input_grids,
+            train_output_grids,
+            test_input_grids,
+            test_output_grids,
+            task_id,
+        )
+
+        # Create JaxArcTask structure with JAX-compatible task index
+        return JaxArcTask(
+            input_grids_examples=padded_arrays["train_inputs"],
+            input_masks_examples=padded_arrays["train_input_masks"],
+            output_grids_examples=padded_arrays["train_outputs"],
+            output_masks_examples=padded_arrays["train_output_masks"],
+            num_train_pairs=len(train_input_grids),
+            test_input_grids=padded_arrays["test_inputs"],
+            test_input_masks=padded_arrays["test_input_masks"],
+            true_test_output_grids=padded_arrays["test_outputs"],
+            true_test_output_masks=padded_arrays["test_output_masks"],
+            num_test_pairs=len(test_input_grids),
+            task_index=create_jax_task_index(task_id),
+        )
+
     def get_random_task(self, key: PRNGKey) -> JaxArcTask:
-        """Get a random task from the dataset.
-
-        This method orchestrates the complete pipeline from task selection to
-        preprocessing. It should:
-        1. Use the PRNG key to randomly select a task from the dataset
-        2. Load the raw task data using load_task_file
-        3. Preprocess it using preprocess_task_data
-        4. Return the final JaxArcTask
+        """Get a random task from the dataset with lazy loading.
 
         Args:
-            key: JAX PRNG key for random task selection and preprocessing
+            key: JAX PRNG key for random selection
 
         Returns:
             JaxArcTask: A randomly selected and preprocessed task
 
         Raises:
-            RuntimeError: If no tasks are available or dataset is empty
-            ValueError: If task selection or preprocessing fails
+            RuntimeError: If no tasks are available
         """
+        if not self._task_ids:
+            msg = f"No tasks available in {self._dataset_name}"
+            raise RuntimeError(msg)
+
+        # Randomly select a task ID
+        task_index = jax.random.randint(key, (), 0, len(self._task_ids))
+        task_id = self._task_ids[int(task_index)]
+
+        # Use get_task_by_id which handles lazy loading
+        return self.get_task_by_id(task_id)
 
     def get_max_dimensions(self) -> tuple[int, int, int, int]:
         """Get the maximum dimensions used by this parser.
@@ -530,12 +612,10 @@ class ArcDataParserBase(ABC):
     # Task Index to Task ID Mapping System
     # =========================================================================
 
-    @abstractmethod
     def get_task_by_id(self, task_id: str) -> JaxArcTask:
-        """Get a specific task by its ID.
+        """Get a specific task by its ID with lazy loading.
 
-        This method must be implemented by concrete parsers to support
-        task_data reconstruction during deserialization.
+        Tasks are loaded from disk on first access and cached for subsequent calls.
 
         Args:
             task_id: ID of the task to retrieve
@@ -546,17 +626,92 @@ class ArcDataParserBase(ABC):
         Raises:
             ValueError: If the task ID is not found
         """
+        if task_id not in self._task_ids:
+            msg = f"Task ID '{task_id}' not found in {self._dataset_name}"
+            raise ValueError(msg)
 
-    @abstractmethod
+        # Lazy load: check cache first, load from disk if not cached
+        if task_id not in self._cached_tasks:
+            self._load_task_from_disk(task_id)
+
+        # Get the cached task data
+        task_data = self._cached_tasks[task_id]
+
+        # Create a dummy key for preprocessing (deterministic)
+        key = jax.random.PRNGKey(0)
+
+        # Preprocess and return
+        return self.preprocess_task_data(task_data, key, task_id=task_id)
+
     def get_available_task_ids(self) -> list[str]:
         """Get list of all available task IDs.
-
-        This method must be implemented by concrete parsers to support
-        task index mapping validation.
 
         Returns:
             List of task IDs available in the dataset
         """
+        return self._task_ids.copy()
+
+    def _scan_available_tasks(self) -> None:
+        """Scan directory for available task IDs without loading task data.
+
+        Override in subclasses with non-standard directory structures
+        (e.g., ConceptARC's nested concept group directories).
+        """
+        try:
+            data_dir_path = self.get_data_path()
+            self._data_dir = here(data_dir_path)
+
+            if not self._data_dir.exists() or not self._data_dir.is_dir():
+                msg = f"Data directory not found: {self._data_dir}"
+                raise RuntimeError(msg)
+
+            json_files = list(self._data_dir.glob("*.json"))
+            if not json_files:
+                msg = f"No JSON files found in {self._data_dir}"
+                raise RuntimeError(msg)
+
+            self._task_ids = [f.stem for f in json_files]
+
+            logger.info(
+                f"Found {len(self._task_ids)} tasks in {self._data_dir} "
+                f"(lazy loading - tasks loaded on-demand)"
+            )
+
+        except Exception as e:
+            logger.error(f"Error scanning tasks: {e}")
+            raise
+
+    def _load_task_from_disk(self, task_id: str) -> None:
+        """Load a single task from disk and add to cache.
+
+        Override in subclasses that need additional validation or metadata
+        (e.g., MiniARC constraint validation, ConceptARC metadata).
+
+        Args:
+            task_id: ID of the task to load
+
+        Raises:
+            FileNotFoundError: If task file doesn't exist
+            ValueError: If JSON is invalid
+        """
+        if self._data_dir is None:
+            msg = "Data directory not initialized"
+            raise RuntimeError(msg)
+
+        task_file = self._data_dir / f"{task_id}.json"
+
+        if not task_file.exists():
+            msg = f"Task file not found: {task_file}"
+            raise FileNotFoundError(msg)
+
+        try:
+            with task_file.open("r", encoding="utf-8") as f:
+                task_data = json.load(f)
+            self._cached_tasks[task_id] = task_data
+            logger.debug(f"Loaded task '{task_id}' from disk")
+        except json.JSONDecodeError as e:
+            msg = f"Invalid JSON in file {task_file}: {e}"
+            raise ValueError(msg) from e
 
     def validate_task_index_mapping(self, task_index: int) -> bool:
         """Validate that a task_index can be resolved to a valid task.

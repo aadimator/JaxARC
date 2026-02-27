@@ -120,23 +120,10 @@ class TestArcDataParserBase:
         """Provide a mock parser instance for testing."""
         return MockParser(valid_config)
 
-    def test_abstract_class_cannot_be_instantiated(self):
-        """Test that ArcDataParserBase cannot be instantiated directly."""
-        config = DatasetConfig(
-            dataset_path="test/data",
-            max_grid_height=10,
-            max_grid_width=10,
-            min_grid_height=1,
-            min_grid_width=1,
-            max_colors=10,
-            background_color=0,
-            max_train_pairs=5,
-            max_test_pairs=3,
-            task_split="train",
-        )
-
-        with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-            ArcDataParserBase(config)
+    def test_base_class_can_be_subclassed(self, valid_config: DatasetConfig):
+        """Test that ArcDataParserBase can be subclassed and used."""
+        parser = MockParser(valid_config)
+        assert isinstance(parser, ArcDataParserBase)
 
     def test_initialization_with_valid_config(self, valid_config: DatasetConfig):
         """Test successful initialization with valid configuration."""
@@ -283,12 +270,8 @@ class TestArcDataParserBase:
             assert isinstance(parser, MockParser)
             assert parser.config == valid_config
 
-    def test_abstract_methods_must_be_implemented(self):
-        """Test that abstract methods must be implemented by subclasses."""
-
-        class IncompleteParser(ArcDataParserBase):
-            pass
-
+    def test_subclass_inherits_concrete_methods(self):
+        """Test that subclasses inherit concrete methods from base."""
         config = DatasetConfig(
             dataset_path="test/data",
             max_grid_height=10,
@@ -302,8 +285,16 @@ class TestArcDataParserBase:
             task_split="train",
         )
 
-        with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-            IncompleteParser(config)
+        # A subclass without any overrides should work
+        class MinimalParser(ArcDataParserBase):
+            pass
+
+        parser = MinimalParser(config)
+        assert hasattr(parser, "load_task_file")
+        assert hasattr(parser, "preprocess_task_data")
+        assert hasattr(parser, "get_random_task")
+        assert hasattr(parser, "get_task_by_id")
+        assert hasattr(parser, "get_available_task_ids")
 
     def test_task_index_mapping_methods(self, mock_parser: MockParser):
         """Test task index mapping and validation methods."""

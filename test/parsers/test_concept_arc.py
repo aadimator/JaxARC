@@ -243,6 +243,7 @@ class TestConceptArcParser:
         with patch.object(ConceptArcParser, "_scan_available_tasks"):
             parser = ConceptArcParser(valid_config)
             parser._all_task_ids = []  # No tasks available
+            parser._task_ids = []  # Sync base class field
 
             key = jax.random.PRNGKey(42)
             with pytest.raises(RuntimeError, match="No tasks available"):
