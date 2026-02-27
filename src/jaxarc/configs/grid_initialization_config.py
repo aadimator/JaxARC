@@ -3,7 +3,13 @@ from __future__ import annotations
 import equinox as eqx
 from omegaconf import DictConfig
 
-from .validation import ConfigValidationError, validate_float_range
+from .validation import (
+    ConfigValidationError,
+    check_hashable,
+    ensure_tuple,
+    validate_float_range,
+    validate_tuple_elements,
+)
 
 
 class GridInitializationConfig(eqx.Module):
@@ -31,26 +37,14 @@ class GridInitializationConfig(eqx.Module):
     random_pattern_type: str = "sparse"  # "sparse" or "dense"
 
     def __init__(self, **kwargs):
-        # Handle permutation_types conversion
-        permutation_types = kwargs.get(
-            "permutation_types", ("rotate", "reflect", "color_remap")
-        )
-        if isinstance(permutation_types, str):
-            permutation_types = (permutation_types,)
-        elif hasattr(permutation_types, "__iter__") and not isinstance(
-            permutation_types, (str, tuple)
-        ):
-            permutation_types = (
-                tuple(permutation_types) if permutation_types else ("rotate",)
-            )
-        elif not isinstance(permutation_types, tuple):
-            permutation_types = ("rotate", "reflect", "color_remap")
-
         self.demo_weight = kwargs.get("demo_weight", 0.4)
         self.permutation_weight = kwargs.get("permutation_weight", 0.3)
         self.empty_weight = kwargs.get("empty_weight", 0.2)
         self.random_weight = kwargs.get("random_weight", 0.1)
-        self.permutation_types = permutation_types
+        self.permutation_types = ensure_tuple(
+            kwargs.get("permutation_types", ("rotate", "reflect", "color_remap")),
+            default=("rotate", "reflect", "color_remap"),
+        )
         self.random_density = kwargs.get("random_density", 0.3)
         self.random_pattern_type = kwargs.get("random_pattern_type", "sparse")
 
@@ -86,13 +80,16 @@ class GridInitializationConfig(eqx.Module):
                 )
 
             # Validate permutation types
-            valid_permutation_types = {"rotate", "reflect", "color_remap"}
+            _valid_perm_types = {"rotate", "reflect", "color_remap"}
             if hasattr(self.permutation_types, "__iter__"):
-                for ptype in self.permutation_types:
-                    if ptype not in valid_permutation_types:
-                        errors.append(
-                            f"Invalid permutation type: {ptype}. Valid types: {valid_permutation_types}"
-                        )
+                errors.extend(
+                    validate_tuple_elements(
+                        self.permutation_types,
+                        "permutation_types",
+                        element_type=str,
+                        allowed=_valid_perm_types,
+                    )
+                )
 
             # If permutation weight is positive, require non-empty permutation_types
             if self.permutation_weight > 0.0 and not self.permutation_types:
@@ -106,38 +103,19 @@ class GridInitializationConfig(eqx.Module):
         return tuple(errors)
 
     def __check_init__(self):
-        """Validate hashability for JAX compatibility."""
-        try:
-            hash(self)
-        except TypeError as e:
-            msg = (
-                f"GridInitializationConfig must be hashable for JAX compatibility: {e}"
-            )
-            raise ValueError(msg) from e
+        check_hashable(self, "GridInitializationConfig")
 
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> GridInitializationConfig:
         """Create grid initialization config from Hydra DictConfig."""
-        permutation_types = cfg.get(
-            "permutation_types", ["rotate", "reflect", "color_remap"]
-        )
-        if isinstance(permutation_types, str):
-            permutation_types = (permutation_types,)
-        elif hasattr(permutation_types, "__iter__") and not isinstance(
-            permutation_types, (str, tuple)
-        ):
-            permutation_types = (
-                tuple(permutation_types) if permutation_types else ("rotate",)
-            )
-        elif not isinstance(permutation_types, tuple):
-            permutation_types = ("rotate", "reflect", "color_remap")
-
         return cls(
             demo_weight=cfg.get("demo_weight", 0.4),
             permutation_weight=cfg.get("permutation_weight", 0.3),
             empty_weight=cfg.get("empty_weight", 0.2),
             random_weight=cfg.get("random_weight", 0.1),
-            permutation_types=permutation_types,
+            permutation_types=cfg.get(
+                "permutation_types", ["rotate", "reflect", "color_remap"]
+            ),
             random_density=cfg.get("random_density", 0.3),
             random_pattern_type=cfg.get("random_pattern_type", "sparse"),
         )

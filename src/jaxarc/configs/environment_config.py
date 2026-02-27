@@ -8,6 +8,7 @@ from omegaconf import DictConfig
 
 from .validation import (
     ConfigValidationError,
+    check_hashable,
     validate_positive_int,
     validate_string_choice,
 )
@@ -55,12 +56,7 @@ class EnvironmentConfig(eqx.Module):
         return tuple(errors)
 
     def __check_init__(self):
-        """Validate hashability after initialization."""
-        try:
-            hash(self)
-        except TypeError as e:
-            msg = f"EnvironmentConfig must be hashable for JAX compatibility: {e}"
-            raise ValueError(msg) from e
+        check_hashable(self, "EnvironmentConfig")
 
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> EnvironmentConfig:

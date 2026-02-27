@@ -5,6 +5,7 @@ from omegaconf import DictConfig
 
 from .validation import (
     ConfigValidationError,
+    check_hashable,
     validate_float_range,
 )
 
@@ -44,12 +45,7 @@ class RewardConfig(eqx.Module):
         return tuple(errors)
 
     def __check_init__(self):
-        """Validate hashability after initialization."""
-        try:
-            hash(self)
-        except TypeError as e:
-            msg = f"RewardConfig must be hashable for JAX compatibility: {e}"
-            raise ValueError(msg) from e
+        check_hashable(self, "RewardConfig")
 
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> RewardConfig:
