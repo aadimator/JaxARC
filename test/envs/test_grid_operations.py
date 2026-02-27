@@ -232,7 +232,6 @@ def test_state(prng_key: PRNGKeyArray) -> State:
         key=prng_key,
         task_idx=jnp.array(0, dtype=jnp.int32),
         pair_idx=jnp.array(0, dtype=jnp.int32),
-        carry=None,
     )
 
 
@@ -679,7 +678,6 @@ class TestEdgeCases:
             key=prng_key,
             task_idx=jnp.array(0, dtype=jnp.int32),
             pair_idx=jnp.array(0, dtype=jnp.int32),
-            carry=None,
         )
 
         # Test fill operation on empty grid
@@ -711,7 +709,6 @@ class TestEdgeCases:
             key=prng_key,
             task_idx=jnp.array(0, dtype=jnp.int32),
             pair_idx=jnp.array(0, dtype=jnp.int32),
-            carry=None,
         )
 
         # Test operations on single cell

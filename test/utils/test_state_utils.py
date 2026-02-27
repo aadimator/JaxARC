@@ -37,7 +37,6 @@ def sample_state():
         key=jax.random.PRNGKey(42),
         task_idx=jnp.int32(0),
         pair_idx=jnp.int32(0),
-        carry={},
     )
 
 
@@ -98,7 +97,6 @@ class TestUpdateMultipleFields:
         new_selected = jnp.array([[True, False], [True, False]])
         new_step_count = jnp.int32(20)
         new_similarity = jnp.float32(0.95)
-        new_carry = {"test": "value"}
 
         updated_state = update_multiple_fields(
             sample_state,
@@ -109,7 +107,6 @@ class TestUpdateMultipleFields:
             selected=new_selected,
             step_count=new_step_count,
             similarity_score=new_similarity,
-            carry=new_carry,
         )
 
         chex.assert_trees_all_equal(updated_state.working_grid, new_working_grid)
@@ -119,7 +116,6 @@ class TestUpdateMultipleFields:
         chex.assert_trees_all_equal(updated_state.selected, new_selected)
         assert updated_state.step_count == new_step_count
         assert updated_state.similarity_score == new_similarity
-        assert updated_state.carry == new_carry
 
 
 class TestValidateStateConsistency:
@@ -364,17 +360,6 @@ class TestEdgeCasesAndBoundaryConditions:
         )
         chex.assert_trees_all_close(updated_float64.similarity_score, 0.95)
 
-    def test_update_with_empty_carry(self, sample_state):
-        """Test updating carry field with different values."""
-        # Test with empty dict
-        updated_empty = update_multiple_fields(sample_state, carry={})
-        assert updated_empty.carry == {}
-
-        # Test with populated dict
-        new_carry = {"key1": "value1", "key2": 42}
-        updated_carry = update_multiple_fields(sample_state, carry=new_carry)
-        assert updated_carry.carry == new_carry
-
     def test_update_with_large_grids(self):
         """Test updating with larger grid sizes."""
         # Create state with larger grids
@@ -397,7 +382,6 @@ class TestEdgeCasesAndBoundaryConditions:
             key=jax.random.PRNGKey(42),
             task_idx=jnp.int32(0),
             pair_idx=jnp.int32(0),
-            carry={},
         )
 
         # Test updates work with large grids

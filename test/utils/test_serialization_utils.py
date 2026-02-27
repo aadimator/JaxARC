@@ -327,7 +327,6 @@ class TestSerializeState:
             key=jax.random.PRNGKey(42),
             task_idx=jnp.int32(0),
             pair_idx=jnp.int32(0),
-            carry={"test": "value"},
         )
 
     def test_serialize_state_basic(self, sample_state):
@@ -408,7 +407,6 @@ class TestSerializeLogStep:
             key=jax.random.PRNGKey(42),
             task_idx=jnp.int32(0),
             pair_idx=jnp.int32(0),
-            carry={},
         )
 
     def test_serialize_log_step_basic(self, sample_state):

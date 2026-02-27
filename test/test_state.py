@@ -76,7 +76,6 @@ class TestState:
         chex.assert_trees_all_equal(state.key, key)
         chex.assert_trees_all_equal(state.task_idx, task_idx)
         chex.assert_trees_all_equal(state.pair_idx, pair_idx)
-        assert state.carry is None
 
     def test_state_validation(self):
         """Test State validation catches invalid configurations."""
@@ -192,56 +191,6 @@ class TestState:
         assert state.working_grid.shape == grid_shape
         chex.assert_type(state.step_count, jnp.integer)
         chex.assert_type(state.similarity_score, jnp.floating)
-
-    def test_state_transitions_and_carry(self):
-        """Test State transitions and carry functionality."""
-        grid_shape = (2, 2)
-
-        # Create initial state with carry
-        initial_carry = {"episode_info": "test", "custom_data": jnp.array([1, 2, 3])}
-
-        state = State(
-            working_grid=jnp.zeros(grid_shape, dtype=jnp.int32),
-            working_grid_mask=jnp.ones(grid_shape, dtype=jnp.bool_),
-            input_grid=jnp.ones(grid_shape, dtype=jnp.int32),
-            input_grid_mask=jnp.ones(grid_shape, dtype=jnp.bool_),
-            target_grid=jnp.full(grid_shape, 2, dtype=jnp.int32),
-            target_grid_mask=jnp.ones(grid_shape, dtype=jnp.bool_),
-            selected=jnp.zeros(grid_shape, dtype=jnp.bool_),
-            clipboard=jnp.zeros(grid_shape, dtype=jnp.int32),
-            step_count=jnp.array(0, dtype=jnp.int32),
-            allowed_operations_mask=jnp.ones(NUM_OPERATIONS, dtype=jnp.bool_),
-            similarity_score=jnp.array(0.0, dtype=jnp.float32),
-            key=jax.random.PRNGKey(42),
-            task_idx=jnp.array(0, dtype=jnp.int32),
-            pair_idx=jnp.array(0, dtype=jnp.int32),
-            carry=initial_carry,
-        )
-
-        # Verify carry is stored correctly
-        assert state.carry is not None
-        assert state.carry["episode_info"] == "test"
-        chex.assert_trees_all_equal(state.carry["custom_data"], jnp.array([1, 2, 3]))
-
-        # Test state transition (step increment)
-        new_step_count = state.step_count + 1
-        new_similarity = jnp.array(0.5, dtype=jnp.float32)
-
-        next_state = eqx.tree_at(
-            lambda s: (s.step_count, s.similarity_score),
-            state,
-            (new_step_count, new_similarity),
-        )
-
-        # Verify transition
-        chex.assert_trees_all_equal(
-            next_state.step_count, jnp.array(1, dtype=jnp.int32)
-        )
-        chex.assert_trees_all_equal(next_state.similarity_score, new_similarity)
-
-        # Carry should be preserved
-        assert next_state.carry is not None
-        assert next_state.carry["episode_info"] == "test"
 
     def test_state_grid_operations_state(self):
         """Test State maintains grid operations state correctly."""
