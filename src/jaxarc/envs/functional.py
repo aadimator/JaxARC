@@ -72,7 +72,7 @@ def _calculate_reward(
     params: EnvParams,
     *,
     is_submit_step: jnp.ndarray | None = None,
-    episode_mode: int | None = None,
+    episode_mode: jnp.ndarray | None = None,
 ) -> RewardValue:
     """Submit-aware reward with optional episode mode selection.
 
@@ -132,27 +132,12 @@ def _calculate_reward(
     return jnp.where(is_training, training_reward, evaluation_reward)
 
 
-# JAX-compatible step info structure - replaces dict for performance.
-class StepInfo(eqx.Module):
-    """Step info as an Equinox Module for PyTree compatibility.
-
-    Simplified to include only fields available in the minimal state model.
-    """
-
-    similarity: jax.Array
-    similarity_improvement: jax.Array
-    operation_type: jax.Array
-    step_count: jax.Array
-    success: jax.Array
-
-
 def _initialize_grids(
     task_data: JaxArcTask,
     selected_pair_idx: jnp.ndarray,
-    episode_mode: int,
+    episode_mode: jnp.ndarray,
     params: EnvParams,
     key: PRNGKey,
-    initial_pair_idx: int | None = None,
 ) -> tuple[
     jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray
 ]:
@@ -166,10 +151,8 @@ def _initialize_grids(
         task_data: JaxArcTask containing demonstration and test pair data
         selected_pair_idx: JAX array with the index of the selected pair
         episode_mode: Episode mode (0=train, 1=test) determining grid initialization
-        config: Environment configuration containing grid initialization settings
+        params: Environment parameters containing grid initialization settings
         key: JAX PRNG key for diverse initialization.
-        initial_pair_idx: Optional specific pair index for demo-based initialization.
-                         If None, uses random selection. If specified, uses that pair.
 
     Returns:
         Tuple containing:
@@ -180,17 +163,15 @@ def _initialize_grids(
     Examples:
         ```python
         # Training mode with diverse initialization and specific pair
-        init_grid, target, mask = _initialize_grids(
-            task, idx, 0, config, key, initial_pair_idx=2
-        )
+        init_grid, target, mask = _initialize_grids(task, idx, 0, params, key)
 
         # Test mode initialization (target masked) with random selection
-        init_grid, masked_target, mask = _initialize_grids(task, idx, 1, config, key)
+        init_grid, masked_target, mask = _initialize_grids(task, idx, 1, params, key)
         ```
 
     Note:
-        Uses the new diverse grid initialization engine when grid_initialization
-        config is present and key is not provided. Respects initial_pair_idx for demo-based modes.
+        Uses the diverse grid initialization engine via
+        params.grid_initialization config.
     """
 
     # Get target grid and mask based on episode mode
@@ -219,7 +200,6 @@ def _initialize_grids(
         params.grid_initialization,
         key,
         batch_size=1,
-        initial_pair_idx=initial_pair_idx,
     )
     # Remove batch dimension (squeeze first axis)
     initial_grid = jnp.squeeze(initial_grid, axis=0)
@@ -327,17 +307,15 @@ def reset(params: EnvParams, key: PRNGKey) -> tuple[State, TimeStep]:
     # Split key for independent sampling
     key_id, key_pair, key_init = jax.random.split(key, 3)
 
-    # Resolve candidate task indices
-    has_subset = params.subset_indices is not None
-    if has_subset:
-        indices = params.subset_indices
-        num = indices.shape[0]
-        subset_index = jax.random.randint(key_id, (), 0, num)
-        task_idx = indices[subset_index]
-    else:
-        # Derive total tasks N from leading dimension of a canonical field
-        N = params.buffer.input_grids_examples.shape[0]
-        task_idx = jax.random.randint(key_id, (), 0, N)
+    # When subset_indices is None, sample from all tasks; otherwise from the subset.
+    # The `is not None` check is a static/compile-time decision under eqx.filter_jit.
+    all_indices = jnp.arange(params.buffer.input_grids_examples.shape[0])
+    indices = (
+        params.subset_indices if params.subset_indices is not None else all_indices
+    )
+    num = indices.shape[0]
+    subset_index = jax.random.randint(key_id, (), 0, num)
+    task_idx = indices[subset_index]
 
     # Gather a single task's arrays from the stacked buffer
     single = jax.tree_util.tree_map(lambda x: x[task_idx], params.buffer)
@@ -377,10 +355,9 @@ def reset(params: EnvParams, key: PRNGKey) -> tuple[State, TimeStep]:
         _initialize_grids(
             task_data=task_data,
             selected_pair_idx=selected_pair_idx,
-            episode_mode=int(params.episode_mode),
+            episode_mode=episode_mode,
             params=params,
             key=key_init,
-            initial_pair_idx=None,
         )
     )
 
@@ -432,7 +409,7 @@ def step(params: EnvParams, state: State, action) -> tuple[State, TimeStep]:
         final_state,
         params,
         is_submit_step=is_submit_step,
-        episode_mode=int(params.episode_mode),
+        episode_mode=jnp.asarray(params.episode_mode, dtype=jnp.int32),
     )
 
     # TERMINATED: Task completed (solved or failed via submit)

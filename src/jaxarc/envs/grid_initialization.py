@@ -23,7 +23,6 @@ def initialize_working_grids(
     config: GridInitializationConfig,
     key: PRNGKey,
     batch_size: int = 1,
-    initial_pair_idx: int | None = None,
 ) -> tuple[GridArray, MaskArray]:
     """Initialize working grids with configurable strategies.
 
@@ -32,7 +31,6 @@ def initialize_working_grids(
         config: GridInitializationConfig with mode weights
         key: JAX PRNG key for random operations
         batch_size: Number of grids to initialize
-        initial_pair_idx: Optional specific pair index for demo-based modes
 
     Returns:
         Tuple of (initialized_grids, grid_masks) with shape [batch_size, height, width]
@@ -47,7 +45,7 @@ def initialize_working_grids(
     # Vectorize initialization across batch
     vectorized_init = jax.vmap(
         lambda single_key, mode_idx: _initialize_single_grid(
-            task, config, single_key, mode_idx, initial_pair_idx
+            task, config, single_key, mode_idx
         ),
         in_axes=(0, 0),
         out_axes=(0, 0),
@@ -88,32 +86,24 @@ def _initialize_single_grid(
     config: GridInitializationConfig,
     key: PRNGKey,
     mode_idx: int,
-    initial_pair_idx: int | None = None,
 ) -> tuple[GridArray, MaskArray]:
     """Initialize a single grid based on mode index."""
     return jax.lax.switch(
         mode_idx,
         [
-            lambda: _init_demo_grid(task, key, initial_pair_idx),
-            lambda: _init_permutation_grid(task, config, key, initial_pair_idx),
+            lambda: _init_demo_grid(task, key),
+            lambda: _init_permutation_grid(task, config, key),
             lambda: _init_empty_grid(task),
             lambda: _init_random_grid(task, config, key),
         ],
     )
 
 
-def _init_demo_grid(
-    task: JaxArcTask, key: PRNGKey, initial_pair_idx: int | None = None
-) -> tuple[GridArray, MaskArray]:
+def _init_demo_grid(task: JaxArcTask, key: PRNGKey) -> tuple[GridArray, MaskArray]:
     """Initialize grid from demo input examples."""
 
     def use_demo_pair():
-        # Select demo index
-        if initial_pair_idx is not None:
-            demo_idx = jnp.clip(initial_pair_idx, 0, task.num_train_pairs - 1)
-        else:
-            demo_idx = jax.random.randint(key, (), 0, task.num_train_pairs)
-
+        demo_idx = jax.random.randint(key, (), 0, task.num_train_pairs)
         return task.input_grids_examples[demo_idx], task.input_masks_examples[demo_idx]
 
     def create_empty_fallback():
@@ -133,13 +123,12 @@ def _init_permutation_grid(
     task: JaxArcTask,
     config: GridInitializationConfig,
     key: PRNGKey,
-    initial_pair_idx: int | None = None,
 ) -> tuple[GridArray, MaskArray]:
     """Initialize grid with permuted versions of demo inputs."""
     demo_key, perm_key = jax.random.split(key)
 
     # Start with a demo grid
-    base_grid, base_mask = _init_demo_grid(task, demo_key, initial_pair_idx)
+    base_grid, base_mask = _init_demo_grid(task, demo_key)
 
     # Apply random permutation
     permuted_grid = _apply_permutation(base_grid, config, perm_key)
@@ -211,7 +200,8 @@ def _apply_permutation(
     grid: GridArray, config: GridInitializationConfig, key: PRNGKey
 ) -> GridArray:
     """Apply simple permutations to grid."""
-    # Check if we have any permutation types
+    # Static checks — config.permutation_types is a frozen tuple of strings.
+    # Under eqx.filter_jit these resolve at trace/compile time, not runtime.
     has_rotate = "rotate" in config.permutation_types
     has_reflect = "reflect" in config.permutation_types
     has_color_remap = "color_remap" in config.permutation_types
