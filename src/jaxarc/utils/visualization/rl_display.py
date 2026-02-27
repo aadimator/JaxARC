@@ -652,7 +652,7 @@ def draw_rl_step_svg_enhanced(
         after_grid: Grid state after the action
         action: Action object or dictionary
         reward: Reward received for this step
-        info: Additional information dictionary or StepInfo object
+        info: Additional information dictionary
         step_num: Step number in the episode
         operation_name: Human-readable operation name
         changed_cells: Optional mask of cells that changed

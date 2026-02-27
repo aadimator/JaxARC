@@ -11,7 +11,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
 from pyprojroot import here
@@ -276,63 +276,3 @@ class DatasetManager:
         except Exception as e:
             logger.error(f"Configuration validation failed for {dataset_name}: {e}")
             raise ValueError(f"Invalid configuration for {dataset_name}: {e}") from e
-
-    @staticmethod
-    def get_dataset_recommendations(dataset_name: str) -> dict[str, Any]:
-        """
-        Get recommended configuration settings for a dataset.
-
-        Args:
-            dataset_name: Name of the dataset
-
-        Returns:
-            Dictionary of recommended configuration overrides
-
-        Example:
-            ```python
-            from jaxarc.utils.dataset_manager import DatasetManager
-
-            recommendations = DatasetManager.get_dataset_recommendations("MiniARC")
-            print(recommendations)
-            # {'dataset.max_grid_height': 5, 'dataset.max_grid_width': 5, ...}
-            ```
-        """
-        recommendations: dict[str, Any] = {}
-
-        dataset_name_lower = dataset_name.lower()
-        if dataset_name_lower in ("conceptarc", "concept-arc", "concept"):
-            recommendations.update(
-                {
-                    "dataset.max_grid_height": 30,
-                    "dataset.max_grid_width": 30,
-                    "dataset.dataset_name": "ConceptARC",
-                }
-            )
-        elif dataset_name_lower in ("miniarc", "mini-arc", "mini"):
-            recommendations.update(
-                {
-                    "dataset.max_grid_height": 5,
-                    "dataset.max_grid_width": 5,
-                    "dataset.dataset_name": "MiniARC",
-                }
-            )
-        elif dataset_name_lower in ("arc-agi-1", "agi1", "agi-1"):
-            recommendations.update(
-                {
-                    "dataset.max_grid_height": 30,
-                    "dataset.max_grid_width": 30,
-                    "dataset.dataset_name": "ARC-AGI-1",
-                }
-            )
-        elif dataset_name_lower in ("arc-agi-2", "agi2", "agi-2"):
-            recommendations.update(
-                {
-                    "dataset.max_grid_height": 30,
-                    "dataset.max_grid_width": 30,
-                    "dataset.dataset_name": "ARC-AGI-2",
-                }
-            )
-        else:
-            logger.warning(f"No recommendations available for dataset: {dataset_name}")
-
-        return recommendations
