@@ -188,7 +188,7 @@ class TestJaxArcConfigHydraIntegration:
         """Test creating JaxArcConfig from complete Hydra config."""
         hydra_config = DictConfig(
             {
-                "environment": {"max_episode_steps": 200, "auto_reset": False},
+                "environment": {"max_episode_steps": 200},
                 "dataset": {"max_grid_height": 40, "max_colors": 12},
                 "action": {
                     "num_operations": 50,
@@ -207,7 +207,6 @@ class TestJaxArcConfigHydraIntegration:
 
         # Verify all specified values are used
         assert config.environment.max_episode_steps == 200
-        assert config.environment.auto_reset is False
         assert config.dataset.max_grid_height == 40
         assert config.dataset.max_colors == 12
         assert config.action.max_operations == 50
