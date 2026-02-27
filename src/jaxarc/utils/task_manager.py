@@ -237,20 +237,6 @@ def get_global_task_manager() -> TaskIDManager:
         return _global_task_manager
 
 
-def set_global_task_manager(manager: TaskIDManager) -> None:
-    """
-    Set the global task ID manager instance.
-
-    Args:
-        manager: TaskIDManager instance to use globally
-    """
-    global _global_task_manager
-
-    with _global_manager_lock:
-        _global_task_manager = manager
-        logger.debug("Set global task ID manager")
-
-
 def register_task_globally(task_id: str) -> int:
     """
     Register a task ID globally and get its integer index.
@@ -359,76 +345,3 @@ def is_dummy_task_index(task_index: chex.Array) -> bool:
         True if this is a dummy task (-1), False otherwise
     """
     return int(task_index.item()) == -1
-
-
-# Context manager for temporary task managers
-
-
-class TemporaryTaskManager:
-    """Context manager for using a temporary task ID manager."""
-
-    def __init__(self, manager: Optional[TaskIDManager] = None):
-        """
-        Initialize with an optional task manager.
-
-        Args:
-            manager: TaskIDManager to use, or None to create a new one
-        """
-        self.temp_manager = manager or TaskIDManager()
-        self.original_manager = None
-
-    def __enter__(self) -> TaskIDManager:
-        """Enter the context and set the temporary manager."""
-        global _global_task_manager
-
-        with _global_manager_lock:
-            self.original_manager = _global_task_manager
-            _global_task_manager = self.temp_manager
-
-        return self.temp_manager
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit the context and restore the original manager."""
-        global _global_task_manager
-
-        with _global_manager_lock:
-            _global_task_manager = self.original_manager
-
-
-# Example usage and testing utilities
-
-
-def example_usage():
-    """Example of how to use the task ID management system."""
-    # Create a task manager
-    manager = TaskIDManager()
-
-    # Register some tasks
-    index1 = manager.register_task("task_001")
-    index2 = manager.register_task("task_002")
-    index3 = manager.register_task("task_001")  # Same task, same index
-
-    print(f"Task indices: {index1}, {index2}, {index3}")
-    print(f"Index1 == Index3: {index1 == index3}")
-
-    # Get JAX-compatible arrays
-    jax_index1 = manager.get_jax_index("task_001")
-    jax_index2 = manager.get_jax_index("task_002")
-
-    print(f"JAX indices: {jax_index1}, {jax_index2}")
-
-    # Reverse lookup
-    task_id1 = manager.get_task_id(index1)
-    task_id2 = manager.get_task_id(index2)
-
-    print(f"Task IDs: {task_id1}, {task_id2}")
-
-    # Global manager usage
-    global_index = register_task_globally("global_task_001")
-    global_task_id = get_task_id_globally(global_index)
-
-    print(f"Global: {global_index} -> {global_task_id}")
-
-
-if __name__ == "__main__":
-    example_usage()
