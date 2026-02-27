@@ -23,17 +23,13 @@ class TestEnvironmentConfigCreation:
 
         # Verify default values
         assert config.max_episode_steps == 100
-        assert config.auto_reset is True
         assert config.debug_level == "minimal"
 
     def test_custom_initialization(self):
         """Test EnvironmentConfig with custom parameters."""
-        config = EnvironmentConfig(
-            max_episode_steps=200, auto_reset=False, debug_level="verbose"
-        )
+        config = EnvironmentConfig(max_episode_steps=200, debug_level="verbose")
 
         assert config.max_episode_steps == 200
-        assert config.auto_reset is False
         assert config.debug_level == "verbose"
 
 
@@ -135,19 +131,15 @@ class TestEnvironmentConfigHydraIntegration:
 
         # Should use defaults
         assert config.max_episode_steps == 100
-        assert config.auto_reset is True
         assert config.debug_level == "minimal"
 
     def test_from_hydra_with_values(self):
         """Test creating EnvironmentConfig from Hydra config with values."""
-        hydra_config = DictConfig(
-            {"max_episode_steps": 150, "auto_reset": False, "debug_level": "verbose"}
-        )
+        hydra_config = DictConfig({"max_episode_steps": 150, "debug_level": "verbose"})
 
         config = EnvironmentConfig.from_hydra(hydra_config)
 
         assert config.max_episode_steps == 150
-        assert config.auto_reset is False
         assert config.debug_level == "verbose"
 
 
@@ -156,13 +148,12 @@ class TestEnvironmentConfigBehaviorSettings:
 
     def test_episode_configuration(self):
         """Test episode-related configuration."""
-        config = EnvironmentConfig(max_episode_steps=500, auto_reset=True)
+        config = EnvironmentConfig(max_episode_steps=500)
 
         errors = config.validate()
         assert len(errors) == 0
 
         assert config.max_episode_steps == 500
-        assert config.auto_reset is True
 
     def test_debug_configuration(self):
         """Test debug level configuration."""
@@ -195,10 +186,9 @@ class TestEnvironmentConfigBehaviorSettings:
 
     def test_no_auto_reset_configuration(self):
         """Test configuration without auto reset."""
-        config = EnvironmentConfig(auto_reset=False, max_episode_steps=50)
+        config = EnvironmentConfig(max_episode_steps=50)
 
         errors = config.validate()
         assert len(errors) == 0
 
-        assert config.auto_reset is False
         assert config.max_episode_steps == 50

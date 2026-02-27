@@ -13,7 +13,6 @@ import pytest
 
 from jaxarc.utils.task_manager import (
     TaskIDManager,
-    TemporaryTaskManager,
     create_jax_task_index,
     extract_task_id_from_index,
     get_global_task_manager,
@@ -22,7 +21,6 @@ from jaxarc.utils.task_manager import (
     get_task_index_globally,
     is_dummy_task_index,
     register_task_globally,
-    set_global_task_manager,
 )
 
 
@@ -410,22 +408,6 @@ class TestGlobalTaskManager:
 
         assert manager1 is manager2
 
-    def test_set_global_manager(self):
-        """Test setting custom global manager."""
-        original_manager = get_global_task_manager()
-        custom_manager = TaskIDManager()
-
-        try:
-            set_global_task_manager(custom_manager)
-            current_manager = get_global_task_manager()
-
-            assert current_manager is custom_manager
-            assert current_manager is not original_manager
-
-        finally:
-            # Restore original manager
-            set_global_task_manager(original_manager)
-
     def test_global_convenience_functions(self):
         """Test global convenience functions."""
         # Clear global manager for clean test
@@ -506,71 +488,6 @@ class TestUtilityFunctions:
 
         assert is_dummy_task_index(dummy_index) == True
         assert is_dummy_task_index(real_index) == False
-
-
-class TestTemporaryTaskManager:
-    """Test temporary task manager context manager."""
-
-    def test_temporary_manager_context(self):
-        """Test using temporary task manager context."""
-        # Get original global manager and register a task
-        original_manager = get_global_task_manager()
-        original_manager.clear()
-        original_index = register_task_globally("original_task")
-
-        # Use temporary manager
-        with TemporaryTaskManager() as temp_manager:
-            # Should be using temporary manager now
-            current_manager = get_global_task_manager()
-            assert current_manager is temp_manager
-            assert current_manager is not original_manager
-
-            # Register task in temporary manager
-            temp_index = register_task_globally("temp_task")
-            assert temp_index == 0  # Fresh manager starts from 0
-
-            # Original task should not be visible
-            assert get_task_index_globally("original_task") is None
-
-        # Should be back to original manager
-        current_manager = get_global_task_manager()
-        assert current_manager is original_manager
-
-        # Original task should be visible again
-        assert get_task_index_globally("original_task") == original_index
-
-        # Temporary task should not be visible
-        assert get_task_index_globally("temp_task") is None
-
-    def test_temporary_manager_with_custom_manager(self):
-        """Test temporary manager with custom manager instance."""
-        custom_manager = TaskIDManager()
-        custom_manager.register_task("custom_task")
-
-        with TemporaryTaskManager(custom_manager) as temp_manager:
-            assert temp_manager is custom_manager
-
-            # Custom task should be visible
-            assert get_task_index_globally("custom_task") == 0
-
-    def test_temporary_manager_exception_handling(self):
-        """Test that temporary manager restores original even on exception."""
-        original_manager = get_global_task_manager()
-
-        try:
-            with TemporaryTaskManager():
-                # Verify we're using temporary manager
-                temp_manager = get_global_task_manager()
-                assert temp_manager is not original_manager
-
-                # Raise an exception
-                raise ValueError("Test exception")
-        except ValueError:
-            pass  # Expected
-
-        # Should be back to original manager despite exception
-        current_manager = get_global_task_manager()
-        assert current_manager is original_manager
 
 
 class TestEdgeCasesAndBoundaryConditions:

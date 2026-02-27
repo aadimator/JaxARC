@@ -496,82 +496,6 @@ class TestValidateConfig:
             manager.validate_config(mock_config, "TestDataset")
 
 
-class TestGetDatasetRecommendations:
-    """Test dataset recommendations functionality."""
-
-    def test_get_recommendations_conceptarc(self):
-        """Test recommendations for ConceptARC."""
-        recommendations = DatasetManager.get_dataset_recommendations("ConceptARC")
-
-        assert isinstance(recommendations, dict)
-        assert recommendations["dataset.max_grid_height"] == 30
-        assert recommendations["dataset.max_grid_width"] == 30
-        assert recommendations["dataset.dataset_name"] == "ConceptARC"
-
-    def test_get_recommendations_miniarc(self):
-        """Test recommendations for MiniARC."""
-        recommendations = DatasetManager.get_dataset_recommendations("MiniARC")
-
-        assert isinstance(recommendations, dict)
-        assert recommendations["dataset.max_grid_height"] == 5
-        assert recommendations["dataset.max_grid_width"] == 5
-        assert recommendations["dataset.dataset_name"] == "MiniARC"
-
-    def test_get_recommendations_arc_agi_1(self):
-        """Test recommendations for ARC-AGI-1."""
-        recommendations = DatasetManager.get_dataset_recommendations("ARC-AGI-1")
-
-        assert isinstance(recommendations, dict)
-        assert recommendations["dataset.max_grid_height"] == 30
-        assert recommendations["dataset.max_grid_width"] == 30
-        assert recommendations["dataset.dataset_name"] == "ARC-AGI-1"
-
-    def test_get_recommendations_arc_agi_2(self):
-        """Test recommendations for ARC-AGI-2."""
-        recommendations = DatasetManager.get_dataset_recommendations("ARC-AGI-2")
-
-        assert isinstance(recommendations, dict)
-        assert recommendations["dataset.max_grid_height"] == 30
-        assert recommendations["dataset.max_grid_width"] == 30
-        assert recommendations["dataset.dataset_name"] == "ARC-AGI-2"
-
-    def test_get_recommendations_case_insensitive(self):
-        """Test that recommendations work with different cases."""
-        # Test various case combinations
-        test_cases = [
-            ("conceptarc", "ConceptARC"),
-            ("MINIARC", "MiniARC"),
-            ("mini-arc", "MiniARC"),
-            ("arc-agi-1", "ARC-AGI-1"),
-            ("AGI2", "ARC-AGI-2"),
-        ]
-
-        for input_name, expected_name in test_cases:
-            recommendations = DatasetManager.get_dataset_recommendations(input_name)
-            assert recommendations["dataset.dataset_name"] == expected_name
-
-    def test_get_recommendations_unknown_dataset(self):
-        """Test recommendations for unknown dataset."""
-        with patch("jaxarc.utils.dataset_manager.logger") as mock_logger:
-            recommendations = DatasetManager.get_dataset_recommendations(
-                "UnknownDataset"
-            )
-
-            assert isinstance(recommendations, dict)
-            assert len(recommendations) == 0
-            mock_logger.warning.assert_called()
-            assert "No recommendations available" in str(mock_logger.warning.call_args)
-
-    def test_get_recommendations_empty_string(self):
-        """Test recommendations for empty string."""
-        with patch("jaxarc.utils.dataset_manager.logger") as mock_logger:
-            recommendations = DatasetManager.get_dataset_recommendations("")
-
-            assert isinstance(recommendations, dict)
-            assert len(recommendations) == 0
-            mock_logger.warning.assert_called()
-
-
 class TestIntegrationAndWorkflows:
     """Test integration scenarios and complete workflows."""
 
@@ -614,25 +538,21 @@ class TestIntegrationAndWorkflows:
                 assert (result_path / "data").exists()
 
     def test_validation_and_recommendation_workflow(self):
-        """Test workflow of getting recommendations and validating config."""
+        """Test workflow of validating config."""
         manager = DatasetManager()
 
-        # Get recommendations for MiniARC
-        recommendations = DatasetManager.get_dataset_recommendations("MiniARC")
-
-        # Create config with recommendations
+        # Create config for MiniARC
         config = JaxArcConfig(
             dataset=DatasetConfig(
-                dataset_name=recommendations["dataset.dataset_name"],
-                max_grid_height=recommendations["dataset.max_grid_height"],
-                max_grid_width=recommendations["dataset.max_grid_width"],
+                dataset_name="MiniARC",
+                max_grid_height=5,
+                max_grid_width=5,
             )
         )
 
         # Validate the config
         manager.validate_config(config, "MiniARC")
 
-        # Should not raise any warnings since we used recommendations
         assert config.dataset.dataset_name == "MiniARC"
         assert config.dataset.max_grid_height == 5
         assert config.dataset.max_grid_width == 5

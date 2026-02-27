@@ -22,7 +22,6 @@ class EnvironmentConfig(eqx.Module):
 
     # Episode settings
     max_episode_steps: int = 100
-    auto_reset: bool = True
 
     # Debug level (simplified: off|minimal|verbose)
     debug_level: Literal["off", "minimal", "verbose"] = "minimal"
@@ -68,7 +67,6 @@ class EnvironmentConfig(eqx.Module):
         """Create environment config from Hydra DictConfig."""
         return cls(
             max_episode_steps=cfg.get("max_episode_steps", 100),
-            auto_reset=cfg.get("auto_reset", True),
             debug_level=cfg.get("debug_level", "minimal"),
             render_mode=cfg.get("render_mode", "rgb_array"),
         )

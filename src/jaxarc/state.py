@@ -1,7 +1,7 @@
 """
 Centralized environment state definition using Equinox.
 
-This module defines the simplified, generic `State` used throughout JaxARC.
+This module defines the simplified `State` used throughout JaxARC.
 Static configuration has been removed from state and moved to EnvParams.
 
 Key properties:
@@ -9,12 +9,9 @@ Key properties:
 - JAXTyping annotations for precise type safety
 - Purely dynamic fields that change during episodes
 - JAX transformation compatibility (jit, vmap, pmap)
-- Optional `carry` following the XLand-Minigrid pattern for extensions
 """
 
 from __future__ import annotations
-
-from typing import Generic, TypeVar
 
 import chex
 import equinox as eqx
@@ -32,11 +29,9 @@ from jaxarc.types import (
     TaskIndex,
 )
 
-EnvCarryT = TypeVar("EnvCarryT")
 
-
-class State(eqx.Module, Generic[EnvCarryT]):
-    """Environment state with optional carry (XLand-Minigrid pattern).
+class State(eqx.Module):
+    """Environment state.
 
     Contains only truly dynamic variables that change during episodes.
     Static configuration is moved to EnvParams.
@@ -69,9 +64,6 @@ class State(eqx.Module, Generic[EnvCarryT]):
     # Task/pair tracking (link into EnvParams.buffer)
     task_idx: TaskIndex  # Index into EnvParams.buffer identifying active task
     pair_idx: PairIndex  # Index of current demonstration/test pair within task
-
-    # Optional carry for extensions (proper XLand-Minigrid pattern)
-    carry: EnvCarryT | None = None
 
     def __check_init__(self) -> None:
         """Validate dynamic state structure."""
