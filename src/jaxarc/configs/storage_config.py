@@ -6,7 +6,9 @@ from omegaconf import DictConfig
 
 from .validation import (
     ConfigValidationError,
+    check_hashable,
     validate_path_string,
+    validate_positive_float,
     validate_positive_int,
     validate_string_choice,
 )
@@ -59,12 +61,7 @@ class StorageConfig(eqx.Module):
 
             # Validate numeric fields
             validate_positive_int(self.max_episodes_per_run, "max_episodes_per_run")
-
-            if not isinstance(self.max_storage_gb, (int, float)):
-                msg = f"max_storage_gb must be a number, got {type(self.max_storage_gb).__name__}"
-                errors.append(msg)
-            elif self.max_storage_gb <= 0:
-                errors.append("max_storage_gb must be positive")
+            validate_positive_float(self.max_storage_gb, "max_storage_gb")
 
             # Validate reasonable bounds
             if self.max_episodes_per_run > 10000:
@@ -81,12 +78,7 @@ class StorageConfig(eqx.Module):
         return tuple(errors)
 
     def __check_init__(self):
-        """Validate hashability after initialization."""
-        try:
-            hash(self)
-        except TypeError as e:
-            msg = f"StorageConfig must be hashable for JAX compatibility: {e}"
-            raise ValueError(msg) from e
+        check_hashable(self, "StorageConfig")
 
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> StorageConfig:

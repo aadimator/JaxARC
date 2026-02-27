@@ -8,6 +8,9 @@ import yaml
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
+# Import canonical constants to avoid magic numbers
+from jaxarc.constants import NUM_COLORS
+
 from .action_config import ActionConfig
 from .dataset_config import DatasetConfig
 from .environment_config import EnvironmentConfig
@@ -15,7 +18,7 @@ from .grid_initialization_config import GridInitializationConfig
 from .logging_config import LoggingConfig
 from .reward_config import RewardConfig
 from .storage_config import StorageConfig
-from .validation import ConfigValidationError
+from .validation import ConfigValidationError, check_hashable
 from .visualization_config import VisualizationConfig
 from .wandb_config import WandbConfig
 
@@ -61,29 +64,27 @@ class JaxArcConfig(eqx.Module):
         self.wandb = wandb or WandbConfig.from_hydra(DictConfig({}))
 
     def __check_init__(self):
-        try:
-            hash(self)
-        except TypeError as e:
-            msg = f"JaxArcConfig must be hashable for JAX compatibility: {e}"
-            raise ValueError(msg) from e
+        check_hashable(self, "JaxArcConfig")
+
+    # Sub-config field names for iteration
+    _SUB_CONFIGS = (
+        "environment",
+        "dataset",
+        "action",
+        "reward",
+        "grid_initialization",
+        "visualization",
+        "storage",
+        "logging",
+        "wandb",
+    )
 
     def validate(self) -> tuple[str, ...]:
         """Validate all components and cross-config consistency."""
         all_errors: list[str] = []
-
-        all_errors.extend(self.environment.validate())
-        all_errors.extend(self.dataset.validate())
-        all_errors.extend(self.action.validate())
-        all_errors.extend(self.reward.validate())
-        all_errors.extend(self.grid_initialization.validate())
-        all_errors.extend(self.visualization.validate())
-        all_errors.extend(self.storage.validate())
-        all_errors.extend(self.logging.validate())
-        all_errors.extend(self.wandb.validate())
-
-        cross_validation_errors = self._validate_cross_config_consistency()
-        all_errors.extend(cross_validation_errors)
-
+        for name in self._SUB_CONFIGS:
+            all_errors.extend(getattr(self, name).validate())
+        all_errors.extend(self._validate_cross_config_consistency())
         return tuple(all_errors)
 
     def _validate_cross_config_consistency(self) -> tuple[str, ...]:
@@ -151,7 +152,7 @@ class JaxArcConfig(eqx.Module):
                 "Large grids with short episodes may not provide enough time for complex tasks"
             )
 
-        if self.dataset.max_colors > 10 and self.action.allowed_operations:
+        if self.dataset.max_colors > NUM_COLORS and self.action.allowed_operations:
             fill_ops = [op for op in self.action.allowed_operations if 0 <= op <= 9]
             if len(fill_ops) < self.dataset.max_colors:
                 warnings.append(
@@ -178,16 +179,9 @@ class JaxArcConfig(eqx.Module):
     def to_yaml(self) -> str:
         try:
             config_dict = {
-                "environment": self._config_to_dict(self.environment),
-                "dataset": self._config_to_dict(self.dataset),
-                "action": self._config_to_dict(self.action),
-                "reward": self._config_to_dict(self.reward),
-                "visualization": self._config_to_dict(self.visualization),
-                "storage": self._config_to_dict(self.storage),
-                "logging": self._config_to_dict(self.logging),
-                "wandb": self._config_to_dict(self.wandb),
+                name: self._config_to_dict(getattr(self, name))
+                for name in self._SUB_CONFIGS
             }
-
             return yaml.dump(
                 config_dict,
                 default_flow_style=False,
@@ -212,21 +206,11 @@ class JaxArcConfig(eqx.Module):
             raise ConfigValidationError(msg) from e
 
     def _config_to_dict(self, config: eqx.Module) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-
-        for field_name in getattr(config, "__annotations__", {}):
-            if hasattr(config, field_name):
-                value = getattr(config, field_name)
-                if value is None:
-                    result[field_name] = None
-                elif isinstance(value, (list, tuple)):
-                    result[field_name] = self._serialize_value(list(value))
-                elif hasattr(value, "__dict__") and hasattr(value, "_content"):
-                    result[field_name] = self._serialize_value(value)
-                else:
-                    result[field_name] = self._serialize_value(value)
-
-        return result
+        return {
+            name: self._serialize_value(getattr(config, name))
+            for name in getattr(config, "__annotations__", {})
+            if hasattr(config, name)
+        }
 
     def _serialize_value(self, value: Any) -> Any:
         if value is None:
@@ -248,47 +232,24 @@ class JaxArcConfig(eqx.Module):
     @classmethod
     def from_hydra(cls, hydra_config: DictConfig) -> JaxArcConfig:
         try:
-            environment_cfg = EnvironmentConfig.from_hydra(
-                hydra_config.get("environment", DictConfig({}))
-            )
-            dataset_cfg = DatasetConfig.from_hydra(
-                hydra_config.get("dataset", DictConfig({}))
-            )
-            action_cfg = ActionConfig.from_hydra(
-                hydra_config.get("action", DictConfig({}))
-            )
-            reward_cfg = RewardConfig.from_hydra(
-                hydra_config.get("reward", DictConfig({}))
-            )
-            grid_init_cfg = GridInitializationConfig.from_hydra(
-                hydra_config.get("grid_initialization", DictConfig({}))
-            )
-            visualization_cfg = VisualizationConfig.from_hydra(
-                hydra_config.get("visualization", DictConfig({}))
-            )
-            storage_cfg = StorageConfig.from_hydra(
-                hydra_config.get("storage", DictConfig({}))
-            )
-            logging_cfg = LoggingConfig.from_hydra(
-                hydra_config.get("logging", DictConfig({}))
-            )
-            wandb_cfg = WandbConfig.from_hydra(
-                hydra_config.get("wandb", DictConfig({}))
-            )
-
-            return cls(
-                environment=environment_cfg,
-                dataset=dataset_cfg,
-                action=action_cfg,
-                reward=reward_cfg,
-                grid_initialization=grid_init_cfg,
-                visualization=visualization_cfg,
-                storage=storage_cfg,
-                logging=logging_cfg,
-                wandb=wandb_cfg,
-            )
+            cfg_classes = {
+                "environment": EnvironmentConfig,
+                "dataset": DatasetConfig,
+                "action": ActionConfig,
+                "reward": RewardConfig,
+                "grid_initialization": GridInitializationConfig,
+                "visualization": VisualizationConfig,
+                "storage": StorageConfig,
+                "logging": LoggingConfig,
+                "wandb": WandbConfig,
+            }
+            sub_cfgs = {
+                name: cfg_cls.from_hydra(hydra_config.get(name, DictConfig({})))
+                for name, cfg_cls in cfg_classes.items()
+            }
+            return cls(**sub_cfgs)
+        except ConfigValidationError:
+            raise
         except Exception as e:
-            if isinstance(e, ConfigValidationError):
-                raise
             msg = f"Failed to create configuration from Hydra: {e}"
             raise ConfigValidationError(msg) from e

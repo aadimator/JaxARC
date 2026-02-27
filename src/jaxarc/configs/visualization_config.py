@@ -3,6 +3,8 @@ from __future__ import annotations
 import equinox as eqx
 from omegaconf import DictConfig
 
+from .validation import check_hashable
+
 
 class VisualizationConfig(eqx.Module):
     """All visualization and rendering settings.
@@ -39,12 +41,7 @@ class VisualizationConfig(eqx.Module):
         return tuple(errors)
 
     def __check_init__(self):
-        """Validate hashability after initialization."""
-        try:
-            hash(self)
-        except TypeError as e:
-            msg = f"VisualizationConfig must be hashable for JAX compatibility: {e}"
-            raise ValueError(msg) from e
+        check_hashable(self, "VisualizationConfig")
 
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> VisualizationConfig:

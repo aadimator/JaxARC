@@ -4,11 +4,17 @@ import equinox as eqx
 from loguru import logger
 from omegaconf import DictConfig
 
+# Import canonical constants to avoid magic numbers
+from jaxarc.constants import NUM_OPERATIONS
+
 from .validation import (
     ConfigValidationError,
+    check_hashable,
+    ensure_tuple,
     validate_float_range,
     validate_positive_int,
     validate_string_choice,
+    validate_tuple_elements,
 )
 
 
@@ -20,7 +26,7 @@ class ActionConfig(eqx.Module):
     """
 
     # Operation parameters
-    max_operations: int = 35
+    max_operations: int = NUM_OPERATIONS
     allowed_operations: tuple[int, ...] | None = None
 
     # Validation settings
@@ -37,12 +43,14 @@ class ActionConfig(eqx.Module):
 
     def __init__(self, **kwargs):
         allowed_operations = kwargs.get("allowed_operations")
-        if allowed_operations is not None and not isinstance(allowed_operations, tuple):
-            allowed_operations = (
-                tuple(allowed_operations) if allowed_operations else None
-            )
+        if allowed_operations is not None:
+            if isinstance(allowed_operations, tuple):
+                pass  # keep as-is (including empty tuple for validation to catch)
+            else:
+                converted = ensure_tuple(allowed_operations, default=(), of_type=int)
+                allowed_operations = converted if converted else None
 
-        self.max_operations = kwargs.get("max_operations", 35)
+        self.max_operations = kwargs.get("max_operations", NUM_OPERATIONS)
         self.allowed_operations = allowed_operations
         self.validate_actions = kwargs.get("validate_actions", True)
         self.allow_invalid_actions = kwargs.get("allow_invalid_actions", False)
@@ -67,30 +75,15 @@ class ActionConfig(eqx.Module):
                 logger.warning(f"max_operations is very large: {self.max_operations}")
 
             if self.allowed_operations is not None:
-                if not isinstance(self.allowed_operations, tuple):
-                    errors.append("allowed_operations must be a tuple or None")
-                elif not self.allowed_operations:
-                    errors.append("allowed_operations cannot be empty if specified")
-                else:
-                    for i, op in enumerate(self.allowed_operations):
-                        if not isinstance(op, int):
-                            errors.append(f"allowed_operations[{i}] must be an integer")
-                        elif not 0 <= op < self.max_operations:
-                            errors.append(
-                                f"allowed_operations[{i}] must be in range [0, {self.max_operations})"
-                            )
-
-                    if len(set(self.allowed_operations)) != len(
-                        self.allowed_operations
-                    ):
-                        duplicates = [
-                            op
-                            for op in set(self.allowed_operations)
-                            if self.allowed_operations.count(op) > 1
-                        ]
-                        errors.append(
-                            f"allowed_operations contains duplicate operations: {duplicates}"
-                        )
+                errors.extend(
+                    validate_tuple_elements(
+                        self.allowed_operations,
+                        "allowed_operations",
+                        element_type=int,
+                        int_range=(0, self.max_operations),
+                        allow_empty=False,
+                    )
+                )
 
             valid_policies = ("clip", "reject", "passthrough", "penalize")
             validate_string_choice(
@@ -115,23 +108,14 @@ class ActionConfig(eqx.Module):
         return tuple(errors)
 
     def __check_init__(self):
-        """Validate hashability after initialization."""
-        try:
-            hash(self)
-        except TypeError as e:
-            msg = f"ActionConfig must be hashable for JAX compatibility: {e}"
-            raise ValueError(msg) from e
+        check_hashable(self, "ActionConfig")
 
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> ActionConfig:
         """Create action config from Hydra DictConfig."""
-        allowed_ops = cfg.get("allowed_operations")
-        if allowed_ops is not None and not isinstance(allowed_ops, tuple):
-            allowed_ops = tuple(allowed_ops) if allowed_ops else None
-
         return cls(
-            allowed_operations=allowed_ops,
-            max_operations=cfg.get("num_operations", 35),
+            allowed_operations=cfg.get("allowed_operations"),
+            max_operations=cfg.get("num_operations", NUM_OPERATIONS),
             validate_actions=cfg.get("validate_actions", True),
             allow_invalid_actions=not cfg.get("clip_invalid_actions", True),
             dynamic_action_filtering=cfg.get("dynamic_action_filtering", False),

@@ -4,8 +4,12 @@ import equinox as eqx
 from loguru import logger
 from omegaconf import DictConfig
 
+# Import canonical constants to avoid magic numbers
+from jaxarc.constants import MAX_GRID_SIZE, NUM_COLORS
+
 from .validation import (
     ConfigValidationError,
+    check_hashable,
     validate_path_string,
     validate_positive_int,
     validate_string_choice,
@@ -27,13 +31,13 @@ class DatasetConfig(eqx.Module):
     expected_subdirs: tuple[str, ...] = ("data",)
 
     # Dataset-specific grid constraints
-    max_grid_height: int = 30
-    max_grid_width: int = 30
+    max_grid_height: int = MAX_GRID_SIZE
+    max_grid_width: int = MAX_GRID_SIZE
     min_grid_height: int = 3
     min_grid_width: int = 3
 
     # Color constraints
-    max_colors: int = 10
+    max_colors: int = NUM_COLORS
     background_color: int = -1
 
     # Task Configuration
@@ -130,12 +134,7 @@ class DatasetConfig(eqx.Module):
         return tuple(errors)
 
     def __check_init__(self):
-        """Validate hashability after initialization."""
-        try:
-            hash(self)
-        except TypeError as e:
-            msg = f"DatasetConfig must be hashable for JAX compatibility: {e}"
-            raise ValueError(msg) from e
+        check_hashable(self, "DatasetConfig")
 
     @classmethod
     def from_hydra(cls, cfg: DictConfig) -> DatasetConfig:
@@ -148,11 +147,11 @@ class DatasetConfig(eqx.Module):
                 "parser_entry_point", "jaxarc.parsers:ArcAgiParser"
             ),
             expected_subdirs=tuple(cfg.get("expected_subdirs", ["data"])),
-            max_grid_height=cfg.get("max_grid_height", 30),
-            max_grid_width=cfg.get("max_grid_width", 30),
+            max_grid_height=cfg.get("max_grid_height", MAX_GRID_SIZE),
+            max_grid_width=cfg.get("max_grid_width", MAX_GRID_SIZE),
             min_grid_height=cfg.get("min_grid_height", 3),
             min_grid_width=cfg.get("min_grid_width", 3),
-            max_colors=cfg.get("max_colors", 10),
+            max_colors=cfg.get("max_colors", NUM_COLORS),
             background_color=cfg.get("background_color", -1),
             task_split=cfg.get("task_split", "train"),
             max_train_pairs=cfg.get("max_train_pairs", 10),
