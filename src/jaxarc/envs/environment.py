@@ -50,6 +50,7 @@ class Environment(stoa.environment.Environment):
 
     def observation_shape(self) -> tuple[int, int, int]:
         """Get observation shape."""
+        # Config values extracted as Python ints (not traced — pre-JIT)
         return (
             int(self.params.dataset.max_grid_height),
             int(self.params.dataset.max_grid_width),
@@ -70,12 +71,7 @@ class Environment(stoa.environment.Environment):
         zero_sel = jnp.zeros((height, width), dtype=jnp.bool_)
         op_sentinel = jnp.array(-1, dtype=jnp.int32)
 
-        base_extras = (
-            timestep.extras
-            if isinstance(getattr(timestep, "extras", None), dict)
-            else {}
-        )
-        extras = dict(base_extras)
+        extras = dict(timestep.extras) if timestep.extras is not None else {}
         # Canonical action present with static shapes; values are JAX arrays
         extras.setdefault(
             "canonical_action",
@@ -120,12 +116,7 @@ class Environment(stoa.environment.Environment):
         zero_sel = jnp.zeros((height, width), dtype=jnp.bool_)
         op_sentinel = jnp.array(-1, dtype=jnp.int32)
 
-        base_extras = (
-            timestep.extras
-            if isinstance(getattr(timestep, "extras", None), dict)
-            else {}
-        )
-        extras = dict(base_extras)
+        extras = dict(timestep.extras) if timestep.extras is not None else {}
 
         # Derive canonical mask-based action: operation and selection must be JAX arrays
         op_attr = getattr(action, "operation", None)

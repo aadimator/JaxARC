@@ -7,7 +7,7 @@ Provides main logger class and utilities.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import jax
 import numpy as np
@@ -36,34 +36,11 @@ except ImportError:
 # ============================================================================
 
 
-def to_python_int(x: Any) -> Optional[int]:
-    """Convert scalar-like value to Python int or None."""
-    if x is None:
-        return None
-    try:
-        return int(np.asarray(x).item())
-    except Exception:
-        try:
-            return int(x)
-        except Exception:
-            return None
-
-
-def to_python_float(x: Any) -> Optional[float]:
-    """Convert scalar-like value to Python float or None."""
-    if x is None:
-        return None
-    try:
-        return float(np.asarray(x).item())
-    except Exception:
-        try:
-            return float(x)
-        except Exception:
-            return None
-
-
 def to_python_scalar(x: Any) -> Any:
-    """Convert JAX/numpy scalar to Python scalar, return as-is if conversion fails."""
+    """Convert JAX/numpy scalar to Python scalar, return as-is if conversion fails.
+
+    Called outside JIT — .item() is safe here.
+    """
     if x is None or isinstance(x, (int, float, bool, str)):
         return x
 
@@ -77,12 +54,40 @@ def to_python_scalar(x: Any) -> Any:
     return x
 
 
+def to_python_int(x: Any) -> int | None:
+    """Convert scalar-like value to Python int or None.
+
+    Called outside JIT — .item() is safe here.
+    """
+    val = to_python_scalar(x)
+    if val is None:
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def to_python_float(x: Any) -> float | None:
+    """Convert scalar-like value to Python float or None.
+
+    Called outside JIT — .item() is safe here.
+    """
+    val = to_python_scalar(x)
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def create_start_log(
     params: EnvParams,
-    task_idx: Union[int, Any] = None,
-    state: Optional[State] = None,
+    task_idx: int | Any = None,
+    state: State | None = None,
     episode_num: int = 0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Extract task data for logging.
 
     Args:
@@ -150,7 +155,7 @@ def create_step_log(
     episode_num: int,
     prev_state=None,
     env_params=None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create step logging payload.
 
     Args:
@@ -237,7 +242,7 @@ def create_episode_summary(
     episode_num: int,
     step_logs: list[dict],
     env_params=None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create episode summary from step logs.
 
     Args:
@@ -502,10 +507,7 @@ class ExperimentLogger:
                 if task_id is None:
                     try:
                         iid = _as_int(task_idx)
-                        if iid is not None:
-                            task_id = get_task_id_globally(iid)
-                        else:
-                            task_id = None
+                        task_id = get_task_id_globally(iid) if iid is not None else None
                     except Exception:
                         task_id = None
 

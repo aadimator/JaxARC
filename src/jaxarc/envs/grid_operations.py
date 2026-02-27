@@ -318,17 +318,11 @@ def validate_bounding_box_for_operation(
     Returns:
         True if bounding box is valid for the operation, False otherwise
     """
-    # Check if we have a valid bounding box
     has_valid_bbox = min_row >= 0
-
-    if require_square:
-        # For rotation, also check if bounding box is square
-        height = max_row - min_row + 1
-        width = max_col - min_col + 1
-        is_square = height == width
-        return has_valid_bbox & is_square
-
-    return has_valid_bbox
+    height = max_row - min_row + 1
+    width = max_col - min_col + 1
+    is_square = height == width
+    return jnp.where(require_square, has_valid_bbox & is_square, has_valid_bbox)
 
 
 # --- Color Fill Operations (0-9) ---
