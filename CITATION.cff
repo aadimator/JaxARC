@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+title: "JaxARC"
+type: software
+license: MIT
+repository-code: "https://github.com/aadimator/JaxARC"
+authors:
+  - name: "Aadam"
+    email: "aadimator@gmail.com"
+  - family-names: "Verma"
+    given-names: "Monu"
+  - family-names: "Abdel-Mottaleb"
+    given-names: "Mohamed"
+preferred-citation:
+  type: article
+  title: "JaxARC: A High-Performance JAX-based Environment for Abstraction and Reasoning Research"
+  authors:
+    - name: "Aadam"
+    - family-names: "Verma"
+      given-names: "Monu"
+    - family-names: "Abdel-Mottaleb"
+      given-names: "Mohamed"
+  year: 2026
+  url: "https://arxiv.org/abs/2601.17564"
+  identifiers:
+    - type: other
+      value: "2601.17564"
+      description: "arXiv eprint ID"
