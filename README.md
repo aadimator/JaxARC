@@ -65,8 +65,21 @@ JaxARC uses the [Stoa API](https://github.com/EdanToledo/Stoa), allowing
 seamless integration with [Stoix](https://github.com/EdanToledo/Stoix), which is
 a JAX-based reinforcement learning codebase supporting various RL algorithms.
 
-This means you can easily plug JaxARC environments into Stoix's training
-pipelines to leverage its efficient implementations of RL algorithms.
+JaxARC provides a ready-to-use factory function for Stoix:
+
+```python
+from jaxarc.stoix_adapter import make_jaxarc_env, jaxarc_custom_metrics
+
+# Create Stoix-compatible environments
+train_env, eval_env = make_jaxarc_env(config)
+
+# Process episode metrics for logging
+metrics = jaxarc_custom_metrics(raw_metrics)
+# → success_rate, avg_steps_to_solve, truncation_rate, etc.
+```
+
+Domain-specific metrics (puzzle similarity, solve rate) are tracked via the
+`ExtendedMetrics` wrapper and flow through Stoix's standard logging pipeline.
 
 You can explore
 [jaxarc-baselines](https://github.com/aadimator/jaxarc-baselines) repository for

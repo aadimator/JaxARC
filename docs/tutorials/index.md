@@ -35,6 +35,13 @@ Build baseline and custom agents for ARC tasks
 Transform observations and rewards with wrappers
 :::
 
+:::{grid-item-card} 🏋️ Stoix Integration
+:link: stoix-integration
+:link-type: doc
+
+Train RL agents on ARC puzzles via Stoix
+:::
+
 ::::
 
 ## Prerequisites

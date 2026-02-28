@@ -9,6 +9,7 @@ from .action_wrappers import (
     FlattenActionWrapper,
     PointActionWrapper,
 )
+from .extended_metrics import ExtendedMetrics, ExtendedMetricsState
 from .observation_wrappers import (
     AnswerObservationWrapper,
     ClipboardObservationWrapper,
@@ -22,6 +23,8 @@ __all__ = [
     "BboxActionWrapper",
     "ClipboardObservationWrapper",
     "ContextualObservationWrapper",
+    "ExtendedMetrics",
+    "ExtendedMetricsState",
     "FlattenActionWrapper",
     "InputGridObservationWrapper",
     "PointActionWrapper",
