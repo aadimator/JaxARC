@@ -17,12 +17,10 @@ from jaxarc.utils.buffer import stack_task_list
 
 from .config_prep import (
     ensure_dataset_available,
-    load_dataset_config,
     maybe_adjust_task_split,
     prepare_config,
     resolve_episode_mode,
 )
-from .subset_loader import infer_subset_ids
 
 # -----------------------------------------------------------------------------
 # Data structures
