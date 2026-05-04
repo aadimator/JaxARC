@@ -101,23 +101,6 @@ JaxARC builds on great work from the community:
 - **[Stoix](https://github.com/EdanToledo/Stoix)** by Edan Toledo — Single-agent
   RL in JAX (we use their Stoa API)
 
-## Citation
-
-If you use JaxARC in your research, please cite
-[our paper](https://arxiv.org/abs/2601.17564):
-
-```bibtex
-@misc{aadam2026jaxarchighperformancejaxbasedenvironment,
-      title={JaxARC: A High-Performance JAX-based Environment for Abstraction and Reasoning Research},
-      author={Aadam and Monu Verma and Mohamed Abdel-Mottaleb},
-      year={2026},
-      eprint={2601.17564},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2601.17564},
-}
-```
-
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
