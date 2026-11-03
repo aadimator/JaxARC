@@ -465,7 +465,12 @@ def compute_grid_similarity(
         matches = jnp.sum((working_content == target_content) & target_mask)
         total_target_positions = jnp.sum(target_mask)
 
-        return matches.astype(jnp.float32) / total_target_positions.astype(jnp.float32)
+        similarity = matches.astype(jnp.float32) / total_target_positions.astype(
+            jnp.float32
+        )
+        # With a constant mask, jit can compute matches * (1 / total), which can
+        # round an exact match below 1.0.
+        return jnp.where(matches == total_target_positions, 1.0, similarity)
 
     def empty_target_similarity():
         # If target is empty, similarity is 1.0 if working is also empty, 0.0 otherwise
