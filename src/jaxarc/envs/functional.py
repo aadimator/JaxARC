@@ -267,7 +267,7 @@ def _create_initial_state(
                initialized including action history, completion tracking,
                and operation masks.
     """
-    # Calculate initial similarity (will be 0.0 in test mode due to masked target)
+    # Calculate initial similarity (reset rescores it in test mode)
     initial_similarity = compute_grid_similarity(
         initial_grid, initial_mask, target_grid, target_mask
     )
@@ -292,6 +292,21 @@ def _create_initial_state(
         similarity_score=jnp.asarray(initial_similarity, dtype=jnp.float32),
         key=key,
     )
+
+
+def _score_test_episode(state: State, params: EnvParams) -> State:
+    """In test mode, score against the true output, which the state keeps hidden."""
+    target_grid = params.buffer.true_test_output_grids[state.task_idx, state.pair_idx]
+    target_mask = params.buffer.true_test_output_masks[state.task_idx, state.pair_idx]
+    similarity = compute_grid_similarity(
+        state.working_grid, state.working_grid_mask, target_grid, target_mask
+    )
+    score = jnp.where(
+        jnp.asarray(params.episode_mode) == EPISODE_MODE_TRAIN,
+        state.similarity_score,
+        similarity,
+    )
+    return eqx.tree_at(lambda s: s.similarity_score, state, score)
 
 
 @eqx.filter_jit
@@ -375,6 +390,7 @@ def reset(params: EnvParams, key: PRNGKey) -> tuple[State, TimeStep]:
         task_idx=task_idx,
         pair_idx=pair_idx,
     )
+    state = _score_test_episode(state, params)
 
     # Create initial observation
     observation = create_observation(state, params)
@@ -398,6 +414,7 @@ def step(params: EnvParams, state: State, action) -> tuple[State, TimeStep]:
     # Process action and update state using internal helpers (no legacy arc_step)
     processed_state, validated_action = _process_action(state, action, params)
     final_state = _update_state(state, processed_state, validated_action)
+    final_state = _score_test_episode(final_state, params)
 
     # Enhanced termination logic with proper StepType semantics
     is_submit_step = validated_action.operation == jnp.asarray(34, dtype=jnp.int32)
