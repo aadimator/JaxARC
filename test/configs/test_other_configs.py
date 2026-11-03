@@ -10,11 +10,13 @@ from __future__ import annotations
 import jax
 from omegaconf import DictConfig
 
+from jaxarc import JaxArcConfig
 from jaxarc.configs.grid_initialization_config import GridInitializationConfig
 from jaxarc.configs.logging_config import LoggingConfig
 from jaxarc.configs.storage_config import StorageConfig
 from jaxarc.configs.visualization_config import VisualizationConfig
 from jaxarc.configs.wandb_config import WandbConfig
+from jaxarc.utils.core import get_config
 
 
 class TestGridInitializationConfig:
@@ -25,10 +27,10 @@ class TestGridInitializationConfig:
         config = GridInitializationConfig()
 
         # Verify default values
-        assert config.demo_weight == 0.4
-        assert config.permutation_weight == 0.3
-        assert config.empty_weight == 0.2
-        assert config.random_weight == 0.1
+        assert config.demo_weight == 1.0
+        assert config.permutation_weight == 0.0
+        assert config.empty_weight == 0.0
+        assert config.random_weight == 0.0
         assert config.permutation_types == ("rotate", "reflect", "color_remap")
         assert config.random_density == 0.3
         assert config.random_pattern_type == "sparse"
@@ -112,6 +114,27 @@ class TestGridInitializationConfig:
         assert config.demo_weight == 0.6
         assert config.permutation_types == ("rotate", "color_remap")
         assert config.random_density == 0.4
+
+    def test_defaults_match_across_python_and_hydra(self):
+        """Python, an empty Hydra config, and config.yaml use the same weights."""
+
+        def weights(config):
+            return (
+                config.demo_weight,
+                config.permutation_weight,
+                config.empty_weight,
+                config.random_weight,
+            )
+
+        yaml_config = JaxArcConfig.from_hydra(get_config(overrides=[]))
+        assert weights(yaml_config.grid_initialization) == (1.0, 0.0, 0.0, 0.0)
+        assert weights(GridInitializationConfig()) == (1.0, 0.0, 0.0, 0.0)
+        assert weights(GridInitializationConfig.from_hydra(DictConfig({}))) == (
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+        )
 
 
 class TestLoggingConfig:
