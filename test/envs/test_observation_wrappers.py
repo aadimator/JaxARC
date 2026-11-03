@@ -28,6 +28,7 @@ from jaxarc.envs import (
     ContextualObservationWrapper,
     InputGridObservationWrapper,
 )
+from jaxarc.envs.actions import create_action
 
 # Use a fixed task for reproducibility
 TASK_ID = "Mini-Most_Common_color_l6ab0lf3xztbyxsu3p"
@@ -85,10 +86,8 @@ def test_input_grid_observation_wrapper(base_env_and_params):
     assert jnp.array_equal(timestep.observation[..., -1], state.input_grid)
 
 
-@pytest.mark.parametrize("episode_mode, should_be_masked", [(0, False), (1, True)])
-def test_answer_observation_wrapper(
-    base_env_and_params, episode_mode, should_be_masked
-):
+@pytest.mark.parametrize("episode_mode", [0, 1])
+def test_answer_observation_wrapper(base_env_and_params, episode_mode):
     """Test AnswerObservationWrapper in both training and testing modes."""
     env, env_params = base_env_and_params
 
@@ -106,13 +105,62 @@ def test_answer_observation_wrapper(
     assert timestep.observation.shape[-1] == 2
     answer_channel = timestep.observation[..., -1]
 
-    if should_be_masked:
-        # In test mode, the target grid is masked (filled with background color)
+    if episode_mode == 1:
+        # In test mode, the target grid stays masked in the state, but the opt-in
+        # wrapper shows the true output
         background_color = mode_params.dataset.background_color
-        assert jnp.all(answer_channel == background_color)
+        assert jnp.all(state.target_grid == background_color)
+        expected = mode_params.buffer.true_test_output_grids[
+            state.task_idx, state.pair_idx
+        ]
+        assert jnp.array_equal(answer_channel, expected)
     else:
         # In training mode, it should match the state's target_grid
         assert jnp.array_equal(answer_channel, state.target_grid)
+
+
+
+@pytest.fixture(scope="module")
+def concept_test_env():
+    """ConceptARC in test mode, with several test pairs per task."""
+    config = jaxarc.JaxArcConfig()
+    if not jaxarc.registration.available_task_ids("Concept", config=config):
+        pytest.skip("No Concept tasks available")
+    return jaxarc.make("Concept-all", config=config, episode_mode=1)
+
+
+def test_answer_channel_matches_every_test_pair_under_jit(concept_test_env):
+    """The answer channel follows the pair, on reset and on step, when compiled."""
+    env, params = concept_test_env
+    wrapped = AnswerObservationWrapper(env)
+    task_idx, pair_idx = params.all_pairs()
+    keys = jax.random.split(jax.random.PRNGKey(0), task_idx.shape[0])
+    action = create_action(0, jnp.zeros((30, 30), dtype=jnp.bool_))
+
+    def run(key, t, p):
+        state, first = wrapped.reset(key, params.with_pair(t, p))
+        _, second = wrapped.step(state, action)
+        return first.observation[..., -1], second.observation[..., -1]
+
+    with jax.disable_jit(False):
+        on_reset, on_step = jax.jit(jax.vmap(run))(keys, task_idx, pair_idx)
+
+    expected = params.buffer.true_test_output_grids[task_idx, pair_idx]
+    assert jnp.array_equal(on_reset, expected)
+    assert jnp.array_equal(on_step, expected)
+
+
+def test_answer_stays_hidden_without_the_wrapper(concept_test_env):
+    """Without the wrapper, nothing in the observation comes from the answer."""
+    env, params = concept_test_env
+    wrapped = InputGridObservationWrapper(env)
+    keys = jax.random.split(jax.random.PRNGKey(0), 64)
+
+    state, timestep = jax.vmap(wrapped.reset)(keys)
+
+    expected = jnp.stack([state.working_grid, state.input_grid], axis=-1)
+    assert jnp.array_equal(timestep.observation, expected)
+    assert not jnp.any(state.target_grid_mask)
 
 
 def test_contextual_observation_wrapper(base_env_and_params):
