@@ -418,6 +418,41 @@ class TestShapeAndMaskUtilities:
 
         chex.assert_trees_all_close(result, expected)
 
+    @staticmethod
+    def _all_grid_shape_masks():
+        """One mask per possible grid shape, from 1x1 to 30x30."""
+        rows = jnp.arange(30)[None, None, :, None]
+        cols = jnp.arange(30)[None, None, None, :]
+        heights = jnp.arange(1, 31)[:, None, None, None]
+        widths = jnp.arange(1, 31)[None, :, None, None]
+        return ((rows < heights) & (cols < widths)).reshape(900, 30, 30)
+
+    def test_compute_grid_similarity_exact_match_with_constant_mask_under_jit(self):
+        """An exact match scores 1.0 when jit sees the mask as a constant."""
+        masks = self._all_grid_shape_masks()
+        grids = jnp.ones((900, 30, 30), dtype=jnp.int32)
+
+        # conftest disables jit for the test session, and this bug needs real compilation.
+        with jax.disable_jit(False):
+            similarity = jax.jit(
+                lambda g: jax.vmap(compute_grid_similarity)(g, masks, g, masks)
+            )(grids)
+
+        assert jnp.all(similarity == 1.0)
+
+    def test_compute_grid_similarity_one_wrong_cell_with_constant_mask_under_jit(self):
+        """A single wrong cell never scores 1.0."""
+        masks = self._all_grid_shape_masks()
+        target = jnp.ones((900, 30, 30), dtype=jnp.int32)
+        working = target.at[:, 0, 0].set(2)
+
+        with jax.disable_jit(False):
+            similarity = jax.jit(
+                lambda w: jax.vmap(compute_grid_similarity)(w, masks, target, masks)
+            )(working)
+
+        assert jnp.all(similarity < 1.0)
+
 
 class TestEdgeCasesAndBoundaryConditions:
     """Test edge cases and boundary conditions."""
