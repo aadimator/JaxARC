@@ -24,10 +24,10 @@ class GridInitializationConfig(eqx.Module):
     """
 
     # Mode weights (normalized automatically, don't need to sum to 1.0)
-    demo_weight: float = 0.4
-    permutation_weight: float = 0.3
-    empty_weight: float = 0.2
-    random_weight: float = 0.1
+    demo_weight: float = 1.0
+    permutation_weight: float = 0.0
+    empty_weight: float = 0.0
+    random_weight: float = 0.0
 
     # Permutation configuration (simplified)
     permutation_types: tuple[str, ...] = ("rotate", "reflect", "color_remap")
@@ -37,10 +37,10 @@ class GridInitializationConfig(eqx.Module):
     random_pattern_type: str = "sparse"  # "sparse" or "dense"
 
     def __init__(self, **kwargs):
-        self.demo_weight = kwargs.get("demo_weight", 0.4)
-        self.permutation_weight = kwargs.get("permutation_weight", 0.3)
-        self.empty_weight = kwargs.get("empty_weight", 0.2)
-        self.random_weight = kwargs.get("random_weight", 0.1)
+        self.demo_weight = kwargs.get("demo_weight", 1.0)
+        self.permutation_weight = kwargs.get("permutation_weight", 0.0)
+        self.empty_weight = kwargs.get("empty_weight", 0.0)
+        self.random_weight = kwargs.get("random_weight", 0.0)
         self.permutation_types = ensure_tuple(
             kwargs.get("permutation_types", ("rotate", "reflect", "color_remap")),
             default=("rotate", "reflect", "color_remap"),
@@ -109,10 +109,10 @@ class GridInitializationConfig(eqx.Module):
     def from_hydra(cls, cfg: DictConfig) -> GridInitializationConfig:
         """Create grid initialization config from Hydra DictConfig."""
         return cls(
-            demo_weight=cfg.get("demo_weight", 0.4),
-            permutation_weight=cfg.get("permutation_weight", 0.3),
-            empty_weight=cfg.get("empty_weight", 0.2),
-            random_weight=cfg.get("random_weight", 0.1),
+            demo_weight=cfg.get("demo_weight", 1.0),
+            permutation_weight=cfg.get("permutation_weight", 0.0),
+            empty_weight=cfg.get("empty_weight", 0.0),
+            random_weight=cfg.get("random_weight", 0.0),
             permutation_types=cfg.get(
                 "permutation_types", ["rotate", "reflect", "color_remap"]
             ),
