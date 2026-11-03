@@ -331,7 +331,7 @@ def reset(params: EnvParams, key: PRNGKey) -> tuple[State, TimeStep]:
     )
     num = indices.shape[0]
     subset_index = jax.random.randint(key_id, (), 0, num)
-    task_idx = indices[subset_index]
+    task_idx = indices[subset_index] if params.task_idx is None else params.task_idx
 
     # Gather a single task's arrays from the stacked buffer
     single = jax.tree_util.tree_map(lambda x: x[task_idx], params.buffer)
@@ -348,6 +348,8 @@ def reset(params: EnvParams, key: PRNGKey) -> tuple[State, TimeStep]:
     # Sample pair index safely; clamp to 0 when max_pairs == 0
     sampled_pair = jax.random.randint(key_pair, (), 0, safe_max)
     pair_idx = jnp.where(max_pairs > 0, sampled_pair, jnp.asarray(0, dtype=jnp.int32))
+    if params.pair_idx is not None:
+        pair_idx = params.pair_idx
     selected_pair_idx = jnp.asarray(pair_idx, dtype=jnp.int32)
 
     # Build a lightweight JaxArcTask for downstream initialization
