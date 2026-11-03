@@ -151,7 +151,11 @@ class InputGridObservationWrapper(BaseObservationWrapper):
 
 
 class AnswerObservationWrapper(BaseObservationWrapper):
-    """Adds the task's target grid (solution) as a new observation channel."""
+    """Adds the task's solution as a new observation channel, in train and test mode.
+
+    Only use it when the agent is meant to see the answer. Without this wrapper,
+    the answer stays hidden in test mode.
+    """
 
     def _get_num_new_channels(self) -> int:
         return 1
@@ -159,10 +163,14 @@ class AnswerObservationWrapper(BaseObservationWrapper):
     def _augment_observation(
         self, observation: jax.Array, state: State, env_params: EnvParams
     ) -> jax.Array:
-        # Note: The environment's state management already ensures that `state.target_grid`
-        # is correctly masked (e.g., zeroed out) during test episodes to prevent cheating.
-        # This wrapper can therefore simply append it.
-        answer_channel = jnp.expand_dims(state.target_grid, axis=-1)
+        # `state.target_grid` is masked in test mode, so read the true output instead.
+        test_output = env_params.buffer.true_test_output_grids[
+            state.task_idx, state.pair_idx
+        ]
+        answer = jnp.where(
+            jnp.asarray(env_params.episode_mode) == 0, state.target_grid, test_output
+        )
+        answer_channel = jnp.expand_dims(answer, axis=-1)
         return jnp.concatenate([observation, answer_channel], axis=-1)
 
 
