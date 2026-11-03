@@ -40,7 +40,10 @@ def make_jaxarc_env(
 
     Args:
         config: OmegaConf DictConfig with env.scenario.name, env.action.mode,
-                env.observation_wrappers settings.
+                env.observation_wrappers settings. The eval env uses test pairs
+                unless env.eval_episode_mode is set to 0, and the train scenario
+                unless env.eval_scenario is set. The answer channel is off unless
+                env.observation_wrappers.answer_grid is true.
 
     Returns:
         Tuple of (train_env, eval_env) implementing stoa.Environment.
@@ -51,8 +54,18 @@ def make_jaxarc_env(
     jaxarc_config = JaxArcConfig.from_hydra(config)
     scenario = config.env.scenario.name
 
-    env, _ = make(scenario, config=jaxarc_config, auto_download=True)
-    eval_env, _ = make(scenario, config=jaxarc_config)
+    eval_scenario = config.env.get("eval_scenario") or scenario
+    eval_episode_mode = config.env.get("eval_episode_mode", 1)
+
+    # The mode is set explicitly because make() otherwise infers test mode from
+    # a scenario name like "AGI1-eval".
+    env, _ = make(scenario, config=jaxarc_config, auto_download=True, episode_mode=0)
+    eval_env, _ = make(
+        eval_scenario,
+        config=jaxarc_config,
+        auto_download=True,
+        episode_mode=eval_episode_mode,
+    )
 
     # Action wrappers
     action_mode = config.env.action.mode
@@ -71,7 +84,7 @@ def make_jaxarc_env(
 
     # Observation wrappers
     obs_wrappers = config.env.get("observation_wrappers", {})
-    if obs_wrappers.get("answer_grid", True):
+    if obs_wrappers.get("answer_grid", False):
         env = AnswerObservationWrapper(env)
         eval_env = AnswerObservationWrapper(eval_env)
     if obs_wrappers.get("input_grid", True):
