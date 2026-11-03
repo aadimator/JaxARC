@@ -153,6 +153,10 @@ class EnvParams(eqx.Module):
     # Episode control
     episode_mode: int = 0  # 0=train, 1=test
 
+    # Optional fixed episode. When None, reset() picks at random.
+    task_idx: Any = None
+    pair_idx: Any = None
+
     def __check_init__(self) -> None:
         # Basic validations
         assert isinstance(self.max_episode_steps, int)
@@ -192,6 +196,41 @@ class EnvParams(eqx.Module):
             subset_indices=subset_indices,
             episode_mode=int(episode_mode),
         )
+
+    def with_pair(self, task_idx: Any, pair_idx: Any) -> EnvParams:
+        """Return params whose reset() starts from this task and pair.
+
+        The indices aren't validated, since they can be traced. all_pairs()
+        only returns valid ones.
+        """
+        return eqx.tree_at(
+            lambda p: (p.task_idx, p.pair_idx),
+            self,
+            (
+                jnp.asarray(task_idx, dtype=jnp.int32),
+                jnp.asarray(pair_idx, dtype=jnp.int32),
+            ),
+            is_leaf=lambda x: x is None,
+        )
+
+    def all_pairs(self) -> tuple[Int[Array, " n"], Int[Array, " n"]]:
+        """List every (task_idx, pair_idx) in the current split and subset.
+
+        Called outside JIT, since the result's size depends on the data.
+        """
+        counts = (
+            self.buffer.num_train_pairs
+            if self.episode_mode == 0
+            else self.buffer.num_test_pairs
+        )
+        tasks = (
+            jnp.arange(counts.shape[0])
+            if self.subset_indices is None
+            else self.subset_indices
+        )
+        task_idx = jnp.repeat(tasks, counts[tasks])
+        pair_idx = jnp.concatenate([jnp.arange(counts[t]) for t in tasks.tolist()])
+        return task_idx.astype(jnp.int32), pair_idx.astype(jnp.int32)
 
 
 class Grid(eqx.Module):
