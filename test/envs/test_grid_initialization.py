@@ -5,6 +5,7 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import pytest
+from omegaconf import DictConfig
 
 from jaxarc import JaxArcConfig
 from jaxarc.configs import GridInitializationConfig
@@ -94,3 +95,20 @@ def test_random_uses_selected_mask(episode_mode):
 
     assert jnp.array_equal(state.working_grid_mask, selected_mask)
     assert jnp.all(state.working_grid[~selected_mask] == 0)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [JaxArcConfig(), JaxArcConfig.from_hydra(DictConfig({}))],
+    ids=["python", "empty_hydra"],
+)
+def test_default_config_starts_from_selected_input(config):
+    if not available_task_ids("Mini", config=config):
+        pytest.skip("No Mini tasks available")
+    env, params = make("Mini-all", config=config)
+
+    keys = jax.random.split(jax.random.PRNGKey(0), 200)
+    state, _ = jax.vmap(lambda key: env.reset(key, env_params=params))(keys)
+
+    selected_input = params.buffer.input_grids_examples[state.task_idx, state.pair_idx]
+    assert jnp.array_equal(state.working_grid, selected_input)
