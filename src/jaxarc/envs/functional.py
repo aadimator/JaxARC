@@ -192,19 +192,6 @@ def _initialize_grids(
         episode_mode == EPISODE_MODE_TRAIN, get_train_target, get_test_target
     )
 
-    # The calling context (`arc_reset`) ensures that `config.grid_initialization` exists
-    # and `key` is a valid PRNG key. The Python `if` statement that caused the TracerBoolConversionError
-    # is removed. We now directly call the initialization logic.
-    initial_grid, initial_mask = initialize_working_grids(
-        task_data,
-        params.grid_initialization,
-        key,
-        batch_size=1,
-    )
-    # Remove batch dimension (squeeze first axis)
-    initial_grid = jnp.squeeze(initial_grid, axis=0)
-    initial_mask = jnp.squeeze(initial_mask, axis=0)
-
     # Raw (dataset) input grid/mask for this pair based on episode_mode
     def get_train_input():
         return (
@@ -221,6 +208,20 @@ def _initialize_grids(
     raw_input_grid, raw_input_mask = jax.lax.cond(
         episode_mode == EPISODE_MODE_TRAIN, get_train_input, get_test_input
     )
+
+    # The calling context (`arc_reset`) ensures that `config.grid_initialization` exists
+    # and `key` is a valid PRNG key. The Python `if` statement that caused the TracerBoolConversionError
+    # is removed. We now directly call the initialization logic.
+    initial_grid, initial_mask = initialize_working_grids(
+        raw_input_grid,
+        raw_input_mask,
+        params.grid_initialization,
+        key,
+        batch_size=1,
+    )
+    # Remove batch dimension (squeeze first axis)
+    initial_grid = jnp.squeeze(initial_grid, axis=0)
+    initial_mask = jnp.squeeze(initial_mask, axis=0)
 
     return (
         initial_grid,

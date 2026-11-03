@@ -2,8 +2,8 @@
 Grid initialization strategies for ARC tasks.
 
 This module provides four initialization strategies for working grids:
-1. Demo mode: Copy from training examples
-2. Permutation mode: Apply transformations to demo grids
+1. Demo mode: Copy the selected pair's input
+2. Permutation mode: Apply transformations to the selected pair's input
 3. Empty mode: Start with blank grids
 4. Random mode: Generate random patterns
 """
@@ -15,11 +15,12 @@ import jax.numpy as jnp
 
 from jaxarc.configs import GridInitializationConfig
 
-from ..types import GridArray, JaxArcTask, MaskArray, PRNGKey
+from ..types import GridArray, MaskArray, PRNGKey
 
 
 def initialize_working_grids(
-    task: JaxArcTask,
+    input_grid: GridArray,
+    input_mask: MaskArray,
     config: GridInitializationConfig,
     key: PRNGKey,
     batch_size: int = 1,
@@ -27,7 +28,8 @@ def initialize_working_grids(
     """Initialize working grids with configurable strategies.
 
     Args:
-        task: JaxArcTask containing demonstration pairs
+        input_grid: Input grid of the pair selected for this episode
+        input_mask: Mask of the input grid
         config: GridInitializationConfig with mode weights
         key: JAX PRNG key for random operations
         batch_size: Number of grids to initialize
@@ -45,7 +47,7 @@ def initialize_working_grids(
     # Vectorize initialization across batch
     vectorized_init = jax.vmap(
         lambda single_key, mode_idx: _initialize_single_grid(
-            task, config, single_key, mode_idx
+            input_grid, input_mask, config, single_key, mode_idx
         ),
         in_axes=(0, 0),
         out_axes=(0, 0),
@@ -82,7 +84,8 @@ def _select_batch_modes(
 
 
 def _initialize_single_grid(
-    task: JaxArcTask,
+    input_grid: GridArray,
+    input_mask: MaskArray,
     config: GridInitializationConfig,
     key: PRNGKey,
     mode_idx: int,
@@ -91,109 +94,22 @@ def _initialize_single_grid(
     return jax.lax.switch(
         mode_idx,
         [
-            lambda: _init_demo_grid(task, key),
-            lambda: _init_permutation_grid(task, config, key),
-            lambda: _init_empty_grid(task),
-            lambda: _init_random_grid(task, config, key),
+            lambda: (input_grid, input_mask),
+            lambda: (_apply_permutation(input_grid, config, key), input_mask),
+            lambda: (jnp.zeros_like(input_grid), input_mask),
+            lambda: _init_random_grid(input_mask, config, key),
         ],
     )
 
 
-def _init_demo_grid(task: JaxArcTask, key: PRNGKey) -> tuple[GridArray, MaskArray]:
-    """Initialize grid from demo input examples."""
-
-    def use_demo_pair():
-        demo_idx = jax.random.randint(key, (), 0, task.num_train_pairs)
-        return task.input_grids_examples[demo_idx], task.input_masks_examples[demo_idx]
-
-    def create_empty_fallback():
-        max_height, max_width = task.get_grid_shape()
-        empty_grid = jnp.zeros((max_height, max_width), dtype=jnp.int32)
-        empty_mask = jnp.zeros((max_height, max_width), dtype=jnp.bool_)
-        return empty_grid, empty_mask
-
-    return jax.lax.cond(
-        task.num_train_pairs > 0,
-        use_demo_pair,
-        create_empty_fallback,
-    )
-
-
-def _init_permutation_grid(
-    task: JaxArcTask,
-    config: GridInitializationConfig,
-    key: PRNGKey,
-) -> tuple[GridArray, MaskArray]:
-    """Initialize grid with permuted versions of demo inputs."""
-    demo_key, perm_key = jax.random.split(key)
-
-    # Start with a demo grid
-    base_grid, base_mask = _init_demo_grid(task, demo_key)
-
-    # Apply random permutation
-    permuted_grid = _apply_permutation(base_grid, config, perm_key)
-
-    return permuted_grid, base_mask
-
-
-def _init_empty_grid(task: JaxArcTask) -> tuple[GridArray, MaskArray]:
-    """Initialize empty grid using task dimensions."""
-
-    def use_template_shape():
-        template_grid = task.input_grids_examples[0]
-        template_mask = task.input_masks_examples[0]
-        empty_grid = jnp.zeros_like(template_grid, dtype=jnp.int32)
-        return empty_grid, template_mask
-
-    def create_default_empty():
-        max_height, max_width = task.get_grid_shape()
-        empty_grid = jnp.zeros((max_height, max_width), dtype=jnp.int32)
-        empty_mask = jnp.zeros((max_height, max_width), dtype=jnp.bool_)
-        return empty_grid, empty_mask
-
-    return jax.lax.cond(
-        task.num_train_pairs > 0,
-        use_template_shape,
-        create_default_empty,
-    )
-
-
 def _init_random_grid(
-    task: JaxArcTask, config: GridInitializationConfig, key: PRNGKey
+    input_mask: MaskArray, config: GridInitializationConfig, key: PRNGKey
 ) -> tuple[GridArray, MaskArray]:
-    """Initialize grids with random patterns."""
-
-    def use_template_shape():
-        template_grid = task.input_grids_examples[0]
-        template_mask = task.input_masks_examples[0]
-
-        # Generate random pattern
-        random_grid = _generate_random_pattern(
-            template_grid.shape, config.random_density, config.random_pattern_type, key
-        )
-
-        # Apply mask to keep pattern only in valid regions
-        random_grid = jnp.where(template_mask, random_grid, 0)
-
-        return random_grid, template_mask
-
-    def create_default_random():
-        max_height, max_width = task.get_grid_shape()
-        grid_shape = (max_height, max_width)
-
-        # Generate random pattern
-        random_grid = _generate_random_pattern(
-            grid_shape, config.random_density, config.random_pattern_type, key
-        )
-
-        empty_mask = jnp.zeros(grid_shape, dtype=jnp.bool_)
-        return random_grid, empty_mask
-
-    return jax.lax.cond(
-        task.num_train_pairs > 0,
-        use_template_shape,
-        create_default_random,
+    """Initialize a grid with a random pattern inside the input mask."""
+    random_grid = _generate_random_pattern(
+        input_mask.shape, config.random_density, config.random_pattern_type, key
     )
+    return jnp.where(input_mask, random_grid, 0), input_mask
 
 
 def _apply_permutation(
