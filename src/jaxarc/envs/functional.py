@@ -449,11 +449,10 @@ def step(params: EnvParams, state: State, action) -> tuple[State, TimeStep]:
         ),
     )
 
-    # Discount: 0.0 for terminal states, 1.0 for continuing
+    # Discount: 0.0 for real endings. It stays 1.0 at the step limit, so learners
+    # can bootstrap from the final observation.
     discount = jnp.where(
-        jnp.logical_or(
-            step_type == StepType.TERMINATED, step_type == StepType.TRUNCATED
-        ),
+        step_type == StepType.TERMINATED,
         jnp.asarray(0.0, dtype=jnp.float32),
         jnp.asarray(1.0, dtype=jnp.float32),
     )
