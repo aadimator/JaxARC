@@ -19,6 +19,7 @@ from jaxarc.configs.action_config import ActionConfig
 from jaxarc.state import State
 from jaxarc.types import (
     NUM_OPERATIONS,
+    ARCOperationType,
     MaskArray,
     OperationMask,
     SelectionArray,
@@ -81,11 +82,16 @@ def action_handler(action: Action, working_grid_mask: MaskArray) -> SelectionArr
         working_grid_mask: Boolean mask defining valid grid area
 
     Returns:
-        Boolean selection mask constrained to working grid area
+        Boolean selection mask constrained to working grid area, except for
+        Resize, which needs to select cells outside it to grow the grid
     """
     # Ensure selection is boolean and constrain to working grid
     selection = action.selection.astype(jnp.bool_)
-    return selection & working_grid_mask
+    return jnp.where(
+        action.operation == ARCOperationType.RESIZE,
+        selection,
+        selection & working_grid_mask,
+    )
 
 
 def get_allowed_operations(state: State, config: ActionConfig) -> OperationMask:
