@@ -46,8 +46,8 @@ JaxARC's `ExtendedMetrics` wrapper tracks domain-specific episode statistics:
 | Metric | Description |
 |---|---|
 | `best_similarity` | Highest grid similarity achieved during the episode |
-| `solved` | Whether the puzzle was solved (similarity = 1.0) |
-| `steps_to_solve` | Number of steps taken to solve (0 if unsolved) |
+| `solved` | Whether the episode submitted the correct grid (similarity = 1.0) |
+| `steps_to_solve` | Number of steps up to and including the correct submit (0 if unsolved) |
 | `final_similarity` | Grid similarity at episode end |
 | `was_truncated` | Whether the episode was truncated (hit max steps) |
 

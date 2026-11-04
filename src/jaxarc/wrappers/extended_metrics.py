@@ -5,7 +5,7 @@ from __future__ import annotations
 import jax.numpy as jnp
 from chex import Numeric, PRNGKey
 from stoa.core_wrappers.wrapper import Wrapper, WrapperState, wrapper_state_replace
-from stoa.env_types import Action, EnvParams, TimeStep
+from stoa.env_types import Action, EnvParams, StepType, TimeStep
 from stoa.stoa_struct import dataclass
 
 
@@ -50,9 +50,12 @@ class ExtendedMetrics(Wrapper[ExtendedMetricsState]):
             base_env_state, "similarity_score", jnp.array(0.0, dtype=jnp.float32)
         )
         done = timestep.done()
-        was_truncated = done & (timestep.discount != 0.0)
+        was_truncated = timestep.step_type == StepType.TRUNCATED
         new_best_similarity = jnp.maximum(state.best_similarity, current_similarity)
-        is_solved_now = current_similarity >= 1.0
+        # Only a submit ends an episode as TERMINATED.
+        is_solved_now = (timestep.step_type == StepType.TERMINATED) & (
+            current_similarity >= 1.0
+        )
         newly_solved = is_solved_now & ~state.solved
         current_step = getattr(
             base_env_state, "step_count", jnp.array(0, dtype=jnp.int32)
