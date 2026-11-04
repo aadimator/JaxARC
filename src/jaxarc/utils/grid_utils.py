@@ -461,16 +461,15 @@ def compute_grid_similarity(
         working_content = jnp.where(canvas_mask & working_mask, working_grid, -1)
         target_content = jnp.where(target_mask, target_grid, -1)
 
-        # Count matches only in target mask positions
+        # Cells that only one of the grids has count against the score, so only
+        # the right shape can reach 1.0.
         matches = jnp.sum((working_content == target_content) & target_mask)
-        total_target_positions = jnp.sum(target_mask)
+        total_cells = jnp.sum(working_mask | target_mask)
 
-        similarity = matches.astype(jnp.float32) / total_target_positions.astype(
-            jnp.float32
-        )
+        similarity = matches.astype(jnp.float32) / total_cells.astype(jnp.float32)
         # With a constant mask, jit can compute matches * (1 / total), which can
         # round an exact match below 1.0.
-        return jnp.where(matches == total_target_positions, 1.0, similarity)
+        return jnp.where(matches == total_cells, 1.0, similarity)
 
     def empty_target_similarity():
         # If target is empty, similarity is 1.0 if working is also empty, 0.0 otherwise
