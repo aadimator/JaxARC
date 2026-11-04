@@ -17,7 +17,7 @@ config = OmegaConf.create({
         "scenario": {"name": "Mini"},
         "action": {"mode": "point"},
         "observation_wrappers": {
-            "answer_grid": True,
+            "answer_grid": False,
             "input_grid": True,
             "contextual": True,
         },
@@ -31,6 +31,13 @@ The factory:
 1. Creates JaxARC environments via `jaxarc.make()`
 2. Applies action wrappers (`PointActionWrapper` / `BboxActionWrapper` + `FlattenActionWrapper`)
 3. Applies observation wrappers (answer grid, input grid, contextual)
+
+The train env always uses demo pairs. The eval env uses test pairs of the same tasks. Two optional settings change that:
+
+- `env.eval_scenario` evaluates on other tasks, such as a held-out group.
+- `env.eval_episode_mode: 0` evaluates on demo pairs.
+
+Set `answer_grid` to `True` only when the agent should see the answer. It then sees it in both envs.
 
 ## ExtendedMetrics
 
