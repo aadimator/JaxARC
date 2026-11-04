@@ -453,6 +453,31 @@ class TestShapeAndMaskUtilities:
 
         assert jnp.all(similarity < 1.0)
 
+    def test_compute_grid_similarity_counts_extra_working_cells(self):
+        """A grid larger than the target loses score for its extra cells."""
+        grid = jnp.zeros((5, 5), dtype=jnp.int32)
+        full = jnp.ones((5, 5), dtype=jnp.bool_)
+        small = jnp.zeros((5, 5), dtype=jnp.bool_).at[:2, :2].set(True)
+
+        too_large = compute_grid_similarity(grid, full, grid, small)
+        too_small = compute_grid_similarity(grid, small, grid, full)
+
+        chex.assert_trees_all_close(too_large, 4 / 25)
+        chex.assert_trees_all_close(too_small, 4 / 25)
+
+    def test_compute_grid_similarity_wrong_shape_never_scores_one(self):
+        """Grids of different shapes never score 1.0, even when every shared cell matches."""
+        masks = self._all_grid_shape_masks()
+        other_masks = jnp.roll(masks, 1, axis=0)
+        grids = jnp.ones((900, 30, 30), dtype=jnp.int32)
+
+        with jax.disable_jit(False):
+            similarity = jax.jit(
+                lambda g: jax.vmap(compute_grid_similarity)(g, masks, g, other_masks)
+            )(grids)
+
+        assert jnp.all(similarity < 1.0)
+
 
 class TestEdgeCasesAndBoundaryConditions:
     """Test edge cases and boundary conditions."""

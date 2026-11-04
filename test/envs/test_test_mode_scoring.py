@@ -13,6 +13,7 @@ from jaxarc.envs.actions import create_action
 from jaxarc.registration import available_task_ids, make
 from jaxarc.types import StepType
 
+RESIZE = 33
 SUBMIT = 34
 FILL_COLOR_0 = 0
 N = 200
@@ -123,3 +124,90 @@ def test_train_mode_still_scores_against_demo_output():
 
     assert new_state.similarity_score == 1.0
     assert timestep.step_type == StepType.TERMINATED
+
+
+def test_submitting_the_untouched_grid_only_solves_exact_matches():
+    config = JaxArcConfig()
+    if not available_task_ids("Concept", config=config):
+        pytest.skip("No Concept tasks available")
+    env, params = make("Concept-all", config=config, episode_mode=1)
+    tasks, pairs = params.all_pairs()
+
+    def submit_untouched(task, pair):
+        state, _ = env.reset(
+            jax.random.PRNGKey(0), env_params=params.with_pair(task, pair)
+        )
+        selection = jnp.zeros_like(state.working_grid, dtype=jnp.bool_)
+        return (state, *env.step(state, create_action(SUBMIT, selection)))
+
+    with jax.disable_jit(False):
+        start, final, timestep = jax.vmap(submit_untouched)(tasks, pairs)
+
+    answer = params.buffer.true_test_output_grids[tasks, pairs]
+    mask = params.buffer.true_test_output_masks[tasks, pairs]
+    same_shape = jnp.all(start.working_grid_mask == mask, axis=(1, 2))
+    same_cells = jnp.all((start.working_grid == answer) | ~mask, axis=(1, 2))
+    oversized = jnp.all(mask <= start.working_grid_mask, axis=(1, 2)) & ~same_shape
+
+    # Guards against a vacuous pass: these are the pairs that used to score 1.0.
+    assert jnp.any(oversized & same_cells)
+    assert jnp.array_equal(final.similarity_score == 1.0, same_shape & same_cells)
+    assert jnp.array_equal(
+        timestep.reward == params.reward.success_bonus + params.reward.step_penalty,
+        same_shape & same_cells,
+    )
+
+
+def test_oversized_grid_can_be_resized_and_solved():
+    config = JaxArcConfig()
+    if not available_task_ids("Concept", config=config):
+        pytest.skip("No Concept tasks available")
+    env, params = make("Concept-all", config=config, episode_mode=1)
+    tasks, pairs = params.all_pairs()
+
+    with jax.disable_jit(False):
+        input_masks = params.buffer.test_input_masks[tasks, pairs]
+        output_masks = params.buffer.true_test_output_masks[tasks, pairs]
+        shared_cell = jnp.any(
+            (
+                params.buffer.test_input_grids[tasks, pairs]
+                == params.buffer.true_test_output_grids[tasks, pairs]
+            )
+            & output_masks,
+            axis=(1, 2),
+        )
+        oversized = (
+            jnp.all(output_masks <= input_masks, axis=(1, 2))
+            & jnp.any(output_masks != input_masks, axis=(1, 2))
+            & shared_cell
+        )
+        index = int(jnp.argmax(oversized))
+        assert oversized[index]
+        task, pair = tasks[index], pairs[index]
+
+        answer = params.buffer.true_test_output_grids[task, pair]
+        mask = output_masks[index]
+        state, _ = env.reset(
+            jax.random.PRNGKey(0), env_params=params.with_pair(task, pair)
+        )
+        start_score = state.similarity_score
+
+        height = int(mask.any(axis=1).sum())
+        width = int(mask.any(axis=0).sum())
+        corner = jnp.zeros_like(mask).at[height - 1, width - 1].set(True)
+        state, _ = env.step(state, create_action(RESIZE, corner))
+        assert jnp.array_equal(state.working_grid_mask, mask)
+        assert state.similarity_score > start_score
+
+        for color in jnp.unique(answer[mask]).tolist():
+            state, _ = env.step(state, create_action(color, (answer == color) & mask))
+
+        final, timestep = env.step(
+            state, create_action(SUBMIT, jnp.zeros_like(mask))
+        )
+
+    assert final.similarity_score == 1.0
+    assert timestep.step_type == StepType.TERMINATED
+    assert jnp.isclose(
+        timestep.reward, params.reward.success_bonus + params.reward.step_penalty
+    )
