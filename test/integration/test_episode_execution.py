@@ -490,7 +490,7 @@ class TestEpisodeTerminationConditions:
         assert isinstance(next_timestep.reward, (float, jnp.ndarray))
 
         # Discount should be appropriate for step type
-        if next_timestep.step_type in [StepType.TERMINATED, StepType.TRUNCATED]:
+        if next_timestep.step_type == StepType.TERMINATED:
             assert next_timestep.discount == 0.0
         else:
             assert next_timestep.discount == 1.0
@@ -542,8 +542,8 @@ class TestEpisodeTerminationConditions:
             state, timestep = functional.step(short_env_params, state, action)
 
         # Verify final state properties
-        assert timestep.step_type in [StepType.TERMINATED, StepType.TRUNCATED]
-        assert timestep.discount == 0.0
+        assert timestep.step_type == StepType.TRUNCATED
+        assert timestep.discount == 1.0
         assert state.step_count > 0
         assert state.step_count <= 3
 
