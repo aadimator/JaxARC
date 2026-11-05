@@ -17,51 +17,21 @@ from jaxarc.utils import DatasetError
 def prepare_config(
     config: Optional[Any], max_episode_steps: int, dataset_key: str
 ) -> Any:
-    """Prepare a JaxArcConfig, applying overrides when possible.
+    """Return the config to use.
 
-    - If no config provided, instantiate a default JaxArcConfig.
-    - Ensure environment.max_episode_steps matches the spec if possible.
-    - Normalize dataset configuration based on spec.dataset_key.
+    A config that's passed in is used as given. Without one, this is the default
+    config with the registered step limit.
     """
+    if config is not None:
+        return config
+
     # Import locally to avoid hard dependency at module import time
-    try:
-        from jaxarc.configs.environment_config import EnvironmentConfig
-        from jaxarc.configs.main_config import JaxArcConfig
-        from jaxarc.utils.core import get_config
-    except Exception as e:
-        raise ValueError(
-            "Could not import configuration types. Ensure configurations "
-            "are available or provide a ready 'config' object."
-        ) from e
-    # If config not provided, prefer a safe construction path that avoids Hydra re-init
-    if config is None:
-        try:
-            # Detect if a Hydra app is already initialized in this process
-            from hydra.core.global_hydra import GlobalHydra  # type: ignore
+    from jaxarc.configs.environment_config import EnvironmentConfig
+    from jaxarc.configs.main_config import JaxArcConfig
 
-            gh = GlobalHydra.instance()
-            hydra_active = gh.is_initialized()
-        except Exception:
-            hydra_active = False
-
-        if hydra_active:
-            # Avoid re-initializing Hydra: build a default config directly
-            cfg = JaxArcConfig()
-        else:
-            # Standalone usage: use Hydra defaults
-            cfg = JaxArcConfig.from_hydra(get_config())
-    else:
-        cfg = config
-
-    # Enforce max_episode_steps
-    try:
-        cfg.environment = EnvironmentConfig(max_episode_steps=max_episode_steps)
-    except Exception:
-        pass
-
-    # Best-effort dataset normalization is handled later by ensure_dataset_available
-
-    return cfg
+    return JaxArcConfig(
+        environment=EnvironmentConfig(max_episode_steps=max_episode_steps)
+    )
 
 
 def resolve_episode_mode(episode_mode: int | None, selector: str | None) -> int:
