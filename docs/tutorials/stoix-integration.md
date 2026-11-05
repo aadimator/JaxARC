@@ -29,7 +29,7 @@ train_env, eval_env = make_jaxarc_env(config)
 
 The factory:
 1. Creates JaxARC environments via `jaxarc.make()`
-2. Applies action wrappers (`PointActionWrapper` / `BboxActionWrapper` + `FlattenActionWrapper`)
+2. Applies action wrappers (`PointActionWrapper` / `BboxActionWrapper`, `AllowedOperationsWrapper` when `allowed_operations` is set, and `FlattenActionWrapper`)
 3. Applies observation wrappers (answer grid, input grid, contextual)
 
 The train env always uses demo pairs. The eval env uses test pairs of the same tasks. Two optional settings change that:
