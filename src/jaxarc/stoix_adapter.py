@@ -20,6 +20,7 @@ from jaxarc.envs import (
     PointActionWrapper,
 )
 from jaxarc.registration import make
+from jaxarc.wrappers import AllowedOperationsWrapper
 
 
 def make_jaxarc_env(
@@ -78,6 +79,10 @@ def make_jaxarc_env(
     elif action_mode != "mask":
         msg = f"Unknown action mode: {action_mode}"
         raise ValueError(msg)
+
+    if action_mode != "mask" and jaxarc_config.action.allowed_operations is not None:
+        env = AllowedOperationsWrapper(env)
+        eval_env = AllowedOperationsWrapper(eval_env)
 
     env = FlattenActionWrapper(env)
     eval_env = FlattenActionWrapper(eval_env)

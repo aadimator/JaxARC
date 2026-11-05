@@ -12,6 +12,16 @@ JaxARC provides two types of wrappers:
 
 ## Action Wrappers
 
+### AllowedOperationsWrapper
+
+Limits the operation choice to `allowed_operations` in the action config. Apply it after `PointActionWrapper` or `BboxActionWrapper`, and before `FlattenActionWrapper`.
+
+```{eval-rst}
+.. autoclass:: jaxarc.wrappers.AllowedOperationsWrapper
+   :members:
+   :show-inheritance:
+```
+
 ### PointActionWrapper
 
 ```{eval-rst}
