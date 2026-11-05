@@ -5,6 +5,7 @@ Wrappers for JaxARC environments.
 from __future__ import annotations
 
 from .action_wrappers import (
+    AllowedOperationsWrapper,
     BboxActionWrapper,
     FlattenActionWrapper,
     PointActionWrapper,
@@ -19,6 +20,7 @@ from .observation_wrappers import (
 from .visualization_wrapper import StepVisualizationWrapper
 
 __all__ = [
+    "AllowedOperationsWrapper",
     "AnswerObservationWrapper",
     "BboxActionWrapper",
     "ClipboardObservationWrapper",

@@ -204,6 +204,38 @@ class BboxActionWrapper(Wrapper):
         return next_state, timestep
 
 
+class AllowedOperationsWrapper(Wrapper):
+    """Limits the operation choice to the config's allowed_operations.
+
+    The agent picks an index into that list, and this passes the operation ID
+    at that index on to the point or bbox wrapper underneath.
+    """
+
+    def __init__(self, env: Environment):
+        super().__init__(env)
+        self._operations = jnp.asarray(
+            self._env.params.action.allowed_operations, dtype=jnp.int32
+        )
+
+    def action_space(self, env_params: EnvParams | None = None) -> DictSpace:
+        """The same action space, with one operation per allowed operation."""
+        base_action_space = self._env.action_space(env_params)
+        return DictSpace(
+            {
+                **base_action_space.spaces,
+                "operation": DiscreteSpace(self._operations.shape[0], dtype=jnp.int32),
+            },
+            name="allowed_operations_action",
+        )
+
+    def step(
+        self, state: State, action: dict, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
+        """Turn the operation index into its operation ID and delegate."""
+        operation = self._operations[action["operation"]]
+        return self._env.step(state, {**action, "operation": operation}, env_params)
+
+
 class FlattenActionWrapper(Wrapper[State]):
     """
     A general-purpose wrapper to flatten any composite discrete action space.
