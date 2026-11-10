@@ -112,6 +112,12 @@ def _calculate_reward(
     is_solved = (new_state.similarity_score >= 1.0) & submit_flag
 
     step_penalty = jnp.asarray(reward_cfg.step_penalty, dtype=jnp.float32)
+    if reward_cfg.shaping == "potential":
+        # Only a submit ends the episode, and the potential of an ended episode is 0.
+        next_potential = jnp.where(submit_flag, 0.0, new_state.similarity_score)
+        similarity_improvement = (
+            reward_cfg.gamma * next_potential - old_state.similarity_score
+        )
     similarity_reward = reward_cfg.similarity_weight * similarity_improvement
 
     # Award success bonus only when task is solved (similarity 100%) AND submit is performed

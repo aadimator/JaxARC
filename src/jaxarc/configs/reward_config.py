@@ -22,10 +22,19 @@ class RewardConfig(eqx.Module):
     success_bonus: float = 10.0
     similarity_weight: float = 1.0
     unsolved_submission_penalty: float = 0.0
+    # "delta": similarity_weight * (sim' - sim).
+    # "potential": similarity_weight * (gamma * sim' - sim), with sim' = 0 when the
+    # step ends the episode (Ng et al. 1999). Set gamma to the agent's discount.
+    shaping: str = "delta"
+    gamma: float = 0.99
 
     def validate(self) -> tuple[str, ...]:
         """Validate reward configuration and return tuple of errors."""
         errors: list[str] = []
+        if self.shaping not in ("delta", "potential"):
+            errors.append(f"shaping must be 'delta' or 'potential', got {self.shaping!r}")
+        if not 0.0 < self.gamma <= 1.0:
+            errors.append(f"gamma must be in (0, 1], got {self.gamma}")
 
         try:
             validate_float_range(self.step_penalty, "step_penalty", -10.0, 1.0)
@@ -55,4 +64,6 @@ class RewardConfig(eqx.Module):
             success_bonus=cfg.get("success_bonus", 10.0),
             similarity_weight=cfg.get("similarity_weight", 1.0),
             unsolved_submission_penalty=cfg.get("unsolved_submission_penalty", 0.0),
+            shaping=cfg.get("shaping", "delta"),
+            gamma=cfg.get("gamma", 0.99),
         )
