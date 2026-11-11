@@ -20,7 +20,11 @@ from jaxarc.envs import (
     PointActionWrapper,
 )
 from jaxarc.registration import make
-from jaxarc.wrappers import AllowedOperationsWrapper, EvalMetricsWrapper
+from jaxarc.wrappers import (
+    AllowedOperationsWrapper,
+    EvalMetricsWrapper,
+    SelectionAwareFlattenWrapper,
+)
 
 
 def make_jaxarc_env(
@@ -30,7 +34,7 @@ def make_jaxarc_env(
 
     Follows the standard Stoix make_*_env() pattern:
     1. Create base environments via jaxarc.registration.make()
-    2. Apply action wrappers (Point/Bbox) + FlattenAction
+    2. Apply action wrappers (Point/Bbox) + SelectionAwareFlatten (FlattenAction for mask)
     3. Apply observation wrappers (Answer/Input/Contextual)
     4. Return (train_env, eval_env) ready for Stoix's core wrapper chain
 
@@ -85,8 +89,13 @@ def make_jaxarc_env(
         env = AllowedOperationsWrapper(env)
         eval_env = AllowedOperationsWrapper(eval_env)
 
-    env = FlattenActionWrapper(env)
-    eval_env = FlattenActionWrapper(eval_env)
+    # Point and bbox get one action per selection-independent operation.
+    if action_mode == "mask":
+        env = FlattenActionWrapper(env)
+        eval_env = FlattenActionWrapper(eval_env)
+    else:
+        env = SelectionAwareFlattenWrapper(env)
+        eval_env = SelectionAwareFlattenWrapper(eval_env)
 
     # Observation wrappers
     obs_wrappers = config.env.get("observation_wrappers", {})

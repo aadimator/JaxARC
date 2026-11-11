@@ -99,6 +99,9 @@ OPERATION_NAMES = {
     34: "Submit",
 }
 
+# Operations whose result does not depend on the selection: Copy input, Submit.
+SELECTION_INDEPENDENT_OPERATIONS = frozenset({32, 34})
+
 
 def get_operation_name(operation_id: int) -> str:
     """Get the human-readable name for an operation ID.

@@ -9,6 +9,7 @@ from .action_wrappers import (
     BboxActionWrapper,
     FlattenActionWrapper,
     PointActionWrapper,
+    SelectionAwareFlattenWrapper,
 )
 from .eval_metrics import EvalMetricsWrapper
 from .extended_metrics import ExtendedMetrics, ExtendedMetricsState
@@ -32,5 +33,6 @@ __all__ = [
     "FlattenActionWrapper",
     "InputGridObservationWrapper",
     "PointActionWrapper",
+    "SelectionAwareFlattenWrapper",
     "StepVisualizationWrapper",
 ]

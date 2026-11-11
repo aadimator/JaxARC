@@ -14,7 +14,7 @@ JaxARC provides two types of wrappers:
 
 ### AllowedOperationsWrapper
 
-Limits the operation choice to `allowed_operations` in the action config. Apply it after `PointActionWrapper` or `BboxActionWrapper`, and before `FlattenActionWrapper`.
+Limits the operation choice to `allowed_operations` in the action config. Apply it after `PointActionWrapper` or `BboxActionWrapper`, and before `SelectionAwareFlattenWrapper`.
 
 ```{eval-rst}
 .. autoclass:: jaxarc.wrappers.AllowedOperationsWrapper
@@ -40,7 +40,19 @@ Limits the operation choice to `allowed_operations` in the action config. Apply 
    :show-inheritance:
 ```
 
+### SelectionAwareFlattenWrapper
+
+Flattens a point or bbox action space into one discrete space. Operations that use the selection get one action per point or box, op-major. Copy input and Submit ignore the selection, so they get one action each, at the end. With the `raw` operations at 30x30 that is 11 * 900 + 1 = 9,901 point actions. `make_jaxarc_env` uses it for the `point` and `bbox` modes.
+
+```{eval-rst}
+.. autoclass:: jaxarc.wrappers.SelectionAwareFlattenWrapper
+   :members:
+   :show-inheritance:
+```
+
 ### FlattenActionWrapper
+
+A generic flattener: every combination of sub-actions is one action, so Copy input and Submit repeat once per point or box. Use `SelectionAwareFlattenWrapper` for point and bbox actions.
 
 ```{eval-rst}
 .. autoclass:: jaxarc.wrappers.FlattenActionWrapper

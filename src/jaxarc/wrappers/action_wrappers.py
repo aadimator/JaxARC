@@ -7,6 +7,7 @@ This module implements clean wrappers following Stoa delegation patterns:
 
 - PointActionWrapper: Converts {"operation": op, "row": r, "col": c} dicts to mask actions
 - BboxActionWrapper: Converts {"operation": op, "r1": r1, "c1": c1, "r2": r2, "c2": c2} dicts to mask actions
+- SelectionAwareFlattenWrapper: Flattens a point or bbox space, one action per selection-independent operation
 - FlattenActionWrapper: Flattens a DictSpace of Discrete sub-spaces into a single Discrete action space
 
 Usage:
@@ -45,6 +46,7 @@ from stoa.core_wrappers.wrapper import Wrapper
 
 from jaxarc.envs.actions import Action, create_action
 from jaxarc.envs.environment import Environment
+from jaxarc.envs.grid_operations import SELECTION_INDEPENDENT_OPERATIONS
 from jaxarc.envs.spaces import DictSpace, DiscreteSpace
 from jaxarc.state import State
 from jaxarc.types import EnvParams, TimeStep
@@ -217,6 +219,11 @@ class AllowedOperationsWrapper(Wrapper):
             self._env.params.action.allowed_operations, dtype=jnp.int32
         )
 
+    @property
+    def operations(self) -> jax.Array:
+        """The operation ID for each operation index."""
+        return self._operations
+
     def action_space(self, env_params: EnvParams | None = None) -> DictSpace:
         """The same action space, with one operation per allowed operation."""
         base_action_space = self._env.action_space(env_params)
@@ -234,6 +241,70 @@ class AllowedOperationsWrapper(Wrapper):
         """Turn the operation index into its operation ID and delegate."""
         operation = self._operations[action["operation"]]
         return self._env.step(state, {**action, "operation": operation}, env_params)
+
+
+class SelectionAwareFlattenWrapper(Wrapper):
+    """Flattens a point or bbox action space without duplicate actions.
+
+    Wraps PointActionWrapper or BboxActionWrapper (optionally behind
+    AllowedOperationsWrapper). Operations that use the selection come first,
+    op-major: op_slot * K + k, where k indexes the point or box like
+    FlattenActionWrapper does (K = H*W points or (H*W)**2 boxes). Then comes
+    one action per operation in SELECTION_INDEPENDENT_OPERATIONS, run with
+    every coordinate 0. Both groups keep the order of the allowed operations.
+    """
+
+    def __init__(self, env: Environment):
+        super().__init__(env)
+        spaces = self._env.action_space().spaces
+        self._coord_keys = [key for key in spaces if key != "operation"]
+        self._coord_sizes = [int(spaces[key].num_values) for key in self._coord_keys]
+        self._choices = reduce(operator.mul, self._coord_sizes, 1)
+
+        # The operation each slot runs: the allowed list if the wrapped env
+        # filters operations, otherwise the slot is the operation ID.
+        if isinstance(self._env, AllowedOperationsWrapper):
+            operations = [int(op) for op in self._env.operations]
+        else:
+            operations = list(range(int(spaces["operation"].num_values)))
+        per_choice = [
+            s
+            for s, op in enumerate(operations)
+            if op not in SELECTION_INDEPENDENT_OPERATIONS
+        ]
+        single = [
+            s
+            for s, op in enumerate(operations)
+            if op in SELECTION_INDEPENDENT_OPERATIONS
+        ]
+        # Operation slot for each group: the per-choice ops, then the single ones.
+        self._slots = jnp.asarray(per_choice + single, dtype=jnp.int32)
+        self._per_choice_ops = len(per_choice)
+        self._per_choice_total = len(per_choice) * self._choices
+        self._num_actions = self._per_choice_total + len(single)
+
+    def action_space(self, env_params: EnvParams | None = None) -> DiscreteSpace:
+        """One action per (selection-dependent op, point or box), plus one per other op."""
+        return DiscreteSpace(self._num_actions, dtype=jnp.int32)
+
+    def step(
+        self, state: State, action: jax.Array, env_params: EnvParams | None = None
+    ) -> tuple[State, TimeStep]:
+        """Turn the flat index into an operation slot and coordinates, then delegate."""
+        action = jnp.asarray(action, dtype=jnp.int32)
+        is_single = action >= self._per_choice_total
+        group = jnp.where(
+            is_single,
+            self._per_choice_ops + action - self._per_choice_total,
+            action // self._choices,
+        )
+        remainder = jnp.where(is_single, 0, action % self._choices)
+
+        coords = {}
+        for key, size in zip(reversed(self._coord_keys), reversed(self._coord_sizes)):
+            remainder, coords[key] = jnp.divmod(remainder, size)
+        structured = {"operation": self._slots[group], **coords}
+        return self._env.step(state, structured, env_params)
 
 
 class FlattenActionWrapper(Wrapper[State]):
@@ -345,7 +416,9 @@ class FlattenActionWrapper(Wrapper[State]):
 
 
 __all__ = [
+    "AllowedOperationsWrapper",
     "BboxActionWrapper",
     "FlattenActionWrapper",
     "PointActionWrapper",
+    "SelectionAwareFlattenWrapper",
 ]
