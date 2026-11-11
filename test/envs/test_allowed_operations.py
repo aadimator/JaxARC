@@ -45,22 +45,22 @@ def flat_action(operation_index, row, col):
 def test_action_count_matches_the_allowed_operations():
     train_env, eval_env = make_envs()
 
-    assert int(train_env.action_space().num_values) == 12 * CELLS
-    assert int(eval_env.action_space().num_values) == 12 * CELLS
+    assert int(train_env.action_space().num_values) == 11 * CELLS + 1
+    assert int(eval_env.action_space().num_values) == 11 * CELLS + 1
 
 
 def test_bbox_action_count_matches_the_allowed_operations():
     train_env, eval_env = make_envs(mode="bbox")
 
-    assert int(train_env.action_space().num_values) == 12 * CELLS**2
-    assert int(eval_env.action_space().num_values) == 12 * CELLS**2
+    assert int(train_env.action_space().num_values) == 11 * CELLS**2 + 1
+    assert int(eval_env.action_space().num_values) == 11 * CELLS**2 + 1
 
 
 def test_every_operation_stays_available_without_a_profile():
     train_env, eval_env = make_envs(allowed_operations=None)
 
-    assert int(train_env.action_space().num_values) == 35 * CELLS
-    assert int(eval_env.action_space().num_values) == 35 * CELLS
+    assert int(train_env.action_space().num_values) == 33 * CELLS + 2
+    assert int(eval_env.action_space().num_values) == 33 * CELLS + 2
 
 
 def test_every_action_runs_an_allowed_operation():
@@ -68,12 +68,14 @@ def test_every_action_runs_an_allowed_operation():
     base = env.unwrapped
     state, _ = env.reset(jax.random.PRNGKey(0))
 
-    operations = jnp.repeat(jnp.asarray(RAW_PROFILE), CELLS)
-    rows = jnp.tile(jnp.repeat(jnp.arange(5), 5), len(RAW_PROFILE))
-    cols = jnp.tile(jnp.arange(5), 5 * len(RAW_PROFILE))
-    actions = jnp.arange(12 * CELLS)
+    # Submit ignores the selection, so it gets one action, at cell (0, 0).
+    per_cell = len(RAW_PROFILE) - 1
+    operations = jnp.append(jnp.repeat(jnp.asarray(RAW_PROFILE[:-1]), CELLS), 34)
+    rows = jnp.append(jnp.tile(jnp.repeat(jnp.arange(5), 5), per_cell), 0)
+    cols = jnp.append(jnp.tile(jnp.arange(5), 5 * per_cell), 0)
+    actions = jnp.arange(per_cell * CELLS + 1)
     selections = (
-        jnp.zeros((12 * CELLS, *state.working_grid.shape), dtype=jnp.bool_)
+        jnp.zeros((actions.shape[0], *state.working_grid.shape), dtype=jnp.bool_)
         .at[actions, rows, cols]
         .set(True)
     )
