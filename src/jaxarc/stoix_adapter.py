@@ -20,7 +20,7 @@ from jaxarc.envs import (
     PointActionWrapper,
 )
 from jaxarc.registration import make
-from jaxarc.wrappers import AllowedOperationsWrapper
+from jaxarc.wrappers import AllowedOperationsWrapper, EvalMetricsWrapper
 
 
 def make_jaxarc_env(
@@ -44,7 +44,8 @@ def make_jaxarc_env(
                 env.observation_wrappers settings. The eval env uses test pairs
                 unless env.eval_episode_mode is set to 0, and the train scenario
                 unless env.eval_scenario is set. The answer channel is off unless
-                env.observation_wrappers.answer_grid is true.
+                env.observation_wrappers.answer_grid is true. The eval env
+                reports each episode's outcome in extras["eval_metrics"].
 
     Returns:
         Tuple of (train_env, eval_env) implementing stoa.Environment.
@@ -98,6 +99,9 @@ def make_jaxarc_env(
     if obs_wrappers.get("contextual", True):
         env = ContextualObservationWrapper(env)
         eval_env = ContextualObservationWrapper(eval_env)
+
+    # Held-out scoring, for jaxarc.evaluation and Stoix's evaluator.
+    eval_env = EvalMetricsWrapper(eval_env)
 
     return env, eval_env
 
