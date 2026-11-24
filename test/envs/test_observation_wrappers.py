@@ -19,6 +19,7 @@ from __future__ import annotations
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import jaxarc
@@ -236,3 +237,60 @@ def test_stacked_wrappers(base_env_and_params):
     }
     _, new_timestep = env.step(state, action)
     assert jnp.array_equal(new_timestep.observation[..., 3], state.clipboard)
+
+
+PADDING = -1
+
+
+@pytest.fixture(scope="module", params=[0, 1], ids=["train", "test"])
+def mini_env(request):
+    """Every MiniARC task, in training or test mode."""
+    config = jaxarc.JaxArcConfig()
+    if not jaxarc.registration.available_task_ids("Mini", config=config):
+        pytest.skip("No Mini tasks available")
+    return jaxarc.make("Mini-all", config=config, episode_mode=request.param)
+
+
+def expected_context(params, task_idx, pair_idx, num_slots):
+    """The context channels for one episode, built in NumPy.
+
+    Training mode leaves out the current pair. Slots past the last demo are
+    padding.
+    """
+    buffer = params.buffer
+    inputs = np.asarray(buffer.input_grids_examples[task_idx])
+    outputs = np.asarray(buffer.output_grids_examples[task_idx])
+    demos = list(range(int(buffer.num_train_pairs[task_idx])))
+    if params.episode_mode == 0:
+        demos.remove(pair_idx)
+    channels = np.full((2 * num_slots, *inputs.shape[1:]), PADDING, np.float32)
+    for slot, demo in enumerate(demos[:num_slots]):
+        channels[2 * slot] = inputs[demo]
+        channels[2 * slot + 1] = outputs[demo]
+    return np.moveaxis(channels, 0, -1)
+
+
+def test_context_slots_hold_the_demos_then_padding(mini_env):
+    """Real slots hold the other demos in order; empty slots are padding, not black."""
+    env, params = mini_env
+    num_slots = 5
+    wrapped = ContextualObservationWrapper(env, num_context_pairs=num_slots)
+    task_idx, pair_idx = params.all_pairs()
+    keys = jax.random.split(jax.random.PRNGKey(0), task_idx.shape[0])
+
+    def context(key, t, p):
+        _, timestep = wrapped.reset(key, params.with_pair(t, p))
+        return timestep.observation[..., 1:]
+
+    with jax.disable_jit(False):
+        got = np.asarray(jax.jit(jax.vmap(context))(keys, task_idx, pair_idx))
+
+    expected = np.stack(
+        [
+            expected_context(params, t, p, num_slots)
+            for t, p in zip(task_idx.tolist(), pair_idx.tolist(), strict=True)
+        ]
+    )
+    # Most MiniARC tasks have 3-4 demos, so most episodes have empty slots.
+    assert np.any(np.all(expected == PADDING, axis=(1, 2)))
+    np.testing.assert_array_equal(got, expected)
