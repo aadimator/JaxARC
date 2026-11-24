@@ -181,6 +181,7 @@ class ContextualObservationWrapper(BaseObservationWrapper):
     This wrapper adds `2 * num_context_pairs` channels to the observation,
     representing the input and output grids of other demonstration pairs
     from the same task. This provides the agent with contextual examples.
+    Slots past the task's last demo are filled with padding (-1).
     """
 
     def __init__(self, env, num_context_pairs: int = 5):
@@ -211,7 +212,9 @@ class ContextualObservationWrapper(BaseObservationWrapper):
 
         num_actual_examples = task_data.num_train_pairs
         grid_shape = observation.shape[:2]
-        zero_grid = jnp.zeros(grid_shape, dtype=jnp.float32)
+        # Empty slots are padding (-1), like the cells outside a real grid, so
+        # they don't read as all-black demos.
+        padding_grid = jnp.full(grid_shape, -1, dtype=jnp.float32)
 
         # Indices for the N context slots we need to fill
         context_slot_indices = jnp.arange(self.num_context_pairs)
@@ -237,10 +240,10 @@ class ContextualObservationWrapper(BaseObservationWrapper):
         context_inputs = all_inputs[safe_demo_indices]
         context_outputs = all_outputs[safe_demo_indices]
 
-        # Apply the validity mask to zero-out invalid pairs
+        # Fill the slots past the last demo with padding
         valid_mask_expanded = valid_mask[:, None, None]
-        context_inputs = jnp.where(valid_mask_expanded, context_inputs, zero_grid)
-        context_outputs = jnp.where(valid_mask_expanded, context_outputs, zero_grid)
+        context_inputs = jnp.where(valid_mask_expanded, context_inputs, padding_grid)
+        context_outputs = jnp.where(valid_mask_expanded, context_outputs, padding_grid)
 
         # Interleave inputs and outputs: [input0, output0, input1, output1, ...]
         context_channels_stacked = jnp.stack([context_inputs, context_outputs], axis=1)
