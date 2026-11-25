@@ -44,16 +44,42 @@ def initialize_working_grids(
     # Select modes for each grid in batch
     mode_indices = _select_batch_modes(mode_key, config, batch_size)
 
+    # Only modes with positive weight get a branch. The weights are plain floats (the config
+    # is hashable and static under jit), and under vmap lax.switch evaluates every branch for
+    # every grid, so a zero-weight mode would otherwise still run; the colour-remap
+    # permutation sorts, which dominated reset on GPU. Mode draws are unchanged.
+    active = _active_modes(config)
+    position = (
+        jnp.zeros(len(MODE_NAMES), dtype=jnp.int32)
+        .at[jnp.array(active)]
+        .set(jnp.arange(len(active), dtype=jnp.int32))
+    )
+
     # Vectorize initialization across batch
     vectorized_init = jax.vmap(
         lambda single_key, mode_idx: _initialize_single_grid(
-            input_grid, input_mask, config, single_key, mode_idx
+            input_grid, input_mask, config, single_key, position[mode_idx], active
         ),
         in_axes=(0, 0),
         out_axes=(0, 0),
     )
 
     return vectorized_init(init_keys, mode_indices)
+
+
+MODE_NAMES = ("demo", "permutation", "empty", "random")
+
+
+def _active_modes(config: GridInitializationConfig) -> tuple[int, ...]:
+    """Indices of the modes with positive weight (all four when every weight is zero)."""
+    weights = (
+        config.demo_weight,
+        config.permutation_weight,
+        config.empty_weight,
+        config.random_weight,
+    )
+    active = tuple(i for i, w in enumerate(weights) if float(w) > 1e-8)
+    return active or tuple(range(len(MODE_NAMES)))
 
 
 def _select_batch_modes(
@@ -88,18 +114,20 @@ def _initialize_single_grid(
     input_mask: MaskArray,
     config: GridInitializationConfig,
     key: PRNGKey,
-    mode_idx: int,
+    branch_idx: int,
+    active: tuple[int, ...] = (0, 1, 2, 3),
 ) -> tuple[GridArray, MaskArray]:
-    """Initialize a single grid based on mode index."""
-    return jax.lax.switch(
-        mode_idx,
-        [
-            lambda: (input_grid, input_mask),
-            lambda: (_apply_permutation(input_grid, config, key), input_mask),
-            lambda: (jnp.zeros_like(input_grid), input_mask),
-            lambda: _init_random_grid(input_mask, config, key),
-        ],
-    )
+    """Initialize a single grid with the active mode at position ``branch_idx``."""
+    modes = [
+        lambda: (input_grid, input_mask),
+        lambda: (_apply_permutation(input_grid, config, key), input_mask),
+        lambda: (jnp.zeros_like(input_grid), input_mask),
+        lambda: _init_random_grid(input_mask, config, key),
+    ]
+    branches = [modes[i] for i in active]
+    if len(branches) == 1:
+        return branches[0]()
+    return jax.lax.switch(branch_idx, branches)
 
 
 def _init_random_grid(
